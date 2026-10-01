@@ -28,6 +28,7 @@ export interface AlumniRecord {
   syncTime: string;
   bio?: string;
   photoUrl?: string;
+  coverPhotoUrl?: string;
   shareContact: boolean;
   shareFullAddress?: boolean;
   shareLocationTag?: boolean;

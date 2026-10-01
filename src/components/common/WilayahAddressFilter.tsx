@@ -97,6 +97,7 @@ export const WilayahAddressFilter: React.FC<WilayahAddressFilterProps> = ({
       return;
     }
 
+    const hasCoordinates = Boolean(coordinates?.lat && coordinates?.lng);
     const targetLat = coordinates?.lat || -7.9826;
     const targetLng = coordinates?.lng || 112.6308;
 
@@ -121,30 +122,53 @@ export const WilayahAddressFilter: React.FC<WilayahAddressFilterProps> = ({
           maxZoom: 19,
         }).addTo(miniMap);
 
-        const pinIcon = L.divIcon({
-          className: 'mini-preview-pin !border-0 !bg-transparent',
-          html: `
-            <div style="width: 32px; height: 40px; position: relative;">
-              <!-- Shadow -->
-              <div style="position: absolute; bottom: 0; left: 50%; transform: translateX(-50%); width: 14px; height: 5px; background: rgba(0,0,0,0.35); border-radius: 50%; filter: blur(1.5px);"></div>
-              <!-- Pin Teardrop -->
-              <div style="position: absolute; top: 0; left: 0; width: 32px; height: 32px; background: linear-gradient(135deg, #ef4444 0%, #b91c1c 100%); border-radius: 50% 50% 50% 0; transform: rotate(-45deg); display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 10px rgba(185, 28, 28, 0.45); border: 2.5px solid #ffffff;">
-                <div style="width: 10px; height: 10px; background: #ffffff; border-radius: 50%;"></div>
+        if (hasCoordinates) {
+          const pinIcon = L.divIcon({
+            className: 'mini-preview-pin !border-0 !bg-transparent',
+            html: `
+              <div style="width: 32px; height: 40px; position: relative;">
+                <!-- Shadow -->
+                <div style="position: absolute; bottom: 0; left: 50%; transform: translateX(-50%); width: 14px; height: 5px; background: rgba(0,0,0,0.35); border-radius: 50%; filter: blur(1.5px);"></div>
+                <!-- Pin Teardrop -->
+                <div style="position: absolute; top: 0; left: 0; width: 32px; height: 32px; background: linear-gradient(135deg, #ef4444 0%, #b91c1c 100%); border-radius: 50% 50% 50% 0; transform: rotate(-45deg); display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 10px rgba(185, 28, 28, 0.45); border: 2.5px solid #ffffff;">
+                  <div style="width: 10px; height: 10px; background: #ffffff; border-radius: 50%;"></div>
+                </div>
               </div>
-            </div>
-          `,
-          iconSize: [32, 40],
-          iconAnchor: [16, 40],
-        });
+            `,
+            iconSize: [32, 40],
+            iconAnchor: [16, 40],
+          });
 
-        const marker = L.marker([targetLat, targetLng], { icon: pinIcon }).addTo(miniMap);
+          const marker = L.marker([targetLat, targetLng], { icon: pinIcon }).addTo(miniMap);
+          miniMarkerRef.current = marker;
+        }
 
         miniMapInstanceRef.current = miniMap;
-        miniMarkerRef.current = marker;
       } else {
         miniMapInstanceRef.current.setView([targetLat, targetLng], 15, { animate: false });
-        if (miniMarkerRef.current) {
-          miniMarkerRef.current.setLatLng([targetLat, targetLng]);
+        if (hasCoordinates) {
+          if (miniMarkerRef.current) {
+            miniMarkerRef.current.setLatLng([targetLat, targetLng]);
+          } else {
+            const pinIcon = L.divIcon({
+              className: 'mini-preview-pin !border-0 !bg-transparent',
+              html: `
+                <div style="width: 32px; height: 40px; position: relative;">
+                  <div style="position: absolute; bottom: 0; left: 50%; transform: translateX(-50%); width: 14px; height: 5px; background: rgba(0,0,0,0.35); border-radius: 50%; filter: blur(1.5px);"></div>
+                  <div style="position: absolute; top: 0; left: 0; width: 32px; height: 32px; background: linear-gradient(135deg, #ef4444 0%, #b91c1c 100%); border-radius: 50% 50% 50% 0; transform: rotate(-45deg); display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 10px rgba(185, 28, 28, 0.45); border: 2.5px solid #ffffff;">
+                    <div style="width: 10px; height: 10px; background: #ffffff; border-radius: 50%;"></div>
+                  </div>
+                </div>
+              `,
+              iconSize: [32, 40],
+              iconAnchor: [16, 40],
+            });
+            const marker = L.marker([targetLat, targetLng], { icon: pinIcon }).addTo(miniMapInstanceRef.current);
+            miniMarkerRef.current = marker;
+          }
+        } else if (miniMarkerRef.current) {
+          miniMapInstanceRef.current.removeLayer(miniMarkerRef.current);
+          miniMarkerRef.current = null;
         }
       }
 
@@ -497,8 +521,20 @@ export const WilayahAddressFilter: React.FC<WilayahAddressFilterProps> = ({
   });
 
   // Handle location selected from fullscreen interactive map
-  const handleLocationPicked = (coords: LocationCoordinates, hint?: DetectedAddressHint) => {
+  const handleLocationPicked = (coords: LocationCoordinates | null, hint?: DetectedAddressHint) => {
     setCachedCenter(coords);
+    if (!coords) {
+      onChange({
+        province,
+        city,
+        kecamatan,
+        desa,
+        alamatLengkap,
+        coordinates: undefined,
+      });
+      return;
+    }
+
     // If the detected hint provides details and current fields are empty, fill or update them smoothly
     const updatedProv = province || hint?.state || '';
     const updatedCity = city || hint?.city || '';
@@ -515,6 +551,8 @@ export const WilayahAddressFilter: React.FC<WilayahAddressFilterProps> = ({
       coordinates: coords,
     });
   };
+
+  const hasCoords = Boolean(coordinates && coordinates.lat && coordinates.lng);
 
   return (
     <div ref={containerRef} className="space-y-3.5 text-xs relative z-40">
@@ -930,31 +968,64 @@ export const WilayahAddressFilter: React.FC<WilayahAddressFilterProps> = ({
       {showLocationTag && !isMapModalOpen && (
         <div
           onClick={() => {
+            if (coordinates?.lat && coordinates?.lng) {
+              setCachedCenter(coordinates);
+            } else {
+              setCachedCenter(null);
+            }
             if (miniMapInstanceRef.current) {
-              setCachedCenter(miniMapInstanceRef.current.getCenter());
               setCachedZoom(miniMapInstanceRef.current.getZoom());
             }
             setIsMapModalOpen(true);
           }}
           className="group relative w-full h-36 sm:h-40 rounded-2xl overflow-hidden border border-slate-300 shadow-xs hover:shadow-md hover:border-sky-500 transition-all cursor-pointer bg-slate-100 z-0"
-          title="Klik untuk membuka peta layar penuh dan memindah titik"
+          title={hasCoords ? "Klik untuk membuka peta layar penuh dan memindah titik" : "Titik lokasi rumah belum diatur"}
         >
-          {/* Layer Peta Preview Leaflet */}
+          {/* Layer Peta Preview Leaflet (Blur jika belum diatur) */}
           <div
             ref={previewMapRef}
-            className="w-full h-full pointer-events-none"
+            className={`w-full h-full pointer-events-none transition-all ${
+              !hasCoords ? 'filter blur-[3px] opacity-60' : ''
+            }`}
           />
 
-          {/* Tag Lokasi */}
-          <div className="absolute top-2.5 left-2.5 z-20 flex items-center gap-1.5 px-3 py-1.5 bg-white/95 backdrop-blur-md rounded-full shadow-md border border-slate-200/90 text-xs font-bold text-slate-800 pointer-events-none">
-            <MapPin className="w-4 h-4 text-rose-600 fill-rose-600 shrink-0 animate-pulse" />
-            <span>Tag Lokasi</span>
-            {coordinates && (
+          {/* Overlay jika belum ada titik lokasi rumah yang diatur */}
+          {!hasCoords && (
+            <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-slate-900/35 backdrop-blur-2xs p-3 text-center">
+              <div className="w-10 h-10 rounded-full bg-white/95 shadow-md flex items-center justify-center text-slate-700 mb-2">
+                <MapPin className="w-5 h-5 text-rose-500" />
+              </div>
+              <p className="text-white font-bold text-xs sm:text-sm drop-shadow-sm mb-2.5">
+                Titik lokasi rumah belum diatur
+              </p>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setCachedCenter(null);
+                  if (miniMapInstanceRef.current) {
+                    setCachedZoom(miniMapInstanceRef.current.getZoom());
+                  }
+                  setIsMapModalOpen(true);
+                }}
+                className="px-4 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs flex items-center gap-1.5 shadow-lg shadow-sky-950/40 active:scale-95 cursor-pointer transition-all"
+              >
+                <MapPin className="w-3.5 h-3.5 fill-white" />
+                <span>Atur Pin Lokasi Rumah</span>
+              </button>
+            </div>
+          )}
+
+          {/* Tag Lokasi (Hanya muncul jika koordinat sudah diatur) */}
+          {hasCoords && (
+            <div className="absolute top-2.5 left-2.5 z-20 flex items-center gap-1.5 px-3 py-1.5 bg-white/95 backdrop-blur-md rounded-full shadow-md border border-slate-200/90 text-xs font-bold text-slate-800 pointer-events-none">
+              <MapPin className="w-4 h-4 text-rose-600 fill-rose-600 shrink-0 animate-pulse" />
+              <span>Tag Lokasi</span>
               <span className="text-[10px] font-mono text-slate-500 font-normal ml-0.5">
-                ({coordinates.lat.toFixed(4)}, {coordinates.lng.toFixed(4)})
+                ({coordinates!.lat.toFixed(4)}, {coordinates!.lng.toFixed(4)})
               </span>
-            )}
-          </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -962,11 +1033,15 @@ export const WilayahAddressFilter: React.FC<WilayahAddressFilterProps> = ({
       {isMapModalOpen && (
         <FullscreenLocationMapModal
           isOpen={isMapModalOpen}
-          initialCoordinates={cachedCenter || coordinates || { lat: -7.9826, lng: 112.6308 }}
+          initialCoordinates={coordinates?.lat && coordinates?.lng ? coordinates : null}
           initialZoom={cachedZoom || 15}
           currentAddressLabel={[alamatLengkap, desa, kecamatan, city, province].filter(Boolean).join(', ')}
           onClose={() => setIsMapModalOpen(false)}
           onSelectLocation={handleLocationPicked}
+          onDeleteLocation={() => {
+            setCachedCenter(null);
+            handleLocationPicked(null, undefined);
+          }}
         />
       )}
     </div>

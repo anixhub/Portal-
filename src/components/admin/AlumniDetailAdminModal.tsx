@@ -214,8 +214,8 @@ export const AlumniDetailAdminModal: React.FC<AlumniDetailAdminModalProps> = ({
     setIsEditing(false);
   };
 
-  const handleLocationPicked = (coords: LocationCoordinates, hint?: DetectedAddressHint) => {
-    const updatedCoordinates = coords;
+  const handleLocationPicked = (coords: LocationCoordinates | null, hint?: DetectedAddressHint) => {
+    const updatedCoordinates = coords || undefined;
     const updatedAlamat = !alumni.alamatLengkap && hint?.displayName ? hint.displayName : alumni.alamatLengkap;
     if (onSave) {
       onSave(alumni.id, {
@@ -240,7 +240,7 @@ export const AlumniDetailAdminModal: React.FC<AlumniDetailAdminModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-50 flex flex-col w-full h-full overflow-hidden animate-in fade-in">
+    <div className="fixed inset-0 z-[100005] bg-slate-50 flex flex-col w-full h-full overflow-hidden animate-in fade-in">
       <div 
         className="w-full h-full flex flex-col overflow-hidden relative"
         onClick={(e) => e.stopPropagation()}

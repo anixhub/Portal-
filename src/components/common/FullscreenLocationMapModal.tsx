@@ -8,7 +8,8 @@ import {
   Navigation,
   Loader2,
   ExternalLink,
-  Copy
+  Copy,
+  Trash2
 } from 'lucide-react';
 import L from 'leaflet';
 
@@ -32,7 +33,8 @@ interface FullscreenLocationMapModalProps {
   initialZoom?: number;
   currentAddressLabel?: string;
   onClose: () => void;
-  onSelectLocation: (coords: LocationCoordinates, addressHint?: DetectedAddressHint) => void;
+  onSelectLocation: (coords: LocationCoordinates | null, addressHint?: DetectedAddressHint) => void;
+  onDeleteLocation?: () => void;
 }
 
 // Default center: Malang, Jawa Timur (Lokasi Pondok Pesantren At-Taroqqy)
@@ -48,6 +50,7 @@ export const FullscreenLocationMapModal: React.FC<FullscreenLocationMapModalProp
   currentAddressLabel,
   onClose,
   onSelectLocation,
+  onDeleteLocation,
 }) => {
   const [selectedCoords, setSelectedCoords] = useState<LocationCoordinates>(
     initialCoordinates?.lat && initialCoordinates?.lng
@@ -59,18 +62,44 @@ export const FullscreenLocationMapModal: React.FC<FullscreenLocationMapModalProp
       ? initialCoordinates
       : DEFAULT_CENTER
   );
-  const [isMovingLocation, setIsMovingLocation] = useState(false);
+  const [isMovingLocation, setIsMovingLocation] = useState(
+    !Boolean(initialCoordinates?.lat && initialCoordinates?.lng)
+  );
   const [hasChanged, setHasChanged] = useState(false);
   const [showSavedFeedback, setShowSavedFeedback] = useState(false);
   const [isLocating, setIsLocating] = useState(false);
   const [showBottomDetailCard, setShowBottomDetailCard] = useState(false);
   const [copiedCoords, setCopiedCoords] = useState(false);
   const [detectedHint, setDetectedHint] = useState<DetectedAddressHint | undefined>();
+  const [hasPinnedLocation, setHasPinnedLocation] = useState<boolean>(
+    Boolean(initialCoordinates?.lat && initialCoordinates?.lng)
+  );
   const [gpsNotification, setGpsNotification] = useState<{
     type: 'loading' | 'success' | 'warning' | 'error';
     message: string;
   } | null>(null);
   const [showPermissionModal, setShowPermissionModal] = useState(false);
+
+  const handleDeleteLocation = () => {
+    setHasPinnedLocation(false);
+    setShowBottomDetailCard(false);
+    setIsMovingLocation(false);
+    setHasChanged(false);
+    if (markerInstanceRef.current && mapInstanceRef.current) {
+      mapInstanceRef.current.removeLayer(markerInstanceRef.current);
+      markerInstanceRef.current = null;
+    }
+    onSelectLocation(null, undefined);
+    if (onDeleteLocation) onDeleteLocation();
+    setGpsNotification({
+      type: 'success',
+      message: 'Titik tag lokasi rumah berhasil dihapus',
+    });
+    setTimeout(() => {
+      setGpsNotification(null);
+      onClose();
+    }, 700);
+  };
 
   const isMovingRef = useRef(isMovingLocation);
   isMovingRef.current = isMovingLocation;
@@ -82,12 +111,12 @@ export const FullscreenLocationMapModal: React.FC<FullscreenLocationMapModalProp
   // Synchronize when opened with initial coords
   useEffect(() => {
     if (isOpen) {
-      const target = initialCoordinates?.lat && initialCoordinates?.lng
-        ? initialCoordinates
-        : DEFAULT_CENTER;
+      const isSet = Boolean(initialCoordinates?.lat && initialCoordinates?.lng);
+      const target = isSet ? (initialCoordinates as LocationCoordinates) : DEFAULT_CENTER;
       setSelectedCoords(target);
       setInitialCoordsState(target);
-      setIsMovingLocation(false);
+      setHasPinnedLocation(isSet);
+      setIsMovingLocation(!isSet);
       setHasChanged(false);
       setShowSavedFeedback(false);
       setShowBottomDetailCard(false);
@@ -120,6 +149,18 @@ export const FullscreenLocationMapModal: React.FC<FullscreenLocationMapModalProp
     });
   };
 
+  const attachMarkerEvents = (marker: L.Marker) => {
+    marker.on('click', (e) => {
+      L.DomEvent.stopPropagation(e);
+      setShowBottomDetailCard((prev) => !prev);
+    });
+    marker.on('dragend', () => {
+      const pos = marker.getLatLng();
+      setSelectedCoords({ lat: pos.lat, lng: pos.lng });
+      setHasChanged(true);
+    });
+  };
+
   // Initialize and manage the Leaflet map instance
   useEffect(() => {
     if (!isOpen || !mapContainerRef.current) return;
@@ -140,9 +181,9 @@ export const FullscreenLocationMapModal: React.FC<FullscreenLocationMapModalProp
         center: [initialLat, initialLng],
         zoom: currentZoom,
         zoomControl: false,
-        zoomSnap: 0, // Disable harsh integer snapping to prevent overshoot and bounce-back on touch pinch
+        zoomSnap: 0,
         zoomDelta: 0.5,
-        bounceAtZoomLimits: false, // Prevent rubberband bouncing at zoom boundaries
+        bounceAtZoomLimits: false,
         wheelPxPerZoomLevel: 90,
         touchZoom: true,
       });
@@ -153,39 +194,41 @@ export const FullscreenLocationMapModal: React.FC<FullscreenLocationMapModalProp
         attribution: '&copy; OpenStreetMap contributors',
       }).addTo(map);
 
-      // Marker
-      const pinIcon = createCustomPinIcon(false);
-      const marker = L.marker([initialLat, initialLng], {
-        draggable: false, // Initially disabled until "Pindah Lokasi" is clicked
-        icon: pinIcon,
-      }).addTo(map);
+      // Marker - add only if pinned location exists
+      if (hasPinnedLocation) {
+        const pinIcon = createCustomPinIcon(isMovingRef.current);
+        const marker = L.marker([initialLat, initialLng], {
+          draggable: isMovingRef.current,
+          icon: pinIcon,
+        }).addTo(map);
+        attachMarkerEvents(marker);
+        markerInstanceRef.current = marker;
+      }
 
-      // Marker click: if not moving, open bottom card with coordinates and Google Maps route
-      marker.on('click', () => {
-        if (!isMovingRef.current) {
-          setShowBottomDetailCard(true);
+      // Move or create marker on map click (always available so user can tap to place or move pin)
+      map.on('click', (e: L.LeafletMouseEvent) => {
+        const { lat, lng } = e.latlng;
+        setSelectedCoords({ lat, lng });
+        setHasPinnedLocation(true);
+        setHasChanged(true);
+        setIsMovingLocation(true);
+
+        if (!markerInstanceRef.current) {
+          const pinIcon = createCustomPinIcon(true);
+          const newMarker = L.marker([lat, lng], {
+            draggable: true,
+            icon: pinIcon,
+          }).addTo(map);
+          attachMarkerEvents(newMarker);
+          markerInstanceRef.current = newMarker;
+        } else {
+          markerInstanceRef.current.setLatLng([lat, lng]);
+          markerInstanceRef.current.dragging?.enable();
+          markerInstanceRef.current.setIcon(createCustomPinIcon(true));
         }
       });
 
-      // Update state on marker dragend (only when moving mode is enabled)
-      marker.on('dragend', () => {
-        if (!isMovingRef.current) return;
-        const pos = marker.getLatLng();
-        setSelectedCoords({ lat: pos.lat, lng: pos.lng });
-        setHasChanged(true);
-      });
-
-      // Move marker on map click (only when moving mode is enabled)
-      map.on('click', (e: L.LeafletMouseEvent) => {
-        if (!isMovingRef.current) return;
-        const { lat, lng } = e.latlng;
-        marker.setLatLng([lat, lng]);
-        setSelectedCoords({ lat, lng });
-        setHasChanged(true);
-      });
-
       mapInstanceRef.current = map;
-      markerInstanceRef.current = marker;
 
       // Invalidate size immediately so the map renders with exact same center and zoom
       map.invalidateSize();
@@ -307,11 +350,20 @@ export const FullscreenLocationMapModal: React.FC<FullscreenLocationMapModalProp
       const acc = Math.round(pos.coords.accuracy);
 
       setSelectedCoords({ lat, lng });
+      setHasPinnedLocation(true);
       setHasChanged(true);
 
-      // Smoothly move pin marker to exact coordinates
+      // Smoothly move or create pin marker at exact coordinates
       if (markerInstanceRef.current) {
         markerInstanceRef.current.setLatLng([lat, lng]);
+      } else if (mapInstanceRef.current) {
+        const pinIcon = createCustomPinIcon(true);
+        const newMarker = L.marker([lat, lng], {
+          draggable: true,
+          icon: pinIcon,
+        }).addTo(mapInstanceRef.current);
+        attachMarkerEvents(newMarker);
+        markerInstanceRef.current = newMarker;
       }
 
       // Smoothly fly map to target location with street/house level zoom
@@ -411,6 +463,10 @@ export const FullscreenLocationMapModal: React.FC<FullscreenLocationMapModalProp
     setInitialCoordsState(selectedCoords);
     setIsMovingLocation(false);
     setHasChanged(false);
+    if (markerInstanceRef.current) {
+      markerInstanceRef.current.dragging?.disable();
+      markerInstanceRef.current.setIcon(createCustomPinIcon(false));
+    }
     setShowSavedFeedback(true);
     setTimeout(() => {
       setShowSavedFeedback(false);
@@ -439,16 +495,36 @@ export const FullscreenLocationMapModal: React.FC<FullscreenLocationMapModalProp
 
         {/* Right: Action Buttons (Pindah Lokasi / Batal / Simpan) */}
         <div className="flex items-center gap-2 pointer-events-auto">
-          {/* Tombol Pindah Lokasi (Aktifkan Mode Geser / Pindah Tag) */}
+          {/* Tombol Pindah Lokasi / Pin Lokasi Rumah */}
           {!isMovingLocation ? (
             <button
               type="button"
-              onClick={() => setIsMovingLocation(true)}
+              onClick={() => {
+                if (!hasPinnedLocation && mapInstanceRef.current) {
+                  const center = mapInstanceRef.current.getCenter();
+                  setSelectedCoords({ lat: center.lat, lng: center.lng });
+                  setHasPinnedLocation(true);
+                  setHasChanged(true);
+                  if (!markerInstanceRef.current) {
+                    const pinIcon = createCustomPinIcon(true);
+                    const marker = L.marker([center.lat, center.lng], {
+                      draggable: true,
+                      icon: pinIcon,
+                    }).addTo(mapInstanceRef.current);
+                    attachMarkerEvents(marker);
+                    markerInstanceRef.current = marker;
+                  }
+                } else if (markerInstanceRef.current) {
+                  markerInstanceRef.current.dragging?.enable();
+                  markerInstanceRef.current.setIcon(createCustomPinIcon(true));
+                }
+                setIsMovingLocation(true);
+              }}
               className="h-10 px-4 rounded-2xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold shadow-lg shadow-sky-600/30 flex items-center gap-1.5 transition-all cursor-pointer active:scale-95"
-              title="Klik untuk memindah titik lokasi"
+              title={hasPinnedLocation ? 'Klik untuk memindah titik lokasi' : 'Pasang pin lokasi rumah'}
             >
               <MapPin className="w-4 h-4" />
-              <span>Pindah Lokasi</span>
+              <span>{hasPinnedLocation ? 'Pindah Lokasi' : 'Pin Lokasi Rumah'}</span>
             </button>
           ) : (
             <button
@@ -477,11 +553,11 @@ export const FullscreenLocationMapModal: React.FC<FullscreenLocationMapModalProp
         </div>
       </div>
 
-      {/* Floating Guidance Banner when moving location */}
-      {isMovingLocation && (
+      {/* Floating Guidance Banner when moving location or when no pin yet */}
+      {(isMovingLocation || !hasPinnedLocation) && (
         <div className="absolute top-16 left-1/2 -translate-x-1/2 z-30 px-3.5 py-1.5 rounded-full bg-slate-900/90 backdrop-blur-md border border-sky-500/40 text-sky-200 text-xs font-medium shadow-xl pointer-events-none flex items-center gap-1.5 animate-in fade-in duration-150">
           <MapPin className="w-3.5 h-3.5 text-rose-500" />
-          <span>Ketuk peta, geser pin, atau klik tombol di bawah</span>
+          <span>{!hasPinnedLocation ? 'Ketuk pada peta untuk memasang pin lokasi rumah' : 'Ketuk peta atau geser pin untuk menentukan titik'}</span>
         </div>
       )}
 
@@ -533,7 +609,7 @@ export const FullscreenLocationMapModal: React.FC<FullscreenLocationMapModalProp
       )}
 
       {/* ================= BOTTOM CARD: DETAIL KOORDINAT & TOMBOL RUTE GOOGLE MAPS (KETUK PIN) ================= */}
-      {showBottomDetailCard && !isMovingLocation && (
+      {showBottomDetailCard && (
         <div className="absolute bottom-6 left-4 right-4 sm:left-auto sm:right-6 sm:w-96 z-40 bg-slate-900/95 backdrop-blur-xl border border-white/15 text-white p-4 rounded-3xl shadow-2xl animate-in slide-in-from-bottom-4 fade-in duration-200 pointer-events-auto">
           {/* Card Header */}
           <div className="flex items-start justify-between gap-3 mb-2">
@@ -582,30 +658,27 @@ export const FullscreenLocationMapModal: React.FC<FullscreenLocationMapModalProp
             </button>
           </div>
 
-          {/* Action Row: Tombol RUTE (Google Maps Style) & Buka Peta */}
+          {/* Action Row: Tombol Google Maps & Hapus */}
           <div className="flex items-center gap-2">
-            {/* Tombol RUTE Google Maps */}
+            {/* Tombol Google Maps */}
             <button
               type="button"
               onClick={handleOpenGoogleMapsRoute}
               className="flex-1 py-2.5 px-4 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-lg shadow-blue-600/30 transition-all active:scale-95 cursor-pointer"
             >
-              {/* Google Maps Official Directions Icon */}
-              <svg viewBox="0 0 24 24" className="w-4 h-4 fill-white shrink-0">
-                <path d="M21.71 11.29l-9-9a1 1 0 0 0-1.42 0l-9 9a1 1 0 0 0 0 1.42l9 9a1 1 0 0 0 1.42 0l9-9a1 1 0 0 0 0-1.42zm-9.71 7.3L4.41 11 12 3.41 19.59 11 12 18.59zM13.5 13H11V9h2a1 1 0 0 0 1-1V6.5l3.5 3.5L14 13.5V12a1 1 0 0 0-1-1z" />
-              </svg>
-              <span>Rute</span>
+              <Navigation className="w-4 h-4 fill-white shrink-0" />
+              <span>Google Maps</span>
             </button>
 
-            {/* Tombol Buka di Google Maps */}
+            {/* Tombol Hapus */}
             <button
               type="button"
-              onClick={handleOpenGoogleMaps}
-              className="py-2.5 px-3.5 rounded-xl bg-white/10 hover:bg-white/20 text-white font-medium text-xs flex items-center justify-center gap-1.5 border border-white/10 transition-all active:scale-95 cursor-pointer"
-              title="Buka Peta di Google Maps"
+              onClick={handleDeleteLocation}
+              className="py-2.5 px-4 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 hover:text-white font-bold text-xs flex items-center justify-center gap-1.5 border border-rose-500/40 transition-all active:scale-95 cursor-pointer"
+              title="Hapus Titik Tag Lokasi"
             >
-              <ExternalLink className="w-3.5 h-3.5" />
-              <span className="hidden xs:inline">Buka Peta</span>
+              <Trash2 className="w-4 h-4 text-rose-400" />
+              <span>Hapus</span>
             </button>
           </div>
         </div>

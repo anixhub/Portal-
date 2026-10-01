@@ -61,7 +61,9 @@ import {
   CheckCheck,
   Wallet,
   Navigation,
-  Map
+  Map,
+  AlertCircle,
+  Upload
 } from 'lucide-react';
 import { AlumniRecord, EventAgenda, AnnouncementItem, EventComment, EventCommentReply, NotificationItem } from '../types';
 import { INITIAL_ANNOUNCEMENTS, INITIAL_EVENT_COMMENTS } from '../data/mockData';
@@ -69,6 +71,7 @@ import { WilayahAddressFilter } from './common/WilayahAddressFilter';
 import { DateWheelPicker } from './common/DateWheelPicker';
 import { LocationCoordinates } from './common/FullscreenLocationMapModal';
 import { AlumniDetailAdminModal } from './admin/AlumniDetailAdminModal';
+import { AlumniProfileCardModal } from './common/AlumniProfileCardModal';
 import { EventCommentsModal } from './common/EventCommentsModal';
 import { AlumniDistributionMapModal } from './common/AlumniDistributionMapModal';
 import posterReuniImg from '../assets/images/poster_reuni_akbar_1790648045947.jpg';
@@ -403,9 +406,49 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
   const [editInstitution, setEditInstitution] = useState(alumni.institution);
   const [editBio, setEditBio] = useState(alumni.bio || '');
   const [editPhotoUrl, setEditPhotoUrl] = useState<string | undefined>(alumni.photoUrl);
+  const [editCoverPhotoUrl, setEditCoverPhotoUrl] = useState<string | undefined>(alumni.coverPhotoUrl);
+  const [isCoverBottomSheetOpen, setIsCoverBottomSheetOpen] = useState(false);
+  const [showFullscreenCover, setShowFullscreenCover] = useState(false);
+  const coverFileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleCoverPhotoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      triggerToast('Mohon pilih file gambar (JPG, PNG, atau WEBP)');
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      triggerToast('Ukuran gambar maksimal 5MB');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result as string;
+      setEditCoverPhotoUrl(result);
+      onUpdateProfile({ coverPhotoUrl: result });
+      triggerToast('Foto sampul berhasil diperbarui');
+    };
+    reader.readAsDataURL(file);
+  };
   const [editShareContact, setEditShareContact] = useState(alumni.shareContact);
   const [editShareFullAddress, setEditShareFullAddress] = useState(alumni.shareFullAddress !== false);
   const [editShareLocationTag, setEditShareLocationTag] = useState(alumni.shareLocationTag !== false);
+  const [showLocationNotSetPopup, setShowLocationNotSetPopup] = useState(false);
+  const locationNotSetTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  const isLocationTagSet = Boolean(editCoordinates?.lat && editCoordinates?.lng);
+
+  const handleTriggerDisabledLocationTag = () => {
+    setShowLocationNotSetPopup(true);
+    if (locationNotSetTimerRef.current) clearTimeout(locationNotSetTimerRef.current);
+    locationNotSetTimerRef.current = setTimeout(() => {
+      setShowLocationNotSetPopup(false);
+    }, 2500);
+  };
 
   // Username Check State
   const [newUsernameInput, setNewUsernameInput] = useState('');
@@ -1345,10 +1388,10 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
                 </button>
               </div>
 
-              {/* Kotak Poster Event dengan Judul dan Tag Lokasi & Waktu di bawah judul */}
+              {/* Kotak Poster Event dengan Judul dan Tag Lokasi & Waktu di bawah judul (Menutup sedikit countdown agar menyatu) */}
               <div
                 onClick={() => setActiveTab('events')}
-                className="relative rounded-[30px] overflow-hidden shadow-md aspect-[16/10] sm:aspect-[16/9] cursor-pointer group select-none"
+                className="relative z-10 rounded-[28px] overflow-hidden shadow-md aspect-[16/10] sm:aspect-[16/9] cursor-pointer group select-none border border-slate-200/60"
               >
                 <img
                   src={events[0]?.posterUrl || posterReuniImg}
@@ -1379,20 +1422,8 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
                 </div>
               </div>
 
-              {/* Countdown Elegan di Bawah Kotak Poster */}
-              <div className="bg-white rounded-2xl border border-slate-200/90 p-3.5 shadow-2xs">
-                <div className="flex items-center justify-between mb-2.5">
-                  <div className="flex items-center gap-2">
-                    <div className="w-6 h-6 rounded-lg bg-sky-100 text-sky-700 flex items-center justify-center">
-                      <Clock className="w-3.5 h-3.5" />
-                    </div>
-                    <span className="text-xs font-bold text-slate-800 tracking-tight">Hitung Mundur Acara</span>
-                  </div>
-                  <span className="text-[10px] font-bold text-sky-700 bg-sky-50 border border-sky-200/70 px-2.5 py-0.5 rounded-full">
-                    {events[0]?.category === 'reuni' ? 'Reuni Akbar' : 'Agenda Terdekat'}
-                  </span>
-                </div>
-
+              {/* Countdown Elegan di Bawah Kotak Poster (Menyatu tanpa teks Hitung Mundur Acara & Reuni Akbar) */}
+              <div className="bg-white rounded-b-3xl border-x border-b border-slate-200/90 p-3.5 -mt-3.5 pt-5 shadow-xs relative z-0">
                 <div className="grid grid-cols-4 gap-2">
                   <div className="bg-gradient-to-b from-slate-50 to-slate-100/90 border border-slate-200/80 rounded-xl py-2 px-1 text-center shadow-2xs">
                     <span className="block text-xl font-bold font-mono text-sky-900 tracking-tight leading-none">
@@ -1806,59 +1837,97 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
         {/* ================= TAB 4: PROFILKU (LAYOUT PERSIS SCREENSHOT & BAHASA INDONESIA) ================= */}
         {activeTab === 'profile' && (
           <div className="bg-[#f0f2fb] min-h-full flex flex-col animate-in fade-in duration-150">
-            {/* HEADER ATAS: "Profilku" & FOTO PROFIL LINGKARAN DENGAN BADGE PENSIL */}
-            <div className="pt-6 pb-4 px-6 text-center flex flex-col items-center">
-              <h2 className="font-display font-bold text-lg text-slate-900 tracking-tight">
-                Profilku
-              </h2>
-
-              <div className="relative inline-block mt-4 mb-2">
-                {/* Lingkaran Avatar */}
-                <button
-                  type="button"
-                  onClick={() => setShowFullscreenPhoto(true)}
-                  className="w-22 h-22 sm:w-24 sm:h-24 rounded-full ring-4 ring-white shadow-md overflow-hidden bg-slate-200 flex items-center justify-center cursor-pointer group transition-transform active:scale-95"
-                  title="Lihat foto profil penuh"
-                >
-                  {editPhotoUrl ? (
-                    <img
-                      src={editPhotoUrl}
-                      alt={editName || alumni.name}
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <div className="w-full h-full bg-gradient-to-tr from-sky-600 to-indigo-600 text-white font-bold text-3xl flex items-center justify-center">
-                      {(editName || alumni.name).charAt(0)}
-                    </div>
-                  )}
-                </button>
-
-                {/* Badge Pensil Edit di Sudut Kanan Bawah */}
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    fileInputRef.current?.click();
-                  }}
-                  className="absolute bottom-0 right-0 w-8 h-8 rounded-full bg-white shadow-md border border-slate-200/80 text-slate-700 hover:text-sky-600 flex items-center justify-center cursor-pointer active:scale-90 transition-all ring-2 ring-white"
-                  title="Ganti Foto Profil"
-                >
-                  <Pencil className="w-4 h-4" />
-                </button>
-
-                {/* Input file gambar tersembunyi */}
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/png, image/jpeg, image/jpg, image/webp"
-                  onChange={handlePhotoSelect}
-                  className="hidden"
+            {/* FOTO SAMPUL / COVER PHOTO - UKURAN PENUH SAMPAI KOTAK PENGATURAN INFORMASI PRIBADI */}
+            <div 
+              onClick={() => setIsCoverBottomSheetOpen(true)}
+              className="relative w-full h-52 sm:h-60 overflow-hidden cursor-pointer group select-none shrink-0 bg-slate-800"
+              title="Klik foto sampul untuk opsi foto"
+            >
+              {editCoverPhotoUrl ? (
+                <img
+                  src={editCoverPhotoUrl}
+                  alt="Foto Sampul"
+                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                 />
+              ) : (
+                <div className="w-full h-full bg-gradient-to-r from-sky-800 via-indigo-900 to-slate-900 flex flex-col items-center justify-center text-white/80 group-hover:text-white transition-colors">
+                  <div className="w-10 h-10 rounded-full bg-white/10 backdrop-blur-sm border border-white/20 flex items-center justify-center mb-1.5 group-hover:scale-110 transition-transform">
+                    <Camera className="w-5 h-5 text-white" />
+                  </div>
+                  <span className="text-xs font-semibold text-white/90">Upload Foto Sampul</span>
+                </div>
+              )}
+              <div className="absolute inset-0 bg-gradient-to-b from-black/25 via-transparent to-black/35" />
+
+              {/* Badge Ikon Kamera Foto Sampul */}
+              <div className="absolute bottom-14 right-3 bg-black/55 hover:bg-black/75 backdrop-blur-md border border-white/20 text-white text-xs font-semibold px-3 py-1.5 rounded-full flex items-center gap-1.5 shadow-md transition-all pointer-events-none z-10">
+                <Camera className="w-3.5 h-3.5 text-white" />
+                <span>{editCoverPhotoUrl ? 'Foto Sampul' : 'Upload Sampul'}</span>
               </div>
             </div>
 
-            {/* WADAH KARTU PUTIH MELENGKUNG PERSIS SCREENSHOT */}
-            <div className="bg-white rounded-t-[36px] shadow-sm px-6 pt-5 pb-24 space-y-6 flex-1 border-t border-slate-200/40">
+            {/* Input File Tersembunyi untuk Foto Sampul */}
+            <input
+              ref={coverFileInputRef}
+              type="file"
+              accept="image/png, image/jpeg, image/jpg, image/webp"
+              onChange={handleCoverPhotoSelect}
+              className="hidden"
+            />
+
+            {/* WADAH KARTU PUTIH MELENGKUNG PENGATURAN INFORMASI PRIBADI (LANGSUNG MENEMPEL KE FOTO SAMPUL) */}
+            <div className="bg-white rounded-t-[36px] shadow-sm px-6 pt-0 pb-24 space-y-6 flex-1 border-t border-slate-200/40 relative z-20 -mt-10 sm:-mt-12">
+              {/* Lingkaran Avatar tepat di perbatasan foto sampul & kotak pengaturan */}
+              <div className="text-center flex flex-col items-center relative -top-11 -mb-7">
+                <div className="relative inline-block mb-1.5">
+                  {/* Lingkaran Avatar */}
+                  <button
+                    type="button"
+                    onClick={() => setShowFullscreenPhoto(true)}
+                    className="w-22 h-22 sm:w-24 sm:h-24 rounded-full ring-4 ring-white shadow-lg overflow-hidden bg-slate-200 flex items-center justify-center cursor-pointer group transition-transform active:scale-95"
+                    title="Lihat foto profil penuh"
+                  >
+                    {editPhotoUrl ? (
+                      <img
+                        src={editPhotoUrl}
+                        alt={editName || alumni.name}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div className="w-full h-full bg-gradient-to-tr from-sky-600 to-indigo-600 text-white font-bold text-3xl flex items-center justify-center">
+                        {(editName || alumni.name).charAt(0)}
+                      </div>
+                    )}
+                  </button>
+
+                  {/* Badge Pensil Edit di Sudut Kanan Bawah */}
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      fileInputRef.current?.click();
+                    }}
+                    className="absolute bottom-0 right-0 w-8 h-8 rounded-full bg-white shadow-md border border-slate-200/80 text-slate-700 hover:text-sky-600 flex items-center justify-center cursor-pointer active:scale-90 transition-all ring-2 ring-white"
+                    title="Ganti Foto Profil"
+                  >
+                    <Pencil className="w-4 h-4" />
+                  </button>
+
+                  {/* Input file gambar tersembunyi */}
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/png, image/jpeg, image/jpg, image/webp"
+                    onChange={handlePhotoSelect}
+                    className="hidden"
+                  />
+                </div>
+
+                <h2 className="font-display font-bold text-lg text-slate-900 tracking-tight">
+                  Profilku
+                </h2>
+              </div>
+
               {/* SEGMEN 1: INFORMASI PRIBADI */}
               <div>
                 <p className="text-xs font-semibold text-slate-400 text-center tracking-wide mb-3">
@@ -2279,37 +2348,62 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
                     </button>
                   </div>
 
-                  {/* 5. Toggle Izinkan Tampilkan Tag Lokasi */}
-                  <div className="flex items-center justify-between py-3.5 -mx-3 px-3 rounded-2xl">
-                    <div className="flex items-center gap-4 min-w-0 pr-3">
+                  {/* 5. Toggle Izinkan Tampilkan Tag Lokasi (Mati jika lokasi belum diatur & popup kecil muncul di atas) */}
+                  <div className="relative flex items-center justify-between py-3.5 -mx-3 px-3 rounded-2xl">
+                    {/* Popup kecil di atas jika lokasi belum diatur */}
+                    {showLocationNotSetPopup && (
+                      <div className="absolute -top-7 right-3 z-30 bg-slate-900 text-white text-[11px] font-semibold px-3 py-1 rounded-lg shadow-xl flex items-center gap-1.5 animate-in fade-in zoom-in-95 pointer-events-none">
+                        <AlertCircle className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                        <span>Lokasi belum diatur</span>
+                        <div className="absolute -bottom-1 right-6 w-2 h-2 bg-slate-900 rotate-45" />
+                      </div>
+                    )}
+
+                    <div 
+                      className="flex items-center gap-4 min-w-0 pr-3 cursor-pointer"
+                      onClick={!isLocationTagSet ? handleTriggerDisabledLocationTag : undefined}
+                    >
                       <div className="w-6 flex items-center justify-center shrink-0">
-                        <MapPin className="w-5 h-5 text-sky-600" />
+                        <MapPin className={`w-5 h-5 ${isLocationTagSet ? 'text-sky-600' : 'text-slate-400'}`} />
                       </div>
                       <div className="min-w-0">
-                        <p className="text-sm font-semibold text-slate-800 leading-tight">Izinkan Tampilkan Tag Lokasi</p>
+                        <p className={`text-sm font-semibold leading-tight ${isLocationTagSet ? 'text-slate-800' : 'text-slate-500'}`}>
+                          Izinkan Tampilkan Tag Lokasi
+                        </p>
                         <p className="text-[11px] text-slate-400 leading-tight mt-0.5">
                           Tampilkan titik lokasi akun Anda pada peta sebaran alumni
                         </p>
                       </div>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const nextVal = !editShareLocationTag;
-                        setEditShareLocationTag(nextVal);
-                        onUpdateProfile({ shareLocationTag: nextVal });
-                        triggerToast(nextVal ? 'Izin tag lokasi aktif (tampil di peta)' : 'Izin tag lokasi dinonaktifkan (disembunyikan dari peta)');
-                      }}
-                      className={`w-12 h-7 rounded-full p-0.5 transition-colors relative cursor-pointer shrink-0 ${
-                        editShareLocationTag ? 'bg-[#2563eb]' : 'bg-slate-300'
-                      }`}
-                    >
-                      <div
-                        className={`w-6 h-6 rounded-full bg-white shadow-md transform transition-transform ${
-                          editShareLocationTag ? 'translate-x-5' : 'translate-x-0'
+
+                    {isLocationTagSet ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const nextVal = !editShareLocationTag;
+                          setEditShareLocationTag(nextVal);
+                          onUpdateProfile({ shareLocationTag: nextVal });
+                          triggerToast(nextVal ? 'Izin tag lokasi aktif (tampil di peta)' : 'Izin tag lokasi dinonaktifkan (disembunyikan dari peta)');
+                        }}
+                        className={`w-12 h-7 rounded-full p-0.5 transition-colors relative cursor-pointer shrink-0 ${
+                          editShareLocationTag ? 'bg-[#2563eb]' : 'bg-slate-300'
                         }`}
-                      />
-                    </button>
+                      >
+                        <div
+                          className={`w-6 h-6 rounded-full bg-white shadow-md transform transition-transform ${
+                            editShareLocationTag ? 'translate-x-5' : 'translate-x-0'
+                          }`}
+                        />
+                      </button>
+                    ) : (
+                      <div
+                        onClick={handleTriggerDisabledLocationTag}
+                        className="w-12 h-7 rounded-full p-0.5 bg-slate-200/90 relative cursor-pointer shrink-0 opacity-60"
+                        title="Lokasi belum diatur"
+                      >
+                        <div className="w-6 h-6 rounded-full bg-white shadow-xs translate-x-0" />
+                      </div>
+                    )}
                   </div>
 
                   {/* 6. Keluar dari Akun (Logout) */}
@@ -3001,13 +3095,30 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
                         setEditKecamatan(vals.kecamatan);
                         setEditDesa(vals.desa);
                         if (vals.alamatLengkap !== undefined) setEditAlamatLengkap(vals.alamatLengkap);
-                        if (vals.coordinates !== undefined) setEditCoordinates(vals.coordinates);
+                        setEditCoordinates(vals.coordinates || null);
                       }}
                     />
                   </div>
                   <div className="flex gap-2 pt-2 border-t border-slate-100">
                     <button type="button" onClick={() => setActiveEditModal(null)} className="flex-1 py-2.5 rounded-xl border border-slate-200 text-slate-600 font-semibold text-xs cursor-pointer">Batal</button>
-                    <button type="button" onClick={() => { onUpdateProfile({ province: editProvince, city: editCity, kecamatan: editKecamatan, desa: editDesa, alamatLengkap: editAlamatLengkap, coordinates: editCoordinates || undefined }); setActiveEditModal(null); triggerToast('Alamat & titik domisili berhasil disimpan'); }} className="flex-1 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs cursor-pointer">Simpan Alamat</button>
+                    <button 
+                      type="button" 
+                      onClick={() => { 
+                        onUpdateProfile({ 
+                          province: editProvince, 
+                          city: editCity, 
+                          kecamatan: editKecamatan, 
+                          desa: editDesa, 
+                          alamatLengkap: editAlamatLengkap, 
+                          coordinates: editCoordinates || undefined 
+                        }); 
+                        setActiveEditModal(null); 
+                        triggerToast('Alamat & titik domisili berhasil disimpan'); 
+                      }} 
+                      className="flex-1 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs cursor-pointer"
+                    >
+                      Simpan Alamat
+                    </button>
                   </div>
                 </div>
               </div>
@@ -3727,20 +3838,13 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
         </div>
       )}
 
-      {/* MODAL DETAIL ALUMNI (SAMA PERSIS SEPERTI DI AKUN ADMIN) */}
+      {/* MODAL DETAIL ALUMNI (PERSIS REFERENSI DENGAN BOYONG 2024, BIO DENGAN TANDA PETIK, ALAMAT & MAP PREVIEW, WA & EMAIL SAJA) */}
       {selectedAlumniDetail && (
-        <AlumniDetailAdminModal
+        <AlumniProfileCardModal
           isOpen={Boolean(selectedAlumniDetail)}
           alumni={selectedAlumniDetail}
+          currentUser={alumni}
           onClose={() => setSelectedAlumniDetail(null)}
-          onResetPassword={(id) => triggerToast(`Reset password untuk ID ${id} diproses`)}
-          onSave={(id, updated) => {
-            if (id === alumni.id) {
-              onUpdateProfile(updated);
-            }
-            setSelectedAlumniDetail((prev) => (prev ? { ...prev, ...updated } : null));
-            triggerToast('Data alumni berhasil diperbarui');
-          }}
         />
       )}
 
@@ -4038,6 +4142,121 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
         />
       )}
 
+      {/* ================= BOTTOM SHEET FOTO SAMPUL (PERSIS SCREENSHOT REFERENSI) ================= */}
+      {isCoverBottomSheetOpen && (
+        <div 
+          className="fixed inset-0 z-[100002] bg-black/60 backdrop-blur-xs flex flex-col justify-end animate-in fade-in duration-200"
+          onClick={() => setIsCoverBottomSheetOpen(false)}
+        >
+          <div 
+            className="w-full max-w-lg mx-auto bg-white rounded-t-[28px] shadow-2xl p-5 pt-3 pb-8 animate-in slide-in-from-bottom duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Drag Handle Bar */}
+            <div className="w-12 h-1.5 bg-slate-300 rounded-full mx-auto mb-5" />
+
+            <div className="space-y-1">
+              {!editCoverPhotoUrl ? (
+                /* Menu saat belum ada foto sampul: HANYA Upload Foto Sampul */
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsCoverBottomSheetOpen(false);
+                    coverFileInputRef.current?.click();
+                  }}
+                  className="w-full flex items-center gap-4 py-3 px-2 rounded-2xl hover:bg-slate-50 transition-colors cursor-pointer text-left group"
+                >
+                  <div className="w-11 h-11 rounded-full bg-slate-100 group-hover:bg-slate-200 text-slate-800 flex items-center justify-center shrink-0 transition-colors">
+                    <Upload className="w-5 h-5 text-slate-800" />
+                  </div>
+                  <span className="text-base font-semibold text-slate-900">
+                    Upload foto sampul
+                  </span>
+                </button>
+              ) : (
+                /* Menu saat sudah ada foto sampul: Lihat foto sampul, Ubah foto sampul, Hapus foto sampul */
+                <>
+                  {/* Opsi 1: Lihat foto sampul */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsCoverBottomSheetOpen(false);
+                      setShowFullscreenCover(true);
+                    }}
+                    className="w-full flex items-center gap-4 py-3 px-2 rounded-2xl hover:bg-slate-50 transition-colors cursor-pointer text-left group"
+                  >
+                    <div className="w-11 h-11 rounded-full bg-slate-100 group-hover:bg-slate-200 text-slate-800 flex items-center justify-center shrink-0 transition-colors">
+                      <ImageIcon className="w-5 h-5 text-slate-800" />
+                    </div>
+                    <span className="text-base font-semibold text-slate-900">
+                      Lihat foto sampul
+                    </span>
+                  </button>
+
+                  {/* Opsi 2: Ubah foto sampul */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsCoverBottomSheetOpen(false);
+                      coverFileInputRef.current?.click();
+                    }}
+                    className="w-full flex items-center gap-4 py-3 px-2 rounded-2xl hover:bg-slate-50 transition-colors cursor-pointer text-left group"
+                  >
+                    <div className="w-11 h-11 rounded-full bg-slate-100 group-hover:bg-slate-200 text-slate-800 flex items-center justify-center shrink-0 transition-colors">
+                      <Pencil className="w-5 h-5 text-slate-800" />
+                    </div>
+                    <span className="text-base font-semibold text-slate-900">
+                      Ubah foto sampul
+                    </span>
+                  </button>
+
+                  {/* Opsi 3: Hapus foto sampul */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsCoverBottomSheetOpen(false);
+                      setEditCoverPhotoUrl(undefined);
+                      onUpdateProfile({ coverPhotoUrl: undefined });
+                      triggerToast('Foto sampul berhasil dihapus');
+                    }}
+                    className="w-full flex items-center gap-4 py-3 px-2 rounded-2xl hover:bg-rose-50 transition-colors cursor-pointer text-left group"
+                  >
+                    <div className="w-11 h-11 rounded-full bg-rose-100 group-hover:bg-rose-200 text-rose-600 flex items-center justify-center shrink-0 transition-colors">
+                      <Trash2 className="w-5 h-5 text-rose-600" />
+                    </div>
+                    <span className="text-base font-semibold text-rose-600">
+                      Hapus foto sampul
+                    </span>
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* FULLSCREEN PREVIEW FOTO SAMPUL */}
+      {showFullscreenCover && (
+        <div 
+          className="fixed inset-0 z-[100003] bg-black/90 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in"
+          onClick={() => setShowFullscreenCover(false)}
+        >
+          <button
+            type="button"
+            onClick={() => setShowFullscreenCover(false)}
+            className="absolute top-5 right-5 w-10 h-10 rounded-full bg-white/20 hover:bg-white/30 text-white flex items-center justify-center cursor-pointer transition-colors"
+          >
+            <X className="w-6 h-6" />
+          </button>
+          <img
+            src={editCoverPhotoUrl || alumni.coverPhotoUrl || posterReuniImg}
+            alt="Foto Sampul Penuh"
+            className="max-w-full max-h-[85vh] object-contain rounded-2xl shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
+      )}
+
       {/* ================= MODAL PETA SEBARAN ALUMNI FULLSCREEN ================= */}
       <AlumniDistributionMapModal
         isOpen={isDistributionMapOpen}
@@ -4046,6 +4265,7 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
         currentUser={alumni}
         deviceGps={deviceGps}
         onSelectAlumni={(selected) => setSelectedAlumniDetail(selected)}
+        onUpdateProfile={onUpdateProfile}
       />
     </div>
   );

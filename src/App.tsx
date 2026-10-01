@@ -51,10 +51,18 @@ export default function App() {
   const handleUpdateAlumniProfile = (updates: Partial<AlumniRecord>) => {
     if (!currentSession?.alumniData) return;
 
-    const updatedAlumni = {
+    const updatedAlumni: AlumniRecord = {
       ...currentSession.alumniData,
       ...updates,
     };
+
+    if ('coordinates' in updates && !updates.coordinates) {
+      delete (updatedAlumni as any).coordinates;
+    }
+
+    if ('coverPhotoUrl' in updates && !updates.coverPhotoUrl) {
+      delete (updatedAlumni as any).coverPhotoUrl;
+    }
 
     setCurrentSession({
       ...currentSession,
