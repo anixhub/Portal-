@@ -1,0 +1,6 @@
+{
+  "name": "Portal Alumni At-taroqqy",
+  "description": "Halaman Login Resmi Portal Alumni At-taroqqy - Menjalin Silaturahmi dan Kolaborasi Antar Alumni",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
