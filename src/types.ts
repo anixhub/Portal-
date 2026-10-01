@@ -29,6 +29,7 @@ export interface AlumniRecord {
   bio?: string;
   photoUrl?: string;
   coverPhotoUrl?: string;
+  hasLoggedIn?: boolean;
   shareContact: boolean;
   shareEmail?: boolean;
   shareFullAddress?: boolean;
@@ -54,10 +55,13 @@ export interface AlumniRecord {
 export interface AdminUser {
   id: string;
   name: string;
-  email: string;
+  username: string;
+  email?: string;
   role: 'super_admin' | 'pengurus_pondok';
   jabatan: string;
   avatar?: string;
+  coverPhotoUrl?: string;
+  password?: string;
 }
 
 export interface EventAgenda {

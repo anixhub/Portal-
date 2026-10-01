@@ -43,6 +43,7 @@ export const INITIAL_ALUMNI: AlumniRecord[] = [
     pendidikanIbu: 'Madrasah Aliyah',
     password: '1234',
     isPasswordChanged: false,
+    hasLoggedIn: false,
     source: 'hostinger_sync',
     syncTime: '2026-09-28 08:30:15',
     bio: 'Alumni angkatan 2020. Mengabdi di bidang pendidikan dan literasi pesantren.',
@@ -73,6 +74,7 @@ export const INITIAL_ALUMNI: AlumniRecord[] = [
     institution: 'PT Solusi Digital Nusantara',
     password: 'passwordfauzi',
     isPasswordChanged: true,
+    hasLoggedIn: true,
     source: 'hostinger_sync',
     syncTime: '2026-09-28 08:30:15',
     bio: 'Pegiat teknologi dan digitalisasi pondok pesantren.',
@@ -132,6 +134,7 @@ export const INITIAL_ALUMNI: AlumniRecord[] = [
     institution: 'RS Islam Sultan Agung',
     password: '1234',
     isPasswordChanged: false,
+    hasLoggedIn: true,
     source: 'hostinger_sync',
     syncTime: '2026-09-28 08:30:15',
     bio: 'Menyediakan layanan konsultasi kesehatan anak gratis bagi keluarga santri.',
@@ -291,9 +294,11 @@ export const INITIAL_ALUMNI: AlumniRecord[] = [
 export const INITIAL_ADMIN: AdminUser = {
   id: 'adm-001',
   name: 'Ust. H. Abdurrahman, M.Pd.',
-  email: 'admin.pondok@attaroqqy.ac.id',
+  username: 'superadmin',
+  email: 'superadmin@attaroqqy.com',
   role: 'super_admin',
   jabatan: 'Kepala Bidang Kesantrian & Alumni Ponpes At-taroqqy',
+  password: '1997',
 };
 
 export const INITIAL_EVENTS: EventAgenda[] = [

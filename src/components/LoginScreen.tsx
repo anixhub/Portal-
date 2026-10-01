@@ -33,8 +33,8 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
       setLoginIdentifier('3507123456780001'); // NIK Mulia Ningsih
       setPassword('1234');
     } else {
-      setLoginIdentifier(adminAccount.email);
-      setPassword('admin123');
+      setLoginIdentifier(adminAccount.email || 'superadmin@attaroqqy.com');
+      setPassword(adminAccount.password || '1997');
     }
   };
 
@@ -50,8 +50,8 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
       setPassword('passwordfauzi');
     } else if (type === 'admin') {
       setSelectedRole('admin');
-      setLoginIdentifier('admin.pondok@attaroqqy.ac.id');
-      setPassword('admin123');
+      setLoginIdentifier(adminAccount.email || 'superadmin@attaroqqy.com');
+      setPassword(adminAccount.password || '1997');
     }
   };
 
@@ -64,7 +64,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
       setErrorMessage(
         selectedRole === 'alumni'
           ? 'Silakan masukkan NIK atau Username Anda.'
-          : 'Silakan masukkan Email Admin Pondok.'
+          : 'Silakan masukkan Email Admin.'
       );
       return;
     }
@@ -80,15 +80,22 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
       setIsLoading(false);
 
       if (selectedRole === 'admin') {
-        if (
-          (identifier.toLowerCase() === adminAccount.email.toLowerCase() ||
-           identifier.toLowerCase() === 'admin') &&
-          password === 'admin123'
-        ) {
+        const expectedEmail = (adminAccount.email || 'superadmin@attaroqqy.com').toLowerCase();
+        const expectedUsername = (adminAccount.username || 'superadmin').toLowerCase();
+        const expectedPassword = adminAccount.password || '1997';
+
+        const inputId = identifier.toLowerCase();
+        const isMatch =
+          inputId === expectedEmail ||
+          inputId === expectedUsername ||
+          inputId === 'superadmin' ||
+          inputId === 'admin';
+
+        if (isMatch && password === expectedPassword) {
           onLoginSuccess('admin', undefined, adminAccount);
           return;
         } else {
-          setErrorMessage('Kredensial Admin tidak cocok. Coba: admin.pondok@attaroqqy.ac.id / admin123');
+          setErrorMessage('Kredensial Admin tidak cocok. Gunakan email: superadmin@attaroqqy.com / sandi: 1997');
           return;
         }
       }
@@ -143,7 +150,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
         {/* Subtitle / role guidance */}
         <div className="mt-2 text-center">
           <p className="text-xs font-semibold text-white">
-            {selectedRole === 'alumni' ? 'Login Alumni (Gunakan NIK & Sandi 1234)' : 'Portal Pengelolaan Data Admin Pondok'}
+            {selectedRole === 'alumni' ? 'Login Alumni (Gunakan NIK & Sandi 1234)' : 'Portal Pengelolaan Data Admin'}
           </p>
         </div>
       </div>
@@ -195,7 +202,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
         {/* Handle Bar */}
         <div className="w-10 h-1 bg-slate-200 rounded-full mx-auto mb-3" />
 
-        {/* ROLE SELECTOR TABS: ALUMNI VS ADMIN PONDOK */}
+        {/* ROLE SELECTOR TABS: ALUMNI VS ADMIN */}
         <div className="p-1 bg-slate-100 rounded-2xl flex items-center mb-3">
           <button
             type="button"
@@ -219,7 +226,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
             }`}
           >
             <ShieldCheck className="w-3.5 h-3.5" />
-            <span>Admin Pondok</span>
+            <span>Admin</span>
           </button>
         </div>
 
@@ -259,9 +266,9 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
                   ? 'bg-sky-600 text-white border-sky-600'
                   : 'bg-white text-slate-800 border-slate-200 hover:bg-slate-100'
               }`}
-              title="Admin Pondok Pengelola Data"
+              title="Admin (superadmin@attaroqqy.com)"
             >
-              Admin Pondok
+              Admin
             </button>
           </div>
         </div>
@@ -279,7 +286,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
           {/* KOTAK 1: NIK / USERNAME (FOR ALUMNI) OR EMAIL (FOR ADMIN) */}
           <div>
             <label className="block text-xs font-bold text-slate-700 mb-1">
-              {selectedRole === 'alumni' ? 'NIK / Username Alumni' : 'Email Admin Pondok'}
+              {selectedRole === 'alumni' ? 'NIK / Username Alumni' : 'Email Admin'}
             </label>
             <div className="relative">
               <div className="absolute left-3.5 top-1/2 -translate-y-1/2 text-sky-600">
@@ -291,7 +298,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
                 placeholder={
                   selectedRole === 'alumni'
                     ? 'Masukkan NIK (16 digit) atau Username'
-                    : 'admin.pondok@attaroqqy.ac.id'
+                    : 'Contoh: superadmin@attaroqqy.com'
                 }
                 value={loginIdentifier}
                 onChange={(e) => setLoginIdentifier(e.target.value)}

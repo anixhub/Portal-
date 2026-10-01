@@ -477,7 +477,7 @@ export const FullscreenLocationMapModal: React.FC<FullscreenLocationMapModalProp
 
   // Render via React Portal into document.body to ensure complete viewport coverage without bleed-through
   return createPortal(
-    <div className="fixed inset-0 z-[99999] w-screen h-screen bg-slate-950 overflow-hidden animate-in fade-in duration-150">
+    <div className="fixed inset-0 z-[200000] w-screen h-screen bg-slate-950 overflow-hidden animate-in fade-in duration-150">
       {/* ================= FULL VIEWPORT LEAFLET MAP ================= */}
       <div ref={mapContainerRef} className="w-full h-full z-10" />
 

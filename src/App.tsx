@@ -15,7 +15,7 @@ import { AlumniRecord, AdminUser, EventAgenda, UserRole, ActiveSession } from '.
 
 export default function App() {
   const [alumniList, setAlumniList] = useState<AlumniRecord[]>(INITIAL_ALUMNI);
-  const [adminAccount] = useState<AdminUser>(INITIAL_ADMIN);
+  const [adminAccount, setAdminAccount] = useState<AdminUser>(INITIAL_ADMIN);
   const [events, setEvents] = useState<EventAgenda[]>(INITIAL_EVENTS);
 
   // Current session
@@ -37,7 +37,14 @@ export default function App() {
     if (role === 'admin' && adminData) {
       setCurrentSession({ role: 'admin', adminData });
     } else if (role === 'alumni' && alumniData) {
-      setCurrentSession({ role: 'alumni', alumniData });
+      const updatedAlumni: AlumniRecord = {
+        ...alumniData,
+        hasLoggedIn: true,
+      };
+      setAlumniList((prev) =>
+        prev.map((alm) => (alm.id === alumniData.id ? { ...alm, hasLoggedIn: true } : alm))
+      );
+      setCurrentSession({ role: 'alumni', alumniData: updatedAlumni });
     }
   };
 
@@ -129,6 +136,19 @@ export default function App() {
     );
   };
 
+  const handleUpdateAdmin = (updated: Partial<AdminUser>) => {
+    setAdminAccount((prev) => {
+      const next = { ...prev, ...updated };
+      if (currentSession?.role === 'admin' && currentSession.adminData) {
+        setCurrentSession({
+          ...currentSession,
+          adminData: next,
+        });
+      }
+      return next;
+    });
+  };
+
   const handleRsvpEvent = (
     eventId: string,
     rsvp: 'hadir' | 'belum_pasti' | 'tidak_hadir',
@@ -218,6 +238,7 @@ export default function App() {
           onUpdateAlumni={handleUpdateAlumniByAdmin}
           onResetPassword={handleResetAlumniPassword}
           onAddEvent={handleAddEvent}
+          onUpdateAdmin={handleUpdateAdmin}
         />
       )}
 

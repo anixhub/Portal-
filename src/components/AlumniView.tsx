@@ -1590,9 +1590,13 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
 
                     {/* 4. CAPTION & DETAIL INFORMASI ACARA */}
                     <div className="px-4 py-3 space-y-2.5 text-xs">
-                      {/* Judul & Caption Deskripsi Ala Instagram (Default Terpotong, Klik 'selengkapnya' untuk Memperlihatkan Semuanya - Persis Screenshot 1) */}
+                      {/* Judul & Caption Deskripsi Ala Instagram (Default Terpotong, Cukup Klik Caption atau Tombol untuk Membuka/Menyembunyikan Selengkapnya) */}
                       <div className="text-slate-800 text-xs">
-                        <p className={`leading-relaxed ${expandedCaptions[ev.id] ? '' : 'line-clamp-2'}`}>
+                        <p 
+                          onClick={() => toggleCaption(ev.id)}
+                          className={`leading-relaxed cursor-pointer select-none ${expandedCaptions[ev.id] ? '' : 'line-clamp-2'}`}
+                          title={expandedCaptions[ev.id] ? "Klik untuk menyembunyikan" : "Klik untuk membaca selengkapnya"}
+                        >
                           <span className="font-bold text-slate-900 mr-1.5 font-mono text-[11px] bg-slate-100 px-1.5 py-0.5 rounded">
                             @{ev.authorHandle || 'attaroqqy_official'}
                           </span>

@@ -23,7 +23,7 @@ interface AlumniDistributionMapModalProps {
   isOpen: boolean;
   onClose: () => void;
   alumniList: AlumniRecord[];
-  currentUser: AlumniRecord;
+  currentUser?: AlumniRecord;
   deviceGps?: { lat: number; lng: number } | null;
   onSelectAlumni: (alumni: AlumniRecord) => void;
   onUpdateProfile?: (updated: Partial<AlumniRecord>) => void;
@@ -133,7 +133,7 @@ export const AlumniDistributionMapModal: React.FC<AlumniDistributionMapModalProp
   isAdmin = false,
 }) => {
   const initialCoord = deviceGps || 
-    (currentUser.coordinates?.lat && currentUser.coordinates?.lng
+    (!isAdmin && currentUser?.coordinates?.lat && currentUser?.coordinates?.lng
       ? { lat: currentUser.coordinates.lat, lng: currentUser.coordinates.lng }
       : { lat: -6.7423, lng: 111.4589 });
 
@@ -163,13 +163,13 @@ export const AlumniDistributionMapModal: React.FC<AlumniDistributionMapModalProp
 
   // Profile & Privacy Settings Bottom Sheet State
   const [isProfileBottomSheetOpen, setIsProfileBottomSheetOpen] = useState(false);
-  const [shareLocationTag, setShareLocationTag] = useState<boolean>(currentUser.shareLocationTag !== false);
-  const [shareFullAddress, setShareFullAddress] = useState<boolean>(currentUser.shareFullAddress !== false);
+  const [shareLocationTag, setShareLocationTag] = useState<boolean>(currentUser?.shareLocationTag !== false);
+  const [shareFullAddress, setShareFullAddress] = useState<boolean>(currentUser?.shareFullAddress !== false);
   const [isLocationPickerOpen, setIsLocationPickerOpen] = useState(false);
   const [showLocationNotSetPopup, setShowLocationNotSetPopup] = useState(false);
   const locationNotSetTimerRef = useRef<any>(null);
 
-  const isLocationTagSet = Boolean(currentUser?.coordinates?.lat && currentUser?.coordinates?.lng);
+  const isLocationTagSet = Boolean(!isAdmin && currentUser?.coordinates?.lat && currentUser?.coordinates?.lng);
 
   const handleTriggerDisabledLocationTag = () => {
     setShowLocationNotSetPopup(true);
@@ -185,13 +185,15 @@ export const AlumniDistributionMapModal: React.FC<AlumniDistributionMapModalProp
   const gpsMarkerRef = useRef<L.Marker | null>(null);
 
   useEffect(() => {
-    setShareLocationTag(currentUser.shareLocationTag !== false);
-    setShareFullAddress(currentUser.shareFullAddress !== false);
-  }, [currentUser.shareLocationTag, currentUser.shareFullAddress]);
+    if (currentUser) {
+      setShareLocationTag(currentUser.shareLocationTag !== false);
+      setShareFullAddress(currentUser.shareFullAddress !== false);
+    }
+  }, [currentUser?.shareLocationTag, currentUser?.shareFullAddress]);
 
-  const userKecamatan = currentUser.kecamatan || 'Sedan';
-  const userKabupaten = (currentUser.city || 'Rembang').replace(/^(KABUPATEN|KOTA|Kab\.|Kota)\s*/i, '');
-  const userProvinsi = currentUser.province || 'Jawa Tengah';
+  const userKecamatan = currentUser?.kecamatan || 'Sedan';
+  const userKabupaten = (currentUser?.city || 'Rembang').replace(/^(KABUPATEN|KOTA|Kab\.|Kota)\s*/i, '');
+  const userProvinsi = currentUser?.province || 'Jawa Tengah';
 
   const locationTags = [
     { id: 'kec', label: `Kec. ${userKecamatan}`, searchVal: userKecamatan, type: 'kecamatan', name: userKecamatan },
@@ -213,7 +215,11 @@ export const AlumniDistributionMapModal: React.FC<AlumniDistributionMapModalProp
   };
 
   const permittedAlumni = alumniList.filter((item) => {
-    if (item.id === currentUser.id) {
+    // Admin dapat melihat semua tag lokasi alumni meskipun tidak diizinkan dilihat ke sesama alumni, selama koordinat telah diatur (oleh user sendiri atau oleh admin)
+    if (isAdmin) {
+      return Boolean(item.coordinates?.lat && item.coordinates?.lng);
+    }
+    if (currentUser && item.id === currentUser.id) {
       return shareLocationTag && Boolean(item.coordinates?.lat && item.coordinates?.lng);
     }
     return item.shareLocationTag !== false && Boolean(item.coordinates?.lat && item.coordinates?.lng);
@@ -612,7 +618,7 @@ export const AlumniDistributionMapModal: React.FC<AlumniDistributionMapModalProp
     displayedAlumni.forEach((alumni) => {
       if (!alumni.coordinates?.lat || !alumni.coordinates?.lng) return;
 
-      const isCurrent = alumni.id === currentUser.id;
+      const isCurrent = !isAdmin && currentUser && alumni.id === currentUser.id;
       const isSelected = selectedAlumni?.id === alumni.id;
       const lat = alumni.coordinates.lat;
       const lng = alumni.coordinates.lng;
@@ -715,6 +721,7 @@ export const AlumniDistributionMapModal: React.FC<AlumniDistributionMapModalProp
 
   // Pusatkan ke Tag Rumah Saya
   const handleCenterHome = () => {
+    if (isAdmin || !currentUser) return;
     if (!mapInstanceRef.current) return;
     if (currentUser.coordinates?.lat && currentUser.coordinates?.lng) {
       mapInstanceRef.current.setView(
@@ -835,7 +842,7 @@ export const AlumniDistributionMapModal: React.FC<AlumniDistributionMapModalProp
           </div>
 
           {/* Badge Avatar Profil Pengguna (Hanya jika bukan admin) */}
-          {!hasSearchInput && !isSearchOverlayOpen && !isAdmin && (
+          {!hasSearchInput && !isSearchOverlayOpen && !isAdmin && currentUser && (
             <div
               onClick={() => setIsProfileBottomSheetOpen(true)}
               className="cursor-pointer shrink-0 ml-0.5 active:scale-95 transition-transform"
@@ -977,7 +984,7 @@ export const AlumniDistributionMapModal: React.FC<AlumniDistributionMapModalProp
             ) : (
               displayedAlumni.map((alumni) => {
                 const distance = alumni.coordinates ? getDistanceFromGps(alumni.coordinates.lat, alumni.coordinates.lng) : null;
-                const isCurrent = alumni.id === currentUser.id;
+                const isCurrent = !isAdmin && currentUser && alumni.id === currentUser.id;
                 const isSelected = selectedAlumni?.id === alumni.id;
 
                 return (
@@ -1019,6 +1026,11 @@ export const AlumniDistributionMapModal: React.FC<AlumniDistributionMapModalProp
                           {isCurrent && (
                             <span className="text-[9px] bg-slate-100 text-slate-700 font-bold px-1.5 py-0.2 rounded-full border border-slate-200">
                               Anda
+                            </span>
+                          )}
+                          {isAdmin && alumni.shareLocationTag === false && (
+                            <span className="text-[9px] bg-amber-50 text-amber-700 font-bold px-1.5 py-0.2 rounded-full border border-amber-200">
+                              Privat (Admin)
                             </span>
                           )}
                         </div>
@@ -1110,9 +1122,14 @@ export const AlumniDistributionMapModal: React.FC<AlumniDistributionMapModalProp
                       <h3 className="font-display font-bold text-sm text-slate-900 truncate">
                         {selectedAlumni.name}
                       </h3>
-                      {selectedAlumni.id === currentUser.id && (
+                      {!isAdmin && currentUser && selectedAlumni.id === currentUser.id && (
                         <span className="text-[9px] bg-slate-100 text-slate-700 font-bold px-1.5 py-0.2 rounded-full border border-slate-200">
                           Rumah Anda
+                        </span>
+                      )}
+                      {isAdmin && selectedAlumni.shareLocationTag === false && (
+                        <span className="text-[9px] bg-amber-50 text-amber-700 font-bold px-1.5 py-0.2 rounded-full border border-amber-200">
+                          Privat (Terpantau Admin)
                         </span>
                       )}
                     </div>
@@ -1130,11 +1147,17 @@ export const AlumniDistributionMapModal: React.FC<AlumniDistributionMapModalProp
                 <div className="flex items-center gap-2 pt-1 border-t border-slate-100">
                   <button
                     type="button"
-                    onClick={() => setDetailModalAlumni(selectedAlumni)}
+                    onClick={() => {
+                      if (isAdmin && onSelectAlumni) {
+                        onSelectAlumni(selectedAlumni);
+                      } else {
+                        setDetailModalAlumni(selectedAlumni);
+                      }
+                    }}
                     className="flex-1 py-2 px-3 bg-sky-600 hover:bg-sky-700 active:scale-95 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 shadow-md shadow-sky-600/20 cursor-pointer transition-all"
                   >
                     <User className="w-3.5 h-3.5" />
-                    <span>Profil</span>
+                    <span>{isAdmin ? 'Kelola Data & Tag Lokasi' : 'Profil'}</span>
                     <ChevronRight className="w-3.5 h-3.5" />
                   </button>
 
@@ -1218,9 +1241,14 @@ export const AlumniDistributionMapModal: React.FC<AlumniDistributionMapModalProp
                   <h3 className="font-display font-bold text-sm text-slate-900 truncate">
                     {selectedAlumni.name}
                   </h3>
-                  {selectedAlumni.id === currentUser.id && (
+                  {!isAdmin && currentUser && selectedAlumni.id === currentUser.id && (
                     <span className="text-[9px] bg-slate-100 text-slate-700 font-bold px-1.5 py-0.2 rounded-full border border-slate-200">
                       Tag Rumah Anda
+                    </span>
+                  )}
+                  {isAdmin && selectedAlumni.shareLocationTag === false && (
+                    <span className="text-[9px] bg-amber-50 text-amber-700 font-bold px-1.5 py-0.2 rounded-full border border-amber-200">
+                      Privat (Terpantau Admin)
                     </span>
                   )}
                 </div>
@@ -1238,11 +1266,17 @@ export const AlumniDistributionMapModal: React.FC<AlumniDistributionMapModalProp
             <div className="flex items-center gap-2 pt-1 border-t border-slate-100">
               <button
                 type="button"
-                onClick={() => setDetailModalAlumni(selectedAlumni)}
+                onClick={() => {
+                  if (isAdmin && onSelectAlumni) {
+                    onSelectAlumni(selectedAlumni);
+                  } else {
+                    setDetailModalAlumni(selectedAlumni);
+                  }
+                }}
                 className="flex-1 py-2.5 px-3 bg-sky-600 hover:bg-sky-700 active:scale-95 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 shadow-md shadow-sky-600/20 cursor-pointer transition-all"
               >
                 <User className="w-3.5 h-3.5" />
-                <span>Profil</span>
+                <span>{isAdmin ? 'Kelola Data & Tag Lokasi' : 'Profil'}</span>
                 <ChevronRight className="w-3.5 h-3.5" />
               </button>
 
@@ -1471,7 +1505,7 @@ export const AlumniDistributionMapModal: React.FC<AlumniDistributionMapModalProp
       )}
 
       {/* ================= 10. BOTTOM SHEET PROFIL USER & PENGATURAN PRIVASI AKUN ================= */}
-      {isProfileBottomSheetOpen && (
+      {isProfileBottomSheetOpen && currentUser && (
         <div className="fixed inset-0 z-[100001] bg-black/60 backdrop-blur-xs flex flex-col justify-end animate-in fade-in duration-200">
           <div className="bg-white rounded-t-3xl shadow-2xl border-t border-slate-200 max-h-[85vh] flex flex-col animate-in slide-in-from-bottom-8 duration-300">
             <div className="pt-3 pb-2 px-5 flex flex-col items-center shrink-0 border-b border-slate-100">
@@ -1610,7 +1644,7 @@ export const AlumniDistributionMapModal: React.FC<AlumniDistributionMapModalProp
       )}
 
       {/* ================= 11. MODAL ATUR TITIK LOKASI TAG RUMAH ================= */}
-      {isLocationPickerOpen && (
+      {isLocationPickerOpen && currentUser && (
         <FullscreenLocationMapModal
           isOpen={isLocationPickerOpen}
           initialCoordinates={currentUser.coordinates || realtimeGps}

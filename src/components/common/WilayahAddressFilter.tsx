@@ -88,7 +88,7 @@ export const WilayahAddressFilter: React.FC<WilayahAddressFilterProps> = ({
 
   // Initialize and update preview mini map
   useEffect(() => {
-    if (!showLocationTag || isMapModalOpen) {
+    if (!showLocationTag) {
       if (miniMapInstanceRef.current) {
         miniMapInstanceRef.current.remove();
         miniMapInstanceRef.current = null;
@@ -178,7 +178,7 @@ export const WilayahAddressFilter: React.FC<WilayahAddressFilterProps> = ({
     return () => {
       clearTimeout(timer);
     };
-  }, [showLocationTag, isMapModalOpen, coordinates?.lat, coordinates?.lng]);
+  }, [showLocationTag, coordinates?.lat, coordinates?.lng]);
 
   // Clean up preview map on unmount
   useEffect(() => {
@@ -965,7 +965,7 @@ export const WilayahAddressFilter: React.FC<WilayahAddressFilterProps> = ({
       )}
 
       {/* 4. KOTAK PREVIEW PETA & TAG LOKASI (PALING BAWAH) */}
-      {showLocationTag && !isMapModalOpen && (
+      {showLocationTag && (
         <div
           onClick={() => {
             if (coordinates?.lat && coordinates?.lng) {

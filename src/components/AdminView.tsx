@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { 
   Calendar, 
   Users, 
@@ -20,14 +20,26 @@ import {
   Map, 
   Camera, 
   ArrowLeft,
-  Tag
+  Tag,
+  QrCode,
+  Trash2,
+  Upload,
+  ImageIcon,
+  Eye,
+  EyeOff,
+  Lock,
+  Mail
 } from 'lucide-react';
-import { AlumniRecord, AdminUser, EventAgenda } from '../types';
+import { AlumniRecord, AdminUser, EventAgenda, EventComment, EventCommentReply } from '../types';
 import { AddAlumniModal } from './admin/AddAlumniModal';
 import { AlumniDetailAdminModal } from './admin/AlumniDetailAdminModal';
 import { WilayahAddressFilter } from './common/WilayahAddressFilter';
 import { AlumniDistributionMapModal } from './common/AlumniDistributionMapModal';
 import { CleanMediaPreviewModal } from './common/CleanMediaPreviewModal';
+import { FullscreenPhotoViewerModal } from './common/FullscreenPhotoViewerModal';
+import { EventCommentsModal } from './common/EventCommentsModal';
+import { EventAttendanceScannerModal } from './admin/EventAttendanceScannerModal';
+import { INITIAL_EVENT_COMMENTS } from '../data/mockData';
 import logoPonpesImg from '../assets/images/logo_ponpes_attaroqqy_1790648746461.jpg';
 import posterReuniImg from '../assets/images/poster_reuni_akbar_1790648045947.jpg';
 
@@ -40,6 +52,7 @@ interface AdminViewProps {
   onUpdateAlumni: (id: string, updated: Partial<AlumniRecord>) => void;
   onResetPassword: (id: string) => void;
   onAddEvent: (newEvent: EventAgenda) => void;
+  onUpdateAdmin?: (updated: Partial<AdminUser>) => void;
 }
 
 type AdminTab = 'agenda' | 'alumni' | 'profile';
@@ -53,14 +66,195 @@ export const AdminView: React.FC<AdminViewProps> = ({
   onUpdateAlumni,
   onResetPassword,
   onAddEvent,
+  onUpdateAdmin,
 }) => {
   const [activeTab, setActiveTab] = useState<AdminTab>('agenda');
   const [eventList, setEventList] = useState<EventAgenda[]>(events);
+
+  // Admin Profile Edit State
+  const [adminUser, setAdminUser] = useState<AdminUser>(admin);
+  const [editAdminName, setEditAdminName] = useState(admin.name);
+  const [isEditNameModalOpen, setIsEditNameModalOpen] = useState(false);
+
+  useEffect(() => {
+    setAdminUser(admin);
+    setEditAdminName(admin.name);
+  }, [admin]);
+
+  const handleSaveAdminName = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editAdminName.trim()) {
+      triggerToast('Nama lengkap tidak boleh kosong');
+      return;
+    }
+
+    const updated: Partial<AdminUser> = {
+      name: editAdminName.trim(),
+    };
+
+    setAdminUser((prev) => ({ ...prev, ...updated }));
+    onUpdateAdmin?.(updated);
+    setIsEditNameModalOpen(false);
+    triggerToast('Nama lengkap berhasil diperbarui');
+  };
+
+  // Photo & Cover States (sama persis dengan akun alumni/user biasa)
+  const [showFullscreenAvatar, setShowFullscreenAvatar] = useState(false);
+  const [isCoverBottomSheetOpen, setIsCoverBottomSheetOpen] = useState(false);
+  const [showFullscreenCover, setShowFullscreenCover] = useState(false);
+  const avatarFileInputRef = useRef<HTMLInputElement | null>(null);
+  const coverFileInputRef = useRef<HTMLInputElement | null>(null);
+
+  const handleAvatarSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 5 * 1024 * 1024) {
+      triggerToast('Ukuran foto maksimal 5MB');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const result = event.target?.result as string;
+      setAdminUser((prev) => ({ ...prev, avatar: result }));
+      onUpdateAdmin?.({ avatar: result });
+      triggerToast('Foto profil admin berhasil diperbarui');
+    };
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  };
+
+  const handleRemoveAvatar = () => {
+    setAdminUser((prev) => ({ ...prev, avatar: undefined }));
+    onUpdateAdmin?.({ avatar: undefined });
+    setShowFullscreenAvatar(false);
+    triggerToast('Foto profil admin berhasil dihapus');
+  };
+
+  const handleCoverPhotoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 5 * 1024 * 1024) {
+      triggerToast('Ukuran foto sampul maksimal 5MB');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const result = event.target?.result as string;
+      setAdminUser((prev) => ({ ...prev, coverPhotoUrl: result }));
+      onUpdateAdmin?.({ coverPhotoUrl: result });
+      triggerToast('Foto sampul admin berhasil diperbarui');
+    };
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  };
+
+  const handleRemoveCoverPhoto = () => {
+    setAdminUser((prev) => ({ ...prev, coverPhotoUrl: undefined }));
+    onUpdateAdmin?.({ coverPhotoUrl: undefined });
+    setIsCoverBottomSheetOpen(false);
+    triggerToast('Foto sampul berhasil dihapus');
+  };
+
+  // Agenda sub-tabs: 'kelola' | 'presensi'
+  const [agendaSubTab, setAgendaSubTab] = useState<'kelola' | 'presensi'>('kelola');
+  const [isScannerOpen, setIsScannerOpen] = useState(false);
+  const [selectedEventForAttendance, setSelectedEventForAttendance] = useState<EventAgenda | null>(null);
 
   // Expanded caption toggles for agenda cards
   const [expandedCaptions, setExpandedCaptions] = useState<{ [id: string]: boolean }>({});
   const toggleCaption = (id: string) => {
     setExpandedCaptions((prev) => ({ ...prev, [id]: !prev[id] }));
+  };
+
+  // Comments modal state & handlers (sama persis dengan agenda akun alumni)
+  const [activeCommentsModalEvent, setActiveCommentsModalEvent] = useState<EventAgenda | null>(null);
+  const [commentsList, setCommentsList] = useState<EventComment[]>(INITIAL_EVENT_COMMENTS);
+
+  const handleAddComment = (eventId: string, text: string, replyToCommentId?: string) => {
+    if (!text.trim()) return;
+    if (replyToCommentId) {
+      const newReply: EventCommentReply = {
+        id: `rep-${Date.now()}`,
+        commentId: replyToCommentId,
+        authorName: admin.name,
+        authorHandle: 'admin_official',
+        authorAvatar: admin.avatar,
+        avatarRing: true,
+        content: text.trim(),
+        timeAgo: 'Baru saja',
+        likesCount: 0,
+      };
+
+      setCommentsList((prev) =>
+        prev.map((c) => {
+          if (c.id === replyToCommentId) {
+            const existingReplies = c.replies || [];
+            return {
+              ...c,
+              replies: [...existingReplies, newReply],
+              repliesCount: existingReplies.length + 1,
+            };
+          }
+          return c;
+        })
+      );
+      triggerToast('Balasan berhasil dikirim!');
+    } else {
+      const newComment: EventComment = {
+        id: `comm-${Date.now()}`,
+        eventId,
+        authorName: admin.name,
+        authorHandle: 'admin_official',
+        authorAvatar: admin.avatar,
+        avatarRing: true,
+        content: text.trim(),
+        timeAgo: 'Baru saja',
+        likesCount: 0,
+        repliesCount: 0,
+        replies: [],
+        isCurrentUser: true,
+      };
+      setCommentsList((prev) => [newComment, ...prev]);
+      triggerToast('Tanggapan berhasil dikirim!');
+    }
+  };
+
+  const handleToggleLikeComment = (commentId: string, replyId?: string) => {
+    setCommentsList((prev) =>
+      prev.map((c) => {
+        if (c.id === commentId) {
+          if (replyId) {
+            const updatedReplies = (c.replies || []).map((rep) => {
+              if (rep.id === replyId) {
+                const isLiked = !rep.isLiked;
+                return {
+                  ...rep,
+                  isLiked,
+                  likesCount: (rep.likesCount || 0) + (isLiked ? 1 : -1),
+                };
+              }
+              return rep;
+            });
+            return {
+              ...c,
+              replies: updatedReplies,
+            };
+          } else {
+            const isLiked = !c.isLiked;
+            return {
+              ...c,
+              isLiked,
+              likesCount: (c.likesCount || 0) + (isLiked ? 1 : -1),
+            };
+          }
+        }
+        return c;
+      })
+    );
   };
 
   // Search & Filter state for Kelola Alumni
@@ -124,9 +318,20 @@ export const AdminView: React.FC<AdminViewProps> = ({
 
   const posterFileInputRef = useRef<HTMLInputElement | null>(null);
 
-  // Password modal state for Admin Profile
+  // Password modal state for Admin Profile (2 Kolom: Kata Sandi Baru & Konfirmasi)
   const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
   const [newAdminPassword, setNewAdminPassword] = useState('');
+  const [confirmAdminPassword, setConfirmAdminPassword] = useState('');
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [passwordError, setPasswordError] = useState<string | null>(null);
+
+  // Status Filter for Kelola Alumni: 'semua' | 'aktif' | 'tidak_aktif' (Aktif = NIK pernah login)
+  const [statusFilter, setStatusFilter] = useState<'semua' | 'aktif' | 'tidak_aktif'>('semua');
+
+  // Counts for status labels
+  const activeCount = alumniList.filter((item) => item.hasLoggedIn === true || item.isPasswordChanged === true).length;
+  const inactiveCount = alumniList.filter((item) => !item.hasLoggedIn && !item.isPasswordChanged).length;
 
   // Toast
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -149,6 +354,15 @@ export const AdminView: React.FC<AdminViewProps> = ({
       (item.kecamatan && item.kecamatan.toLowerCase().includes(q)) ||
       (item.desa && item.desa.toLowerCase().includes(q)) ||
       item.occupation.toLowerCase().includes(q);
+
+    // Filter status aktif/tidak aktif: Aktif = NIK pernah login
+    const isAlumniActive = item.hasLoggedIn === true || item.isPasswordChanged === true;
+    const matchStatus =
+      statusFilter === 'semua'
+        ? true
+        : statusFilter === 'aktif'
+        ? isAlumniActive
+        : !isAlumniActive;
 
     const entryNum = parseInt(item.entryYear, 10);
     const gradNum = parseInt(item.gradYear, 10);
@@ -187,6 +401,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
 
     return (
       matchSearch &&
+      matchStatus &&
       matchEntryFrom &&
       matchEntryTo &&
       matchGradFrom &&
@@ -323,9 +538,28 @@ export const AdminView: React.FC<AdminViewProps> = ({
 
   const handleSaveAdminPassword = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newAdminPassword) return;
+    setPasswordError(null);
+
+    if (!newAdminPassword.trim()) {
+      setPasswordError('Silakan masukkan kata sandi baru.');
+      return;
+    }
+
+    if (newAdminPassword.length < 4) {
+      setPasswordError('Kata sandi minimal 4 karakter.');
+      return;
+    }
+
+    if (newAdminPassword !== confirmAdminPassword) {
+      setPasswordError('Konfirmasi kata sandi tidak cocok.');
+      return;
+    }
+
+    setAdminUser((prev) => ({ ...prev, password: newAdminPassword }));
+    onUpdateAdmin?.({ password: newAdminPassword });
     setIsPasswordModalOpen(false);
     setNewAdminPassword('');
+    setConfirmAdminPassword('');
     triggerToast('Kata sandi admin berhasil diperbarui');
   };
 
@@ -339,181 +573,299 @@ export const AdminView: React.FC<AdminViewProps> = ({
         </div>
       )}
 
-      {/* ================= TOP BAR (HANYA MUNCUL DI TAB PROFIL ADMIN, DI AGENDA & KELOLA ALUMNI DIHAPUS) ================= */}
-      {activeTab === 'profile' && (
-        <div className="bg-white border-b border-slate-200/80 px-4 py-2.5 flex items-center justify-between shrink-0 z-30 shadow-2xs">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-full overflow-hidden bg-sky-100 flex items-center justify-center shrink-0 border border-slate-200">
-              <img src={logoPonpesImg} alt="Logo" className="w-full h-full object-cover" />
-            </div>
-            <div>
-              <h1 className="text-sm font-bold font-display text-slate-900 leading-tight">
-                IKAPAZ Attaroqqy
-              </h1>
-              <p className="text-[10px] text-slate-500 leading-none">
-                Panel Administrator
-              </p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <span className="flex items-center gap-1 text-[11px] font-semibold text-sky-700 bg-sky-50 border border-sky-200 px-2.5 py-1 rounded-full">
-              <ShieldCheck className="w-3.5 h-3.5" />
-              <span>Admin</span>
-            </span>
-          </div>
-        </div>
-      )}
-
-      {/* ================= BODY TAB CONTAINER ================= */}
+      {/* ================= BODY TAB CONTAINER (HEADER DIHAPUS DI SEMUA TAB TERMASUK PROFIL) ================= */}
       <div className="flex-1 overflow-y-auto flex flex-col relative">
         {/* ================= TAB 1: AGENDA (BERSIH TANPA HEADER) ================= */}
         {activeTab === 'agenda' && (
-          <div className="flex-1 overflow-y-auto px-4 py-4 max-w-lg mx-auto w-full space-y-5 pb-28">
-            {eventList.map((ev) => (
-              <div
-                key={ev.id}
-                className="bg-white rounded-3xl border border-slate-200/80 shadow-xs overflow-hidden"
+          <div className="flex-1 overflow-y-auto px-4 py-3 max-w-lg mx-auto w-full flex flex-col pb-28">
+            {/* 2-Tab Segment Switcher: Kelola Agenda vs Presensi */}
+            <div className="flex items-center justify-center p-1 bg-slate-200/90 rounded-2xl w-full mb-4 shrink-0 shadow-inner">
+              <button
+                type="button"
+                onClick={() => setAgendaSubTab('kelola')}
+                className={`flex-1 py-2 text-xs font-bold rounded-xl transition-all cursor-pointer ${
+                  agendaSubTab === 'kelola'
+                    ? 'bg-white text-slate-900 shadow-sm'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
               >
-                {/* 1. HEADER KARTU EVENT: PROFIL ADMIN PONDOK + TOMBOL EDIT & AKSI */}
-                <div className="p-4 flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-10 h-10 rounded-full bg-slate-100 border border-slate-200 overflow-hidden shrink-0 flex items-center justify-center">
+                Kelola Agenda
+              </button>
+              <button
+                type="button"
+                onClick={() => setAgendaSubTab('presensi')}
+                className={`flex-1 py-2 text-xs font-bold rounded-xl transition-all cursor-pointer ${
+                  agendaSubTab === 'presensi'
+                    ? 'bg-white text-slate-900 shadow-sm'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                Presensi
+              </button>
+            </div>
+
+            {/* SUB-TAB 1: KELOLA AGENDA */}
+            {agendaSubTab === 'kelola' && (
+              <div className="space-y-5">
+                {eventList.map((ev) => (
+                  <div
+                    key={ev.id}
+                    className="bg-white rounded-3xl border border-slate-200/80 shadow-xs overflow-hidden"
+                  >
+                    {/* 1. HEADER KARTU EVENT: PROFIL ADMIN PONDOK + AKSI */}
+                    <div className="p-4 flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="w-10 h-10 rounded-full bg-slate-100 border border-slate-200 overflow-hidden shrink-0 flex items-center justify-center">
+                          <img
+                            src={logoPonpesImg}
+                            alt="Admin Humas"
+                            className="w-full h-full object-cover"
+                          />
+                        </div>
+                        <div className="min-w-0">
+                          <h4 className="font-display font-bold text-xs sm:text-sm text-slate-900 truncate leading-tight">
+                            {ev.authorName || 'Admin Humas & Alumni Pondok'}
+                          </h4>
+                          <p className="text-[11px] text-slate-400 truncate mt-0.5">
+                            {ev.postedAt || '2 jam yang lalu'}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-1 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => triggerToast('Poster agenda berhasil diunduh')}
+                          className="w-8 h-8 rounded-full text-slate-400 hover:text-slate-700 hover:bg-slate-100 flex items-center justify-center transition-colors cursor-pointer active:scale-95"
+                          title="Unduh Poster"
+                        >
+                          <Download className="w-4 h-4" />
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => triggerToast('Tautan agenda disalin')}
+                          className="w-8 h-8 rounded-full text-slate-400 hover:text-slate-700 hover:bg-slate-100 flex items-center justify-center transition-colors cursor-pointer active:scale-95"
+                          title="Bagikan Agenda"
+                        >
+                          <Share2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* 2. POSTER MEDIA */}
+                    <div
+                      onClick={() => setFullscreenPosterUrl(ev.posterUrl || posterReuniImg)}
+                      className="relative w-full aspect-[4/3] sm:aspect-[16/9] bg-slate-950 overflow-hidden cursor-pointer select-none"
+                      title="Ketuk untuk melihat poster layar penuh"
+                    >
                       <img
-                        src={logoPonpesImg}
-                        alt="Admin Humas"
-                        className="w-full h-full object-cover"
+                        src={ev.posterUrl || posterReuniImg}
+                        alt={ev.title}
+                        className="w-full h-full object-cover hover:scale-[1.01] transition-transform duration-200"
                       />
                     </div>
-                    <div className="min-w-0">
-                      <h4 className="font-display font-bold text-xs sm:text-sm text-slate-900 truncate leading-tight">
-                        {ev.authorName || 'Admin Humas & Alumni Pondok'}
-                      </h4>
-                      <p className="text-[11px] text-slate-400 truncate mt-0.5">
-                        {ev.postedAt || '2 jam yang lalu'}
-                      </p>
-                    </div>
-                  </div>
 
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    <button
-                      type="button"
-                      onClick={() => handleOpenEditEvent(ev)}
-                      className="px-2.5 py-1.5 rounded-xl bg-sky-50 hover:bg-sky-100 text-sky-700 text-xs font-bold flex items-center gap-1 transition-colors cursor-pointer active:scale-95"
-                      title="Edit Agenda"
-                    >
-                      <Pencil className="w-3.5 h-3.5" />
-                      <span>Edit</span>
-                    </button>
+                    {/* 3. BARIS KETERANGAN KEHADIRAN (KETERANGAN KEHADIRAN DI KIRI TANPA 'STATUS RESPON', TOMBOL EDIT DI KANAN) */}
+                    <div className="px-4 py-2.5 flex items-center justify-between border-b border-slate-100 bg-white text-xs select-none gap-2">
+                      <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+                        <span className="font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-full text-[11px] sm:text-xs">
+                          Hadir: {ev.attendeesCount || 0}
+                        </span>
+                        <span className="font-bold text-rose-700 bg-rose-50 border border-rose-200 px-2.5 py-1 rounded-full text-[11px] sm:text-xs">
+                          Tidak: {ev.notAttendingCount || 0}
+                        </span>
+                        <span className="font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-full text-[11px] sm:text-xs">
+                          Ragu: {ev.uncertainCount || 0}
+                        </span>
+                      </div>
 
-                    <button
-                      type="button"
-                      onClick={() => triggerToast('Poster agenda berhasil diunduh')}
-                      className="w-8 h-8 rounded-full text-slate-400 hover:text-slate-700 hover:bg-slate-100 flex items-center justify-center transition-colors cursor-pointer active:scale-95"
-                      title="Unduh Poster"
-                    >
-                      <Download className="w-4 h-4" />
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => triggerToast('Tautan agenda disalin')}
-                      className="w-8 h-8 rounded-full text-slate-400 hover:text-slate-700 hover:bg-slate-100 flex items-center justify-center transition-colors cursor-pointer active:scale-95"
-                      title="Bagikan Agenda"
-                    >
-                      <Share2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-
-                {/* 2. POSTER MEDIA */}
-                <div
-                  onClick={() => setFullscreenPosterUrl(ev.posterUrl || posterReuniImg)}
-                  className="relative w-full aspect-[4/3] sm:aspect-[16/9] bg-slate-950 overflow-hidden cursor-pointer select-none"
-                  title="Ketuk untuk melihat poster layar penuh"
-                >
-                  <img
-                    src={ev.posterUrl || posterReuniImg}
-                    alt={ev.title}
-                    className="w-full h-full object-cover hover:scale-[1.01] transition-transform duration-200"
-                  />
-                </div>
-
-                {/* 3. BARIS KETERANGAN KEHADIRAN (LANGSUNG KETERANGAN HADIR, TIDAK HADIR, RAGU) */}
-                <div className="px-4 py-3 flex items-center justify-between border-b border-slate-100 bg-white text-xs select-none">
-                  <span className="font-semibold text-slate-500">
-                    Status Respon:
-                  </span>
-                  <div className="flex items-center gap-2">
-                    <span className="font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
-                      Hadir: {ev.attendeesCount || 0}
-                    </span>
-                    <span className="font-bold text-rose-700 bg-rose-50 border border-rose-200 px-2 py-0.5 rounded-full">
-                      Tidak: {ev.notAttendingCount || 0}
-                    </span>
-                    <span className="font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">
-                      Ragu: {ev.uncertainCount || 0}
-                    </span>
-                  </div>
-                </div>
-
-                {/* 4. CAPTION & DETAIL INFORMASI ACARA */}
-                <div className="px-4 py-3 space-y-2.5 text-xs">
-                  <div className="text-slate-800 text-xs">
-                    <p className={`leading-relaxed ${expandedCaptions[ev.id] ? '' : 'line-clamp-2'}`}>
-                      <span className="font-bold text-slate-900 mr-1.5 font-mono text-[11px] bg-slate-100 px-1.5 py-0.5 rounded">
-                        @{ev.authorHandle || 'attaroqqy_official'}
-                      </span>
-                      <span className="font-bold text-slate-900 mr-1">{ev.title}</span>
-                      <span className="text-slate-600">{ev.description}</span>
-                    </p>
-
-                    {!expandedCaptions[ev.id] && (
                       <button
                         type="button"
-                        onClick={() => toggleCaption(ev.id)}
-                        className="text-slate-400 hover:text-slate-600 text-xs font-normal mt-0.5 cursor-pointer block select-none"
+                        onClick={() => handleOpenEditEvent(ev)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-sky-50 hover:bg-sky-100 text-sky-700 text-xs font-bold rounded-xl border border-sky-200 transition-all cursor-pointer active:scale-95 shadow-2xs shrink-0"
+                        title="Edit Agenda Acara"
                       >
-                        selengkapnya
+                        <Pencil className="w-3.5 h-3.5" />
+                        <span>Edit</span>
                       </button>
-                    )}
-                    {expandedCaptions[ev.id] && (
-                      <button
-                        type="button"
-                        onClick={() => toggleCaption(ev.id)}
-                        className="text-slate-400 hover:text-slate-600 text-[11px] font-normal mt-1 cursor-pointer block select-none"
-                      >
-                        sembunyikan
-                      </button>
-                    )}
-                  </div>
+                    </div>
 
-                  {expandedCaptions[ev.id] && (
-                    <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200/80 space-y-2 text-slate-700 text-xs mt-2 animate-in fade-in duration-150">
-                      <div className="flex items-center gap-2">
-                        <Calendar className="w-4 h-4 text-sky-600 shrink-0" />
-                        <span className="text-slate-500 font-medium">Tanggal:</span>
-                        <span className="font-semibold text-slate-800">{ev.date}</span>
+                    {/* 4. CAPTION & DETAIL INFORMASI ACARA */}
+                    <div className="px-4 py-3 space-y-2.5 text-xs">
+                      <div className="text-slate-800 text-xs">
+                        <p 
+                          onClick={() => toggleCaption(ev.id)}
+                          className={`leading-relaxed cursor-pointer select-none ${expandedCaptions[ev.id] ? '' : 'line-clamp-2'}`}
+                          title={expandedCaptions[ev.id] ? "Klik untuk menyembunyikan" : "Klik untuk membaca selengkapnya"}
+                        >
+                          <span className="font-bold text-slate-900 mr-1.5 font-mono text-[11px] bg-slate-100 px-1.5 py-0.5 rounded">
+                            @{ev.authorHandle || 'attaroqqy_official'}
+                          </span>
+                          <span className="font-bold text-slate-900 mr-1">{ev.title}</span>
+                          <span className="text-slate-600">{ev.description}</span>
+                        </p>
+
+                        {!expandedCaptions[ev.id] && (
+                          <button
+                            type="button"
+                            onClick={() => toggleCaption(ev.id)}
+                            className="text-slate-400 hover:text-slate-600 text-xs font-normal mt-0.5 cursor-pointer block select-none"
+                          >
+                            selengkapnya
+                          </button>
+                        )}
+                        {expandedCaptions[ev.id] && (
+                          <button
+                            type="button"
+                            onClick={() => toggleCaption(ev.id)}
+                            className="text-slate-400 hover:text-slate-600 text-[11px] font-normal mt-1 cursor-pointer block select-none"
+                          >
+                            sembunyikan
+                          </button>
+                        )}
                       </div>
-                      <div className="flex items-center gap-2">
-                        <Clock className="w-4 h-4 text-amber-600 shrink-0" />
-                        <span className="text-slate-500 font-medium">Waktu:</span>
-                        <span className="font-semibold text-slate-800">{ev.time}</span>
-                      </div>
-                      <div className="flex items-start gap-2">
-                        <MapPin className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
-                        <span className="text-slate-500 font-medium">Tempat:</span>
-                        <span className="text-slate-700 leading-tight font-medium">{ev.location}</span>
+
+                      {expandedCaptions[ev.id] && (
+                        <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200/80 space-y-2 text-slate-700 text-xs mt-2 animate-in fade-in duration-150">
+                          <div className="flex items-center gap-2">
+                            <Calendar className="w-4 h-4 text-sky-600 shrink-0" />
+                            <span className="text-slate-500 font-medium">Tanggal:</span>
+                            <span className="font-semibold text-slate-800">{ev.date}</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Clock className="w-4 h-4 text-amber-600 shrink-0" />
+                            <span className="text-slate-500 font-medium">Waktu:</span>
+                            <span className="font-semibold text-slate-800">{ev.time}</span>
+                          </div>
+                          <div className="flex items-start gap-2">
+                            <MapPin className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                            <span className="text-slate-500 font-medium">Tempat:</span>
+                            <span className="text-slate-700 leading-tight font-medium">{ev.location}</span>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Link Keterangan Jumlah Orang yang Sudah Memberi Tanggapan */}
+                      <div className="pt-0.5">
+                        <button
+                          type="button"
+                          onClick={() => setActiveCommentsModalEvent(ev)}
+                          className="text-slate-400 hover:text-slate-600 text-xs font-normal cursor-pointer select-none text-left"
+                        >
+                          Lihat semua {((ev.attendeesCount || 0) + (ev.notAttendingCount || 0)) || commentsList.filter(c => c.eventId === ev.id).length || 0} tanggapan
+                        </button>
                       </div>
                     </div>
-                  )}
-                </div>
+                  </div>
+                ))}
+
+                {eventList.length === 0 && (
+                  <div className="bg-white rounded-2xl border border-slate-200/90 p-8 text-center text-slate-500 text-xs">
+                    Belum ada agenda kegiatan yang ditambahkan.
+                  </div>
+                )}
               </div>
-            ))}
+            )}
 
-            {eventList.length === 0 && (
-              <div className="bg-white rounded-2xl border border-slate-200/90 p-8 text-center text-slate-500 text-xs">
-                Belum ada agenda kegiatan yang ditambahkan.
+            {/* SUB-TAB 2: PRESENSI */}
+            {agendaSubTab === 'presensi' && (
+              <div className="space-y-4">
+                {/* Banner CTA Buat Presensi */}
+                <div className="bg-gradient-to-br from-slate-900 via-sky-950 to-slate-900 text-white rounded-3xl p-5 shadow-lg space-y-4 border border-slate-800">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-bold text-sky-300 bg-sky-900/80 px-2.5 py-1 rounded-full uppercase tracking-wider border border-sky-700/50">
+                      Presensi QR Event
+                    </span>
+                    <span className="text-xs text-slate-400 font-mono">
+                      {eventList.length} Agenda
+                    </span>
+                  </div>
+
+                  <div>
+                    <h3 className="font-display font-extrabold text-base sm:text-lg text-white">
+                      Presensi Kehadiran Santri & Alumni
+                    </h3>
+                    <p className="text-xs text-slate-300 mt-1 leading-relaxed">
+                      Pindai QR code kartu santri alumni secara instan menggunakan kamera untuk mencatat kehadiran secara langsung di daftar presensi.
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const targetEvent = selectedEventForAttendance || eventList[0];
+                      if (targetEvent) {
+                        setSelectedEventForAttendance(targetEvent);
+                        setIsScannerOpen(true);
+                      } else {
+                        triggerToast('Belum ada agenda acara untuk presensi');
+                      }
+                    }}
+                    className="w-full py-3.5 px-4 bg-sky-600 hover:bg-sky-500 active:scale-98 text-white font-bold rounded-2xl text-xs sm:text-sm flex items-center justify-center gap-2 shadow-lg shadow-sky-600/30 transition-all cursor-pointer"
+                  >
+                    <QrCode className="w-4 h-4 sm:w-5 sm:h-5" />
+                    <span>Buat Presensi</span>
+                  </button>
+                </div>
+
+                {/* List Agenda untuk Presensi */}
+                <div className="space-y-3 pt-1">
+                  <h4 className="font-bold text-xs text-slate-700 uppercase tracking-wider px-1">
+                    Daftar Agenda Acara
+                  </h4>
+
+                  {eventList.map((ev) => (
+                    <div
+                      key={ev.id}
+                      className="bg-white rounded-2xl p-4 border border-slate-200/90 shadow-2xs hover:border-sky-300 transition-all flex flex-col gap-3"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0 flex-1">
+                          <h5 className="font-bold text-xs sm:text-sm text-slate-900 leading-snug">
+                            {ev.title}
+                          </h5>
+                          <div className="flex items-center gap-2 text-[11px] text-slate-500 mt-1 flex-wrap">
+                            <span className="flex items-center gap-1">
+                              <Calendar className="w-3.5 h-3.5 text-slate-400" />
+                              {ev.date}
+                            </span>
+                            <span>•</span>
+                            <span className="flex items-center gap-1">
+                              <Clock className="w-3.5 h-3.5 text-slate-400" />
+                              {ev.time}
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-slate-400 truncate mt-0.5">
+                            {ev.location}
+                          </p>
+                        </div>
+
+                        <span className="px-2.5 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 font-bold text-xs font-mono shrink-0">
+                          {ev.attendeesCount || 0} Hadir
+                        </span>
+                      </div>
+
+                      <div className="flex items-center justify-between pt-2.5 border-t border-slate-100 gap-2">
+                        <span className="text-[11px] text-slate-500 font-medium">
+                          Scanner Layar Terbagi
+                        </span>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedEventForAttendance(ev);
+                            setIsScannerOpen(true);
+                          }}
+                          className="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white font-bold rounded-xl text-xs flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs active:scale-95"
+                        >
+                          <QrCode className="w-3.5 h-3.5" />
+                          <span>Buka Scan Presensi</span>
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
           </div>
@@ -521,7 +873,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
 
         {/* ================= TAB 2: KELOLA ALUMNI (BERSIH TANPA HEADER) ================= */}
         {activeTab === 'alumni' && (
-          <div className="flex-1 overflow-y-auto px-4 py-4 max-w-2xl mx-auto w-full space-y-3.5 pb-28">
+          <div className="flex-1 overflow-y-auto px-4 py-4 max-w-2xl mx-auto w-full space-y-3 pb-28">
             {/* Search & Filter Bar */}
             <div className="flex items-center gap-2">
               <div className="relative flex-1">
@@ -549,6 +901,45 @@ export const AdminView: React.FC<AdminViewProps> = ({
               </button>
             </div>
 
+            {/* Filter Label Status: Semua, Aktif, Tidak Aktif (Aktif = NIK pernah login) */}
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 scrollbar-none">
+              <button
+                type="button"
+                onClick={() => setStatusFilter('semua')}
+                className={`px-3 py-1 rounded-full text-xs font-bold transition-all cursor-pointer shrink-0 ${
+                  statusFilter === 'semua'
+                    ? 'bg-sky-600 text-white shadow-xs'
+                    : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+                }`}
+              >
+                Semua ({alumniList.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setStatusFilter('aktif')}
+                className={`px-3 py-1 rounded-full text-xs font-bold transition-all cursor-pointer shrink-0 flex items-center gap-1.5 ${
+                  statusFilter === 'aktif'
+                    ? 'bg-emerald-600 text-white shadow-xs'
+                    : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+                }`}
+              >
+                <span className={`w-2 h-2 rounded-full ${statusFilter === 'aktif' ? 'bg-white' : 'bg-emerald-500'}`} />
+                Aktif ({activeCount})
+              </button>
+              <button
+                type="button"
+                onClick={() => setStatusFilter('tidak_aktif')}
+                className={`px-3 py-1 rounded-full text-xs font-bold transition-all cursor-pointer shrink-0 flex items-center gap-1.5 ${
+                  statusFilter === 'tidak_aktif'
+                    ? 'bg-slate-700 text-white shadow-xs'
+                    : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+                }`}
+              >
+                <span className={`w-2 h-2 rounded-full ${statusFilter === 'tidak_aktif' ? 'bg-white' : 'bg-slate-400'}`} />
+                Tidak Aktif ({inactiveCount})
+              </button>
+            </div>
+
             {/* Filter Active Indicator & Quick Reset */}
             {hasActiveFilters && (
               <div className="flex items-center justify-between text-[11px] text-sky-800 bg-sky-50 px-3 py-1.5 rounded-xl border border-sky-100">
@@ -569,6 +960,8 @@ export const AdminView: React.FC<AdminViewProps> = ({
                 const addressText = item.shareFullAddress === false
                   ? [item.kecamatan, item.city].filter(Boolean).join(', ') || item.city || item.province || 'Alamat disembunyikan'
                   : [item.desa, item.kecamatan, item.city].filter(Boolean).join(', ') || item.province || 'Alamat belum diisi';
+
+                const isItemActive = item.hasLoggedIn === true || item.isPasswordChanged === true;
 
                 return (
                   <div
@@ -597,9 +990,20 @@ export const AdminView: React.FC<AdminViewProps> = ({
                     </div>
 
                     <div className="flex-1 min-w-0">
-                      <h4 className="font-display font-bold text-sm text-slate-900 group-hover:text-sky-700 transition-colors truncate">
-                        {item.name}
-                      </h4>
+                      <div className="flex items-center gap-1.5">
+                        <h4 className="font-display font-bold text-sm text-slate-900 group-hover:text-sky-700 transition-colors truncate">
+                          {item.name}
+                        </h4>
+                        {isItemActive ? (
+                          <span className="text-[9px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded-full border border-emerald-200/80 shrink-0">
+                            Aktif
+                          </span>
+                        ) : (
+                          <span className="text-[9px] font-medium text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded-full border border-slate-200/80 shrink-0">
+                            Tidak Aktif
+                          </span>
+                        )}
+                      </div>
                       <p className="text-xs text-slate-500 capitalize truncate mt-0.5">
                         {addressText}
                       </p>
@@ -621,30 +1025,114 @@ export const AdminView: React.FC<AdminViewProps> = ({
 
         {/* ================= TAB 3: PROFIL ADMIN ================= */}
         {activeTab === 'profile' && (
-          <div className="bg-[#f0f2fb] min-h-full flex flex-col">
+          <div className="bg-[#f0f2fb] min-h-full flex flex-col animate-in fade-in duration-150">
+            {/* FOTO SAMPUL / COVER PHOTO - UKURAN PENUH SAMA DENGAN AKUN BIASA */}
             <div 
-              className="relative w-full h-44 sm:h-52 overflow-hidden select-none shrink-0"
-              style={{
-                background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 60%, #075985 100%)',
-              }}
+              onClick={() => setIsCoverBottomSheetOpen(true)}
+              className="relative w-full h-52 sm:h-60 overflow-hidden cursor-pointer group select-none shrink-0 bg-[#0369a1]"
+              title="Klik foto sampul untuk opsi foto"
             >
-              <div className="absolute inset-0 droplet-pattern opacity-15 pointer-events-none" />
-              <div className="absolute -top-10 -right-10 w-44 h-44 bg-sky-300/25 rounded-full blur-2xl pointer-events-none" />
-              <div className="absolute -bottom-8 -left-8 w-36 h-36 bg-amber-300/20 rounded-full blur-xl pointer-events-none" />
+              {adminUser.coverPhotoUrl ? (
+                <img
+                  src={adminUser.coverPhotoUrl}
+                  alt="Foto Sampul Admin"
+                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                />
+              ) : (
+                <div 
+                  className="w-full h-full relative overflow-hidden transition-all duration-300"
+                  style={{
+                    background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 60%, #075985 100%)',
+                  }}
+                >
+                  <div className="absolute inset-0 droplet-pattern opacity-15 pointer-events-none" />
+                  <div className="absolute -top-10 -right-10 w-44 h-44 bg-sky-300/25 rounded-full blur-2xl pointer-events-none" />
+                  <div className="absolute -bottom-8 -left-8 w-36 h-36 bg-amber-300/20 rounded-full blur-xl pointer-events-none" />
+                </div>
+              )}
+              <div className="absolute inset-0 bg-gradient-to-b from-black/25 via-transparent to-black/35 pointer-events-none" />
+
+              {/* Badge Ikon Kamera Foto Sampul (di sebelah kanan) */}
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setIsCoverBottomSheetOpen(true);
+                }}
+                className="absolute bottom-14 right-4 bg-black/60 hover:bg-black/80 active:scale-95 backdrop-blur-md border border-white/25 text-white text-xs font-semibold px-3.5 py-1.5 rounded-full flex items-center gap-1.5 shadow-lg transition-all cursor-pointer z-30 pointer-events-auto select-none"
+              >
+                <Camera className="w-3.5 h-3.5 text-white" />
+                <span>{adminUser.coverPhotoUrl ? 'Foto Sampul' : 'Upload Sampul'}</span>
+              </button>
             </div>
 
+            {/* Input File Tersembunyi untuk Foto Sampul */}
+            <input
+              ref={coverFileInputRef}
+              type="file"
+              accept="image/png, image/jpeg, image/jpg, image/webp"
+              onChange={handleCoverPhotoSelect}
+              className="hidden"
+            />
+
+            {/* WADAH KARTU PUTIH MELENGKUNG */}
             <div className="bg-white rounded-t-[36px] shadow-sm px-6 pt-0 pb-24 space-y-6 flex-1 border-t border-slate-200/40 relative z-20 -mt-10 sm:-mt-12 max-w-2xl mx-auto w-full">
+              {/* Lingkaran Avatar tepat di perbatasan foto sampul */}
               <div className="text-center flex flex-col items-center relative -top-11 -mb-7">
-                <div className="w-22 h-22 sm:w-24 sm:h-24 rounded-full ring-4 ring-white shadow-lg overflow-hidden bg-gradient-to-tr from-sky-600 to-indigo-700 text-white font-bold text-3xl flex items-center justify-center">
-                  {admin.name.charAt(0)}
+                <div className="relative inline-block mb-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setShowFullscreenAvatar(true)}
+                    className="w-22 h-22 sm:w-24 sm:h-24 rounded-full ring-4 ring-white shadow-lg overflow-hidden bg-slate-200 flex items-center justify-center cursor-pointer group transition-transform active:scale-95"
+                    title="Lihat foto profil penuh"
+                  >
+                    {adminUser.avatar ? (
+                      <img
+                        src={adminUser.avatar}
+                        alt={adminUser.name}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div className="w-full h-full bg-gradient-to-tr from-sky-600 to-indigo-700 text-white font-bold text-3xl flex items-center justify-center">
+                        {adminUser.name.charAt(0)}
+                      </div>
+                    )}
+                  </button>
+
+                  {/* Badge Pensil Edit di Sudut Kanan Bawah Avatar */}
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      avatarFileInputRef.current?.click();
+                    }}
+                    className="absolute bottom-0 right-0 w-8 h-8 rounded-full bg-white shadow-md border border-slate-200/80 text-slate-700 hover:text-sky-600 flex items-center justify-center cursor-pointer active:scale-90 transition-all ring-2 ring-white"
+                    title="Ganti Foto Profil"
+                  >
+                    <Pencil className="w-4 h-4" />
+                  </button>
+
+                  <input
+                    ref={avatarFileInputRef}
+                    type="file"
+                    accept="image/png, image/jpeg, image/jpg, image/webp"
+                    onChange={handleAvatarSelect}
+                    className="hidden"
+                  />
                 </div>
 
-                <div className="mt-3">
+                <div className="mt-1">
                   <h3 className="font-display font-extrabold text-lg text-slate-900 leading-tight">
-                    {admin.name}
+                    {adminUser.name}
                   </h3>
+                  {/* USERNAME DIGANTI EMAIL SAJA */}
+                  <p className="text-xs text-sky-700 font-medium mt-0.5 flex items-center justify-center gap-1.5">
+                    <Mail className="w-3.5 h-3.5 text-sky-600" />
+                    <span>{adminUser.email || 'superadmin@attaroqqy.com'}</span>
+                  </p>
                   <p className="text-xs text-slate-500 mt-0.5">
-                    {admin.jabatan || 'Pengurus Pondok'}
+                    {adminUser.jabatan || 'Pengurus Pondok'}
                   </p>
                   <span className="inline-block mt-1 text-[11px] font-bold text-sky-700 bg-sky-50 border border-sky-200 px-3 py-0.5 rounded-full">
                     Administrator Portal
@@ -652,51 +1140,108 @@ export const AdminView: React.FC<AdminViewProps> = ({
                 </div>
               </div>
 
+              {/* CARD LEBIH RINGKAS: KOLOM NAMA LENGKAP, EMAIL, GANTI KATA SANDI, LOGOUT */}
               <div className="space-y-4">
-                <div className="p-4 rounded-2xl border border-slate-200/80 bg-slate-50/50 space-y-3 text-xs">
-                  <div className="flex justify-between items-center py-1 border-b border-slate-100">
-                    <span className="text-slate-400 font-medium">Nama Lengkap</span>
-                    <span className="font-bold text-slate-800">{admin.name}</span>
-                  </div>
-                  <div className="flex justify-between items-center py-1 border-b border-slate-100">
-                    <span className="text-slate-400 font-medium">Email / ID</span>
-                    <span className="font-bold text-slate-800">{admin.email}</span>
-                  </div>
-                  <div className="flex justify-between items-center py-1 border-b border-slate-100">
-                    <span className="text-slate-400 font-medium">Hak Akses</span>
-                    <span className="font-bold text-emerald-600">Full Access Administrator</span>
-                  </div>
-                </div>
-
-                <div className="bg-white rounded-2xl border border-slate-200/90 p-4 divide-y divide-slate-100 shadow-2xs">
+                <div className="bg-white rounded-2xl border border-slate-200/90 divide-y divide-slate-100 shadow-2xs overflow-hidden">
+                  {/* 1. Kolom Nama Lengkap (Saat diklik munculkan modal edit nama lengkap) */}
                   <div
-                    onClick={() => setIsPasswordModalOpen(true)}
-                    className="flex items-center justify-between py-3 cursor-pointer hover:bg-slate-50 -mx-2 px-2 rounded-xl transition-colors group"
+                    onClick={() => {
+                      setEditAdminName(adminUser.name);
+                      setIsEditNameModalOpen(true);
+                    }}
+                    className="flex items-center justify-between p-3.5 cursor-pointer hover:bg-slate-50 transition-colors group"
                   >
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full bg-slate-100 group-hover:bg-sky-50 text-slate-700 group-hover:text-sky-600 flex items-center justify-center transition-colors">
-                        <KeyRound className="w-4 h-4" />
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-9 h-9 rounded-xl bg-sky-50 text-sky-600 flex items-center justify-center shrink-0">
+                        <User className="w-4 h-4" />
                       </div>
-                      <div>
-                        <p className="text-xs font-bold text-slate-800">Ganti Kata Sandi</p>
+                      <div className="min-w-0">
+                        <p className="text-[11px] font-medium text-slate-400">Nama Lengkap</p>
+                        <p className="text-xs font-bold text-slate-800 truncate">{adminUser.name}</p>
                       </div>
                     </div>
-                    <ChevronRight className="w-4 h-4 text-slate-400 group-hover:translate-x-0.5 transition-transform" />
+                    <ChevronRight className="w-4 h-4 text-slate-400 group-hover:translate-x-0.5 transition-transform shrink-0 ml-2" />
                   </div>
 
+                  {/* 2. Kolom Email (Khusus Superadmin unclickable / tidak bisa diedit) */}
+                  {adminUser.role === 'super_admin' || (adminUser.email && adminUser.email.toLowerCase().includes('superadmin')) ? (
+                    <div
+                      className="flex items-center justify-between p-3.5 bg-slate-50/50 cursor-default select-none"
+                      title="Email akun superadmin utama permanen dan tidak dapat diubah"
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="w-9 h-9 rounded-xl bg-slate-100 text-slate-500 flex items-center justify-center shrink-0">
+                          <Mail className="w-4 h-4" />
+                        </div>
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-1.5">
+                            <p className="text-[11px] font-medium text-slate-400">Email</p>
+                          </div>
+                          <p className="text-xs font-bold text-slate-700 truncate">
+                            {adminUser.email || 'superadmin@attaroqqy.com'}
+                          </p>
+                        </div>
+                      </div>
+                      <span className="text-[10px] font-bold text-slate-400 bg-slate-200/70 px-2 py-0.5 rounded-md flex items-center gap-1 shrink-0 ml-2">
+                        <Lock className="w-3 h-3 text-slate-400" />
+                        Tetap
+                      </span>
+                    </div>
+                  ) : (
+                    <div
+                      className="flex items-center justify-between p-3.5 cursor-pointer hover:bg-slate-50 transition-colors group"
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="w-9 h-9 rounded-xl bg-sky-50 text-sky-600 flex items-center justify-center shrink-0">
+                          <Mail className="w-4 h-4" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-[11px] font-medium text-slate-400">Email</p>
+                          <p className="text-xs font-bold text-slate-800 truncate">
+                            {adminUser.email || 'superadmin@attaroqqy.com'}
+                          </p>
+                        </div>
+                      </div>
+                      <ChevronRight className="w-4 h-4 text-slate-400 group-hover:translate-x-0.5 transition-transform shrink-0 ml-2" />
+                    </div>
+                  )}
+
+                  {/* 3. Kolom Ganti Kata Sandi (Saat diklik munculkan modal dengan 2 kolom input) */}
+                  <div
+                    onClick={() => {
+                      setNewAdminPassword('');
+                      setConfirmAdminPassword('');
+                      setPasswordError(null);
+                      setIsPasswordModalOpen(true);
+                    }}
+                    className="flex items-center justify-between p-3.5 cursor-pointer hover:bg-slate-50 transition-colors group"
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-9 h-9 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
+                        <KeyRound className="w-4 h-4" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-xs font-bold text-slate-800">Ganti Kata Sandi</p>
+                        <p className="text-[11px] text-slate-400">Perbarui kata sandi akun admin</p>
+                      </div>
+                    </div>
+                    <ChevronRight className="w-4 h-4 text-slate-400 group-hover:translate-x-0.5 transition-transform shrink-0 ml-2" />
+                  </div>
+
+                  {/* 4. Keluar dari Akun */}
                   <div
                     onClick={onLogout}
-                    className="flex items-center justify-between py-3 cursor-pointer hover:bg-rose-50/70 -mx-2 px-2 rounded-xl transition-colors group"
+                    className="flex items-center justify-between p-3.5 cursor-pointer hover:bg-rose-50/70 transition-colors group"
                   >
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full bg-rose-50 text-rose-600 flex items-center justify-center">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-9 h-9 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center shrink-0">
                         <LogOut className="w-4 h-4" />
                       </div>
-                      <div>
+                      <div className="min-w-0">
                         <p className="text-xs font-bold text-rose-600">Keluar dari Akun</p>
                       </div>
                     </div>
-                    <ChevronRight className="w-4 h-4 text-slate-400 group-hover:translate-x-0.5 transition-transform" />
+                    <ChevronRight className="w-4 h-4 text-slate-400 group-hover:translate-x-0.5 transition-transform shrink-0 ml-2" />
                   </div>
                 </div>
               </div>
@@ -706,16 +1251,33 @@ export const AdminView: React.FC<AdminViewProps> = ({
       </div>
 
       {/* ================= TOMBOL MELAYANG DI POJOK KANAN BAWAH ================= */}
-      {/* 1. Tombol Melayang Tambah Agenda (Khusus Tab Agenda) */}
+      {/* 1. Tombol Melayang Khusus Tab Agenda: Tambah Agenda (di Kelola) atau Buat Presensi (di Presensi) */}
       {activeTab === 'agenda' && (
-        <button
-          type="button"
-          onClick={handleOpenAddEvent}
-          className="fixed bottom-20 right-5 z-40 w-13 h-13 sm:w-14 sm:h-14 rounded-full bg-sky-600 hover:bg-sky-700 text-white shadow-2xl flex items-center justify-center cursor-pointer transition-all active:scale-95 group"
-          title="Tambah Agenda Baru"
-        >
-          <Plus className="w-6 h-6 group-hover:rotate-90 transition-transform duration-200" />
-        </button>
+        agendaSubTab === 'kelola' ? (
+          <button
+            type="button"
+            onClick={handleOpenAddEvent}
+            className="fixed bottom-20 right-5 z-40 w-13 h-13 sm:w-14 sm:h-14 rounded-full bg-sky-600 hover:bg-sky-700 text-white shadow-2xl flex items-center justify-center cursor-pointer transition-all active:scale-95 group"
+            title="Tambah Agenda Baru"
+          >
+            <Plus className="w-6 h-6 group-hover:rotate-90 transition-transform duration-200" />
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={() => {
+              const target = selectedEventForAttendance || eventList[0];
+              if (target) {
+                setSelectedEventForAttendance(target);
+                setIsScannerOpen(true);
+              }
+            }}
+            className="fixed bottom-20 right-5 z-40 w-13 h-13 sm:w-14 sm:h-14 rounded-full bg-sky-600 hover:bg-sky-700 text-white shadow-2xl flex items-center justify-center cursor-pointer transition-all active:scale-95 group"
+            title="Buka Scan Presensi"
+          >
+            <QrCode className="w-6 h-6" />
+          </button>
+        )
       )}
 
       {/* 2. Dua Tombol Melayang (Khusus Tab Kelola Alumni): Sebaran Alumni (Hanya Icon) & Tambah Alumni */}
@@ -815,13 +1377,45 @@ export const AdminView: React.FC<AdminViewProps> = ({
           isOpen={isDistributionMapOpen}
           onClose={() => setIsDistributionMapOpen(false)}
           alumniList={alumniList}
-          currentUser={alumniList[0]}
           isAdmin={true}
           onSelectAlumni={(selected) => setDetailAlumni(selected)}
           onUpdateProfile={(updated) => {
             if (detailAlumni) {
               onUpdateAlumni(detailAlumni.id, updated);
             }
+          }}
+        />
+      )}
+
+      {/* ================= MODAL TANGGAPAN / KOMENTAR AGENDA (PERSIS AKUN BIASA) ================= */}
+      {activeCommentsModalEvent && (
+        <EventCommentsModal
+          event={activeCommentsModalEvent}
+          comments={commentsList}
+          currentUser={{
+            name: admin.name,
+            photoUrl: admin.avatar,
+          }}
+          onClose={() => setActiveCommentsModalEvent(null)}
+          onAddComment={handleAddComment}
+          onToggleLike={handleToggleLikeComment}
+        />
+      )}
+
+      {/* ================= MODAL FULLSCREEN PRESENSI KAMERA & DAFTAR KEHADIRAN ================= */}
+      {isScannerOpen && selectedEventForAttendance && (
+        <EventAttendanceScannerModal
+          isOpen={isScannerOpen}
+          event={selectedEventForAttendance}
+          alumniList={alumniList}
+          onClose={() => {
+            setIsScannerOpen(false);
+            setSelectedEventForAttendance(null);
+          }}
+          onUpdateEventAttendees={(eventId, newCount) => {
+            setEventList((prev) =>
+              prev.map((e) => (e.id === eventId ? { ...e, attendeesCount: newCount } : e))
+            );
           }}
         />
       )}
@@ -833,6 +1427,63 @@ export const AdminView: React.FC<AdminViewProps> = ({
           imageUrl={fullscreenPosterUrl}
           onClose={() => setFullscreenPosterUrl(null)}
         />
+      )}
+
+      {/* ================= MODAL EDIT NAMA LENGKAP ADMIN ================= */}
+      {isEditNameModalOpen && (
+        <div className="fixed inset-0 z-[100010] bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
+          <div className="bg-white rounded-3xl p-6 max-w-sm w-full space-y-4 shadow-2xl border border-slate-100 animate-in zoom-in-95">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-lg bg-sky-50 text-sky-600 flex items-center justify-center">
+                  <User className="w-4 h-4" />
+                </div>
+                <h3 className="font-display font-bold text-base text-slate-900">
+                  Edit Nama Lengkap
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsEditNameModalOpen(false)}
+                className="w-7 h-7 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-500 cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveAdminName} className="space-y-4 text-xs">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Nama Lengkap & Gelar
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={editAdminName}
+                  onChange={(e) => setEditAdminName(e.target.value)}
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-sky-600 focus:bg-white"
+                  placeholder="Contoh: Ust. H. Abdurrahman, M.Pd."
+                />
+              </div>
+
+              <div className="flex items-center gap-2 pt-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setIsEditNameModalOpen(false)}
+                  className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs transition-colors cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 py-2.5 bg-sky-600 hover:bg-sky-700 text-white font-bold rounded-xl text-xs transition-colors cursor-pointer shadow-md shadow-sky-600/20"
+                >
+                  Simpan Perubahan
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
 
       {/* ================= FULLSCREEN POSTINGAN AGENDA ALA INSTAGRAM ================= */}
@@ -1009,12 +1660,17 @@ export const AdminView: React.FC<AdminViewProps> = ({
         </div>
       )}
 
-      {/* ================= MODAL GANTI SANDI ADMIN ================= */}
+      {/* ================= MODAL GANTI SANDI ADMIN (2 KOLOM: KATA SANDI BARU & KONFIRMASI) ================= */}
       {isPasswordModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in">
           <div className="w-full max-w-sm bg-white rounded-3xl p-5 space-y-4 shadow-2xl border border-slate-100 animate-in zoom-in-95">
             <div className="flex justify-between items-center border-b border-slate-100 pb-2.5">
-              <h3 className="font-bold text-sm text-slate-900">Ganti Kata Sandi Admin</h3>
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center">
+                  <KeyRound className="w-4 h-4" />
+                </div>
+                <h3 className="font-bold text-sm text-slate-900">Ganti Kata Sandi</h3>
+              </div>
               <button
                 type="button"
                 onClick={() => setIsPasswordModalOpen(false)}
@@ -1024,37 +1680,205 @@ export const AdminView: React.FC<AdminViewProps> = ({
               </button>
             </div>
 
+            {passwordError && (
+              <div className="p-2.5 bg-rose-50 border border-rose-200 rounded-xl text-rose-700 text-xs flex items-center gap-2 animate-in fade-in">
+                <span className="text-[11px] leading-tight font-medium">{passwordError}</span>
+              </div>
+            )}
+
             <form onSubmit={handleSaveAdminPassword} className="space-y-3 text-xs">
+              {/* KOLOM 1: KATA SANDI BARU */}
               <div>
                 <label className="block font-semibold text-slate-700 mb-1">Kata Sandi Baru</label>
-                <input
-                  type="password"
-                  required
-                  placeholder="Masukkan kata sandi baru..."
-                  value={newAdminPassword}
-                  onChange={(e) => setNewAdminPassword(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-sky-500 focus:outline-none text-xs"
-                />
+                <div className="relative">
+                  <input
+                    type={showNewPassword ? 'text' : 'password'}
+                    required
+                    placeholder="Masukkan kata sandi baru..."
+                    value={newAdminPassword}
+                    onChange={(e) => {
+                      setNewAdminPassword(e.target.value);
+                      if (passwordError) setPasswordError(null);
+                    }}
+                    className="w-full pl-3.5 pr-10 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-sky-500 focus:bg-white focus:outline-none text-xs text-slate-800"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowNewPassword(!showNewPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer p-1"
+                  >
+                    {showNewPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+
+              {/* KOLOM 2: KONFIRMASI KATA SANDI */}
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">Konfirmasi Kata Sandi</label>
+                <div className="relative">
+                  <input
+                    type={showConfirmPassword ? 'text' : 'password'}
+                    required
+                    placeholder="Ulangi kata sandi baru..."
+                    value={confirmAdminPassword}
+                    onChange={(e) => {
+                      setConfirmAdminPassword(e.target.value);
+                      if (passwordError) setPasswordError(null);
+                    }}
+                    className="w-full pl-3.5 pr-10 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-sky-500 focus:bg-white focus:outline-none text-xs text-slate-800"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer p-1"
+                  >
+                    {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
               </div>
 
               <div className="pt-2 flex gap-2">
                 <button
                   type="button"
                   onClick={() => setIsPasswordModalOpen(false)}
-                  className="flex-1 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-xl text-xs cursor-pointer"
+                  className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-xl text-xs cursor-pointer transition-colors"
                 >
                   Batal
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 py-2 bg-sky-600 hover:bg-sky-700 text-white font-bold rounded-xl text-xs cursor-pointer shadow-xs"
+                  className="flex-1 py-2.5 bg-sky-600 hover:bg-sky-700 text-white font-bold rounded-xl text-xs cursor-pointer shadow-xs transition-colors"
                 >
-                  Simpan
+                  Simpan Sandi
                 </button>
               </div>
             </form>
           </div>
         </div>
+      )}
+
+      {/* ================= BOTTOM SHEET PILIHAN FOTO SAMPUL ADMIN ================= */}
+      {isCoverBottomSheetOpen && (
+        <div 
+          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-2xs flex flex-col justify-end animate-in fade-in"
+          onClick={() => setIsCoverBottomSheetOpen(false)}
+        >
+          <div 
+            className="w-full max-w-md mx-auto bg-white rounded-t-3xl shadow-2xl border-t border-slate-200 flex flex-col animate-in slide-in-from-bottom duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="w-10 h-1 bg-slate-300 rounded-full mx-auto mt-3 mb-1" />
+
+            <div className="px-5 py-3 border-b border-slate-100 flex items-center justify-between">
+              <h3 className="font-bold text-sm text-slate-900">Foto Sampul Profil</h3>
+              <button 
+                type="button" 
+                onClick={() => setIsCoverBottomSheetOpen(false)}
+                className="w-8 h-8 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-500 cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-4 space-y-2">
+              {!adminUser.coverPhotoUrl ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsCoverBottomSheetOpen(false);
+                    coverFileInputRef.current?.click();
+                  }}
+                  className="w-full flex items-center gap-3.5 py-3 px-3 rounded-2xl hover:bg-slate-50 transition-colors cursor-pointer text-left group"
+                >
+                  <div className="w-10 h-10 rounded-full bg-sky-50 text-sky-600 flex items-center justify-center shrink-0">
+                    <Upload className="w-5 h-5 text-sky-600" />
+                  </div>
+                  <div>
+                    <span className="text-sm font-semibold text-slate-900 block">
+                      Upload foto sampul
+                    </span>
+                    <span className="text-[11px] text-slate-400">Pilih gambar dari perangkat</span>
+                  </div>
+                </button>
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsCoverBottomSheetOpen(false);
+                      setShowFullscreenCover(true);
+                    }}
+                    className="w-full flex items-center gap-3.5 py-3 px-3 rounded-2xl hover:bg-slate-50 transition-colors cursor-pointer text-left group"
+                  >
+                    <div className="w-10 h-10 rounded-full bg-slate-100 text-slate-700 flex items-center justify-center shrink-0">
+                      <ImageIcon className="w-5 h-5 text-slate-700" />
+                    </div>
+                    <div>
+                      <span className="text-sm font-semibold text-slate-900 block">
+                        Lihat foto sampul
+                      </span>
+                      <span className="text-[11px] text-slate-400">Tampilkan ukuran penuh</span>
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsCoverBottomSheetOpen(false);
+                      coverFileInputRef.current?.click();
+                    }}
+                    className="w-full flex items-center gap-3.5 py-3 px-3 rounded-2xl hover:bg-slate-50 transition-colors cursor-pointer text-left group"
+                  >
+                    <div className="w-10 h-10 rounded-full bg-slate-100 text-slate-700 flex items-center justify-center shrink-0">
+                      <Pencil className="w-5 h-5 text-slate-700" />
+                    </div>
+                    <div>
+                      <span className="text-sm font-semibold text-slate-900 block">
+                        Ubah foto sampul
+                      </span>
+                      <span className="text-[11px] text-slate-400">Ganti dengan gambar baru</span>
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleRemoveCoverPhoto}
+                    className="w-full flex items-center gap-3.5 py-3 px-3 rounded-2xl hover:bg-rose-50 transition-colors cursor-pointer text-left group"
+                  >
+                    <div className="w-10 h-10 rounded-full bg-rose-50 text-rose-600 flex items-center justify-center shrink-0">
+                      <Trash2 className="w-5 h-5 text-rose-600" />
+                    </div>
+                    <div>
+                      <span className="text-sm font-semibold text-rose-600 block">
+                        Hapus foto sampul
+                      </span>
+                      <span className="text-[11px] text-rose-400">Kembalikan ke tampilan default</span>
+                    </div>
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* FULLSCREEN PREVIEW FOTO SAMPUL ADMIN */}
+      {showFullscreenCover && (
+        <CleanMediaPreviewModal
+          isOpen={showFullscreenCover}
+          imageUrl={adminUser.coverPhotoUrl || posterReuniImg}
+          onClose={() => setShowFullscreenCover(false)}
+        />
+      )}
+
+      {/* FULLSCREEN FOTO PROFIL ADMIN (DENGAN ZOOM, PAN & DELETE) */}
+      {showFullscreenAvatar && (
+        <FullscreenPhotoViewerModal
+          photoUrl={adminUser.avatar}
+          name={adminUser.name}
+          onClose={() => setShowFullscreenAvatar(false)}
+          onDelete={adminUser.avatar ? handleRemoveAvatar : undefined}
+        />
       )}
 
       {/* ================= BOTTOM SHEET FILTER DATA ALUMNI ================= */}
