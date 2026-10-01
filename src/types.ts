@@ -30,6 +30,7 @@ export interface AlumniRecord {
   photoUrl?: string;
   coverPhotoUrl?: string;
   shareContact: boolean;
+  shareEmail?: boolean;
   shareFullAddress?: boolean;
   shareLocationTag?: boolean;
   status: 'alumni' | 'santri_aktif';
@@ -69,6 +70,8 @@ export interface EventAgenda {
   description: string;
   attendeesCount: number;
   absentCount?: number;
+  notAttendingCount?: number;
+  uncertainCount?: number;
   userRsvp?: 'hadir' | 'belum_pasti' | 'tidak_hadir';
   rsvpNote?: string;
   posterUrl?: string;

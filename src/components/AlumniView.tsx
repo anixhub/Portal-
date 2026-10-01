@@ -74,6 +74,8 @@ import { AlumniDetailAdminModal } from './admin/AlumniDetailAdminModal';
 import { AlumniProfileCardModal } from './common/AlumniProfileCardModal';
 import { EventCommentsModal } from './common/EventCommentsModal';
 import { AlumniDistributionMapModal } from './common/AlumniDistributionMapModal';
+import { CleanMediaPreviewModal } from './common/CleanMediaPreviewModal';
+import { AlumniFinanceView } from './AlumniFinanceView';
 import posterReuniImg from '../assets/images/poster_reuni_akbar_1790648045947.jpg';
 import logoPonpesImg from '../assets/images/logo_ponpes_attaroqqy_1790648746461.jpg';
 import bgMenuQuranImg from '../assets/images/bg_menu_alquran_1790822566925.jpg';
@@ -90,7 +92,7 @@ interface AlumniViewProps {
   onRsvpEvent: (eventId: string, rsvp: 'hadir' | 'belum_pasti' | 'tidak_hadir', note?: string) => void;
 }
 
-type TabType = 'home' | 'events' | 'directory' | 'profile' | 'notifications' | 'announcements';
+type TabType = 'home' | 'events' | 'directory' | 'finance' | 'profile' | 'notifications' | 'announcements';
 
 const INITIAL_NOTIFICATIONS: NotificationItem[] = [
   {
@@ -435,6 +437,7 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
     reader.readAsDataURL(file);
   };
   const [editShareContact, setEditShareContact] = useState(alumni.shareContact);
+  const [editShareEmail, setEditShareEmail] = useState(alumni.shareEmail !== false);
   const [editShareFullAddress, setEditShareFullAddress] = useState(alumni.shareFullAddress !== false);
   const [editShareLocationTag, setEditShareLocationTag] = useState(alumni.shareLocationTag !== false);
   const [showLocationNotSetPopup, setShowLocationNotSetPopup] = useState(false);
@@ -580,6 +583,7 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
     setEditBio(alumni.bio || '');
     setEditPhotoUrl(alumni.photoUrl);
     setEditShareContact(alumni.shareContact);
+    setEditShareEmail(alumni.shareEmail !== false);
     setEditShareFullAddress(alumni.shareFullAddress !== false);
     setEditShareLocationTag(alumni.shareLocationTag !== false);
     setEditNism(alumni.nism || '131233170001');
@@ -1373,11 +1377,11 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
               </div>
             </div>
 
-            {/* 4. EVENT TERDEKAT DENGAN COUNTDOWN ELEGAN (MENGGANTIKAN ROOM OVERVIEW) */}
+            {/* 4. AGENDA TERDEKAT DENGAN COUNTDOWN ELEGAN (MENGGANTIKAN ROOM OVERVIEW) */}
             <div className="space-y-2.5 pt-1">
               <div className="flex items-center justify-between">
                 <h2 className="font-display font-bold text-base text-slate-900 tracking-tight">
-                  Event Terdekat
+                  Agenda Terdekat
                 </h2>
                 <button
                   type="button"
@@ -1395,7 +1399,7 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
               >
                 <img
                   src={events[0]?.posterUrl || posterReuniImg}
-                  alt={events[0]?.title || 'Event Terdekat'}
+                  alt={events[0]?.title || 'Agenda Terdekat'}
                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                 />
 
@@ -1834,13 +1838,18 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
           </div>
         )}
 
+        {/* ================= TAB KEUANGAN (TANGGUNGAN PEMBAYARAN & INFAQ) ================= */}
+        {activeTab === 'finance' && (
+          <AlumniFinanceView onToast={triggerToast} />
+        )}
+
         {/* ================= TAB 4: PROFILKU (LAYOUT PERSIS SCREENSHOT & BAHASA INDONESIA) ================= */}
         {activeTab === 'profile' && (
           <div className="bg-[#f0f2fb] min-h-full flex flex-col animate-in fade-in duration-150">
             {/* FOTO SAMPUL / COVER PHOTO - UKURAN PENUH SAMPAI KOTAK PENGATURAN INFORMASI PRIBADI */}
             <div 
               onClick={() => setIsCoverBottomSheetOpen(true)}
-              className="relative w-full h-52 sm:h-60 overflow-hidden cursor-pointer group select-none shrink-0 bg-slate-800"
+              className="relative w-full h-52 sm:h-60 overflow-hidden cursor-pointer group select-none shrink-0 bg-[#0369a1]"
               title="Klik foto sampul untuk opsi foto"
             >
               {editCoverPhotoUrl ? (
@@ -1850,20 +1859,32 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                 />
               ) : (
-                <div className="w-full h-full bg-gradient-to-r from-sky-800 via-indigo-900 to-slate-900 flex flex-col items-center justify-center text-white/80 group-hover:text-white transition-colors">
-                  <div className="w-10 h-10 rounded-full bg-white/10 backdrop-blur-sm border border-white/20 flex items-center justify-center mb-1.5 group-hover:scale-110 transition-transform">
-                    <Camera className="w-5 h-5 text-white" />
-                  </div>
-                  <span className="text-xs font-semibold text-white/90">Upload Foto Sampul</span>
+                <div 
+                  className="w-full h-full relative overflow-hidden transition-all duration-300"
+                  style={{
+                    background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 60%, #075985 100%)',
+                  }}
+                >
+                  <div className="absolute inset-0 droplet-pattern opacity-15 pointer-events-none" />
+                  <div className="absolute -top-10 -right-10 w-44 h-44 bg-sky-300/25 rounded-full blur-2xl pointer-events-none" />
+                  <div className="absolute -bottom-8 -left-8 w-36 h-36 bg-amber-300/20 rounded-full blur-xl pointer-events-none" />
                 </div>
               )}
-              <div className="absolute inset-0 bg-gradient-to-b from-black/25 via-transparent to-black/35" />
+              <div className="absolute inset-0 bg-gradient-to-b from-black/25 via-transparent to-black/35 pointer-events-none" />
 
-              {/* Badge Ikon Kamera Foto Sampul */}
-              <div className="absolute bottom-14 right-3 bg-black/55 hover:bg-black/75 backdrop-blur-md border border-white/20 text-white text-xs font-semibold px-3 py-1.5 rounded-full flex items-center gap-1.5 shadow-md transition-all pointer-events-none z-10">
+              {/* Badge Ikon Kamera Foto Sampul (di sebelah kanan) */}
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setIsCoverBottomSheetOpen(true);
+                }}
+                className="absolute bottom-14 right-4 bg-black/60 hover:bg-black/80 active:scale-95 backdrop-blur-md border border-white/25 text-white text-xs font-semibold px-3.5 py-1.5 rounded-full flex items-center gap-1.5 shadow-lg transition-all cursor-pointer z-30 pointer-events-auto select-none"
+              >
                 <Camera className="w-3.5 h-3.5 text-white" />
                 <span>{editCoverPhotoUrl ? 'Foto Sampul' : 'Upload Sampul'}</span>
-              </div>
+              </button>
             </div>
 
             {/* Input File Tersembunyi untuk Foto Sampul */}
@@ -2209,7 +2230,7 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
                       <div className="min-w-0">
                         <p className="text-[11px] text-slate-400 font-medium leading-tight">Data Ayah Kandung</p>
                         <p className="text-sm font-semibold text-slate-800 truncate mt-0.5">
-                          {editNamaAyah || alumni.namaAyah || 'H. Abdul Rasyid'} · {editPekerjaanAyah || alumni.pekerjaanAyah || 'Wiraswasta'}
+                          {editNamaAyah || alumni.namaAyah || 'H. Abdul Rasyid'} · {editNikAyah || alumni.nikAyah ? `NIK: ${editNikAyah || alumni.nikAyah}` : 'NIK: -'} · {editPekerjaanAyah || alumni.pekerjaanAyah || 'Wiraswasta'} · {editPendidikanAyah || alumni.pendidikanAyah || 'SMA'}
                         </p>
                       </div>
                     </div>
@@ -2228,7 +2249,7 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
                       <div className="min-w-0">
                         <p className="text-[11px] text-slate-400 font-medium leading-tight">Data Ibu Kandung</p>
                         <p className="text-sm font-semibold text-slate-800 truncate mt-0.5">
-                          {editNamaIbu || alumni.namaIbu || 'Hj. Siti Maryam'} · {editPekerjaanIbu || alumni.pekerjaanIbu || 'Ibu Rumah Tangga'}
+                          {editNamaIbu || alumni.namaIbu || 'Hj. Siti Maryam'} · {editNikIbu || alumni.nikIbu ? `NIK: ${editNikIbu || alumni.nikIbu}` : 'NIK: -'} · {editPekerjaanIbu || alumni.pekerjaanIbu || 'Ibu Rumah Tangga'} · {editPendidikanIbu || alumni.pendidikanIbu || 'SMA'}
                         </p>
                       </div>
                     </div>
@@ -2286,36 +2307,7 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
                     <ChevronRight className="w-4 h-4 text-slate-400 shrink-0 group-hover:translate-x-0.5 transition-transform" />
                   </div>
 
-                  {/* 3. Toggle Izinkan Alamat Lengkap Ditampilkan (BERSIH TANPA KETERANGAN APAPUN) */}
-                  <div className="flex items-center justify-between py-3.5 -mx-3 px-3 rounded-2xl">
-                    <div className="flex items-center gap-4 min-w-0 pr-3">
-                      <div className="w-6 flex items-center justify-center shrink-0">
-                        <MapPin className="w-5 h-5 text-sky-600" />
-                      </div>
-                      <div className="min-w-0">
-                        <p className="text-sm font-semibold text-slate-800 leading-tight">Izinkan Alamat Lengkap Ditampilkan</p>
-                      </div>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const nextVal = !editShareFullAddress;
-                        setEditShareFullAddress(nextVal);
-                        onUpdateProfile({ shareFullAddress: nextVal });
-                      }}
-                      className={`w-12 h-7 rounded-full p-0.5 transition-colors relative cursor-pointer shrink-0 ${
-                        editShareFullAddress ? 'bg-[#2563eb]' : 'bg-slate-300'
-                      }`}
-                    >
-                      <div
-                        className={`w-6 h-6 rounded-full bg-white shadow-md transform transition-transform ${
-                          editShareFullAddress ? 'translate-x-5' : 'translate-x-0'
-                        }`}
-                      />
-                    </button>
-                  </div>
-
-                  {/* 4. Toggle Izinkan Nomor WA Ditampilkan */}
+                  {/* 3. Toggle Izinkan Nomor WA Ditampilkan */}
                   <div className="flex items-center justify-between py-3.5 -mx-3 px-3 rounded-2xl">
                     <div className="flex items-center gap-4 min-w-0 pr-3">
                       <div className="w-6 flex items-center justify-center shrink-0">
@@ -2343,6 +2335,68 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
                       <div
                         className={`w-6 h-6 rounded-full bg-white shadow-md transform transition-transform ${
                           editShareContact ? 'translate-x-5' : 'translate-x-0'
+                        }`}
+                      />
+                    </button>
+                  </div>
+
+                  {/* 4. Toggle Izinkan Email Ditampilkan */}
+                  <div className="flex items-center justify-between py-3.5 -mx-3 px-3 rounded-2xl">
+                    <div className="flex items-center gap-4 min-w-0 pr-3">
+                      <div className="w-6 flex items-center justify-center shrink-0">
+                        <Mail className="w-5 h-5 text-sky-600" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-slate-800 leading-tight">Izinkan Email Ditampilkan</p>
+                        <p className="text-[11px] text-slate-400 leading-tight mt-0.5">
+                          Tampilkan alamat email pada profil kepada sesama alumni
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const nextVal = !editShareEmail;
+                        setEditShareEmail(nextVal);
+                        onUpdateProfile({ shareEmail: nextVal });
+                        triggerToast(nextVal ? 'Izin email aktif' : 'Izin email dinonaktifkan');
+                      }}
+                      className={`w-12 h-7 rounded-full p-0.5 transition-colors relative cursor-pointer shrink-0 ${
+                        editShareEmail ? 'bg-[#2563eb]' : 'bg-slate-300'
+                      }`}
+                    >
+                      <div
+                        className={`w-6 h-6 rounded-full bg-white shadow-md transform transition-transform ${
+                          editShareEmail ? 'translate-x-5' : 'translate-x-0'
+                        }`}
+                      />
+                    </button>
+                  </div>
+
+                  {/* 5. Toggle Izinkan Alamat Lengkap Ditampilkan */}
+                  <div className="flex items-center justify-between py-3.5 -mx-3 px-3 rounded-2xl">
+                    <div className="flex items-center gap-4 min-w-0 pr-3">
+                      <div className="w-6 flex items-center justify-center shrink-0">
+                        <MapPin className="w-5 h-5 text-sky-600" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-slate-800 leading-tight">Izinkan Alamat Lengkap Ditampilkan</p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const nextVal = !editShareFullAddress;
+                        setEditShareFullAddress(nextVal);
+                        onUpdateProfile({ shareFullAddress: nextVal });
+                      }}
+                      className={`w-12 h-7 rounded-full p-0.5 transition-colors relative cursor-pointer shrink-0 ${
+                        editShareFullAddress ? 'bg-[#2563eb]' : 'bg-slate-300'
+                      }`}
+                    >
+                      <div
+                        className={`w-6 h-6 rounded-full bg-white shadow-md transform transition-transform ${
+                          editShareFullAddress ? 'translate-x-5' : 'translate-x-0'
                         }`}
                       />
                     </button>
@@ -2672,13 +2726,19 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
                   <div className="space-y-3 text-xs">
                     <div>
                       <label className="block font-semibold text-slate-700 mb-1">Bio / Catatan Singkat</label>
-                      <textarea
-                        rows={3}
-                        value={editBio}
-                        onChange={(e) => setEditBio(e.target.value)}
-                        className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-medium focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500 text-xs"
-                        placeholder="Tulis pesan atau bio singkat Anda..."
-                      />
+                      <div className="relative">
+                        <textarea
+                          rows={3}
+                          maxLength={150}
+                          value={editBio}
+                          onChange={(e) => setEditBio(e.target.value.slice(0, 150))}
+                          className="w-full px-3 py-2 pb-6 bg-slate-50 border border-slate-200 rounded-xl font-medium focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500 text-xs resize-none"
+                          placeholder="Tulis pesan atau bio singkat Anda (maks. 150 karakter)..."
+                        />
+                        <div className="absolute bottom-2 right-3 text-[11px] font-mono text-slate-400 pointer-events-none select-none">
+                          {editBio.length}/150
+                        </div>
+                      </div>
                     </div>
                   </div>
                   <div className="flex gap-2 pt-2">
@@ -3089,6 +3149,8 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
                       desa={editDesa}
                       alamatLengkap={editAlamatLengkap}
                       coordinates={editCoordinates}
+                      showAlamatLengkap={true}
+                      showLocationTag={true}
                       onChange={(vals) => {
                         setEditProvince(vals.province);
                         setEditCity(vals.city);
@@ -3485,6 +3547,16 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
         </button>
 
         <button
+          onClick={() => setActiveTab('finance')}
+          className={`flex flex-col items-center gap-1 py-1 px-3 rounded-xl transition-colors cursor-pointer ${
+            activeTab === 'finance' ? 'text-[#0284c7] font-bold' : 'text-slate-500 hover:text-slate-800'
+          }`}
+        >
+          <Wallet className="w-5 h-5" />
+          <span className="text-[10px]">Keuangan</span>
+        </button>
+
+        <button
           onClick={() => setActiveTab('profile')}
           className={`flex flex-col items-center gap-1 py-1 px-3 rounded-xl transition-colors cursor-pointer ${
             activeTab === 'profile' ? 'text-[#0284c7] font-bold' : 'text-slate-500 hover:text-slate-800'
@@ -3842,8 +3914,13 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
       {selectedAlumniDetail && (
         <AlumniProfileCardModal
           isOpen={Boolean(selectedAlumniDetail)}
-          alumni={selectedAlumniDetail}
+          alumni={
+            selectedAlumniDetail.id === alumni.id
+              ? { ...selectedAlumniDetail, ...alumni }
+              : selectedAlumniDetail
+          }
           currentUser={alumni}
+          userGps={deviceGps}
           onClose={() => setSelectedAlumniDetail(null)}
         />
       )}
@@ -4237,24 +4314,11 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
 
       {/* FULLSCREEN PREVIEW FOTO SAMPUL */}
       {showFullscreenCover && (
-        <div 
-          className="fixed inset-0 z-[100003] bg-black/90 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in"
-          onClick={() => setShowFullscreenCover(false)}
-        >
-          <button
-            type="button"
-            onClick={() => setShowFullscreenCover(false)}
-            className="absolute top-5 right-5 w-10 h-10 rounded-full bg-white/20 hover:bg-white/30 text-white flex items-center justify-center cursor-pointer transition-colors"
-          >
-            <X className="w-6 h-6" />
-          </button>
-          <img
-            src={editCoverPhotoUrl || alumni.coverPhotoUrl || posterReuniImg}
-            alt="Foto Sampul Penuh"
-            className="max-w-full max-h-[85vh] object-contain rounded-2xl shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
-          />
-        </div>
+        <CleanMediaPreviewModal
+          isOpen={showFullscreenCover}
+          imageUrl={editCoverPhotoUrl || alumni.coverPhotoUrl || posterReuniImg}
+          onClose={() => setShowFullscreenCover(false)}
+        />
       )}
 
       {/* ================= MODAL PETA SEBARAN ALUMNI FULLSCREEN ================= */}

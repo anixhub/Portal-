@@ -27,6 +27,7 @@ interface AlumniDistributionMapModalProps {
   deviceGps?: { lat: number; lng: number } | null;
   onSelectAlumni: (alumni: AlumniRecord) => void;
   onUpdateProfile?: (updated: Partial<AlumniRecord>) => void;
+  isAdmin?: boolean;
 }
 
 // Master list of Indonesian locations (Provinces, Regencies, Cities, and Districts)
@@ -129,6 +130,7 @@ export const AlumniDistributionMapModal: React.FC<AlumniDistributionMapModalProp
   deviceGps,
   onSelectAlumni,
   onUpdateProfile,
+  isAdmin = false,
 }) => {
   const initialCoord = deviceGps || 
     (currentUser.coordinates?.lat && currentUser.coordinates?.lng
@@ -790,11 +792,16 @@ export const AlumniDistributionMapModal: React.FC<AlumniDistributionMapModalProp
         <div className="flex items-center gap-2 pointer-events-auto bg-white rounded-full px-3.5 py-2.5 shadow-[0_4px_22px_rgba(0,0,0,0.16)] border border-slate-200/90 transition-all">
           <button
             type="button"
-            onClick={onClose}
-            className="w-8 h-8 -ml-1 rounded-full hover:bg-slate-100 active:bg-slate-200 text-slate-700 flex items-center justify-center transition-colors cursor-pointer shrink-0"
-            title="Kembali ke Aplikasi"
+            disabled={hasSearchInput}
+            onClick={hasSearchInput ? undefined : onClose}
+            className={`w-8 h-8 -ml-1 rounded-full flex items-center justify-center transition-colors shrink-0 ${
+              hasSearchInput
+                ? 'opacity-30 cursor-not-allowed text-slate-400'
+                : 'text-slate-700 hover:bg-slate-100 active:bg-slate-200 cursor-pointer'
+            }`}
+            title={hasSearchInput ? 'Bersihkan pencarian (X) terlebih dahulu' : 'Kembali ke Aplikasi'}
           >
-            <ArrowLeft className="w-5 h-5 text-slate-700" />
+            <ArrowLeft className="w-5 h-5" />
           </button>
 
           <div 
@@ -827,9 +834,8 @@ export const AlumniDistributionMapModal: React.FC<AlumniDistributionMapModalProp
             )}
           </div>
 
-          {/* Badge Avatar Profil Pengguna:
-              "Saat mode cari atau kotak carinada inputnya apapun itu buat lingkarang profil di kanan kotak cari gaada." */}
-          {!hasSearchInput && !isSearchOverlayOpen && (
+          {/* Badge Avatar Profil Pengguna (Hanya jika bukan admin) */}
+          {!hasSearchInput && !isSearchOverlayOpen && !isAdmin && (
             <div
               onClick={() => setIsProfileBottomSheetOpen(true)}
               className="cursor-pointer shrink-0 ml-0.5 active:scale-95 transition-transform"
@@ -850,8 +856,8 @@ export const AlumniDistributionMapModal: React.FC<AlumniDistributionMapModalProp
           )}
         </div>
 
-        {/* Tag Wilayah di Bawah Kotak Cari */}
-        {!hideTags && !searchFilter && (
+        {/* Tag Wilayah di Bawah Kotak Cari (Hanya jika bukan admin) */}
+        {!isAdmin && !hideTags && !searchFilter && (
           <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pointer-events-auto px-1 py-1 animate-in fade-in duration-200">
             {locationTags.map((tag) => (
               <button
@@ -908,16 +914,27 @@ export const AlumniDistributionMapModal: React.FC<AlumniDistributionMapModalProp
           </div>
         </button>
 
-        <button
-          type="button"
-          onClick={handleCenterHome}
-          className="w-12 h-12 sm:w-13 sm:h-13 rounded-[22px] bg-white shadow-[0_4px_24px_rgba(0,0,0,0.18)] border border-slate-100 flex items-center justify-center cursor-pointer transition-all active:scale-90 hover:shadow-2xl select-none group"
-          title="Pusatkan ke Rumah Saya"
-        >
-          <div className="w-8 h-8 sm:w-8.5 sm:h-8.5 rounded-full bg-slate-100 group-hover:bg-sky-50 text-slate-700 group-hover:text-sky-600 flex items-center justify-center transition-colors">
-            <Home className="w-4.5 h-4.5 text-slate-700 group-hover:text-sky-600 transition-colors" />
-          </div>
-        </button>
+        {!isAdmin && (
+          <button
+            type="button"
+            disabled={!isLocationTagSet}
+            onClick={isLocationTagSet ? handleCenterHome : undefined}
+            className={`w-12 h-12 sm:w-13 sm:h-13 rounded-[22px] bg-white shadow-[0_4px_24px_rgba(0,0,0,0.18)] border border-slate-100 flex items-center justify-center select-none ${
+              !isLocationTagSet
+                ? 'opacity-40 cursor-not-allowed'
+                : 'cursor-pointer transition-all active:scale-90 hover:shadow-2xl group'
+            }`}
+            title={isLocationTagSet ? 'Pusatkan ke Rumah Saya' : 'Tag lokasi rumah belum diatur'}
+          >
+            <div className={`w-8 h-8 sm:w-8.5 sm:h-8.5 rounded-full flex items-center justify-center transition-colors ${
+              !isLocationTagSet
+                ? 'bg-slate-100 text-slate-400'
+                : 'bg-slate-100 group-hover:bg-sky-50 text-slate-700 group-hover:text-sky-600'
+            }`}>
+              <Home className="w-4.5 h-4.5" />
+            </div>
+          </button>
+        )}
       </div>
 
       {/* ================= 4. BOTTOM SHEET 60% LAYAR (DAFTAR ALUMNI HASIL PENCARIAN ALAMAT) =================
@@ -1285,11 +1302,16 @@ export const AlumniDistributionMapModal: React.FC<AlumniDistributionMapModalProp
           <div className="flex items-center gap-3 px-4 py-3 border-b border-slate-200/90 shrink-0">
             <button
               type="button"
-              onClick={() => setIsSearchOverlayOpen(false)}
-              className="p-1 -ml-1 rounded-full text-slate-700 hover:bg-slate-100 active:bg-slate-200 transition-colors cursor-pointer shrink-0"
-              title="Kembali ke Peta"
+              disabled={Boolean(searchOverlayQuery.trim())}
+              onClick={searchOverlayQuery.trim() ? undefined : () => setIsSearchOverlayOpen(false)}
+              className={`p-1 -ml-1 rounded-full transition-colors shrink-0 ${
+                searchOverlayQuery.trim()
+                  ? 'opacity-30 cursor-not-allowed text-slate-400'
+                  : 'text-slate-700 hover:bg-slate-100 active:bg-slate-200 cursor-pointer'
+              }`}
+              title={searchOverlayQuery.trim() ? 'Bersihkan pencarian (X) terlebih dahulu' : 'Kembali ke Peta'}
             >
-              <ArrowLeft className="w-6 h-6 text-slate-800" />
+              <ArrowLeft className="w-6 h-6" />
             </button>
 
             <div className="flex-1 flex items-center relative min-w-0">
@@ -1490,9 +1512,6 @@ export const AlumniDistributionMapModal: React.FC<AlumniDistributionMapModalProp
                   <h4 className="font-display font-bold text-sm text-slate-900 truncate">
                     {currentUser.name}
                   </h4>
-                  <p className="text-xs text-slate-600 mt-0.5 truncate">
-                    NIS: {currentUser.nis} • Angkatan {currentUser.gradYear || 'Alumni'}
-                  </p>
                   <p className="text-[11px] text-slate-500 mt-0.5 truncate">
                     {[currentUser.kecamatan, currentUser.city, currentUser.province].filter(Boolean).join(', ')}
                   </p>
@@ -1501,37 +1520,8 @@ export const AlumniDistributionMapModal: React.FC<AlumniDistributionMapModalProp
 
               <div className="space-y-4">
                 <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">
-                  Pengaturan Tag Lokasi & Izin Tampilan
+                  Pengaturan Privasi Peta
                 </h4>
-
-                {/* Kotak Tag Lokasi: Default keterangan lokasi belum diatur dan tombol atur */}
-                <div className="p-4 rounded-2xl border border-slate-200 bg-white hover:border-slate-300 transition-colors flex items-center justify-between gap-3 shadow-2xs">
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2">
-                      <MapPin className="w-4 h-4 text-sky-600 shrink-0" />
-                      <span className="font-bold text-xs sm:text-sm text-slate-900">
-                        Tag Lokasi Rumah
-                      </span>
-                    </div>
-                    <p className={`text-xs mt-1 ${isLocationTagSet ? 'text-slate-600 font-medium' : 'text-amber-600 font-bold'}`}>
-                      {isLocationTagSet
-                        ? `${currentUser.kecamatan ? `Kec. ${currentUser.kecamatan}, ` : ''}${currentUser.city || 'Titik Terpasang'}`
-                        : 'Lokasi belum diatur'}
-                    </p>
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={() => setIsLocationPickerOpen(true)}
-                    className={`py-1.5 px-3.5 rounded-xl font-bold text-xs transition-all cursor-pointer active:scale-95 shrink-0 ${
-                      isLocationTagSet
-                        ? 'bg-slate-100 hover:bg-slate-200 text-slate-700'
-                        : 'bg-sky-600 hover:bg-sky-700 text-white shadow-xs'
-                    }`}
-                  >
-                    {isLocationTagSet ? 'Ubah' : 'Atur'}
-                  </button>
-                </div>
 
                 {/* Setting Izin Membagikan Lokasi: Mati jika lokasi belum diatur, muncul popup kecil di atas */}
                 <div className="relative p-4 rounded-2xl border border-slate-200 bg-white hover:border-slate-300 transition-colors flex items-start justify-between gap-3 shadow-2xs">
@@ -1581,36 +1571,6 @@ export const AlumniDistributionMapModal: React.FC<AlumniDistributionMapModalProp
                     </div>
                   )}
                 </div>
-
-                {/* Tampilkan Alamat Lengkap */}
-                <div className="p-4 rounded-2xl border border-slate-200 bg-white hover:border-slate-300 transition-colors flex items-start justify-between gap-3 shadow-2xs">
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2">
-                      <Eye className="w-4 h-4 text-emerald-600 shrink-0" />
-                      <span className="font-bold text-xs sm:text-sm text-slate-900">
-                        Tampilkan Alamat Lengkap
-                      </span>
-                    </div>
-                    <p className="text-xs text-slate-500 mt-1 leading-relaxed">
-                      Izinkan rincian desa, RT/RW, dan jalan rumah Anda terlihat oleh sesama alumni di profil.
-                    </p>
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={() => handleToggleShareFullAddress(!shareFullAddress)}
-                    className={`w-12 h-6.5 rounded-full transition-colors relative cursor-pointer shrink-0 mt-0.5 ${
-                      shareFullAddress ? 'bg-emerald-600' : 'bg-slate-300'
-                    }`}
-                    title={shareFullAddress ? 'Sembunyikan alamat lengkap' : 'Tampilkan alamat lengkap'}
-                  >
-                    <div
-                      className={`w-5 h-5 rounded-full bg-white shadow-md transition-transform absolute top-0.5 ${
-                        shareFullAddress ? 'left-6' : 'left-1'
-                      }`}
-                    />
-                  </button>
-                </div>
               </div>
 
               <div className="pt-2 flex flex-col sm:flex-row gap-2.5">
@@ -1628,11 +1588,17 @@ export const AlumniDistributionMapModal: React.FC<AlumniDistributionMapModalProp
 
                 <button
                   type="button"
-                  onClick={() => {
+                  disabled={!isLocationTagSet}
+                  onClick={isLocationTagSet ? () => {
                     setIsProfileBottomSheetOpen(false);
                     handleCenterHome();
-                  }}
-                  className="py-3 px-4 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs flex items-center justify-center gap-1.5 cursor-pointer transition-all active:scale-[0.98]"
+                  } : undefined}
+                  className={`py-3 px-4 rounded-xl font-semibold text-xs flex items-center justify-center gap-1.5 transition-all ${
+                    !isLocationTagSet
+                      ? 'bg-slate-100 text-slate-400 opacity-50 cursor-not-allowed'
+                      : 'bg-slate-100 hover:bg-slate-200 text-slate-700 cursor-pointer active:scale-[0.98]'
+                  }`}
+                  title={isLocationTagSet ? 'Pusatkan ke Rumah' : 'Tag lokasi rumah belum diatur'}
                 >
                   <Home className="w-4 h-4" />
                   <span>Pusatkan ke Rumah</span>

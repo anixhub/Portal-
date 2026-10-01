@@ -1,35 +1,25 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useRef } from 'react';
 import { 
   X, 
-  MapPin, 
-  Briefcase, 
-  Phone, 
-  Mail, 
-  GraduationCap, 
-  KeyRound, 
-  RotateCcw, 
-  Edit3, 
-  Check, 
-  Save, 
-  ArrowLeft,
-  Shield, 
-  Building, 
-  Home, 
+  ArrowLeft, 
+  User, 
   Calendar, 
-  Share2, 
-  ExternalLink,
+  Users, 
+  CreditCard, 
+  MapPin, 
+  Phone, 
+  Briefcase, 
+  GraduationCap, 
+  Clock, 
+  KeyRound, 
+  ChevronRight, 
   Camera,
-  BookOpen,
-  Maximize2
+  FileText,
+  FileCheck
 } from 'lucide-react';
-import L from 'leaflet';
 import { AlumniRecord } from '../../types';
 import { WilayahAddressFilter } from '../common/WilayahAddressFilter';
-import { 
-  FullscreenLocationMapModal, 
-  LocationCoordinates, 
-  DetectedAddressHint 
-} from '../common/FullscreenLocationMapModal';
+import { FullscreenPhotoViewerModal } from '../common/FullscreenPhotoViewerModal';
 
 interface AlumniDetailAdminModalProps {
   isOpen: boolean;
@@ -37,7 +27,6 @@ interface AlumniDetailAdminModalProps {
   onClose: () => void;
   onResetPassword: (id: string) => void;
   onSave?: (id: string, updated: Partial<AlumniRecord>) => void;
-  onEdit?: (alumni: AlumniRecord) => void;
 }
 
 export const AlumniDetailAdminModal: React.FC<AlumniDetailAdminModalProps> = ({
@@ -47,773 +36,1058 @@ export const AlumniDetailAdminModal: React.FC<AlumniDetailAdminModalProps> = ({
   onResetPassword,
   onSave,
 }) => {
-  const [isEditing, setIsEditing] = useState(false);
-  const [copied, setCopied] = useState(false);
-  const [isMapModalOpen, setIsMapModalOpen] = useState(false);
-
-  const previewMapRef = useRef<HTMLDivElement>(null);
-  const miniMapInstanceRef = useRef<L.Map | null>(null);
-  const miniMarkerRef = useRef<L.Marker | null>(null);
-
-  // Form State for Editing
-  const [formData, setFormData] = useState({
-    name: alumni?.name || '',
-    nik: alumni?.nik || '',
-    nis: alumni?.nis || '',
-    gender: alumni?.gender || 'L',
-    gradYear: alumni?.gradYear || '',
-    entryYear: alumni?.entryYear || '',
-    jenjang: alumni?.jenjang || '',
-    asramaDulu: alumni?.asramaDulu || '',
-    province: alumni?.province || '',
-    city: alumni?.city || '',
-    kecamatan: alumni?.kecamatan || '',
-    desa: alumni?.desa || '',
-    alamatLengkap: alumni?.alamatLengkap || '',
-    coordinates: alumni?.coordinates || null as { lat: number; lng: number } | null,
-    occupation: alumni?.occupation || '',
-    institution: alumni?.institution || '',
-    phone: alumni?.phone || '',
-    email: alumni?.email || '',
-    bio: alumni?.bio || '',
-    photoUrl: alumni?.photoUrl || '',
-  });
-
-  // Sync state if alumni prop changes
-  useEffect(() => {
-    if (alumni) {
-      setFormData({
-        name: alumni.name,
-        nik: alumni.nik,
-        nis: alumni.nis,
-        gender: alumni.gender,
-        gradYear: alumni.gradYear,
-        entryYear: alumni.entryYear || '',
-        jenjang: alumni.jenjang,
-        asramaDulu: alumni.asramaDulu || '',
-        province: alumni.province || '',
-        city: alumni.city || '',
-        kecamatan: alumni.kecamatan || '',
-        desa: alumni.desa || '',
-        alamatLengkap: alumni.alamatLengkap || '',
-        coordinates: alumni.coordinates || null,
-        occupation: alumni.occupation || '',
-        institution: alumni.institution || '',
-        phone: alumni.phone || '',
-        email: alumni.email || '',
-        bio: alumni.bio || '',
-        photoUrl: alumni.photoUrl || '',
-      });
-      setIsEditing(false);
-    }
-  }, [alumni]);
-
-  // Mini preview map effect for view mode
-  useEffect(() => {
-    if (!isOpen || isEditing || isMapModalOpen || !alumni) {
-      if (miniMapInstanceRef.current) {
-        miniMapInstanceRef.current.remove();
-        miniMapInstanceRef.current = null;
-        miniMarkerRef.current = null;
-      }
-      return;
-    }
-
-    const targetLat = alumni.coordinates?.lat || -7.9826;
-    const targetLng = alumni.coordinates?.lng || 112.6308;
-
-    const timer = setTimeout(() => {
-      if (!previewMapRef.current) return;
-
-      if (!miniMapInstanceRef.current) {
-        const miniMap = L.map(previewMapRef.current, {
-          center: [targetLat, targetLng],
-          zoom: 15,
-          zoomControl: false,
-          attributionControl: false,
-          dragging: false,
-          touchZoom: false,
-          scrollWheelZoom: false,
-          doubleClickZoom: false,
-          boxZoom: false,
-          keyboard: false,
-        });
-
-        L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-          maxZoom: 19,
-        }).addTo(miniMap);
-
-        const pinIcon = L.divIcon({
-          className: 'mini-preview-pin !border-0 !bg-transparent',
-          html: `
-            <div style="width: 32px; height: 40px; position: relative;">
-              <div style="position: absolute; bottom: 0; left: 50%; transform: translateX(-50%); width: 14px; height: 5px; background: rgba(0,0,0,0.35); border-radius: 50%; filter: blur(1.5px);"></div>
-              <div style="position: absolute; top: 0; left: 0; width: 32px; height: 32px; background: linear-gradient(135deg, #ef4444 0%, #b91c1c 100%); border-radius: 50% 50% 50% 0; transform: rotate(-45deg); display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 10px rgba(185, 28, 28, 0.45); border: 2.5px solid #ffffff;">
-                <div style="width: 10px; height: 10px; background: #ffffff; border-radius: 50%;"></div>
-              </div>
-            </div>
-          `,
-          iconSize: [32, 40],
-          iconAnchor: [16, 40],
-        });
-
-        const marker = L.marker([targetLat, targetLng], { icon: pinIcon }).addTo(miniMap);
-
-        miniMapInstanceRef.current = miniMap;
-        miniMarkerRef.current = marker;
-      } else {
-        miniMapInstanceRef.current.setView([targetLat, targetLng], 15, { animate: false });
-        if (miniMarkerRef.current) {
-          miniMarkerRef.current.setLatLng([targetLat, targetLng]);
-        }
-      }
-
-      miniMapInstanceRef.current?.invalidateSize();
-    }, 100);
-
-    return () => {
-      clearTimeout(timer);
-    };
-  }, [isOpen, isEditing, isMapModalOpen, alumni?.coordinates?.lat, alumni?.coordinates?.lng]);
-
-  // Clean up preview map on unmount
-  useEffect(() => {
-    return () => {
-      if (miniMapInstanceRef.current) {
-        miniMapInstanceRef.current.remove();
-        miniMapInstanceRef.current = null;
-        miniMarkerRef.current = null;
-      }
-    };
-  }, []);
-
   if (!isOpen || !alumni) return null;
 
-  // Clean WhatsApp link
-  const cleanPhone = alumni.phone.replace(/[^0-9]/g, '');
-  const waNumber = cleanPhone.startsWith('0') 
-    ? '62' + cleanPhone.slice(1) 
-    : cleanPhone.startsWith('62') 
-    ? cleanPhone 
-    : cleanPhone ? '62' + cleanPhone : '';
+  // Active edit modal state for individual sections
+  const [activeEditModal, setActiveEditModal] = useState<string | null>(null);
+  const [showFullscreenPhoto, setShowFullscreenPhoto] = useState(false);
 
-  // Formatted address: Karas, Sedan, Rembang, Jawa Tengah
-  const addressParts = [
-    alumni.desa,
-    alumni.kecamatan,
-    alumni.city,
-    alumni.province
-  ].filter(Boolean);
-  const fullAddress = addressParts.length > 0 ? addressParts.join(', ') : 'Belum dilengkapi';
+  // Form edit states
+  const [editPhotoUrl, setEditPhotoUrl] = useState(alumni.photoUrl || '');
+  const [editName, setEditName] = useState(alumni.name);
+  const [editTempatLahir, setEditTempatLahir] = useState(alumni.tempatLahir || 'Rembang');
+  const [editTanggalLahir, setEditTanggalLahir] = useState(alumni.tanggalLahir || '2000-01-01');
+  const [editGender, setEditGender] = useState(alumni.gender || 'L');
+  const [editUrutanAnak, setEditUrutanAnak] = useState(alumni.urutanAnak || 2);
+  const [editJumlahSaudara, setEditJumlahSaudara] = useState(alumni.jumlahSaudara || 5);
+  const [editNik, setEditNik] = useState(alumni.nik || '');
+  const [editNoKk, setEditNoKk] = useState(alumni.noKk || '');
+  const [editPhone, setEditPhone] = useState(alumni.phone || '');
+  const [editEmail, setEditEmail] = useState(alumni.email || '');
+  const [editOccupation, setEditOccupation] = useState(alumni.occupation || '');
+  const [editInstitution, setEditInstitution] = useState(alumni.institution || '');
 
-  const handleSaveForm = (e: React.FormEvent) => {
-    e.preventDefault();
+  // Address
+  const [editProvince, setEditProvince] = useState(alumni.province || '');
+  const [editCity, setEditCity] = useState(alumni.city || '');
+  const [editKecamatan, setEditKecamatan] = useState(alumni.kecamatan || '');
+  const [editDesa, setEditDesa] = useState(alumni.desa || '');
+  const [editAlamatLengkap, setEditAlamatLengkap] = useState(alumni.alamatLengkap || '');
+  const [editCoordinates, setEditCoordinates] = useState(alumni.coordinates || null);
+
+  // Riwayat Pendidikan Pondok
+  const [editNis, setEditNis] = useState(alumni.nis || '');
+  const [editNism, setEditNism] = useState(alumni.nism || '131233170001');
+  const [editNisn, setEditNisn] = useState(alumni.nisn || '0012345678');
+  const [editEntryDate, setEditEntryDate] = useState(alumni.entryDate || `${alumni.entryYear || '2014'}-07-15`);
+  const [editGradDate, setEditGradDate] = useState(alumni.gradDate || `${alumni.gradYear || '2020'}-06-20`);
+
+  // Parents
+  const [editNamaAyah, setEditNamaAyah] = useState(alumni.namaAyah || 'H. Abdul Rasyid');
+  const [editNikAyah, setEditNikAyah] = useState(alumni.nikAyah || '3507123456780001');
+  const [editPekerjaanAyah, setEditPekerjaanAyah] = useState(alumni.pekerjaanAyah || 'Wiraswasta');
+  const [editPendidikanAyah, setEditPendidikanAyah] = useState(alumni.pendidikanAyah || 'SMA / Aliyah');
+
+  const [editNamaIbu, setEditNamaIbu] = useState(alumni.namaIbu || 'Hj. Siti Maryam');
+  const [editNikIbu, setEditNikIbu] = useState(alumni.nikIbu || '3507123456780002');
+  const [editPekerjaanIbu, setEditPekerjaanIbu] = useState(alumni.pekerjaanIbu || 'Ibu Rumah Tangga');
+  const [editPendidikanIbu, setEditPendidikanIbu] = useState(alumni.pendidikanIbu || 'SMA / Aliyah');
+
+  const photoFileInputRef = useRef<HTMLInputElement | null>(null);
+
+  const handleUpdate = (updated: Partial<AlumniRecord>) => {
     if (onSave) {
-      onSave(alumni.id, formData);
-    }
-    setIsEditing(false);
-  };
-
-  const handleLocationPicked = (coords: LocationCoordinates | null, hint?: DetectedAddressHint) => {
-    const updatedCoordinates = coords || undefined;
-    const updatedAlamat = !alumni.alamatLengkap && hint?.displayName ? hint.displayName : alumni.alamatLengkap;
-    if (onSave) {
-      onSave(alumni.id, {
-        coordinates: updatedCoordinates,
-        ...(updatedAlamat ? { alamatLengkap: updatedAlamat } : {})
-      });
+      onSave(alumni.id, updated);
     }
   };
 
-  const handleShareProfile = () => {
-    if (navigator.share) {
-      navigator.share({
-        title: `Biodata Alumni - ${alumni.name}`,
-        text: `Profil Alumni At-taroqqy: ${alumni.name} (Boyong ${alumni.gradYear})`,
-        url: window.location.href,
-      }).catch(() => {});
-    } else {
-      navigator.clipboard.writeText(`${alumni.name} - Boyong ${alumni.gradYear} (${alumni.phone})`);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    }
+  const handlePhotoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      if (event.target?.result) {
+        const newUrl = event.target.result as string;
+        setEditPhotoUrl(newUrl);
+        handleUpdate({ photoUrl: newUrl });
+      }
+    };
+    reader.readAsDataURL(file);
   };
+
+  const handleDeletePhoto = () => {
+    setEditPhotoUrl('');
+    handleUpdate({ photoUrl: '' });
+  };
+
+  const addressText = [editDesa, editKecamatan, editCity, editProvince].filter(Boolean).join(', ') || 'Alamat belum diatur';
 
   return (
-    <div className="fixed inset-0 z-[100005] bg-slate-50 flex flex-col w-full h-full overflow-hidden animate-in fade-in">
-      <div 
-        className="w-full h-full flex flex-col overflow-hidden relative"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* TOP BAR / NAVIGATION */}
-        <div className="bg-white px-4 sm:px-6 py-3.5 border-b border-slate-200/80 shrink-0 z-20 shadow-2xs">
-          <div className="max-w-4xl mx-auto w-full flex items-center justify-between">
-            <div className="flex items-center gap-2.5">
-              <button
-                type="button"
-                onClick={onClose}
-                className="w-9 h-9 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center transition-colors cursor-pointer shrink-0"
-                title="Kembali"
-              >
-                <ArrowLeft className="w-4 h-4" />
-              </button>
-              <div>
-                <h2 className="font-display font-bold text-sm sm:text-base text-slate-900 leading-tight">
-                  {isEditing ? 'Edit Biodata Alumni' : 'Detail Biodata Alumni'}
-                </h2>
-                <p className="text-[11px] text-slate-500">
-                  Pondok Pesantren At-taroqqy
-                </p>
-              </div>
-            </div>
+    <div className="fixed inset-0 z-[100005] bg-[#f0f2fb] flex flex-col w-full h-full overflow-hidden animate-in fade-in select-none">
+      {/* ================= TOP NAVIGATION BAR (TEKS "Detail Biodata Alumni", TANPA TOMBOL KANAN) ================= */}
+      <div className="bg-white px-4 py-3 border-b border-slate-200/80 shrink-0 z-30 shadow-2xs flex items-center justify-between">
+        <button
+          type="button"
+          onClick={onClose}
+          className="w-9 h-9 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center transition-colors cursor-pointer shrink-0"
+          title="Kembali"
+        >
+          <ArrowLeft className="w-5 h-5" />
+        </button>
 
-            <div className="flex items-center gap-2">
-              {!isEditing ? (
-                <>
-                  <button
-                    type="button"
-                    onClick={handleShareProfile}
-                    className="w-9 h-9 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center transition-colors cursor-pointer"
-                    title="Bagikan Ringkasan"
-                  >
-                    {copied ? <Check className="w-4 h-4 text-emerald-600" /> : <Share2 className="w-4 h-4" />}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setIsEditing(true)}
-                    className="px-3.5 py-2 bg-sky-600 hover:bg-sky-700 text-white font-bold rounded-xl text-xs flex items-center gap-1.5 transition-all shadow-xs shadow-sky-600/20 cursor-pointer"
-                  >
-                    <Edit3 className="w-3.5 h-3.5" />
-                    <span>Edit Data</span>
-                  </button>
-                </>
-              ) : (
+        <h2 className="font-display font-bold text-sm sm:text-base text-slate-900 leading-tight text-center">
+          Detail Biodata Alumni
+        </h2>
+
+        {/* Placeholder penyeimbang agar judul tetap tepat di tengah */}
+        <div className="w-9 h-9 shrink-0" />
+      </div>
+
+      {/* ================= PROFILE BODY ================= */}
+      <div className="flex-1 overflow-y-auto">
+        <div className="max-w-2xl mx-auto w-full flex flex-col">
+          {/* FOTO SAMPUL / COVER */}
+          <div 
+            className="relative w-full h-44 sm:h-52 overflow-hidden select-none shrink-0"
+            style={{
+              background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 60%, #075985 100%)',
+            }}
+          >
+            <div className="absolute inset-0 droplet-pattern opacity-15 pointer-events-none" />
+            <div className="absolute -top-10 -right-10 w-44 h-44 bg-sky-300/25 rounded-full blur-2xl pointer-events-none" />
+            <div className="absolute -bottom-8 -left-8 w-36 h-36 bg-amber-300/20 rounded-full blur-xl pointer-events-none" />
+          </div>
+
+          {/* WADAH KARTU PUTIH MELENGKUNG */}
+          <div className="bg-white rounded-t-[36px] shadow-sm px-6 pt-0 pb-24 space-y-6 flex-1 border-t border-slate-200/40 relative z-20 -mt-10 sm:-mt-12">
+            {/* Lingkaran Avatar dengan klik fullscreen dan tombol kamera */}
+            <div className="text-center flex flex-col items-center relative -top-11 -mb-7">
+              <div className="relative inline-block mb-1.5">
                 <button
                   type="button"
-                  onClick={() => setIsEditing(false)}
-                  className="px-3.5 py-1.5 rounded-xl border border-slate-200 hover:bg-slate-100 text-slate-600 font-bold text-xs transition-colors cursor-pointer"
+                  onClick={() => setShowFullscreenPhoto(true)}
+                  className="w-22 h-22 sm:w-24 sm:h-24 rounded-full ring-4 ring-white shadow-lg overflow-hidden bg-slate-200 flex items-center justify-center cursor-pointer group transition-transform active:scale-95"
+                  title="Klik untuk melihat foto profil layar penuh"
                 >
-                  Batal
+                  {editPhotoUrl ? (
+                    <img
+                      src={editPhotoUrl}
+                      alt={editName || alumni.name}
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                    />
+                  ) : (
+                    <div className="w-full h-full bg-gradient-to-tr from-sky-600 to-indigo-600 text-white font-bold text-3xl flex items-center justify-center">
+                      {(editName || alumni.name).charAt(0)}
+                    </div>
+                  )}
                 </button>
-              )}
-            </div>
-          </div>
-        </div>
 
-        {/* SCROLLABLE PROFILE CONTAINER */}
-        <div className="flex-1 overflow-y-auto">
-          <div className="max-w-4xl mx-auto w-full">
-          {!isEditing ? (
-            /* ================= VIEW MODE (MEDSOS PROFILE LAYOUT) ================= */
-            <div className="pb-10">
-              {/* COVER BANNER */}
-              <div className="h-32 sm:h-40 bg-gradient-to-r from-emerald-800 via-teal-700 to-sky-800 relative overflow-hidden">
-                <div className="absolute inset-0 opacity-15 bg-[radial-gradient(#fff_1px,transparent_1px)] [background-size:16px_16px]" />
-                <div className="absolute top-3 right-3 px-3 py-1 bg-black/30 backdrop-blur-xs text-white/90 rounded-full text-[11px] font-semibold flex items-center gap-1.5 border border-white/10">
-                  <Shield className="w-3 h-3 text-emerald-300" />
-                  <span>Terverifikasi Alumni</span>
-                </div>
-              </div>
-
-              {/* PROFILE HEADER CARD (OVERLAPPING BANNER) */}
-              <div className="px-4 sm:px-6 relative -mt-14 sm:-mt-16">
-                <div className="bg-white rounded-3xl p-5 border border-slate-200/90 shadow-sm relative">
-                  <div className="flex items-center justify-between">
-                    {/* AVATAR DENGAN STATUS AKTIF (TOMBOL WA & RESET SANDI DI BAWAH FOTO DIHAPUS) */}
-                    <div className="relative">
-                      {alumni.photoUrl ? (
-                        <img 
-                          src={alumni.photoUrl} 
-                          alt={alumni.name} 
-                          className="w-24 h-24 sm:w-28 sm:h-28 rounded-3xl object-cover border-4 border-white shadow-md ring-2 ring-slate-100"
-                        />
-                      ) : (
-                        <div className={`w-24 h-24 sm:w-28 sm:h-28 rounded-3xl flex items-center justify-center font-display font-extrabold text-3xl sm:text-4xl text-white shadow-md border-4 border-white ring-2 ring-slate-100 ${
-                          alumni.gender === 'P'
-                            ? 'bg-gradient-to-br from-pink-500 to-rose-600'
-                            : 'bg-gradient-to-br from-sky-600 to-indigo-700'
-                        }`}>
-                          {alumni.name.charAt(0)}
-                        </div>
-                      )}
-                      <span className="absolute bottom-1 right-1 w-4 h-4 bg-emerald-500 border-2 border-white rounded-full" title="Status Aktif" />
-                    </div>
-                  </div>
-
-                  {/* IDENTITAS NAMA & BADGES */}
-                  <div className="mt-4">
-                    <h1 className="font-display font-black text-xl sm:text-2xl text-slate-900 leading-tight">
-                      {alumni.name}
-                    </h1>
-
-                    {/* PILL TAGS: LABEL TAHUN BOYONG & TAG LOKASI SEBELAH KANANNYA (TANPA KETERANGAN SEKOLAH SEPERTI MAK) */}
-                    <div className="flex items-center gap-2 mt-2.5 flex-wrap text-xs">
-                      <span className="px-3 py-1 rounded-full bg-sky-50 text-sky-700 font-bold border border-sky-100/80">
-                        Boyong {alumni.gradYear}
-                      </span>
-                      {alumni.city && (
-                        <span className="px-3 py-1 rounded-full bg-slate-100 text-slate-700 font-medium flex items-center gap-1 border border-slate-200/60">
-                          <MapPin className="w-3 h-3 text-rose-500" />
-                          <span className="capitalize">{alumni.city}</span>
-                        </span>
-                      )}
-                    </div>
-
-                    {/* PROFESI DI BAWAH KETERANGAN BOYONG DAN LOKASI */}
-                    <p className="text-xs sm:text-sm font-semibold text-slate-600 mt-2.5 flex items-center gap-1.5 flex-wrap">
-                      <Briefcase className="w-3.5 h-3.5 text-sky-600 shrink-0" />
-                      <span>{alumni.occupation || 'Alumni Pesantren'}</span>
-                      {alumni.institution && (
-                        <>
-                          <span className="text-slate-300">·</span>
-                          <span className="text-slate-500">{alumni.institution}</span>
-                        </>
-                      )}
-                    </p>
-
-                    {/* BIO / KUTIPAN */}
-                    {alumni.bio && (
-                      <div className="mt-3.5 pt-3 border-t border-slate-100">
-                        <p className="text-xs text-slate-600 italic leading-relaxed">
-                          "{alumni.bio}"
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* DETAIL SECTIONS (MEDSOS CARDS) */}
-              <div className="px-4 sm:px-6 mt-4 space-y-3.5 text-xs">
-                {/* 1. KARTU DOMISILI & TITIK LOKASI TERKINI (SAMA PERSIS DENGAN AKUN ALUMNI) */}
-                <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200/90 shadow-2xs space-y-3.5">
-                  <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-                    <div className="flex items-center gap-1.5 text-slate-800 font-bold">
-                      <MapPin className="w-4 h-4 text-rose-500" />
-                      <span className="text-xs uppercase tracking-wider text-slate-700 font-bold">
-                        Domisili & Titik Lokasi Terkini
-                      </span>
-                    </div>
-                    {alumni.shareFullAddress !== false && (
-                      <button
-                        type="button"
-                        onClick={() => setIsMapModalOpen(true)}
-                        className="text-[11px] text-sky-600 hover:text-sky-700 font-semibold flex items-center gap-1 cursor-pointer transition-colors"
-                        title="Buka Peta Layar Penuh"
-                      >
-                        <Maximize2 className="w-3.5 h-3.5" />
-                        <span>Buka Peta</span>
-                      </button>
-                    )}
-                  </div>
-
-                  {alumni.shareFullAddress === false ? (
-                    <div className="py-2 space-y-3">
-                      <div className="grid grid-cols-2 gap-3.5">
-                        <div>
-                          <span className="text-[10px] font-semibold text-slate-400 block uppercase">Kecamatan</span>
-                          <p className="font-semibold text-slate-800 text-xs mt-0.5 capitalize">{alumni.kecamatan || '-'}</p>
-                        </div>
-                        <div>
-                          <span className="text-[10px] font-semibold text-slate-400 block uppercase">Kota / Kabupaten</span>
-                          <p className="font-semibold text-slate-800 text-xs mt-0.5 capitalize">{alumni.city || '-'}</p>
-                        </div>
-                      </div>
-                      <p className="text-[11px] text-slate-400 italic">
-                        Alamat lengkap dan titik peta disembunyikan oleh pengguna.
-                      </p>
-                    </div>
-                  ) : (
-                    <>
-                      {/* KOTAK PREVIEW PETA PERSIS SEPERTI DI AKUN ALUMNI */}
-                      <div
-                        onClick={() => setIsMapModalOpen(true)}
-                        className="group relative w-full h-36 sm:h-40 rounded-2xl overflow-hidden border border-slate-300 shadow-xs hover:shadow-md hover:border-sky-500 transition-all cursor-pointer bg-slate-100"
-                        title="Klik untuk membuka peta layar penuh dan melihat rute / memindah titik"
-                      >
-                        {/* Layer Peta Preview Leaflet */}
-                        <div
-                          ref={previewMapRef}
-                          className="w-full h-full pointer-events-none"
-                        />
-
-                        {/* Tag Lokasi */}
-                        <div className="absolute top-2.5 left-2.5 z-20 flex items-center gap-1.5 px-3 py-1.5 bg-white/95 backdrop-blur-md rounded-full shadow-md border border-slate-200/90 text-xs font-bold text-slate-800 pointer-events-none">
-                          <MapPin className="w-4 h-4 text-rose-600 fill-rose-600 shrink-0 animate-pulse" />
-                          <span>Tag Lokasi</span>
-                          {alumni.coordinates && (
-                            <span className="text-[10px] font-mono text-slate-500 font-normal ml-0.5">
-                              ({alumni.coordinates.lat.toFixed(4)}, {alumni.coordinates.lng.toFixed(4)})
-                            </span>
-                          )}
-                        </div>
-
-                        {/* Indikator Layar Penuh */}
-                        <div className="absolute top-2.5 right-2.5 z-20 px-2.5 py-1 bg-slate-900/80 hover:bg-slate-900 text-white rounded-xl shadow-md border border-white/10 flex items-center gap-1 text-[11px] font-medium backdrop-blur-xs transition-colors">
-                          <Maximize2 className="w-3.5 h-3.5" />
-                          <span className="text-[10px]">Layar Penuh</span>
-                        </div>
-                      </div>
-
-                      {/* DETAIL ALAMAT (SAMA PERSIS DENGAN FORMAT AKUN ALUMNI) */}
-                      <div className="space-y-3 pt-1">
-                        <div>
-                          <span className="text-[10px] font-semibold text-slate-400 block uppercase">
-                            Alamat Lengkap (Jalan, RT/RW, Dusun, No. Rumah)
-                          </span>
-                          <p className="font-medium text-slate-800 text-xs mt-0.5 capitalize leading-relaxed">
-                            {alumni.alamatLengkap || fullAddress || '-'}
-                          </p>
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-3.5 pt-2 border-t border-slate-100">
-                          <div>
-                            <span className="text-[10px] font-semibold text-slate-400 block uppercase">Kecamatan</span>
-                            <p className="font-semibold text-slate-800 text-xs mt-0.5 capitalize">{alumni.kecamatan || '-'}</p>
-                          </div>
-                          <div>
-                            <span className="text-[10px] font-semibold text-slate-400 block uppercase">Desa / Kelurahan</span>
-                            <p className="font-semibold text-slate-800 text-xs mt-0.5 capitalize">{alumni.desa || '-'}</p>
-                          </div>
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-3.5 pt-2 border-t border-slate-100">
-                          <div>
-                            <span className="text-[10px] font-semibold text-slate-400 block uppercase">Kota / Kabupaten</span>
-                            <p className="font-semibold text-slate-800 text-xs mt-0.5 capitalize">{alumni.city || '-'}</p>
-                          </div>
-                          <div>
-                            <span className="text-[10px] font-semibold text-slate-400 block uppercase">Provinsi</span>
-                            <p className="font-semibold text-slate-800 text-xs mt-0.5 capitalize">{alumni.province || '-'}</p>
-                          </div>
-                        </div>
-                      </div>
-                    </>
-                  )}
-                </div>
-
-                {/* 2. KARTU RIWAYAT SANTRI & PONDOK */}
-                <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200/90 shadow-2xs space-y-3">
-                  <div className="flex items-center gap-2 text-slate-800 font-bold border-b border-slate-100 pb-2">
-                    <GraduationCap className="w-4 h-4 text-emerald-600" />
-                    <span className="text-xs uppercase tracking-wider text-slate-700">Riwayat Santri & Pendidikan</span>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-3.5 pt-1">
-                    <div>
-                      <span className="text-[10px] font-semibold text-slate-400 block uppercase">NIK (Kependudukan)</span>
-                      <p className="font-mono font-bold text-slate-900 text-xs mt-0.5">{alumni.nik}</p>
-                    </div>
-                    <div>
-                      <span className="text-[10px] font-semibold text-slate-400 block uppercase">Nomor Induk Santri (NIS)</span>
-                      <p className="font-mono font-bold text-slate-900 text-xs mt-0.5">{alumni.nis}</p>
-                    </div>
-                    <div>
-                      <span className="text-[10px] font-semibold text-slate-400 block uppercase">Tahun Masuk</span>
-                      <p className="font-semibold text-slate-800 text-xs mt-0.5">{alumni.entryYear || '-'}</p>
-                    </div>
-                    <div>
-                      <span className="text-[10px] font-semibold text-slate-400 block uppercase">Tahun Boyong / Kelulusan</span>
-                      <p className="font-semibold text-slate-800 text-xs mt-0.5">Boyong {alumni.gradYear}</p>
-                    </div>
-                    <div className="col-span-2">
-                      <span className="text-[10px] font-semibold text-slate-400 block uppercase">Jenjang / Marhalah</span>
-                      <p className="font-semibold text-slate-800 text-xs mt-0.5">{alumni.jenjang}</p>
-                    </div>
-                    <div className="col-span-2">
-                      <span className="text-[10px] font-semibold text-slate-400 block uppercase">Kamar / Komplek Dulu</span>
-                      <p className="font-semibold text-slate-800 text-xs mt-0.5">{alumni.asramaDulu || '-'}</p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* 3. KARTU KONTAK & KREDENSIAL AKUN */}
-                <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200/90 shadow-2xs space-y-3">
-                  <div className="flex items-center gap-2 text-slate-800 font-bold border-b border-slate-100 pb-2">
-                    <KeyRound className="w-4 h-4 text-amber-500" />
-                    <span className="text-xs uppercase tracking-wider text-slate-700">Kontak & Keamanan Akun</span>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 pt-1">
-                    <div>
-                      <span className="text-[10px] font-semibold text-slate-400 block uppercase">No. WhatsApp / HP</span>
-                      <p className="font-mono font-semibold text-slate-800 text-xs mt-0.5">{alumni.phone}</p>
-                    </div>
-                    <div>
-                      <span className="text-[10px] font-semibold text-slate-400 block uppercase">Email</span>
-                      <p className="font-medium text-slate-800 text-xs mt-0.5 truncate">{alumni.email || '-'}</p>
-                    </div>
-                    <div className="sm:col-span-2 p-3 bg-slate-50 rounded-xl border border-slate-200/70 flex items-center justify-between">
-                      <div>
-                        <span className="text-[10px] font-semibold text-slate-400 block">Status Kata Sandi</span>
-                        <span className="text-xs font-bold text-slate-800">
-                          {alumni.isPasswordChanged ? 'Sudah Diubah Mandiri' : 'Masih Bawaan Standar (1234)'}
-                        </span>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => onResetPassword(alumni.id)}
-                        className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold rounded-lg text-[11px] border border-rose-200 transition-colors cursor-pointer"
-                      >
-                        Reset ke 1234
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          ) : (
-            /* ================= EDIT MODE (ADMIN FORM) ================= */
-            <form onSubmit={handleSaveForm} className="p-4 sm:p-6 space-y-4 text-xs pb-12">
-              <div className="bg-sky-50 border border-sky-100 rounded-2xl p-3 flex items-center gap-2.5 text-sky-800 text-xs">
-                <Edit3 className="w-4 h-4 text-sky-600 shrink-0" />
-                <span>Anda sedang mengedit data <b>{alumni.name}</b> sebagai Administrator.</span>
-              </div>
-
-              {/* FOTO PROFIL URL */}
-              <div className="bg-white p-4 rounded-2xl border border-slate-200/80 space-y-2">
-                <label className="block font-bold text-slate-800">
-                  URL Foto Profil (Opsional)
-                </label>
-                <div className="flex items-center gap-3">
-                  {formData.photoUrl ? (
-                    <img 
-                      src={formData.photoUrl} 
-                      alt="Preview" 
-                      className="w-12 h-12 rounded-xl object-cover border border-slate-200 shrink-0"
-                    />
-                  ) : (
-                    <div className="w-12 h-12 rounded-xl bg-slate-100 flex items-center justify-center text-slate-400 shrink-0">
-                      <Camera className="w-5 h-5" />
-                    </div>
-                  )}
-                  <input
-                    type="url"
-                    placeholder="https://example.com/foto.jpg"
-                    value={formData.photoUrl}
-                    onChange={(e) => setFormData({ ...formData, photoUrl: e.target.value })}
-                    className="flex-1 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500"
-                  />
-                </div>
-              </div>
-
-              {/* DATA DIRI & IDENTITAS */}
-              <div className="bg-white p-4 rounded-2xl border border-slate-200/80 space-y-3">
-                <h4 className="font-bold text-slate-800 border-b border-slate-100 pb-2">
-                  Identitas Alumni
-                </h4>
-
-                <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Nama Lengkap & Gelar</label>
-                  <input
-                    type="text"
-                    required
-                    value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500"
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block font-semibold text-slate-700 mb-1">NIK (16 Digit)</label>
-                    <input
-                      type="text"
-                      required
-                      value={formData.nik}
-                      onChange={(e) => setFormData({ ...formData, nik: e.target.value })}
-                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-mono text-xs focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="block font-semibold text-slate-700 mb-1">NIS Santri</label>
-                    <input
-                      type="text"
-                      required
-                      value={formData.nis}
-                      onChange={(e) => setFormData({ ...formData, nis: e.target.value })}
-                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-mono text-xs focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block font-semibold text-slate-700 mb-1">Jenis Kelamin</label>
-                    <select
-                      value={formData.gender}
-                      onChange={(e) => setFormData({ ...formData, gender: e.target.value as 'L' | 'P' })}
-                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500"
-                    >
-                      <option value="L">Laki-laki (Santri)</option>
-                      <option value="P">Perempuan (Santriwati)</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block font-semibold text-slate-700 mb-1">Tahun Boyong / Kelulusan</label>
-                    <input
-                      type="text"
-                      required
-                      value={formData.gradYear}
-                      onChange={(e) => setFormData({ ...formData, gradYear: e.target.value })}
-                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block font-semibold text-slate-700 mb-1">Tahun Masuk</label>
-                    <input
-                      type="text"
-                      placeholder="Contoh: 2014"
-                      value={formData.entryYear}
-                      onChange={(e) => setFormData({ ...formData, entryYear: e.target.value })}
-                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="block font-semibold text-slate-700 mb-1">Jenjang / Marhalah</label>
-                    <input
-                      type="text"
-                      value={formData.jenjang}
-                      onChange={(e) => setFormData({ ...formData, jenjang: e.target.value })}
-                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Kamar / Komplek Dulu</label>
-                  <input
-                    type="text"
-                    value={formData.asramaDulu}
-                    onChange={(e) => setFormData({ ...formData, asramaDulu: e.target.value })}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500"
-                  />
-                </div>
-              </div>
-
-              {/* DATA WILAYAH & ALAMAT */}
-              <div className="bg-white p-4 rounded-2xl border border-slate-200/80 space-y-3">
-                <h4 className="font-bold text-slate-800 border-b border-slate-100 pb-2">
-                  Alamat & Domisili
-                </h4>
-                <WilayahAddressFilter
-                  province={formData.province}
-                  city={formData.city}
-                  kecamatan={formData.kecamatan}
-                  desa={formData.desa}
-                  alamatLengkap={formData.alamatLengkap}
-                  coordinates={formData.coordinates}
-                  onChange={({ province, city, kecamatan, desa, alamatLengkap, coordinates }) => {
-                    setFormData({
-                      ...formData,
-                      province,
-                      city,
-                      kecamatan,
-                      desa,
-                      alamatLengkap: alamatLengkap || '',
-                      coordinates: coordinates || null,
-                    });
+                {/* Tombol Kamera Ganti Foto Profil Alumni oleh Admin */}
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    photoFileInputRef.current?.click();
                   }}
+                  className="absolute bottom-0 right-0 w-8 h-8 rounded-full bg-white shadow-md border border-slate-200/80 text-slate-700 hover:text-sky-600 flex items-center justify-center cursor-pointer active:scale-90 transition-all ring-2 ring-white z-10"
+                  title="Ganti Foto Profil Alumni"
+                >
+                  <Camera className="w-4 h-4" />
+                </button>
+
+                <input
+                  ref={photoFileInputRef}
+                  type="file"
+                  accept="image/png, image/jpeg, image/jpg, image/webp"
+                  onChange={handlePhotoSelect}
+                  className="hidden"
                 />
               </div>
 
-              {/* PROFESI & KONTAK */}
-              <div className="bg-white p-4 rounded-2xl border border-slate-200/80 space-y-3">
-                <h4 className="font-bold text-slate-800 border-b border-slate-100 pb-2">
-                  Karier, Kontak & Bio
-                </h4>
+              <h2 className="font-display font-bold text-lg text-slate-900 tracking-tight">
+                {editName || alumni.name}
+              </h2>
+              <p className="text-xs text-slate-500 mt-0.5">
+                {[editKecamatan, editCity, editProvince].filter(Boolean).join(', ')}
+              </p>
+            </div>
 
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block font-semibold text-slate-700 mb-1">Profesi / Pekerjaan</label>
-                    <input
-                      type="text"
-                      value={formData.occupation}
-                      onChange={(e) => setFormData({ ...formData, occupation: e.target.value })}
-                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500"
-                    />
+            {/* SEGMEN 1: INFORMASI PRIBADI */}
+            <div>
+              <p className="text-xs font-semibold text-slate-400 text-center tracking-wide mb-3">
+                Informasi Pribadi
+              </p>
+
+              <div className="divide-y divide-slate-100">
+                {/* 1. Nama Lengkap */}
+                <div
+                  onClick={() => setActiveEditModal('nama')}
+                  className="flex items-center justify-between py-3.5 cursor-pointer hover:bg-slate-50/70 -mx-3 px-3 rounded-2xl transition-colors group"
+                >
+                  <div className="flex items-center gap-4 min-w-0 pr-2">
+                    <div className="w-6 flex items-center justify-center shrink-0">
+                      <User className="w-5 h-5 text-slate-700" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-[11px] text-slate-400 font-medium leading-tight">Nama Lengkap</p>
+                      <p className="text-sm font-semibold text-slate-800 truncate mt-0.5">
+                        {editName}
+                      </p>
+                    </div>
                   </div>
-                  <div>
-                    <label className="block font-semibold text-slate-700 mb-1">Instansi / Lembaga</label>
-                    <input
-                      type="text"
-                      value={formData.institution}
-                      onChange={(e) => setFormData({ ...formData, institution: e.target.value })}
-                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500"
-                    />
-                  </div>
+                  <ChevronRight className="w-4 h-4 text-slate-400 shrink-0 group-hover:translate-x-0.5 transition-transform" />
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block font-semibold text-slate-700 mb-1">No. WhatsApp / HP</label>
-                    <input
-                      type="text"
-                      value={formData.phone}
-                      onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500"
-                    />
+                {/* 2. Tempat, Tanggal Lahir (TTL) */}
+                <div
+                  onClick={() => setActiveEditModal('ttl')}
+                  className="flex items-center justify-between py-3.5 cursor-pointer hover:bg-slate-50/70 -mx-3 px-3 rounded-2xl transition-colors group"
+                >
+                  <div className="flex items-center gap-4 min-w-0 pr-2">
+                    <div className="w-6 flex items-center justify-center shrink-0">
+                      <Calendar className="w-5 h-5 text-slate-700" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-[11px] text-slate-400 font-medium leading-tight">Tempat, Tanggal Lahir</p>
+                      <p className="text-sm font-semibold text-slate-800 truncate mt-0.5">
+                        {editTempatLahir}, {editTanggalLahir}
+                      </p>
+                    </div>
                   </div>
-                  <div>
-                    <label className="block font-semibold text-slate-700 mb-1">Email</label>
-                    <input
-                      type="email"
-                      value={formData.email}
-                      onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500"
-                    />
-                  </div>
+                  <ChevronRight className="w-4 h-4 text-slate-400 shrink-0 group-hover:translate-x-0.5 transition-transform" />
                 </div>
 
-                <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Bio / Catatan Khusus</label>
-                  <textarea
-                    rows={2}
-                    value={formData.bio}
-                    onChange={(e) => setFormData({ ...formData, bio: e.target.value })}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500"
-                  />
+                {/* 3. Gender & Saudara */}
+                <div
+                  onClick={() => setActiveEditModal('gender_saudara')}
+                  className="flex items-center justify-between py-3.5 cursor-pointer hover:bg-slate-50/70 -mx-3 px-3 rounded-2xl transition-colors group"
+                >
+                  <div className="flex items-center gap-4 min-w-0 pr-2">
+                    <div className="w-6 flex items-center justify-center shrink-0">
+                      <Users className="w-5 h-5 text-slate-700" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-[11px] text-slate-400 font-medium leading-tight">Jenis Kelamin & Saudara</p>
+                      <p className="text-sm font-semibold text-slate-800 truncate mt-0.5">
+                        {editGender === 'L' ? 'Laki-laki' : 'Perempuan'}, anak ke-{editUrutanAnak} dari {editJumlahSaudara} bersaudara
+                      </p>
+                    </div>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-slate-400 shrink-0 group-hover:translate-x-0.5 transition-transform" />
+                </div>
+
+                {/* 4. NIK & Nomor KK */}
+                <div
+                  onClick={() => setActiveEditModal('nik_kk')}
+                  className="flex items-center justify-between py-3.5 cursor-pointer hover:bg-slate-50/70 -mx-3 px-3 rounded-2xl transition-colors group"
+                >
+                  <div className="flex items-center gap-4 min-w-0 pr-2">
+                    <div className="w-6 flex items-center justify-center shrink-0">
+                      <CreditCard className="w-5 h-5 text-slate-700" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-[11px] text-slate-400 font-medium leading-tight">NIK & No. KK</p>
+                      <p className="text-sm font-semibold text-slate-800 truncate mt-0.5">
+                        {editNik || '-'} · {editNoKk || '-'}
+                      </p>
+                    </div>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-slate-400 shrink-0 group-hover:translate-x-0.5 transition-transform" />
+                </div>
+
+                {/* 5. Alamat */}
+                <div
+                  onClick={() => setActiveEditModal('alamat')}
+                  className="flex items-center justify-between py-3.5 cursor-pointer hover:bg-slate-50/70 -mx-3 px-3 rounded-2xl transition-colors group"
+                >
+                  <div className="flex items-center gap-4 min-w-0 pr-2">
+                    <div className="w-6 flex items-center justify-center shrink-0">
+                      <MapPin className="w-5 h-5 text-slate-700" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-[11px] text-slate-400 font-medium leading-tight">Alamat Domisili</p>
+                      <p className="text-sm font-semibold text-slate-800 truncate mt-0.5">
+                        {addressText}
+                      </p>
+                    </div>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-slate-400 shrink-0 group-hover:translate-x-0.5 transition-transform" />
+                </div>
+
+                {/* 6. Kontak WhatsApp & Email */}
+                <div
+                  onClick={() => setActiveEditModal('kontak')}
+                  className="flex items-center justify-between py-3.5 cursor-pointer hover:bg-slate-50/70 -mx-3 px-3 rounded-2xl transition-colors group"
+                >
+                  <div className="flex items-center gap-4 min-w-0 pr-2">
+                    <div className="w-6 flex items-center justify-center shrink-0">
+                      <Phone className="w-5 h-5 text-slate-700" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-[11px] text-slate-400 font-medium leading-tight">WhatsApp & Email</p>
+                      <p className="text-sm font-semibold text-slate-800 truncate mt-0.5">
+                        {editPhone || '-'} · {editEmail || '-'}
+                      </p>
+                    </div>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-slate-400 shrink-0 group-hover:translate-x-0.5 transition-transform" />
+                </div>
+
+                {/* 7. Pekerjaan & Instansi */}
+                <div
+                  onClick={() => setActiveEditModal('pekerjaan')}
+                  className="flex items-center justify-between py-3.5 cursor-pointer hover:bg-slate-50/70 -mx-3 px-3 rounded-2xl transition-colors group"
+                >
+                  <div className="flex items-center gap-4 min-w-0 pr-2">
+                    <div className="w-6 flex items-center justify-center shrink-0">
+                      <Briefcase className="w-5 h-5 text-slate-700" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-[11px] text-slate-400 font-medium leading-tight">Pekerjaan & Instansi</p>
+                      <p className="text-sm font-semibold text-slate-800 truncate mt-0.5">
+                        {editOccupation || 'Alumni Pesantren'}
+                        {editInstitution ? ` · ${editInstitution}` : ''}
+                      </p>
+                    </div>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-slate-400 shrink-0 group-hover:translate-x-0.5 transition-transform" />
                 </div>
               </div>
+            </div>
 
-              {/* ACTION BUTTONS (BOTTOM) */}
-              <div className="pt-2 flex items-center gap-3">
-                <button
-                  type="submit"
-                  className="flex-1 py-3 bg-sky-600 hover:bg-sky-700 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-2 shadow-md shadow-sky-600/20 transition-all cursor-pointer"
+            {/* SEGMEN 2: RIWAYAT PENDIDIKAN PONDOK (JENJANG & KAMAR DIHAPUS SESUAI PERMINTAAN) */}
+            <div>
+              <p className="text-xs font-semibold text-slate-400 text-center tracking-wide mb-3">
+                Riwayat Pendidikan
+              </p>
+
+              <div className="divide-y divide-slate-100">
+                {/* 1. NIS (Bisa diubah oleh Admin) */}
+                <div
+                  onClick={() => setActiveEditModal('nis')}
+                  className="flex items-center justify-between py-3.5 cursor-pointer hover:bg-slate-50/70 -mx-3 px-3 rounded-2xl transition-colors group"
                 >
-                  <Save className="w-4 h-4" />
-                  <span>Simpan Perubahan</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setIsEditing(false)}
-                  className="px-5 py-3 border border-slate-300 hover:bg-slate-100 text-slate-700 font-bold rounded-xl text-xs transition-colors cursor-pointer"
+                  <div className="flex items-center gap-4 min-w-0 pr-2">
+                    <div className="w-6 flex items-center justify-center shrink-0">
+                      <GraduationCap className="w-5 h-5 text-slate-700" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-[11px] text-slate-400 font-medium leading-tight">NIS (Nomor Induk Santri)</p>
+                      <p className="text-sm font-semibold font-mono text-slate-800 truncate mt-0.5">
+                        {editNis || '-'}
+                      </p>
+                    </div>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-slate-400 shrink-0 group-hover:translate-x-0.5 transition-transform" />
+                </div>
+
+                {/* 2. NISM (Nomor Induk Santri Madrasah) */}
+                <div
+                  onClick={() => setActiveEditModal('nism')}
+                  className="flex items-center justify-between py-3.5 cursor-pointer hover:bg-slate-50/70 -mx-3 px-3 rounded-2xl transition-colors group"
                 >
-                  Batal
-                </button>
+                  <div className="flex items-center gap-4 min-w-0 pr-2">
+                    <div className="w-6 flex items-center justify-center shrink-0">
+                      <FileText className="w-5 h-5 text-slate-700" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-[11px] text-slate-400 font-medium leading-tight">NISM (Nomor Induk Santri Madrasah)</p>
+                      <p className="text-sm font-semibold font-mono text-slate-800 truncate mt-0.5">
+                        {editNism || '-'}
+                      </p>
+                    </div>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-slate-400 shrink-0 group-hover:translate-x-0.5 transition-transform" />
+                </div>
+
+                {/* 3. NISN (Nomor Induk Siswa Nasional) */}
+                <div
+                  onClick={() => setActiveEditModal('nisn')}
+                  className="flex items-center justify-between py-3.5 cursor-pointer hover:bg-slate-50/70 -mx-3 px-3 rounded-2xl transition-colors group"
+                >
+                  <div className="flex items-center gap-4 min-w-0 pr-2">
+                    <div className="w-6 flex items-center justify-center shrink-0">
+                      <FileCheck className="w-5 h-5 text-slate-700" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-[11px] text-slate-400 font-medium leading-tight">NISN (Nomor Induk Siswa Nasional)</p>
+                      <p className="text-sm font-semibold font-mono text-slate-800 truncate mt-0.5">
+                        {editNisn || '-'}
+                      </p>
+                    </div>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-slate-400 shrink-0 group-hover:translate-x-0.5 transition-transform" />
+                </div>
+
+                {/* 4. Tanggal Masuk */}
+                <div
+                  onClick={() => setActiveEditModal('tanggal_masuk')}
+                  className="flex items-center justify-between py-3.5 cursor-pointer hover:bg-slate-50/70 -mx-3 px-3 rounded-2xl transition-colors group"
+                >
+                  <div className="flex items-center gap-4 min-w-0 pr-2">
+                    <div className="w-6 flex items-center justify-center shrink-0">
+                      <Clock className="w-5 h-5 text-sky-700" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-[11px] text-slate-400 font-medium leading-tight">Tanggal Masuk</p>
+                      <p className="text-sm font-semibold text-slate-800 truncate mt-0.5">
+                        {editEntryDate || 'Belum diisi'}
+                      </p>
+                    </div>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-slate-400 shrink-0 group-hover:translate-x-0.5 transition-transform" />
+                </div>
+
+                {/* 5. Tanggal Keluar */}
+                <div
+                  onClick={() => setActiveEditModal('tanggal_keluar')}
+                  className="flex items-center justify-between py-3.5 cursor-pointer hover:bg-slate-50/70 -mx-3 px-3 rounded-2xl transition-colors group"
+                >
+                  <div className="flex items-center gap-4 min-w-0 pr-2">
+                    <div className="w-6 flex items-center justify-center shrink-0">
+                      <Clock className="w-5 h-5 text-sky-700" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-[11px] text-slate-400 font-medium leading-tight">Tanggal Keluar (Boyong)</p>
+                      <p className="text-sm font-semibold text-slate-800 truncate mt-0.5">
+                        {editGradDate || 'Belum diisi'}
+                      </p>
+                    </div>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-slate-400 shrink-0 group-hover:translate-x-0.5 transition-transform" />
+                </div>
               </div>
-            </form>
-          )}
+            </div>
+
+            {/* SEGMEN 3: INFORMASI ORANG TUA */}
+            <div>
+              <p className="text-xs font-semibold text-slate-400 text-center tracking-wide mb-3">
+                Informasi Orang Tua
+              </p>
+
+              <div className="divide-y divide-slate-100">
+                {/* 1. Ayah */}
+                <div
+                  onClick={() => setActiveEditModal('ayah')}
+                  className="flex items-center justify-between py-3.5 cursor-pointer hover:bg-slate-50/70 -mx-3 px-3 rounded-2xl transition-colors group"
+                >
+                  <div className="flex items-center gap-4 min-w-0 pr-2">
+                    <div className="w-6 flex items-center justify-center shrink-0">
+                      <User className="w-5 h-5 text-slate-700" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-[11px] text-slate-400 font-medium leading-tight">Data Ayah Kandung</p>
+                      <p className="text-sm font-semibold text-slate-800 truncate mt-0.5">
+                        {editNamaAyah} · NIK: {editNikAyah} · {editPekerjaanAyah} · {editPendidikanAyah}
+                      </p>
+                    </div>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-slate-400 shrink-0 group-hover:translate-x-0.5 transition-transform" />
+                </div>
+
+                {/* 2. Ibu */}
+                <div
+                  onClick={() => setActiveEditModal('ibu')}
+                  className="flex items-center justify-between py-3.5 cursor-pointer hover:bg-slate-50/70 -mx-3 px-3 rounded-2xl transition-colors group"
+                >
+                  <div className="flex items-center gap-4 min-w-0 pr-2">
+                    <div className="w-6 flex items-center justify-center shrink-0">
+                      <User className="w-5 h-5 text-slate-700" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-[11px] text-slate-400 font-medium leading-tight">Data Ibu Kandung</p>
+                      <p className="text-sm font-semibold text-slate-800 truncate mt-0.5">
+                        {editNamaIbu} · NIK: {editNikIbu} · {editPekerjaanIbu} · {editPendidikanIbu}
+                      </p>
+                    </div>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-slate-400 shrink-0 group-hover:translate-x-0.5 transition-transform" />
+                </div>
+              </div>
+            </div>
+
+            {/* SEGMEN 4: AKUN & KEAMANAN */}
+            <div>
+              <p className="text-xs font-semibold text-slate-400 text-center tracking-wide mb-3">
+                Keamanan Akun
+              </p>
+
+              <div className="divide-y divide-slate-100">
+                <div
+                  onClick={() => onResetPassword(alumni.id)}
+                  className="flex items-center justify-between py-3.5 cursor-pointer hover:bg-amber-50/70 -mx-3 px-3 rounded-2xl transition-colors group"
+                >
+                  <div className="flex items-center gap-4 min-w-0 pr-2">
+                    <div className="w-6 flex items-center justify-center shrink-0">
+                      <KeyRound className="w-5 h-5 text-amber-600" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-slate-800 leading-tight">Reset Kata Sandi Akun</p>
+                      <p className="text-[11px] text-slate-400 leading-tight mt-0.5">
+                        Kembalikan kata sandi login alumni ini ke standar (1234)
+                      </p>
+                    </div>
+                  </div>
+                  <span className="text-xs font-bold text-amber-700 bg-amber-100 px-3 py-1 rounded-xl">
+                    Reset
+                  </span>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* FULLSCREEN LOCATION MAP MODAL (PERSIS SEPERTI DI AKUN ALUMNI) */}
-      {isMapModalOpen && (
-        <FullscreenLocationMapModal
-          isOpen={isMapModalOpen}
-          initialCoordinates={alumni.coordinates || { lat: -7.9826, lng: 112.6308 }}
-          initialZoom={15}
-          currentAddressLabel={[alumni.alamatLengkap, alumni.desa, alumni.kecamatan, alumni.city, alumni.province].filter(Boolean).join(', ')}
-          onClose={() => setIsMapModalOpen(false)}
-          onSelectLocation={handleLocationPicked}
+      {/* ================= FULLSCREEN PHOTO VIEWER (DENGAN X, HAPUS, ZOOM IN/OUT & GESER) ================= */}
+      {showFullscreenPhoto && (
+        <FullscreenPhotoViewerModal
+          photoUrl={editPhotoUrl}
+          name={editName || alumni.name}
+          onClose={() => setShowFullscreenPhoto(false)}
+          onDelete={editPhotoUrl ? handleDeletePhoto : undefined}
         />
+      )}
+
+      {/* ================= EDIT MODALS UNTUK SETIAP FIELD ================= */}
+      {/* 1. EDIT NAMA */}
+      {activeEditModal === 'nama' && (
+        <div className="fixed inset-0 z-[100010] bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in" onClick={() => setActiveEditModal(null)}>
+          <div className="bg-white rounded-3xl p-5 w-full max-w-sm space-y-4 shadow-2xl border border-slate-100" onClick={(e) => e.stopPropagation()}>
+            <div className="flex justify-between items-center border-b border-slate-100 pb-2.5">
+              <h3 className="font-bold text-sm text-slate-900">Ubah Nama Lengkap</h3>
+              <button type="button" onClick={() => setActiveEditModal(null)} className="text-slate-400 hover:text-slate-600 cursor-pointer"><X className="w-4 h-4" /></button>
+            </div>
+            <input
+              type="text"
+              value={editName}
+              onChange={(e) => setEditName(e.target.value)}
+              className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-medium focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500 text-xs"
+              placeholder="Nama lengkap..."
+            />
+            <div className="flex gap-2 pt-2">
+              <button type="button" onClick={() => setActiveEditModal(null)} className="flex-1 py-2 rounded-xl border border-slate-200 text-slate-600 font-semibold text-xs cursor-pointer">Batal</button>
+              <button type="button" onClick={() => { handleUpdate({ name: editName }); setActiveEditModal(null); }} className="flex-1 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs cursor-pointer">Simpan</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 2. EDIT TTL */}
+      {activeEditModal === 'ttl' && (
+        <div className="fixed inset-0 z-[100010] bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in" onClick={() => setActiveEditModal(null)}>
+          <div className="bg-white rounded-3xl p-5 w-full max-w-sm space-y-4 shadow-2xl border border-slate-100" onClick={(e) => e.stopPropagation()}>
+            <div className="flex justify-between items-center border-b border-slate-100 pb-2.5">
+              <h3 className="font-bold text-sm text-slate-900">Ubah Tempat & Tanggal Lahir</h3>
+              <button type="button" onClick={() => setActiveEditModal(null)} className="text-slate-400 hover:text-slate-600 cursor-pointer"><X className="w-4 h-4" /></button>
+            </div>
+            <div className="space-y-3 text-xs">
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">Tempat Lahir</label>
+                <input
+                  type="text"
+                  value={editTempatLahir}
+                  onChange={(e) => setEditTempatLahir(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white text-xs"
+                  placeholder="Kota/Kabupaten kelahiran..."
+                />
+              </div>
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">Tanggal Lahir</label>
+                <input
+                  type="date"
+                  value={editTanggalLahir}
+                  onChange={(e) => setEditTanggalLahir(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white text-xs"
+                />
+              </div>
+            </div>
+            <div className="flex gap-2 pt-2">
+              <button type="button" onClick={() => setActiveEditModal(null)} className="flex-1 py-2 rounded-xl border border-slate-200 text-slate-600 font-semibold text-xs cursor-pointer">Batal</button>
+              <button type="button" onClick={() => { handleUpdate({ tempatLahir: editTempatLahir, tanggalLahir: editTanggalLahir }); setActiveEditModal(null); }} className="flex-1 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs cursor-pointer">Simpan</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 3. EDIT GENDER & SAUDARA */}
+      {activeEditModal === 'gender_saudara' && (
+        <div className="fixed inset-0 z-[100010] bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in" onClick={() => setActiveEditModal(null)}>
+          <div className="bg-white rounded-3xl p-5 w-full max-w-sm space-y-4 shadow-2xl border border-slate-100" onClick={(e) => e.stopPropagation()}>
+            <div className="flex justify-between items-center border-b border-slate-100 pb-2.5">
+              <h3 className="font-bold text-sm text-slate-900">Ubah Gender & Saudara</h3>
+              <button type="button" onClick={() => setActiveEditModal(null)} className="text-slate-400 hover:text-slate-600 cursor-pointer"><X className="w-4 h-4" /></button>
+            </div>
+            <div className="space-y-3 text-xs">
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">Jenis Kelamin</label>
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setEditGender('L')}
+                    className={`p-2.5 rounded-xl border font-bold text-center transition-all ${
+                      editGender === 'L' ? 'bg-sky-50 border-sky-600 text-sky-700' : 'bg-slate-50 border-slate-200 text-slate-600'
+                    }`}
+                  >
+                    Laki-laki
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEditGender('P')}
+                    className={`p-2.5 rounded-xl border font-bold text-center transition-all ${
+                      editGender === 'P' ? 'bg-rose-50 border-rose-600 text-rose-700' : 'bg-slate-50 border-slate-200 text-slate-600'
+                    }`}
+                  >
+                    Perempuan
+                  </button>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Anak Ke-</label>
+                  <input
+                    type="number"
+                    value={editUrutanAnak}
+                    onChange={(e) => setEditUrutanAnak(Number(e.target.value))}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white text-xs"
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Dari Jumlah Saudara</label>
+                  <input
+                    type="number"
+                    value={editJumlahSaudara}
+                    onChange={(e) => setEditJumlahSaudara(Number(e.target.value))}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white text-xs"
+                  />
+                </div>
+              </div>
+            </div>
+            <div className="flex gap-2 pt-2">
+              <button type="button" onClick={() => setActiveEditModal(null)} className="flex-1 py-2 rounded-xl border border-slate-200 text-slate-600 font-semibold text-xs cursor-pointer">Batal</button>
+              <button type="button" onClick={() => { handleUpdate({ gender: editGender, urutanAnak: editUrutanAnak, jumlahSaudara: editJumlahSaudara }); setActiveEditModal(null); }} className="flex-1 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs cursor-pointer">Simpan</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 4. EDIT NIK & NO KK */}
+      {activeEditModal === 'nik_kk' && (
+        <div className="fixed inset-0 z-[100010] bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in" onClick={() => setActiveEditModal(null)}>
+          <div className="bg-white rounded-3xl p-5 w-full max-w-sm space-y-4 shadow-2xl border border-slate-100" onClick={(e) => e.stopPropagation()}>
+            <div className="flex justify-between items-center border-b border-slate-100 pb-2.5">
+              <h3 className="font-bold text-sm text-slate-900">Ubah NIK & No. KK</h3>
+              <button type="button" onClick={() => setActiveEditModal(null)} className="text-slate-400 hover:text-slate-600 cursor-pointer"><X className="w-4 h-4" /></button>
+            </div>
+            <div className="space-y-3 text-xs">
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">Nomor Induk Kependudukan (NIK)</label>
+                <input
+                  type="text"
+                  value={editNik}
+                  onChange={(e) => setEditNik(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white text-xs font-mono"
+                  placeholder="16 digit NIK..."
+                />
+              </div>
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">Nomor Kartu Keluarga (KK)</label>
+                <input
+                  type="text"
+                  value={editNoKk}
+                  onChange={(e) => setEditNoKk(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white text-xs font-mono"
+                  placeholder="16 digit Nomor KK..."
+                />
+              </div>
+            </div>
+            <div className="flex gap-2 pt-2">
+              <button type="button" onClick={() => setActiveEditModal(null)} className="flex-1 py-2 rounded-xl border border-slate-200 text-slate-600 font-semibold text-xs cursor-pointer">Batal</button>
+              <button type="button" onClick={() => { handleUpdate({ nik: editNik, noKk: editNoKk }); setActiveEditModal(null); }} className="flex-1 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs cursor-pointer">Simpan</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 5. EDIT ALAMAT (KOTAK ALAMAT LENGKAP YANG DI BAWAHNYA ADA PETA TELAH DIHAPUS) */}
+      {activeEditModal === 'alamat' && (
+        <div className="fixed inset-0 z-[100010] bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in" onClick={() => setActiveEditModal(null)}>
+          <div className="bg-white rounded-3xl p-5 w-full max-w-sm space-y-4 shadow-2xl border border-slate-100 max-h-[85vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="flex justify-between items-center border-b border-slate-100 pb-2.5">
+              <h3 className="font-bold text-sm text-slate-900">Ubah Alamat Domisili</h3>
+              <button type="button" onClick={() => setActiveEditModal(null)} className="text-slate-400 hover:text-slate-600 cursor-pointer"><X className="w-4 h-4" /></button>
+            </div>
+            <div className="space-y-3 text-xs">
+              <WilayahAddressFilter
+                province={editProvince}
+                city={editCity}
+                kecamatan={editKecamatan}
+                desa={editDesa}
+                alamatLengkap={editAlamatLengkap}
+                coordinates={editCoordinates}
+                showAlamatLengkap={true}
+                showLocationTag={true}
+                onChange={({ province, city, kecamatan, desa, alamatLengkap, coordinates }) => {
+                  setEditProvince(province);
+                  setEditCity(city);
+                  setEditKecamatan(kecamatan);
+                  setEditDesa(desa);
+                  if (alamatLengkap !== undefined) setEditAlamatLengkap(alamatLengkap);
+                  if (coordinates) setEditCoordinates(coordinates);
+                }}
+              />
+            </div>
+            <div className="flex gap-2 pt-2">
+              <button type="button" onClick={() => setActiveEditModal(null)} className="flex-1 py-2 rounded-xl border border-slate-200 text-slate-600 font-semibold text-xs cursor-pointer">Batal</button>
+              <button type="button" onClick={() => {
+                handleUpdate({
+                  province: editProvince,
+                  city: editCity,
+                  kecamatan: editKecamatan,
+                  desa: editDesa,
+                  coordinates: editCoordinates || undefined
+                });
+                setActiveEditModal(null);
+              }} className="flex-1 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs cursor-pointer">Simpan</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 6. EDIT KONTAK */}
+      {activeEditModal === 'kontak' && (
+        <div className="fixed inset-0 z-[100010] bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in" onClick={() => setActiveEditModal(null)}>
+          <div className="bg-white rounded-3xl p-5 w-full max-w-sm space-y-4 shadow-2xl border border-slate-100" onClick={(e) => e.stopPropagation()}>
+            <div className="flex justify-between items-center border-b border-slate-100 pb-2.5">
+              <h3 className="font-bold text-sm text-slate-900">Ubah Kontak WhatsApp & Email</h3>
+              <button type="button" onClick={() => setActiveEditModal(null)} className="text-slate-400 hover:text-slate-600 cursor-pointer"><X className="w-4 h-4" /></button>
+            </div>
+            <div className="space-y-3 text-xs">
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">Nomor WhatsApp</label>
+                <input
+                  type="text"
+                  value={editPhone}
+                  onChange={(e) => setEditPhone(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white text-xs"
+                  placeholder="08123456789"
+                />
+              </div>
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">Alamat Email</label>
+                <input
+                  type="email"
+                  value={editEmail}
+                  onChange={(e) => setEditEmail(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white text-xs"
+                  placeholder="alumni@attaroqqy.ac.id"
+                />
+              </div>
+            </div>
+            <div className="flex gap-2 pt-2">
+              <button type="button" onClick={() => setActiveEditModal(null)} className="flex-1 py-2 rounded-xl border border-slate-200 text-slate-600 font-semibold text-xs cursor-pointer">Batal</button>
+              <button type="button" onClick={() => { handleUpdate({ phone: editPhone, email: editEmail }); setActiveEditModal(null); }} className="flex-1 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs cursor-pointer">Simpan</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 7. EDIT PEKERJAAN */}
+      {activeEditModal === 'pekerjaan' && (
+        <div className="fixed inset-0 z-[100010] bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in" onClick={() => setActiveEditModal(null)}>
+          <div className="bg-white rounded-3xl p-5 w-full max-w-sm space-y-4 shadow-2xl border border-slate-100" onClick={(e) => e.stopPropagation()}>
+            <div className="flex justify-between items-center border-b border-slate-100 pb-2.5">
+              <h3 className="font-bold text-sm text-slate-900">Ubah Pekerjaan & Instansi</h3>
+              <button type="button" onClick={() => setActiveEditModal(null)} className="text-slate-400 hover:text-slate-600 cursor-pointer"><X className="w-4 h-4" /></button>
+            </div>
+            <div className="space-y-3 text-xs">
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">Profesi / Pekerjaan</label>
+                <input
+                  type="text"
+                  value={editOccupation}
+                  onChange={(e) => setEditOccupation(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white text-xs"
+                  placeholder="Profesi saat ini..."
+                />
+              </div>
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">Nama Instansi / Lembaga / Usaha</label>
+                <input
+                  type="text"
+                  value={editInstitution}
+                  onChange={(e) => setEditInstitution(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white text-xs"
+                  placeholder="Nama kantor, usaha, sekolah..."
+                />
+              </div>
+            </div>
+            <div className="flex gap-2 pt-2">
+              <button type="button" onClick={() => setActiveEditModal(null)} className="flex-1 py-2 rounded-xl border border-slate-200 text-slate-600 font-semibold text-xs cursor-pointer">Batal</button>
+              <button type="button" onClick={() => { handleUpdate({ occupation: editOccupation, institution: editInstitution }); setActiveEditModal(null); }} className="flex-1 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs cursor-pointer">Simpan</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 8. EDIT NIS */}
+      {activeEditModal === 'nis' && (
+        <div className="fixed inset-0 z-[100010] bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in" onClick={() => setActiveEditModal(null)}>
+          <div className="bg-white rounded-3xl p-5 w-full max-w-sm space-y-4 shadow-2xl border border-slate-100" onClick={(e) => e.stopPropagation()}>
+            <div className="flex justify-between items-center border-b border-slate-100 pb-2.5">
+              <h3 className="font-bold text-sm text-slate-900">Ubah NIS (Nomor Induk Santri)</h3>
+              <button type="button" onClick={() => setActiveEditModal(null)} className="text-slate-400 hover:text-slate-600 cursor-pointer"><X className="w-4 h-4" /></button>
+            </div>
+            <div>
+              <label className="block font-semibold text-slate-700 mb-1 text-xs">Nomor Induk Santri</label>
+              <input
+                type="text"
+                value={editNis}
+                onChange={(e) => setEditNis(e.target.value)}
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-mono focus:bg-white text-xs"
+                placeholder="NIS Santri..."
+              />
+            </div>
+            <div className="flex gap-2 pt-2">
+              <button type="button" onClick={() => setActiveEditModal(null)} className="flex-1 py-2 rounded-xl border border-slate-200 text-slate-600 font-semibold text-xs cursor-pointer">Batal</button>
+              <button type="button" onClick={() => { handleUpdate({ nis: editNis }); setActiveEditModal(null); }} className="flex-1 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs cursor-pointer">Simpan</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 9. EDIT NISM */}
+      {activeEditModal === 'nism' && (
+        <div className="fixed inset-0 z-[100010] bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in" onClick={() => setActiveEditModal(null)}>
+          <div className="bg-white rounded-3xl p-5 w-full max-w-sm space-y-4 shadow-2xl border border-slate-100" onClick={(e) => e.stopPropagation()}>
+            <div className="flex justify-between items-center border-b border-slate-100 pb-2.5">
+              <h3 className="font-bold text-sm text-slate-900">Ubah NISM</h3>
+              <button type="button" onClick={() => setActiveEditModal(null)} className="text-slate-400 hover:text-slate-600 cursor-pointer"><X className="w-4 h-4" /></button>
+            </div>
+            <div>
+              <label className="block font-semibold text-slate-700 mb-1 text-xs">Nomor Induk Santri Madrasah (NISM)</label>
+              <input
+                type="text"
+                value={editNism}
+                onChange={(e) => setEditNism(e.target.value)}
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-mono focus:bg-white text-xs"
+                placeholder="131233170001"
+              />
+            </div>
+            <div className="flex gap-2 pt-2">
+              <button type="button" onClick={() => setActiveEditModal(null)} className="flex-1 py-2 rounded-xl border border-slate-200 text-slate-600 font-semibold text-xs cursor-pointer">Batal</button>
+              <button type="button" onClick={() => { handleUpdate({ nism: editNism }); setActiveEditModal(null); }} className="flex-1 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs cursor-pointer">Simpan</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 10. EDIT NISN */}
+      {activeEditModal === 'nisn' && (
+        <div className="fixed inset-0 z-[100010] bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in" onClick={() => setActiveEditModal(null)}>
+          <div className="bg-white rounded-3xl p-5 w-full max-w-sm space-y-4 shadow-2xl border border-slate-100" onClick={(e) => e.stopPropagation()}>
+            <div className="flex justify-between items-center border-b border-slate-100 pb-2.5">
+              <h3 className="font-bold text-sm text-slate-900">Ubah NISN</h3>
+              <button type="button" onClick={() => setActiveEditModal(null)} className="text-slate-400 hover:text-slate-600 cursor-pointer"><X className="w-4 h-4" /></button>
+            </div>
+            <div>
+              <label className="block font-semibold text-slate-700 mb-1 text-xs">Nomor Induk Siswa Nasional (NISN)</label>
+              <input
+                type="text"
+                value={editNisn}
+                onChange={(e) => setEditNisn(e.target.value)}
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-mono focus:bg-white text-xs"
+                placeholder="0012345678"
+              />
+            </div>
+            <div className="flex gap-2 pt-2">
+              <button type="button" onClick={() => setActiveEditModal(null)} className="flex-1 py-2 rounded-xl border border-slate-200 text-slate-600 font-semibold text-xs cursor-pointer">Batal</button>
+              <button type="button" onClick={() => { handleUpdate({ nisn: editNisn }); setActiveEditModal(null); }} className="flex-1 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs cursor-pointer">Simpan</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 11. EDIT TANGGAL MASUK */}
+      {activeEditModal === 'tanggal_masuk' && (
+        <div className="fixed inset-0 z-[100010] bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in" onClick={() => setActiveEditModal(null)}>
+          <div className="bg-white rounded-3xl p-5 w-full max-w-sm space-y-4 shadow-2xl border border-slate-100" onClick={(e) => e.stopPropagation()}>
+            <div className="flex justify-between items-center border-b border-slate-100 pb-2.5">
+              <h3 className="font-bold text-sm text-slate-900">Ubah Tanggal Masuk Pondok</h3>
+              <button type="button" onClick={() => setActiveEditModal(null)} className="text-slate-400 hover:text-slate-600 cursor-pointer"><X className="w-4 h-4" /></button>
+            </div>
+            <div>
+              <label className="block font-semibold text-slate-700 mb-1 text-xs">Tanggal Masuk</label>
+              <input
+                type="date"
+                value={editEntryDate}
+                onChange={(e) => setEditEntryDate(e.target.value)}
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white text-xs"
+              />
+            </div>
+            <div className="flex gap-2 pt-2">
+              <button type="button" onClick={() => setActiveEditModal(null)} className="flex-1 py-2 rounded-xl border border-slate-200 text-slate-600 font-semibold text-xs cursor-pointer">Batal</button>
+              <button type="button" onClick={() => {
+                const year = editEntryDate ? editEntryDate.substring(0, 4) : alumni.entryYear;
+                handleUpdate({ entryDate: editEntryDate, entryYear: year });
+                setActiveEditModal(null);
+              }} className="flex-1 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs cursor-pointer">Simpan</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 12. EDIT TANGGAL KELUAR */}
+      {activeEditModal === 'tanggal_keluar' && (
+        <div className="fixed inset-0 z-[100010] bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in" onClick={() => setActiveEditModal(null)}>
+          <div className="bg-white rounded-3xl p-5 w-full max-w-sm space-y-4 shadow-2xl border border-slate-100" onClick={(e) => e.stopPropagation()}>
+            <div className="flex justify-between items-center border-b border-slate-100 pb-2.5">
+              <h3 className="font-bold text-sm text-slate-900">Ubah Tanggal Keluar (Boyong)</h3>
+              <button type="button" onClick={() => setActiveEditModal(null)} className="text-slate-400 hover:text-slate-600 cursor-pointer"><X className="w-4 h-4" /></button>
+            </div>
+            <div>
+              <label className="block font-semibold text-slate-700 mb-1 text-xs">Tanggal Keluar (Boyong)</label>
+              <input
+                type="date"
+                value={editGradDate}
+                onChange={(e) => setEditGradDate(e.target.value)}
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white text-xs"
+              />
+            </div>
+            <div className="flex gap-2 pt-2">
+              <button type="button" onClick={() => setActiveEditModal(null)} className="flex-1 py-2 rounded-xl border border-slate-200 text-slate-600 font-semibold text-xs cursor-pointer">Batal</button>
+              <button type="button" onClick={() => {
+                const year = editGradDate ? editGradDate.substring(0, 4) : alumni.gradYear;
+                handleUpdate({ gradDate: editGradDate, gradYear: year });
+                setActiveEditModal(null);
+              }} className="flex-1 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs cursor-pointer">Simpan</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 13. EDIT DATA ORANG TUA (AYAH) */}
+      {activeEditModal === 'ayah' && (
+        <div className="fixed inset-0 z-[100010] bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in" onClick={() => setActiveEditModal(null)}>
+          <div className="bg-white rounded-3xl p-5 w-full max-w-sm space-y-4 shadow-2xl border border-slate-100" onClick={(e) => e.stopPropagation()}>
+            <div className="flex justify-between items-center border-b border-slate-100 pb-2.5">
+              <h3 className="font-bold text-sm text-slate-900">Ubah Data Ayah Kandung</h3>
+              <button type="button" onClick={() => setActiveEditModal(null)} className="text-slate-400 hover:text-slate-600 cursor-pointer"><X className="w-4 h-4" /></button>
+            </div>
+            <div className="space-y-3 text-xs">
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">Nama Lengkap Ayah</label>
+                <input
+                  type="text"
+                  value={editNamaAyah}
+                  onChange={(e) => setEditNamaAyah(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white text-xs"
+                  placeholder="Nama lengkap ayah..."
+                />
+              </div>
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">NIK Ayah (16 digit)</label>
+                <input
+                  type="text"
+                  maxLength={16}
+                  value={editNikAyah}
+                  onChange={(e) => setEditNikAyah(e.target.value.replace(/[^0-9]/g, ''))}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-mono focus:bg-white text-xs"
+                  placeholder="NIK KTP Ayah..."
+                />
+              </div>
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">Pekerjaan Ayah</label>
+                <input
+                  type="text"
+                  value={editPekerjaanAyah}
+                  onChange={(e) => setEditPekerjaanAyah(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white text-xs"
+                  placeholder="Petani / Guru / Wiraswasta..."
+                />
+              </div>
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">Pendidikan Terakhir Ayah</label>
+                <input
+                  type="text"
+                  value={editPendidikanAyah}
+                  onChange={(e) => setEditPendidikanAyah(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white text-xs"
+                  placeholder="SMA / S1 / Pesantren..."
+                />
+              </div>
+            </div>
+            <div className="flex gap-2 pt-2">
+              <button type="button" onClick={() => setActiveEditModal(null)} className="flex-1 py-2 rounded-xl border border-slate-200 text-slate-600 font-semibold text-xs cursor-pointer">Batal</button>
+              <button type="button" onClick={() => { 
+                handleUpdate({ 
+                  namaAyah: editNamaAyah, 
+                  nikAyah: editNikAyah, 
+                  pekerjaanAyah: editPekerjaanAyah, 
+                  pendidikanAyah: editPendidikanAyah 
+                }); 
+                setActiveEditModal(null); 
+              }} className="flex-1 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs cursor-pointer">Simpan</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 14. EDIT DATA ORANG TUA (IBU) */}
+      {activeEditModal === 'ibu' && (
+        <div className="fixed inset-0 z-[100010] bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in" onClick={() => setActiveEditModal(null)}>
+          <div className="bg-white rounded-3xl p-5 w-full max-w-sm space-y-4 shadow-2xl border border-slate-100" onClick={(e) => e.stopPropagation()}>
+            <div className="flex justify-between items-center border-b border-slate-100 pb-2.5">
+              <h3 className="font-bold text-sm text-slate-900">Ubah Data Ibu Kandung</h3>
+              <button type="button" onClick={() => setActiveEditModal(null)} className="text-slate-400 hover:text-slate-600 cursor-pointer"><X className="w-4 h-4" /></button>
+            </div>
+            <div className="space-y-3 text-xs">
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">Nama Lengkap Ibu</label>
+                <input
+                  type="text"
+                  value={editNamaIbu}
+                  onChange={(e) => setEditNamaIbu(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white text-xs"
+                  placeholder="Nama lengkap ibu..."
+                />
+              </div>
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">NIK Ibu (16 digit)</label>
+                <input
+                  type="text"
+                  maxLength={16}
+                  value={editNikIbu}
+                  onChange={(e) => setEditNikIbu(e.target.value.replace(/[^0-9]/g, ''))}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-mono focus:bg-white text-xs"
+                  placeholder="NIK KTP Ibu..."
+                />
+              </div>
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">Pekerjaan Ibu</label>
+                <input
+                  type="text"
+                  value={editPekerjaanIbu}
+                  onChange={(e) => setEditPekerjaanIbu(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white text-xs"
+                  placeholder="Ibu Rumah Tangga / Guru / Wiraswasta..."
+                />
+              </div>
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">Pendidikan Terakhir Ibu</label>
+                <input
+                  type="text"
+                  value={editPendidikanIbu}
+                  onChange={(e) => setEditPendidikanIbu(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white text-xs"
+                  placeholder="SMA / S1 / Pesantren..."
+                />
+              </div>
+            </div>
+            <div className="flex gap-2 pt-2">
+              <button type="button" onClick={() => setActiveEditModal(null)} className="flex-1 py-2 rounded-xl border border-slate-200 text-slate-600 font-semibold text-xs cursor-pointer">Batal</button>
+              <button type="button" onClick={() => { 
+                handleUpdate({ 
+                  namaIbu: editNamaIbu, 
+                  nikIbu: editNikIbu, 
+                  pekerjaanIbu: editPekerjaanIbu, 
+                  pendidikanIbu: editPendidikanIbu 
+                }); 
+                setActiveEditModal(null); 
+              }} className="flex-1 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs cursor-pointer">Simpan</button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
 };
-
