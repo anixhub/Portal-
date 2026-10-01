@@ -30,6 +30,7 @@ export interface AlumniRecord {
   photoUrl?: string;
   shareContact: boolean;
   shareFullAddress?: boolean;
+  shareLocationTag?: boolean;
   status: 'alumni' | 'santri_aktif';
   // Informasi Tambahan
   tempatLahir?: string;
@@ -135,4 +136,15 @@ export interface RegisterFormData {
   majorOrProgram: string;
   password: string;
   confirmPassword: string;
+}
+
+export interface NotificationItem {
+  id: string;
+  type: 'reply' | 'system' | 'finance' | 'like';
+  title: string;
+  message: string;
+  time: string;
+  read: boolean;
+  authorName?: string;
+  tag?: string;
 }

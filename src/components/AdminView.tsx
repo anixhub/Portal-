@@ -194,24 +194,24 @@ export const AdminView: React.FC<AdminViewProps> = ({
     <div className="w-full h-full flex flex-col bg-slate-50 overflow-hidden relative">
       {/* Toast Notification */}
       {toastMessage && (
-        <div className="absolute top-4 left-1/2 -translate-x-1/2 z-50 bg-slate-900/95 text-white text-xs px-4 py-2 rounded-full shadow-xl border border-slate-700 backdrop-blur-md animate-in fade-in flex items-center gap-2">
-          <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+        <div className="absolute top-4 left-1/2 -translate-x-1/2 z-50 bg-sky-800/95 text-white text-xs px-4 py-2 rounded-full shadow-xl border border-sky-600/40 backdrop-blur-md animate-in fade-in flex items-center gap-2">
+          <Sparkles className="w-3.5 h-3.5 text-amber-300" />
           <span>{toastMessage}</span>
         </div>
       )}
 
       {/* TOP HEADER ADMIN (CLEAN & MINIMALIST) - HANYA DI TAMPILAN NON-ALUMNI */}
       {currentScreen !== 'alumni' && (
-        <div className="bg-slate-900 text-white px-5 py-3.5 shrink-0 flex items-center justify-between border-b border-slate-800">
+        <div className="bg-sky-600 text-white px-5 py-3.5 shrink-0 flex items-center justify-between border-b border-sky-700 shadow-sm">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-xl bg-sky-600 flex items-center justify-center font-bold text-white shadow-xs">
+            <div className="w-8 h-8 rounded-xl bg-white/20 flex items-center justify-center font-bold text-white shadow-xs">
               <ShieldCheck className="w-4 h-4" />
             </div>
             <div>
-              <h2 className="font-display font-bold text-sm leading-tight">
+              <h2 className="font-display font-bold text-sm leading-tight text-white">
                 Admin At-taroqqy
               </h2>
-              <p className="text-[11px] text-slate-400">
+              <p className="text-[11px] text-sky-100">
                 {admin.name}
               </p>
             </div>

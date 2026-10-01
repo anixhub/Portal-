@@ -214,7 +214,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
             onClick={() => handleRoleChange('admin')}
             className={`flex-1 py-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
               selectedRole === 'admin'
-                ? 'bg-slate-900 text-white shadow-xs'
+                ? 'bg-sky-600 text-white shadow-xs'
                 : 'text-slate-500 hover:text-slate-800'
             }`}
           >
@@ -256,7 +256,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
               onClick={() => handleQuickDemo('admin')}
               className={`px-2 py-0.5 rounded-lg border text-[10px] font-medium cursor-pointer transition-colors ${
                 selectedRole === 'admin'
-                  ? 'bg-slate-900 text-white border-slate-900'
+                  ? 'bg-sky-600 text-white border-sky-600'
                   : 'bg-white text-slate-800 border-slate-200 hover:bg-slate-100'
               }`}
               title="Admin Pondok Pengelola Data"
@@ -360,7 +360,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
               disabled={isLoading}
               className={`w-full h-11 sm:h-12 py-2.5 sm:py-3 font-bold rounded-2xl shadow-md text-white text-sm sm:text-base transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-75 ${
                 selectedRole === 'admin'
-                  ? 'bg-slate-900 hover:bg-slate-800 shadow-slate-900/20'
+                  ? 'bg-sky-700 hover:bg-sky-800 shadow-sky-700/25'
                   : 'bg-[#0284c7] hover:bg-[#0369a1] shadow-sky-600/30'
               }`}
             >

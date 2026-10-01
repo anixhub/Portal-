@@ -56,17 +56,27 @@ import {
   UserX,
   MoreHorizontal,
   Megaphone,
-  CheckCircle
+  CheckCircle,
+  ArrowLeft,
+  CheckCheck,
+  Wallet,
+  Navigation,
+  Map
 } from 'lucide-react';
-import { AlumniRecord, EventAgenda, AnnouncementItem, EventComment, EventCommentReply } from '../types';
+import { AlumniRecord, EventAgenda, AnnouncementItem, EventComment, EventCommentReply, NotificationItem } from '../types';
 import { INITIAL_ANNOUNCEMENTS, INITIAL_EVENT_COMMENTS } from '../data/mockData';
 import { WilayahAddressFilter } from './common/WilayahAddressFilter';
 import { DateWheelPicker } from './common/DateWheelPicker';
 import { LocationCoordinates } from './common/FullscreenLocationMapModal';
 import { AlumniDetailAdminModal } from './admin/AlumniDetailAdminModal';
 import { EventCommentsModal } from './common/EventCommentsModal';
+import { AlumniDistributionMapModal } from './common/AlumniDistributionMapModal';
 import posterReuniImg from '../assets/images/poster_reuni_akbar_1790648045947.jpg';
 import logoPonpesImg from '../assets/images/logo_ponpes_attaroqqy_1790648746461.jpg';
+import bgMenuQuranImg from '../assets/images/bg_menu_alquran_1790822566925.jpg';
+import bgMenuMajmuahImg from '../assets/images/bg_menu_majmuah_1790822579673.jpg';
+import bgMenuMaulidImg from '../assets/images/bg_menu_maulid_1790822594019.jpg';
+import bgMenuAurodImg from '../assets/images/bg_menu_aurod_1790822607881.jpg';
 
 interface AlumniViewProps {
   alumni: AlumniRecord;
@@ -77,7 +87,60 @@ interface AlumniViewProps {
   onRsvpEvent: (eventId: string, rsvp: 'hadir' | 'belum_pasti' | 'tidak_hadir', note?: string) => void;
 }
 
-type TabType = 'home' | 'events' | 'directory' | 'profile';
+type TabType = 'home' | 'events' | 'directory' | 'profile' | 'notifications' | 'announcements';
+
+const INITIAL_NOTIFICATIONS: NotificationItem[] = [
+  {
+    id: 'notif-1',
+    type: 'reply',
+    title: 'Balasan Tanggapan Agenda',
+    message: 'Ust. Fauzi Rahman membalas tanggapan Anda di agenda Reuni Akbar Ke-42: "InsyaAllah siap, nanti stan santri wilayah Malang disatukan di aula utama."',
+    time: '25 mnt lalu',
+    read: false,
+    authorName: 'Ust. Fauzi Rahman',
+    tag: 'Interaksi Balasan'
+  },
+  {
+    id: 'notif-2',
+    type: 'finance',
+    title: 'Pembayaran Sukses Diverifikasi',
+    message: 'Pembayaran pelunasan tunggakan infaq & syahriyah pondok sebesar Rp 250.000 telah sukses diverifikasi oleh bagian keuangan pondok.',
+    time: '1 jam lalu',
+    read: false,
+    authorName: 'Bendahara Pondok',
+    tag: 'Keuangan Sukses'
+  },
+  {
+    id: 'notif-3',
+    type: 'reply',
+    title: 'Balasan Komentar Diskusi',
+    message: 'Ahmad Rifai menanggapi diskusi Anda di agenda Haul Masyayikh: "Sampai jumpa di pondok ya Kang, kami rombongan dari Jawa Timur berangkat bareng."',
+    time: '3 jam lalu',
+    read: false,
+    authorName: 'Ahmad Rifai',
+    tag: 'Interaksi Balasan'
+  },
+  {
+    id: 'notif-4',
+    type: 'system',
+    title: 'Verifikasi Akun KTA Digital',
+    message: 'Pembaruan data induk KTA Digital Santri Anda telah disetujui resmi oleh Bagian Kesantrian Pondok Pesantren Attaroqqy.',
+    time: 'Kemarin',
+    read: true,
+    authorName: 'Admin Kesantrian',
+    tag: 'Sistem Pondok'
+  },
+  {
+    id: 'notif-5',
+    type: 'finance',
+    title: 'Fitur Keuangan Alumni Tersedia',
+    message: 'Alumni kini dapat mengecek rincian tagihan lama pondok dan melakukan pembayaran langsung lewat aplikasi secara praktis dan transparan.',
+    time: '2 hari lalu',
+    read: true,
+    authorName: 'Sistem Keuangan',
+    tag: 'Fitur Keuangan'
+  }
+];
 
 /**
  * Komponen Viewer Foto Profil Layar Penuh Bersih
@@ -247,9 +310,45 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
   const [isCardFlipped, setIsCardFlipped] = useState(false);
   const [showQrModal, setShowQrModal] = useState(false);
   const [showKtaCardModal, setShowKtaCardModal] = useState(false);
+  const [isDistributionMapOpen, setIsDistributionMapOpen] = useState(false);
+  const [deviceGps, setDeviceGps] = useState<{ lat: number; lng: number } | null>(null);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined' && 'geolocation' in navigator) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          setDeviceGps({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+        },
+        () => {},
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 }
+      );
+    }
+  }, []);
   const [activeIslamicMenu, setActiveIslamicMenu] = useState<'quran' | 'majmuah' | 'maulid' | 'aurod' | null>(null);
   const [fullscreenPosterUrl, setFullscreenPosterUrl] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  // Dedicated notifications state
+  const [notifications, setNotifications] = useState<NotificationItem[]>(INITIAL_NOTIFICATIONS);
+  const [notifFilter, setNotifFilter] = useState<'all' | 'interaction' | 'finance'>('all');
+  const unreadNotifsCount = notifications.filter((n) => !n.read).length;
+
+  const handleMarkAllNotificationsRead = () => {
+    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+    triggerToast('Semua pemberitahuan ditandai sudah dibaca');
+  };
+
+  const handleToggleNotificationRead = (id: string) => {
+    setNotifications((prev) =>
+      prev.map((n) => (n.id === id ? { ...n, read: true } : n))
+    );
+  };
+
+  const filteredNotifications = notifications.filter((n) => {
+    if (notifFilter === 'interaction') return n.type === 'reply' || n.type === 'like';
+    if (notifFilter === 'finance') return n.type === 'finance' || n.type === 'system';
+    return true;
+  });
 
   // Countdown timer untuk Event Terdekat (12 Oktober 2026, 08:00 WIB)
   const [countdown, setCountdown] = useState({ days: 11, hours: 12, minutes: 45, seconds: 20 });
@@ -306,6 +405,7 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
   const [editPhotoUrl, setEditPhotoUrl] = useState<string | undefined>(alumni.photoUrl);
   const [editShareContact, setEditShareContact] = useState(alumni.shareContact);
   const [editShareFullAddress, setEditShareFullAddress] = useState(alumni.shareFullAddress !== false);
+  const [editShareLocationTag, setEditShareLocationTag] = useState(alumni.shareLocationTag !== false);
 
   // Username Check State
   const [newUsernameInput, setNewUsernameInput] = useState('');
@@ -438,6 +538,7 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
     setEditPhotoUrl(alumni.photoUrl);
     setEditShareContact(alumni.shareContact);
     setEditShareFullAddress(alumni.shareFullAddress !== false);
+    setEditShareLocationTag(alumni.shareLocationTag !== false);
     setEditNism(alumni.nism || '131233170001');
     setEditNisn(alumni.nisn || '0012345678');
     setEditEntryYear(alumni.entryYear || '2014');
@@ -522,7 +623,71 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
   const [filterKecamatan, setFilterKecamatan] = useState('');
   const [filterDesa, setFilterDesa] = useState('');
 
-  const hasActiveFilters = Boolean(
+  // Quick Location Filter Tags: 'nearby' | 'kecamatan' | 'city' | 'province' | null
+  type QuickLocationTag = 'nearby' | 'kecamatan' | 'city' | 'province' | null;
+  const [activeQuickTag, setActiveQuickTag] = useState<QuickLocationTag>(null);
+
+  const userKecamatan = alumni.kecamatan || 'Sedan';
+  const userCity = alumni.city || 'Rembang';
+  const userProvince = alumni.province || 'Jawa Tengah';
+  const userCoordinates = alumni.coordinates || { lat: -6.7423, lng: 111.4589 };
+
+  const normalizePlace = (val: string) => val.toLowerCase().replace(/^(kota|kabupaten|kab\.)\s+/i, '').trim();
+
+  // Hitung jumlah alumni terdata pada masing-masing tag lokasi
+  const countKecamatan = allAlumni.filter((item) =>
+    Boolean(
+      item.kecamatan &&
+      (item.kecamatan.toLowerCase().includes(userKecamatan.toLowerCase()) ||
+       userKecamatan.toLowerCase().includes(item.kecamatan.toLowerCase()))
+    )
+  ).length;
+
+  const countCity = allAlumni.filter((item) => {
+    const itemCityNorm = normalizePlace(item.city);
+    const userCityNorm = normalizePlace(userCity);
+    return (
+      itemCityNorm.includes(userCityNorm) ||
+      userCityNorm.includes(itemCityNorm) ||
+      item.city.toLowerCase().includes(userCity.toLowerCase())
+    );
+  }).length;
+
+  const countProvince = allAlumni.filter((item) =>
+    item.province.toLowerCase().includes(userProvince.toLowerCase()) ||
+    userProvince.toLowerCase().includes(item.province.toLowerCase())
+  ).length;
+
+  // Hitung jarak radius geografis (Haversine Formula)
+  const getAlumniDistance = (item: AlumniRecord): number => {
+    if (item.id === alumni.id) return 0;
+    let itemCoords = item.coordinates;
+    if (!itemCoords) {
+      const key = `${item.kecamatan || ''} ${item.city || ''} ${item.province || ''}`.toLowerCase();
+      if (key.includes('sedan')) itemCoords = { lat: -6.7455, lng: 111.4620 };
+      else if (key.includes('sarang')) itemCoords = { lat: -6.7380, lng: 111.6420 };
+      else if (key.includes('lasem')) itemCoords = { lat: -6.6912, lng: 111.4501 };
+      else if (key.includes('rembang')) itemCoords = { lat: -6.7082, lng: 111.3411 };
+      else if (key.includes('pati')) itemCoords = { lat: -6.7557, lng: 111.0379 };
+      else if (key.includes('semarang')) itemCoords = { lat: -6.9666, lng: 110.4381 };
+      else if (key.includes('surabaya')) itemCoords = { lat: -7.2575, lng: 112.7521 };
+      else if (key.includes('malang')) itemCoords = { lat: -7.9797, lng: 112.6304 };
+      else if (key.includes('jakarta')) itemCoords = { lat: -6.2415, lng: 106.7992 };
+      else if (key.includes('yogyakarta')) itemCoords = { lat: -7.7956, lng: 110.3695 };
+      else itemCoords = { lat: -7.0, lng: 111.0 };
+    }
+    const R = 6371; // km
+    const dLat = (itemCoords.lat - userCoordinates.lat) * (Math.PI / 180);
+    const dLng = (itemCoords.lng - userCoordinates.lng) * (Math.PI / 180);
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(userCoordinates.lat * (Math.PI / 180)) * Math.cos(itemCoords.lat * (Math.PI / 180)) *
+      Math.sin(dLng / 2) * Math.sin(dLng / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return Math.round(R * c * 10) / 10;
+  };
+
+  const hasAdvancedFilters = Boolean(
     filterEntryFrom ||
     filterEntryTo ||
     filterGradFrom ||
@@ -533,7 +698,13 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
     filterDesa
   );
 
+  const hasActiveFilters = Boolean(
+    activeQuickTag ||
+    hasAdvancedFilters
+  );
+
   const handleResetFilters = () => {
+    setActiveQuickTag(null);
     setFilterEntryFrom('');
     setFilterEntryTo('');
     setFilterGradFrom('');
@@ -590,6 +761,7 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
       photoUrl: editPhotoUrl || undefined,
       shareContact: editShareContact,
       shareFullAddress: editShareFullAddress,
+      shareLocationTag: editShareLocationTag,
     };
 
     if (newPassword) {
@@ -909,6 +1081,33 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
             filterDesa.toLowerCase().includes(item.desa!.toLowerCase())
           ));
 
+    // Quick Location Tag filter
+    let matchQuickTag = true;
+    if (activeQuickTag === 'kecamatan') {
+      matchQuickTag = Boolean(
+        item.kecamatan &&
+        (item.kecamatan.toLowerCase().includes(userKecamatan.toLowerCase()) ||
+         userKecamatan.toLowerCase().includes(item.kecamatan.toLowerCase()))
+      );
+    } else if (activeQuickTag === 'city') {
+      const itemCityNorm = normalizePlace(item.city);
+      const userCityNorm = normalizePlace(userCity);
+      matchQuickTag = Boolean(
+        itemCityNorm.includes(userCityNorm) ||
+        userCityNorm.includes(itemCityNorm) ||
+        item.city.toLowerCase().includes(userCity.toLowerCase())
+      );
+    } else if (activeQuickTag === 'province') {
+      matchQuickTag = Boolean(
+        item.province.toLowerCase().includes(userProvince.toLowerCase()) ||
+        userProvince.toLowerCase().includes(item.province.toLowerCase())
+      );
+    } else if (activeQuickTag === 'nearby') {
+      // Radius sekitarmu (< 60 km)
+      const dist = getAlumniDistance(item);
+      matchQuickTag = dist <= 60;
+    }
+
     return (
       matchSearch &&
       matchEntryFrom &&
@@ -918,16 +1117,22 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
       matchProvince &&
       matchCity &&
       matchKecamatan &&
-      matchDesa
+      matchDesa &&
+      matchQuickTag
     );
   });
+
+  // Urutkan berdasarkan jarak jika tag 'Sekitarmu' aktif
+  const sortedFilteredAlumni = activeQuickTag === 'nearby'
+    ? [...filteredAlumni].sort((a, b) => getAlumniDistance(a) - getAlumniDistance(b))
+    : filteredAlumni;
 
   return (
     <div className="w-full h-full flex flex-col bg-slate-100 overflow-hidden relative">
       {/* Toast Notification */}
       {toastMessage && (
-        <div className="absolute top-4 left-1/2 -translate-x-1/2 z-50 bg-slate-900/90 text-white text-xs px-4 py-2 rounded-full shadow-lg border border-slate-700 backdrop-blur-md animate-in fade-in duration-150 flex items-center gap-2">
-          <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+        <div className="absolute top-4 left-1/2 -translate-x-1/2 z-50 bg-sky-800/95 text-white text-xs px-4 py-2 rounded-full shadow-lg border border-sky-600/40 backdrop-blur-md animate-in fade-in duration-150 flex items-center gap-2">
+          <Sparkles className="w-3.5 h-3.5 text-amber-300" />
           <span>{toastMessage}</span>
         </div>
       )}
@@ -969,104 +1174,157 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
                 </div>
               </div>
 
-              {/* Tombol Lonceng Notifikasi Bulat */}
-              <button
-                type="button"
-                onClick={() => {
-                  setEventSubTab('pengumuman');
-                  setActiveTab('events');
-                }}
-                className="w-11 h-11 rounded-full bg-white border border-slate-200/80 shadow-xs flex items-center justify-center relative cursor-pointer hover:bg-slate-50 transition-colors"
-                title="Lihat Pengumuman Terbaru"
-              >
-                <Bell className="w-5 h-5 text-slate-800" />
-                <span className="absolute top-2.5 right-2.5 w-2.5 h-2.5 rounded-full bg-rose-500 ring-2 ring-white" />
-              </button>
+              {/* Tombol Pengumuman & Lonceng Notifikasi Bulat */}
+              <div className="flex items-center gap-2">
+                {/* Tombol Pengumuman Resmi (Di sebelah kiri ikon notifikasi) */}
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('announcements')}
+                  className="w-11 h-11 rounded-full bg-white border border-slate-200/80 shadow-xs flex items-center justify-center relative cursor-pointer hover:bg-slate-50 transition-colors"
+                  title="Buka Pengumuman Resmi Pondok"
+                >
+                  <Megaphone className="w-5 h-5 text-slate-800" />
+                  {announcements.length > 0 && (
+                    <span className="absolute -top-1 -right-1 min-w-5 h-5 px-1 rounded-full bg-sky-600 ring-2 ring-white text-[10px] font-bold text-white flex items-center justify-center shadow-xs">
+                      {announcements.length}
+                    </span>
+                  )}
+                </button>
+
+                {/* Tombol Lonceng Notifikasi */}
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('notifications')}
+                  className="w-11 h-11 rounded-full bg-white border border-slate-200/80 shadow-xs flex items-center justify-center relative cursor-pointer hover:bg-slate-50 transition-colors"
+                  title="Buka Halaman Pemberitahuan"
+                >
+                  <Bell className="w-5 h-5 text-slate-800" />
+                  {unreadNotifsCount > 0 && (
+                    <span className="absolute -top-1 -right-1 min-w-5 h-5 px-1 rounded-full bg-rose-500 ring-2 ring-white text-[10px] font-bold text-white flex items-center justify-center shadow-xs">
+                      {unreadNotifsCount}
+                    </span>
+                  )}
+                </button>
+              </div>
             </div>
 
-            {/* 2. CAPSULE PILL BANNER (PERSIS 4.8 kWh / TOTAL ENERGY USED TODAY > DI SCREENSHOT) */}
+            {/* 2. KTA DIGITAL SANTRI BANNER */}
             <div
               onClick={() => setShowKtaCardModal(true)}
-              className="rounded-full bg-slate-950 text-white p-2.5 px-4 flex items-center justify-between shadow-xs cursor-pointer hover:bg-slate-900 transition-colors select-none"
+              className="rounded-full bg-sky-600 text-white p-2.5 px-4 flex items-center justify-between shadow-md shadow-sky-600/20 cursor-pointer hover:bg-sky-700 transition-colors select-none"
             >
               <div className="flex items-center gap-3 min-w-0">
-                <div className="w-9 h-9 rounded-full bg-white flex items-center justify-center text-slate-900 shrink-0 shadow-2xs">
-                  <IdCard className="w-4 h-4 text-sky-600" />
+                <div className="w-9 h-9 rounded-full bg-white flex items-center justify-center text-sky-600 shrink-0 shadow-2xs">
+                  <IdCard className="w-5 h-5 text-sky-600" />
                 </div>
-                <div className="min-w-0">
-                  <div className="flex items-center gap-1.5">
-                    <span className="font-bold text-xs text-white tracking-wide">KTA Digital Santri</span>
-                    <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-sky-500/30 text-sky-300 font-mono">Aktif</span>
-                  </div>
-                  <p className="text-[11px] text-slate-400 truncate mt-0.5 font-mono">
-                    {alumni.nis} • Ketuk untuk melihat kartu
-                  </p>
-                </div>
+                <span className="font-bold text-sm text-white tracking-wide">
+                  KTA Digital Santri
+                </span>
               </div>
 
-              <ChevronRight className="w-5 h-5 text-white/60 shrink-0 ml-2" />
+              <ChevronRight className="w-5 h-5 text-white/80 shrink-0 ml-2" />
             </div>
 
-            {/* 3. MENU UTAMA (MENGGANTIKAN QUICK ACCESS) */}
+            {/* 3. MENU UTAMA */}
             <div className="space-y-2.5 pt-1">
               <h2 className="font-display font-bold text-base text-slate-900 tracking-tight">
                 Menu Utama
               </h2>
 
               <div className="grid grid-cols-2 gap-3 select-none">
-                {/* 1. Quran (White Card) */}
+                {/* 1. Alquran */}
                 <div
                   onClick={() => setActiveIslamicMenu('quran')}
-                  className="bg-white rounded-[26px] p-4.5 border border-slate-200/80 shadow-2xs flex flex-col justify-between h-36 cursor-pointer hover:shadow-md transition-all active:scale-[0.98]"
+                  className="relative rounded-[26px] overflow-hidden shadow-sm flex flex-col justify-between h-36 cursor-pointer hover:shadow-md transition-all active:scale-[0.98] group select-none border border-sky-100"
                 >
-                  <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-800 shadow-2xs">
-                    <BookOpen className="w-5 h-5 text-sky-600" />
-                  </div>
-                  <div>
-                    <span className="text-xs text-slate-500 font-medium block">Al-Qur'an</span>
-                    <span className="text-xl font-bold font-display text-slate-900">Quran</span>
+                  <img
+                    src={bgMenuQuranImg}
+                    alt="Alquran"
+                    className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-sky-950/85 via-sky-900/45 to-sky-950/30" />
+                  
+                  <div className="relative z-10 p-4.5 flex flex-col justify-between h-full">
+                    <div className="w-10 h-10 rounded-full bg-white/20 backdrop-blur-md border border-white/30 flex items-center justify-center text-white shadow-2xs">
+                      <BookOpen className="w-5 h-5 text-white" />
+                    </div>
+                    <div>
+                      <span className="text-xl font-bold font-display text-white drop-shadow-sm">
+                        Alquran
+                      </span>
+                    </div>
                   </div>
                 </div>
 
-                {/* 2. Majmuah (Dark Card - Persis Card Speaker 65% di Screenshot) */}
+                {/* 2. Majmuah */}
                 <div
                   onClick={() => setActiveIslamicMenu('majmuah')}
-                  className="bg-slate-950 text-white rounded-[26px] p-4.5 shadow-sm flex flex-col justify-between h-36 cursor-pointer hover:bg-slate-900 transition-all active:scale-[0.98]"
+                  className="relative rounded-[26px] overflow-hidden shadow-sm flex flex-col justify-between h-36 cursor-pointer hover:shadow-md transition-all active:scale-[0.98] group select-none border border-sky-100"
                 >
-                  <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center text-slate-950 shadow-2xs">
-                    <BookMarked className="w-5 h-5 text-slate-900" />
-                  </div>
-                  <div>
-                    <span className="text-xs text-slate-400 font-medium block">Doa & Dzikir</span>
-                    <span className="text-xl font-bold font-display text-white">Majmuah</span>
+                  <img
+                    src={bgMenuMajmuahImg}
+                    alt="Majmuah"
+                    className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-sky-950/85 via-sky-900/45 to-sky-950/30" />
+                  
+                  <div className="relative z-10 p-4.5 flex flex-col justify-between h-full">
+                    <div className="w-10 h-10 rounded-full bg-white/20 backdrop-blur-md border border-white/30 flex items-center justify-center text-white shadow-2xs">
+                      <BookMarked className="w-5 h-5 text-white" />
+                    </div>
+                    <div>
+                      <span className="text-xl font-bold font-display text-white drop-shadow-sm">
+                        Majmuah
+                      </span>
+                    </div>
                   </div>
                 </div>
 
-                {/* 3. Maulid (White Card) */}
+                {/* 3. Maulid */}
                 <div
                   onClick={() => setActiveIslamicMenu('maulid')}
-                  className="bg-white rounded-[26px] p-4.5 border border-slate-200/80 shadow-2xs flex flex-col justify-between h-36 cursor-pointer hover:shadow-md transition-all active:scale-[0.98]"
+                  className="relative rounded-[26px] overflow-hidden shadow-sm flex flex-col justify-between h-36 cursor-pointer hover:shadow-md transition-all active:scale-[0.98] group select-none border border-sky-100"
                 >
-                  <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-800 shadow-2xs">
-                    <Scroll className="w-5 h-5 text-emerald-600" />
-                  </div>
-                  <div>
-                    <span className="text-xs text-slate-500 font-medium block">Kitab Maulid</span>
-                    <span className="text-xl font-bold font-display text-slate-900">Maulid</span>
+                  <img
+                    src={bgMenuMaulidImg}
+                    alt="Maulid"
+                    className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-sky-950/85 via-sky-900/45 to-sky-950/30" />
+                  
+                  <div className="relative z-10 p-4.5 flex flex-col justify-between h-full">
+                    <div className="w-10 h-10 rounded-full bg-white/20 backdrop-blur-md border border-white/30 flex items-center justify-center text-white shadow-2xs">
+                      <Scroll className="w-5 h-5 text-white" />
+                    </div>
+                    <div>
+                      <span className="text-xl font-bold font-display text-white drop-shadow-sm">
+                        Maulid
+                      </span>
+                    </div>
                   </div>
                 </div>
 
-                {/* 4. Aurod (Dark Card) */}
+                {/* 4. Aurod */}
                 <div
                   onClick={() => setActiveIslamicMenu('aurod')}
-                  className="bg-slate-950 text-white rounded-[26px] p-4.5 shadow-sm flex flex-col justify-between h-36 cursor-pointer hover:bg-slate-900 transition-all active:scale-[0.98]"
+                  className="relative rounded-[26px] overflow-hidden shadow-sm flex flex-col justify-between h-36 cursor-pointer hover:shadow-md transition-all active:scale-[0.98] group select-none border border-sky-100"
                 >
-                  <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center text-slate-950 shadow-2xs">
-                    <Flame className="w-5 h-5 text-amber-500" />
-                  </div>
-                  <div>
-                    <span className="text-xs text-slate-400 font-medium block">Wirid & Rotib</span>
-                    <span className="text-xl font-bold font-display text-white">Aurod</span>
+                  <img
+                    src={bgMenuAurodImg}
+                    alt="Aurod"
+                    className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-sky-950/85 via-sky-900/45 to-sky-950/30" />
+                  
+                  <div className="relative z-10 p-4.5 flex flex-col justify-between h-full">
+                    <div className="w-10 h-10 rounded-full bg-white/20 backdrop-blur-md border border-white/30 flex items-center justify-center text-white shadow-2xs">
+                      <Flame className="w-5 h-5 text-amber-300" />
+                    </div>
+                    <div>
+                      <span className="text-xl font-bold font-display text-white drop-shadow-sm">
+                        Aurod
+                      </span>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1087,10 +1345,10 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
                 </button>
               </div>
 
-              {/* Big Visual Card with Frosted Badges & Elegant Countdown */}
+              {/* Kotak Poster Event dengan Judul dan Tag Lokasi & Waktu di bawah judul */}
               <div
                 onClick={() => setActiveTab('events')}
-                className="relative rounded-[30px] overflow-hidden shadow-md aspect-[16/11] sm:aspect-[16/9] cursor-pointer group select-none"
+                className="relative rounded-[30px] overflow-hidden shadow-md aspect-[16/10] sm:aspect-[16/9] cursor-pointer group select-none"
               >
                 <img
                   src={events[0]?.posterUrl || posterReuniImg}
@@ -1099,60 +1357,74 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
                 />
 
                 {/* Dark Vignette Overlay */}
-                <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/50 to-black/30" />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/45 to-transparent" />
 
-                {/* Frosted Glass Badges (Sama persis pill 24°C, 270 kWh di screenshot) */}
-                <div className="absolute top-3.5 left-3.5 flex flex-wrap gap-2">
-                  <div className="backdrop-blur-md bg-black/45 border border-white/20 text-white text-[11px] font-semibold px-3 py-1.5 rounded-full flex items-center gap-1.5 shadow-xs">
-                    <Calendar className="w-3.5 h-3.5 text-sky-400" />
-                    <span>{events[0]?.date || '12 Okt 2026'}</span>
-                  </div>
-                  <div className="backdrop-blur-md bg-black/45 border border-white/20 text-white text-[11px] font-semibold px-3 py-1.5 rounded-full flex items-center gap-1.5 shadow-xs">
-                    <MapPin className="w-3.5 h-3.5 text-rose-400" />
-                    <span>Ponpes At-taroqqy</span>
-                  </div>
-                </div>
-
-                {/* Bottom Overlay: Title & Elegant Countdown */}
-                <div className="absolute bottom-0 inset-x-0 p-4 pt-8 bg-gradient-to-t from-black via-black/80 to-transparent">
-                  <h3 className="font-bold text-base sm:text-lg text-white leading-snug drop-shadow-sm mb-2.5">
+                {/* Bottom Overlay: Judul Acara & Tag Lokasi dan Waktu tepat di bawah judul */}
+                <div className="absolute bottom-0 inset-x-0 p-4 pt-10 bg-gradient-to-t from-black/95 via-black/80 to-transparent">
+                  <h3 className="font-bold text-base sm:text-lg text-white leading-snug drop-shadow-sm mb-2">
                     {events[0]?.title || 'Reuni Akbar & Haul Masyayikh Ke-42'}
                   </h3>
 
-                  {/* Countdown Elegan */}
-                  <div className="grid grid-cols-4 gap-2">
-                    <div className="backdrop-blur-md bg-white/15 border border-white/20 rounded-2xl py-2 px-1 text-center">
-                      <span className="block text-xl font-bold font-mono text-white tracking-tight leading-none">
-                        {String(countdown.days).padStart(2, '0')}
-                      </span>
-                      <span className="text-[9px] uppercase font-bold text-white/80 tracking-wider mt-1 block">
-                        Hari
-                      </span>
+                  {/* Tag Lokasi dan Waktu tepat di bawah judul */}
+                  <div className="flex flex-wrap items-center gap-2">
+                    <div className="backdrop-blur-md bg-black/50 border border-white/20 text-white text-[11px] font-semibold px-3 py-1.5 rounded-full flex items-center gap-1.5 shadow-xs">
+                      <Calendar className="w-3.5 h-3.5 text-sky-400" />
+                      <span>{events[0]?.date || '12 Okt 2026'}</span>
                     </div>
-                    <div className="backdrop-blur-md bg-white/15 border border-white/20 rounded-2xl py-2 px-1 text-center">
-                      <span className="block text-xl font-bold font-mono text-white tracking-tight leading-none">
-                        {String(countdown.hours).padStart(2, '0')}
-                      </span>
-                      <span className="text-[9px] uppercase font-bold text-white/80 tracking-wider mt-1 block">
-                        Jam
-                      </span>
+                    <div className="backdrop-blur-md bg-black/50 border border-white/20 text-white text-[11px] font-semibold px-3 py-1.5 rounded-full flex items-center gap-1.5 shadow-xs">
+                      <MapPin className="w-3.5 h-3.5 text-rose-400" />
+                      <span>{events[0]?.location || 'Ponpes At-taroqqy'}</span>
                     </div>
-                    <div className="backdrop-blur-md bg-white/15 border border-white/20 rounded-2xl py-2 px-1 text-center">
-                      <span className="block text-xl font-bold font-mono text-white tracking-tight leading-none">
-                        {String(countdown.minutes).padStart(2, '0')}
-                      </span>
-                      <span className="text-[9px] uppercase font-bold text-white/80 tracking-wider mt-1 block">
-                        Menit
-                      </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Countdown Elegan di Bawah Kotak Poster */}
+              <div className="bg-white rounded-2xl border border-slate-200/90 p-3.5 shadow-2xs">
+                <div className="flex items-center justify-between mb-2.5">
+                  <div className="flex items-center gap-2">
+                    <div className="w-6 h-6 rounded-lg bg-sky-100 text-sky-700 flex items-center justify-center">
+                      <Clock className="w-3.5 h-3.5" />
                     </div>
-                    <div className="backdrop-blur-md bg-white/15 border border-white/20 rounded-2xl py-2 px-1 text-center">
-                      <span className="block text-xl font-bold font-mono text-white tracking-tight leading-none">
-                        {String(countdown.seconds).padStart(2, '0')}
-                      </span>
-                      <span className="text-[9px] uppercase font-bold text-white/80 tracking-wider mt-1 block">
-                        Detik
-                      </span>
-                    </div>
+                    <span className="text-xs font-bold text-slate-800 tracking-tight">Hitung Mundur Acara</span>
+                  </div>
+                  <span className="text-[10px] font-bold text-sky-700 bg-sky-50 border border-sky-200/70 px-2.5 py-0.5 rounded-full">
+                    {events[0]?.category === 'reuni' ? 'Reuni Akbar' : 'Agenda Terdekat'}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-4 gap-2">
+                  <div className="bg-gradient-to-b from-slate-50 to-slate-100/90 border border-slate-200/80 rounded-xl py-2 px-1 text-center shadow-2xs">
+                    <span className="block text-xl font-bold font-mono text-sky-900 tracking-tight leading-none">
+                      {String(countdown.days).padStart(2, '0')}
+                    </span>
+                    <span className="text-[9px] uppercase font-bold text-slate-600 tracking-wider mt-1 block">
+                      Hari
+                    </span>
+                  </div>
+                  <div className="bg-gradient-to-b from-slate-50 to-slate-100/90 border border-slate-200/80 rounded-xl py-2 px-1 text-center shadow-2xs">
+                    <span className="block text-xl font-bold font-mono text-sky-900 tracking-tight leading-none">
+                      {String(countdown.hours).padStart(2, '0')}
+                    </span>
+                    <span className="text-[9px] uppercase font-bold text-slate-600 tracking-wider mt-1 block">
+                      Jam
+                    </span>
+                  </div>
+                  <div className="bg-gradient-to-b from-slate-50 to-slate-100/90 border border-slate-200/80 rounded-xl py-2 px-1 text-center shadow-2xs">
+                    <span className="block text-xl font-bold font-mono text-sky-900 tracking-tight leading-none">
+                      {String(countdown.minutes).padStart(2, '0')}
+                    </span>
+                    <span className="text-[9px] uppercase font-bold text-slate-600 tracking-wider mt-1 block">
+                      Menit
+                    </span>
+                  </div>
+                  <div className="bg-gradient-to-b from-slate-50 to-slate-100/90 border border-slate-200/80 rounded-xl py-2 px-1 text-center shadow-2xs">
+                    <span className="block text-xl font-bold font-mono text-sky-900 tracking-tight leading-none">
+                      {String(countdown.seconds).padStart(2, '0')}
+                    </span>
+                    <span className="text-[9px] uppercase font-bold text-slate-600 tracking-wider mt-1 block">
+                      Detik
+                    </span>
                   </div>
                 </div>
               </div>
@@ -1160,43 +1432,19 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
           </div>
         )}
 
-        {/* ================= TAB 2: EVENT & PENGUMUMAN (FEED ALA INSTAGRAM) ================= */}
+        {/* ================= TAB 2: DAFTAR AGENDA & EVENT ================= */}
         {activeTab === 'events' && (
           <div className="space-y-4 max-w-xl mx-auto w-full pb-8">
-            {/* SUB-TAB NAVIGASI: EVENT & PENGUMUMAN */}
-            <div className="sticky top-0 z-20 bg-slate-100/95 backdrop-blur-md pt-1 pb-2">
-              <div className="bg-white p-1 rounded-2xl border border-slate-200 shadow-2xs flex items-center gap-1">
-                <button
-                  type="button"
-                  onClick={() => setEventSubTab('event')}
-                  className={`flex-1 py-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
-                    eventSubTab === 'event'
-                      ? 'bg-sky-600 text-white shadow-xs shadow-sky-600/20'
-                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
-                  }`}
-                >
-                  <Calendar className="w-4 h-4" />
-                  <span>Daftar Event ({events.length})</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setEventSubTab('pengumuman')}
-                  className={`flex-1 py-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
-                    eventSubTab === 'pengumuman'
-                      ? 'bg-sky-600 text-white shadow-xs shadow-sky-600/20'
-                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
-                  }`}
-                >
-                  <Megaphone className="w-4 h-4" />
-                  <span>Pengumuman ({announcements.length})</span>
-                </button>
-              </div>
+            {/* Header Agenda dan Kegiatan */}
+            <div className="pb-1 pt-1">
+              <h2 className="font-display font-bold text-base text-slate-900 leading-tight">
+                Agenda dan Kegiatan
+              </h2>
             </div>
 
-            {/* KONTEN 1: SUB-TAB EVENT (TAMPILAN FEED ALA INSTAGRAM) */}
-            {eventSubTab === 'event' && (
-              <div className="space-y-4">
-                {events.map((ev) => (
+            {/* List Event Feed */}
+            <div className="space-y-4">
+              {events.map((ev) => (
                   <div
                     key={ev.id}
                     className="bg-white rounded-3xl border border-slate-200/90 shadow-2xs overflow-hidden"
@@ -1373,80 +1621,13 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
                     </div>
                   </div>
                 ))}
-              </div>
-            )}
-
-            {/* KONTEN 2: SUB-TAB PENGUMUMAN RESMI */}
-            {eventSubTab === 'pengumuman' && (
-              <div className="space-y-3.5">
-                {announcements.map((ann) => (
-                  <div
-                    key={ann.id}
-                    className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200/90 shadow-2xs space-y-3"
-                  >
-                    <div className="flex items-center justify-between gap-2 border-b border-slate-100 pb-2.5">
-                      <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
-                        ann.category === 'maklumat'
-                          ? 'bg-amber-100 text-amber-800'
-                          : ann.category === 'beasiswa'
-                          ? 'bg-emerald-100 text-emerald-800'
-                          : 'bg-sky-100 text-sky-800'
-                      }`}>
-                        {ann.category}
-                      </span>
-                      <span className="text-[11px] text-slate-400 font-medium">
-                        {ann.date}
-                      </span>
-                    </div>
-
-                    <div>
-                      <h4 className="font-display font-bold text-sm text-slate-900 leading-snug">
-                        {ann.title}
-                      </h4>
-                      <p className="text-xs text-slate-600 leading-relaxed mt-2">
-                        {ann.content}
-                      </p>
-                    </div>
-
-                    {/* KIRI BAWAH: FOTO AKUN, NAMA AKUN & USERNAME DI BAWAH NAMA */}
-                    <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-3 text-xs">
-                      <div className="flex items-center gap-2.5 min-w-0">
-                        <div className="shrink-0">
-                          <img
-                            src={ann.authorAvatar || logoPonpesImg}
-                            alt={ann.authorName}
-                            className="w-8 h-8 rounded-full object-cover border border-slate-200 shadow-2xs"
-                          />
-                        </div>
-                        <div className="min-w-0 leading-tight">
-                          <span className="font-bold text-slate-800 text-xs block truncate">
-                            {ann.authorName}
-                          </span>
-                          <span className="text-[11px] text-slate-500 font-mono block truncate">
-                            @{ann.authorHandle || 'attaroqqy_official'}
-                          </span>
-                        </div>
-                      </div>
-
-                      <button
-                        type="button"
-                        onClick={() => handleShareAnnouncement(ann)}
-                        className="p-1.5 px-2.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 flex items-center gap-1 font-semibold text-xs cursor-pointer shrink-0"
-                      >
-                        <Share2 className="w-3.5 h-3.5" />
-                        <span>Bagikan</span>
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
+            </div>
           </div>
         )}
 
         {/* ================= TAB 3: CARI ALUMNI (SAMA PERSIS KELOLA DATA ALUMNI ADMIN) ================= */}
         {activeTab === 'directory' && (
-          <div className="p-4 space-y-3 flex-1 overflow-y-auto">
+          <div className="p-4 space-y-3 flex-1 overflow-y-auto pb-24">
             {/* Search & Filter Button - NOT inside a container */}
             <div className="flex items-center gap-2">
               <div className="relative flex-1">
@@ -1460,23 +1641,85 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
                 />
               </div>
 
-              {/* Tombol filter sejajar di samping kanan */}
+              {/* Tombol filter sejajar di samping kanan (dinonaktifkan jika tag lokasi aktif) */}
               <button
                 type="button"
-                onClick={() => setIsFilterSheetOpen(true)}
-                className={`p-2.5 rounded-xl border transition-all cursor-pointer flex items-center justify-center shrink-0 ${
-                  hasActiveFilters
-                    ? 'bg-sky-600 text-white border-sky-600 shadow-xs'
-                    : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+                disabled={Boolean(activeQuickTag)}
+                onClick={() => !activeQuickTag && setIsFilterSheetOpen(true)}
+                className={`p-2.5 rounded-xl border transition-all flex items-center justify-center shrink-0 ${
+                  activeQuickTag
+                    ? 'bg-slate-100 text-slate-300 border-slate-200 cursor-not-allowed opacity-50'
+                    : hasAdvancedFilters
+                    ? 'bg-sky-600 text-white border-sky-600 shadow-xs cursor-pointer'
+                    : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50 cursor-pointer'
                 }`}
-                title="Buka Filter Data"
+                title={activeQuickTag ? 'Filter dinonaktifkan saat tag lokasi aktif' : 'Buka Filter Data'}
               >
                 <Filter className="w-4 h-4" />
               </button>
             </div>
 
-            {/* Filter Active Indicator & Quick Reset */}
-            {hasActiveFilters && (
+            {/* QUICK LOCATION TAGS: SEKITARMU, KECAMATAN USER, KABUPATEN USER, PROVINSI USER */}
+            <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
+              {/* 1. Tag Sekitarmu (tanpa kurung jumlah alumni) */}
+              <button
+                type="button"
+                onClick={() => setActiveQuickTag(activeQuickTag === 'nearby' ? null : 'nearby')}
+                className={`px-3 py-1.5 rounded-full text-xs font-semibold shrink-0 flex items-center gap-1.5 transition-all cursor-pointer select-none ${
+                  activeQuickTag === 'nearby'
+                    ? 'bg-sky-600 text-white shadow-xs'
+                    : 'bg-white text-slate-700 border border-slate-200/90 hover:border-sky-300 hover:bg-sky-50/50 shadow-2xs'
+                }`}
+              >
+                <Navigation className="w-3.5 h-3.5" />
+                <span>Sekitarmu</span>
+              </button>
+
+              {/* 2. Tag Kecamatan User (misal Sedan (2)) */}
+              <button
+                type="button"
+                onClick={() => setActiveQuickTag(activeQuickTag === 'kecamatan' ? null : 'kecamatan')}
+                className={`px-3 py-1.5 rounded-full text-xs font-semibold shrink-0 flex items-center gap-1.5 transition-all cursor-pointer select-none ${
+                  activeQuickTag === 'kecamatan'
+                    ? 'bg-sky-600 text-white shadow-xs'
+                    : 'bg-white text-slate-700 border border-slate-200/90 hover:border-sky-300 hover:bg-sky-50/50 shadow-2xs'
+                }`}
+              >
+                <MapPin className="w-3.5 h-3.5" />
+                <span>{userKecamatan} ({countKecamatan})</span>
+              </button>
+
+              {/* 3. Tag Kabupaten User (misal Rembang (4)) */}
+              <button
+                type="button"
+                onClick={() => setActiveQuickTag(activeQuickTag === 'city' ? null : 'city')}
+                className={`px-3 py-1.5 rounded-full text-xs font-semibold shrink-0 flex items-center gap-1.5 transition-all cursor-pointer select-none ${
+                  activeQuickTag === 'city'
+                    ? 'bg-sky-600 text-white shadow-xs'
+                    : 'bg-white text-slate-700 border border-slate-200/90 hover:border-sky-300 hover:bg-sky-50/50 shadow-2xs'
+                }`}
+              >
+                <MapPin className="w-3.5 h-3.5" />
+                <span>{userCity} ({countCity})</span>
+              </button>
+
+              {/* 4. Tag Provinsi User (misal Jawa Tengah (5)) */}
+              <button
+                type="button"
+                onClick={() => setActiveQuickTag(activeQuickTag === 'province' ? null : 'province')}
+                className={`px-3 py-1.5 rounded-full text-xs font-semibold shrink-0 flex items-center gap-1.5 transition-all cursor-pointer select-none ${
+                  activeQuickTag === 'province'
+                    ? 'bg-sky-600 text-white shadow-xs'
+                    : 'bg-white text-slate-700 border border-slate-200/90 hover:border-sky-300 hover:bg-sky-50/50 shadow-2xs'
+                }`}
+              >
+                <MapPin className="w-3.5 h-3.5" />
+                <span>{userProvince} ({countProvince})</span>
+              </button>
+            </div>
+
+            {/* Filter Active Indicator & Quick Reset (Hanya saat filter lembar aktif & tanpa tag lokasi) */}
+            {!activeQuickTag && hasAdvancedFilters && (
               <div className="flex items-center justify-between text-[11px] text-sky-800 bg-sky-50 px-3 py-1.5 rounded-xl border border-sky-100">
                 <span>Filter aktif diterapkan ({filteredAlumni.length} alumni)</span>
                 <button
@@ -1490,10 +1733,11 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
 
             {/* Daftar Kartu Alumni (Card View) */}
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-              {filteredAlumni.map((item) => {
+              {sortedFilteredAlumni.map((item) => {
                 const addressText = item.shareFullAddress === false
                   ? [item.kecamatan, item.city].filter(Boolean).join(', ') || item.city || item.province || 'Alamat disembunyikan'
                   : [item.desa, item.kecamatan, item.city].filter(Boolean).join(', ') || item.province || 'Alamat belum diisi';
+                const distance = getAlumniDistance(item);
 
                 return (
                   <div
@@ -1524,15 +1768,20 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
 
                     {/* Informasi: Nama & Alamat (Desa, Kecamatan, Kabupaten) */}
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-1.5">
+                      <div className="flex items-center gap-1.5 flex-wrap">
                         <h4 className="font-display font-bold text-sm text-slate-900 group-hover:text-sky-700 transition-colors truncate">
                           {item.name}
                         </h4>
-                        {item.id === alumni.id && (
+                        {item.id === alumni.id ? (
                           <span className="text-[9px] bg-sky-100 text-sky-700 px-1.5 py-0.2 rounded font-semibold shrink-0">
                             Anda
                           </span>
-                        )}
+                        ) : activeQuickTag === 'nearby' ? (
+                          <span className="text-[9px] bg-sky-50 text-sky-700 border border-sky-200 px-1.5 py-0.2 rounded font-semibold shrink-0 flex items-center gap-0.5">
+                            <Navigation className="w-2.5 h-2.5" />
+                            {distance} km
+                          </span>
+                        ) : null}
                       </div>
                       <p className="text-xs text-slate-500 capitalize truncate mt-0.5">
                         {addressText}
@@ -1546,9 +1795,9 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
               })}
             </div>
 
-            {filteredAlumni.length === 0 && (
+            {sortedFilteredAlumni.length === 0 && (
               <div className="bg-white rounded-2xl border border-slate-200 p-8 text-center text-slate-500 text-xs">
-                Tidak ditemukan data alumni dengan pencarian yang dipilih.
+                Tidak ditemukan data alumni dengan filter atau pencarian yang dipilih.
               </div>
             )}
           </div>
@@ -2030,7 +2279,40 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
                     </button>
                   </div>
 
-                  {/* 5. Keluar dari Akun (Logout) */}
+                  {/* 5. Toggle Izinkan Tampilkan Tag Lokasi */}
+                  <div className="flex items-center justify-between py-3.5 -mx-3 px-3 rounded-2xl">
+                    <div className="flex items-center gap-4 min-w-0 pr-3">
+                      <div className="w-6 flex items-center justify-center shrink-0">
+                        <MapPin className="w-5 h-5 text-sky-600" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-slate-800 leading-tight">Izinkan Tampilkan Tag Lokasi</p>
+                        <p className="text-[11px] text-slate-400 leading-tight mt-0.5">
+                          Tampilkan titik lokasi akun Anda pada peta sebaran alumni
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const nextVal = !editShareLocationTag;
+                        setEditShareLocationTag(nextVal);
+                        onUpdateProfile({ shareLocationTag: nextVal });
+                        triggerToast(nextVal ? 'Izin tag lokasi aktif (tampil di peta)' : 'Izin tag lokasi dinonaktifkan (disembunyikan dari peta)');
+                      }}
+                      className={`w-12 h-7 rounded-full p-0.5 transition-colors relative cursor-pointer shrink-0 ${
+                        editShareLocationTag ? 'bg-[#2563eb]' : 'bg-slate-300'
+                      }`}
+                    >
+                      <div
+                        className={`w-6 h-6 rounded-full bg-white shadow-md transform transition-transform ${
+                          editShareLocationTag ? 'translate-x-5' : 'translate-x-0'
+                        }`}
+                      />
+                    </button>
+                  </div>
+
+                  {/* 6. Keluar dari Akun (Logout) */}
                   <div
                     onClick={onLogout}
                     className="flex items-center justify-between py-3.5 cursor-pointer hover:bg-rose-50/70 -mx-3 px-3 rounded-2xl transition-colors group"
@@ -2801,7 +3083,263 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
             )}
           </div>
         )}
+
+        {/* ================= TAB 5: HALAMAN PEMBERITAHUAN TERSENDIRI ================= */}
+        {activeTab === 'notifications' && (
+          <div className="space-y-4 max-w-md mx-auto w-full pb-6">
+            {/* 1. TOP HEADER PEMBERITAHUAN */}
+            <div className="flex items-center justify-between pb-3 border-b border-slate-200/80 pt-1">
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('home')}
+                  className="w-10 h-10 rounded-full bg-white border border-slate-200 shadow-xs flex items-center justify-center text-slate-700 hover:bg-slate-100 cursor-pointer transition-colors"
+                  title="Kembali ke Beranda"
+                >
+                  <ArrowLeft className="w-5 h-5" />
+                </button>
+                <h1 className="font-display font-bold text-lg text-slate-900 leading-tight">
+                  Pemberitahuan
+                </h1>
+              </div>
+
+              {notifications.some((n) => !n.read) && (
+                <button
+                  type="button"
+                  onClick={handleMarkAllNotificationsRead}
+                  className="text-xs font-semibold text-sky-600 hover:text-sky-800 flex items-center gap-1.5 cursor-pointer bg-sky-50 hover:bg-sky-100 px-3 py-1.5 rounded-xl border border-sky-100 transition-colors"
+                >
+                  <CheckCheck className="w-3.5 h-3.5" />
+                  <span>Tandai dibaca</span>
+                </button>
+              )}
+            </div>
+
+            {/* 2. SUB-TAB FILTER PEMBERITAHUAN */}
+            <div className="flex gap-2 p-1 bg-slate-100 rounded-2xl border border-slate-200/70 text-xs font-semibold">
+              <button
+                type="button"
+                onClick={() => setNotifFilter('all')}
+                className={`flex-1 py-1.5 px-3 rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                  notifFilter === 'all'
+                    ? 'bg-white text-sky-700 shadow-xs font-bold'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <span>Semua</span>
+                <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-slate-200 text-slate-700 font-mono">
+                  {notifications.length}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setNotifFilter('interaction')}
+                className={`flex-1 py-1.5 px-3 rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                  notifFilter === 'interaction'
+                    ? 'bg-white text-sky-700 shadow-xs font-bold'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <MessageCircle className="w-3.5 h-3.5" />
+                <span>Interaksi</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setNotifFilter('finance')}
+                className={`flex-1 py-1.5 px-3 rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                  notifFilter === 'finance'
+                    ? 'bg-white text-sky-700 shadow-xs font-bold'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <Wallet className="w-3.5 h-3.5" />
+                <span>Keuangan</span>
+              </button>
+            </div>
+
+            {/* 3. DAFTAR KARTU PEMBERITAHUAN */}
+            <div className="space-y-3">
+              {filteredNotifications.length === 0 ? (
+                <div className="py-12 text-center bg-white rounded-3xl border border-slate-200/80 p-6 space-y-2">
+                  <div className="w-12 h-12 rounded-full bg-sky-50 text-sky-600 mx-auto flex items-center justify-center">
+                    <Bell className="w-6 h-6" />
+                  </div>
+                  <h3 className="font-bold text-sm text-slate-800">Belum Ada Pemberitahuan</h3>
+                  <p className="text-xs text-slate-500 max-w-xs mx-auto">
+                    Pemberitahuan interaksi komentar, balasan alumni, dan konfirmasi sistem keuangan akan muncul di sini.
+                  </p>
+                </div>
+              ) : (
+                filteredNotifications.map((item) => (
+                  <div
+                    key={item.id}
+                    onClick={() => handleToggleNotificationRead(item.id)}
+                    className={`rounded-2xl p-4 border transition-all cursor-pointer relative ${
+                      !item.read
+                        ? 'bg-sky-50/70 border-sky-200/80 shadow-xs'
+                        : 'bg-white border-slate-200/80 hover:bg-slate-50/80'
+                    }`}
+                  >
+                    {!item.read && (
+                      <span className="absolute top-4 right-4 w-2.5 h-2.5 rounded-full bg-sky-600 ring-2 ring-white" />
+                    )}
+
+                    <div className="flex items-start gap-3">
+                      {/* Icon type */}
+                      <div
+                        className={`w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 shadow-2xs ${
+                          item.type === 'reply'
+                            ? 'bg-sky-100 text-sky-700'
+                            : item.type === 'finance'
+                            ? 'bg-emerald-100 text-emerald-700'
+                            : 'bg-amber-100 text-amber-700'
+                        }`}
+                      >
+                        {item.type === 'reply' && <MessageCircle className="w-5 h-5" />}
+                        {item.type === 'finance' && <Wallet className="w-5 h-5" />}
+                        {item.type === 'system' && <ShieldAlert className="w-5 h-5" />}
+                        {item.type === 'like' && <Heart className="w-5 h-5" />}
+                      </div>
+
+                      <div className="flex-1 min-w-0 pr-4">
+                        <div className="flex items-center gap-2 mb-0.5">
+                          <span
+                            className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                              item.type === 'reply'
+                                ? 'bg-sky-200/60 text-sky-800'
+                                : item.type === 'finance'
+                                ? 'bg-emerald-200/60 text-emerald-800'
+                                : 'bg-amber-200/60 text-amber-800'
+                            }`}
+                          >
+                            {item.tag || (item.type === 'reply' ? 'Interaksi' : item.type === 'finance' ? 'Keuangan' : 'Sistem')}
+                          </span>
+                          <span className="text-[11px] text-slate-400 font-mono">
+                            {item.time}
+                          </span>
+                        </div>
+
+                        <h4 className="font-bold text-xs sm:text-sm text-slate-900 leading-snug">
+                          {item.title}
+                        </h4>
+
+                        <p className="text-xs text-slate-600 mt-1 leading-relaxed">
+                          {item.message}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ================= TAB 6: HALAMAN PENGUMUMAN RESMI TERSENDIRI ================= */}
+        {activeTab === 'announcements' && (
+          <div className="space-y-4 max-w-md mx-auto w-full pb-8">
+            {/* Header Pengumuman dengan Tombol Kembali ke Home */}
+            <div className="flex items-center gap-2.5 border-b border-slate-200/90 pb-3 pt-1">
+              <button
+                type="button"
+                onClick={() => setActiveTab('home')}
+                className="w-9 h-9 rounded-xl bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 flex items-center justify-center transition-colors cursor-pointer shadow-2xs"
+                title="Kembali ke Beranda"
+              >
+                <ArrowLeft className="w-5 h-5" />
+              </button>
+              <h2 className="font-display font-bold text-base text-slate-900 leading-tight">
+                Pengumuman
+              </h2>
+            </div>
+
+            {/* Daftar Pengumuman Resmi */}
+            <div className="space-y-3.5">
+              {announcements.map((ann) => (
+                <div
+                  key={ann.id}
+                  className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200/90 shadow-2xs space-y-3"
+                >
+                  <div className="flex items-center justify-between gap-2 border-b border-slate-100 pb-2.5">
+                    <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                      ann.category === 'maklumat'
+                        ? 'bg-amber-100 text-amber-800'
+                        : ann.category === 'beasiswa'
+                        ? 'bg-emerald-100 text-emerald-800'
+                        : 'bg-sky-100 text-sky-800'
+                    }`}>
+                      {ann.category}
+                    </span>
+                    <span className="text-[11px] text-slate-400 font-medium">
+                      {ann.date}
+                    </span>
+                  </div>
+
+                  <div>
+                    <h4 className="font-display font-bold text-sm text-slate-900 leading-snug">
+                      {ann.title}
+                    </h4>
+                    <p className="text-xs text-slate-600 leading-relaxed mt-2">
+                      {ann.content}
+                    </p>
+                  </div>
+
+                  {/* KIRI BAWAH: FOTO AKUN, NAMA AKUN & USERNAME DI BAWAH NAMA */}
+                  <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-3 text-xs">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="shrink-0">
+                        <img
+                          src={ann.authorAvatar || logoPonpesImg}
+                          alt={ann.authorName}
+                          className="w-8 h-8 rounded-full object-cover border border-slate-200 shadow-2xs"
+                        />
+                      </div>
+                      <div className="min-w-0 leading-tight">
+                        <span className="font-bold text-slate-800 text-xs block truncate">
+                          {ann.authorName}
+                        </span>
+                        <span className="text-[11px] text-slate-500 font-mono block truncate">
+                          @{ann.authorHandle || 'attaroqqy_official'}
+                        </span>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => handleShareAnnouncement(ann)}
+                      className="p-1.5 px-2.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 flex items-center gap-1 font-semibold text-xs cursor-pointer shrink-0"
+                    >
+                      <Share2 className="w-3.5 h-3.5" />
+                      <span>Bagikan</span>
+                    </button>
+                  </div>
+                </div>
+              ))}
+
+              {announcements.length === 0 && (
+                <div className="bg-white rounded-2xl border border-slate-200 p-8 text-center text-slate-500 text-xs">
+                  Belum ada pengumuman resmi terbaru saat ini.
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </div>
+
+      {/* Tombol Melayang Peta Alumni (HANYA ICON di Sudut Kanan Bawah, Tidak Ikut Scroll) */}
+      {activeTab === 'directory' && (
+        <button
+          type="button"
+          onClick={() => setIsDistributionMapOpen(true)}
+          className="absolute right-4 bottom-18 z-40 w-12 h-12 rounded-full bg-gradient-to-tr from-sky-600 to-blue-600 hover:from-sky-700 hover:to-blue-700 text-white shadow-xl shadow-sky-600/40 border-2 border-white flex items-center justify-center cursor-pointer transition-all active:scale-90 hover:scale-105 select-none group"
+          title="Lihat Peta Sebaran Alumni"
+        >
+          <Map className="w-5 h-5 text-white group-hover:rotate-12 transition-transform" />
+          <span className="sr-only">Lihat Peta Alumni</span>
+        </button>
+      )}
 
       {/* ================= BOTTOM BAR TABS ================= */}
       <div className="bg-white border-t border-slate-200 px-3 py-2 flex items-center justify-around shrink-0 select-none z-30">
@@ -2822,7 +3360,7 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
           }`}
         >
           <Calendar className="w-5 h-5" />
-          <span className="text-[10px]">Event</span>
+          <span className="text-[10px]">Agenda</span>
         </button>
 
         <button
@@ -2846,154 +3384,139 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
         </button>
       </div>
 
-      {/* ================= MODAL KTA DIGITAL LENGKAP ================= */}
+      {/* ================= MODAL KTA DIGITAL BERSIH (HANYA KTA + 3 TOMBOL LINGKARAN DI BAWAH) ================= */}
       {showKtaCardModal && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-xs animate-in fade-in"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in"
           onClick={() => setShowKtaCardModal(false)}
         >
           <div
-            className="w-full max-w-sm bg-white rounded-3xl p-5 space-y-4 shadow-2xl border border-slate-100 animate-in zoom-in-95"
+            className="w-full max-w-sm flex flex-col items-center gap-5 animate-in zoom-in-95"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex justify-between items-center border-b border-slate-100 pb-2.5">
-              <div className="flex items-center gap-2">
-                <IdCard className="w-4 h-4 text-sky-600" />
-                <h3 className="font-bold text-sm text-slate-900">Kartu Tanda Alumni (KTA)</h3>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowKtaCardModal(false)}
-                className="text-slate-400 hover:text-slate-600 p-1 cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-              </button>
+            {/* 1. KARTU TANDA ALUMNI (BERSIH TANPA UI LAIN) */}
+            <div
+              onClick={() => setIsCardFlipped(!isCardFlipped)}
+              className="w-full aspect-[1.58/1] rounded-2xl p-4 sm:p-5 text-white shadow-2xl relative overflow-hidden cursor-pointer transition-all duration-300 transform select-none border border-white/20"
+              style={{
+                background: isCardFlipped
+                  ? 'linear-gradient(135deg, #0369a1 0%, #0284c7 50%, #0ea5e9 100%)'
+                  : 'linear-gradient(135deg, #0284c7 0%, #0369a1 60%, #075985 100%)',
+              }}
+            >
+              <div className="absolute inset-0 droplet-pattern opacity-15 pointer-events-none" />
+              <div className="absolute -top-12 -right-12 w-44 h-44 bg-sky-400/20 rounded-full blur-2xl pointer-events-none" />
+              <div className="absolute -bottom-10 -left-10 w-36 h-36 bg-amber-400/15 rounded-full blur-xl pointer-events-none" />
+
+              {!isCardFlipped ? (
+                /* SISI DEPAN KTA */
+                <div className="relative z-10 h-full flex flex-col justify-between">
+                  <div className="flex justify-between items-start">
+                    <div className="flex items-center gap-2">
+                      <div className="w-8 h-8 rounded-full bg-white p-0.5 shadow-md border border-white/50 shrink-0 overflow-hidden flex items-center justify-center">
+                        <img
+                          src={logoPonpesImg}
+                          alt="Logo Ponpes"
+                          className="w-full h-full object-cover rounded-full"
+                        />
+                      </div>
+                      <div>
+                        <p className="text-[8px] font-mono tracking-widest text-sky-200 uppercase font-bold">
+                          KARTU TANDA ALUMNI
+                        </p>
+                        <h4 className="text-xs font-bold font-display tracking-wide text-white">
+                          Pondok Pesantren Attaroqqy
+                        </h4>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-3 my-auto">
+                    <div className="w-12 h-14 bg-white/10 border border-white/40 rounded-lg overflow-hidden flex items-center justify-center shrink-0">
+                      {alumni.photoUrl ? (
+                        <img src={alumni.photoUrl} alt={alumni.name} className="w-full h-full object-cover" />
+                      ) : (
+                        <span className="text-xl">👨‍🎓</span>
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[8px] font-mono text-sky-200">NO: {alumni.nis}</p>
+                      <h3 className="font-bold text-xs sm:text-sm leading-tight truncate text-white">
+                        {alumni.name}
+                      </h3>
+                      <p className="text-[9px] text-sky-100 truncate mt-0.5">{alumni.jenjang}</p>
+                      <p className="text-[9px] text-sky-200 truncate">{alumni.city}</p>
+                    </div>
+                  </div>
+
+                  <div className="flex justify-between items-end pt-1.5 border-t border-white/20 text-[8px]">
+                    <p className="text-sky-300 font-mono">PORTAL RESMI IKAPAZ AT-TAROQQY</p>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setShowQrModal(true);
+                      }}
+                      className="flex items-center gap-1 bg-white/20 hover:bg-white/30 px-2 py-0.5 rounded border border-white/30 text-white cursor-pointer"
+                    >
+                      <QrCode className="w-3 h-3 text-amber-300" />
+                      <span>QR Presensi</span>
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                /* SISI BELAKANG KTA */
+                <div className="relative z-10 h-full flex flex-col justify-between text-[9px]">
+                  <div className="border-b border-white/20 pb-1 flex justify-between items-center">
+                    <span className="font-bold font-display text-sky-200">KETENTUAN KTA ALUMNI</span>
+                    <span className="font-mono text-slate-300 text-[8px]">TRQ-RULE-V2</span>
+                  </div>
+
+                  <div className="space-y-1 text-[8.5px] text-slate-200 leading-relaxed">
+                    <p>1. Kartu keanggotaan resmi Ikatan Alumni Ponpes At-taroqqy (IKAPAZ).</p>
+                    <p>2. Digunakan untuk identitas presensi reuni akbar dan jaringan pesantren.</p>
+                    <p>3. Berlaku seumur hidup selama menjaga nama baik almamater.</p>
+                  </div>
+
+                  <div className="flex justify-between items-end pt-1 border-t border-white/20 text-[8px]">
+                    <p className="text-sky-300 font-mono">www.attaroqqy.ac.id</p>
+                    <p className="font-bold text-white">Pengasuh Pesantren</p>
+                  </div>
+                </div>
+              )}
             </div>
 
-            {/* Physical Card Container with Flip Animation */}
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-[11px] font-mono text-slate-400">TRQ-ID: {alumni.nis}</span>
-                <button
-                  type="button"
-                  onClick={() => setIsCardFlipped(!isCardFlipped)}
-                  className="text-[11px] text-sky-600 hover:text-sky-800 font-semibold flex items-center gap-1 cursor-pointer"
-                >
-                  <RotateCw className="w-3 h-3" />
-                  <span>{isCardFlipped ? 'Lihat Depan' : 'Lihat Belakang'}</span>
-                </button>
-              </div>
-
-              <div
-                onClick={() => setIsCardFlipped(!isCardFlipped)}
-                className="w-full aspect-[1.58/1] rounded-2xl p-4 text-white shadow-xl relative overflow-hidden cursor-pointer transition-all duration-300 transform select-none"
-                style={{
-                  background: isCardFlipped
-                    ? 'linear-gradient(135deg, #091e3a 0%, #1e3a8a 50%, #0f172a 100%)'
-                    : 'linear-gradient(135deg, #0f172a 0%, #0369a1 60%, #0284c7 100%)',
-                }}
+            {/* 2. TIGA ICON TOMBOL DENGAN LINGKARAN DI BAWAHNYA: KIRI DOWNLOAD, TENGAH BALIK, KANAN BAGIKAN */}
+            <div className="flex items-center justify-center gap-6 pt-1 select-none">
+              {/* KIRI: DOWNLOAD */}
+              <button
+                type="button"
+                onClick={() => triggerToast('KTA Digital berhasil disimpan ke galeri')}
+                className="w-13 h-13 rounded-full bg-white/15 hover:bg-white/25 active:scale-95 backdrop-blur-md border border-white/30 text-white flex items-center justify-center shadow-lg transition-all cursor-pointer"
+                title="Unduh KTA Digital"
               >
-                <div className="absolute inset-0 droplet-pattern opacity-15 pointer-events-none" />
-                <div className="absolute -top-12 -right-12 w-44 h-44 bg-sky-400/20 rounded-full blur-2xl pointer-events-none" />
-                <div className="absolute -bottom-10 -left-10 w-36 h-36 bg-amber-400/15 rounded-full blur-xl pointer-events-none" />
+                <Download className="w-5 h-5 text-white" />
+              </button>
 
-                {!isCardFlipped ? (
-                  /* SISI DEPAN KTA */
-                  <div className="relative z-10 h-full flex flex-col justify-between">
-                    <div className="flex justify-between items-start">
-                      <div className="flex items-center gap-2">
-                        <div className="w-8 h-8 rounded-full bg-white p-0.5 shadow-md border border-white/50 shrink-0 overflow-hidden flex items-center justify-center">
-                          <img
-                            src={logoPonpesImg}
-                            alt="Logo Ponpes"
-                            className="w-full h-full object-cover rounded-full"
-                          />
-                        </div>
-                        <div>
-                          <p className="text-[8px] font-mono tracking-widest text-sky-200 uppercase font-bold">
-                            KARTU TANDA ALUMNI
-                          </p>
-                          <h4 className="text-xs font-bold font-display tracking-wide text-white">
-                            Pondok Pesantren Attaroqqy
-                          </h4>
-                        </div>
-                      </div>
-                    </div>
+              {/* TENGAH: BALIK */}
+              <button
+                type="button"
+                onClick={() => setIsCardFlipped(!isCardFlipped)}
+                className="w-14 h-14 rounded-full bg-white/20 hover:bg-white/30 active:scale-95 backdrop-blur-md border border-white/35 text-white flex items-center justify-center shadow-xl transition-all cursor-pointer"
+                title="Balik Kartu (Depan / Belakang)"
+              >
+                <RotateCw className={`w-6 h-6 text-white transition-transform duration-300 ${isCardFlipped ? 'rotate-180' : ''}`} />
+              </button>
 
-                    <div className="flex items-center gap-3 my-auto">
-                      <div className="w-12 h-14 bg-white/10 border border-white/40 rounded-lg overflow-hidden flex items-center justify-center shrink-0">
-                        {alumni.photoUrl ? (
-                          <img src={alumni.photoUrl} alt={alumni.name} className="w-full h-full object-cover" />
-                        ) : (
-                          <span className="text-xl">👨‍🎓</span>
-                        )}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-[8px] font-mono text-sky-200">NO: {alumni.nis}</p>
-                        <h3 className="font-bold text-xs sm:text-sm leading-tight truncate text-white">
-                          {alumni.name}
-                        </h3>
-                        <p className="text-[9px] text-sky-100 truncate mt-0.5">{alumni.jenjang}</p>
-                        <p className="text-[9px] text-sky-200 truncate">{alumni.city}</p>
-                      </div>
-                    </div>
-
-                    <div className="flex justify-between items-end pt-1.5 border-t border-white/20 text-[8px]">
-                      <p className="text-sky-300 font-mono">PORTAL RESMI IKAPAZ AT-TAROQQY</p>
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setShowQrModal(true);
-                        }}
-                        className="flex items-center gap-1 bg-white/20 hover:bg-white/30 px-2 py-0.5 rounded border border-white/30 text-white cursor-pointer"
-                      >
-                        <QrCode className="w-3 h-3 text-amber-300" />
-                        <span>QR Presensi</span>
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  /* SISI BELAKANG KTA */
-                  <div className="relative z-10 h-full flex flex-col justify-between text-[9px]">
-                    <div className="border-b border-white/20 pb-1 flex justify-between items-center">
-                      <span className="font-bold font-display text-sky-200">KETENTUAN KTA ALUMNI</span>
-                      <span className="font-mono text-slate-300 text-[8px]">TRQ-RULE-V2</span>
-                    </div>
-
-                    <div className="space-y-1 text-[8.5px] text-slate-200 leading-relaxed">
-                      <p>1. Kartu keanggotaan resmi Ikatan Alumni Ponpes At-taroqqy (IKAPAZ).</p>
-                      <p>2. Digunakan untuk identitas presensi reuni akbar dan jaringan pesantren.</p>
-                      <p>3. Berlaku seumur hidup selama menjaga nama baik almamater.</p>
-                    </div>
-
-                    <div className="flex justify-between items-end pt-1 border-t border-white/20 text-[8px]">
-                      <p className="text-sky-300 font-mono">www.attaroqqy.ac.id</p>
-                      <p className="font-bold text-white">Pengasuh Pesantren</p>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Action buttons */}
-              <div className="grid grid-cols-2 gap-2 mt-3">
-                <button
-                  type="button"
-                  onClick={() => triggerToast('KTA Digital berhasil disimpan ke galeri')}
-                  className="py-2 px-3 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 font-semibold rounded-xl text-xs flex items-center justify-center gap-1.5 shadow-2xs cursor-pointer"
-                >
-                  <Download className="w-3.5 h-3.5 text-sky-600" />
-                  <span>Unduh KTA</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => triggerToast('Tautan KTA disalin ke clipboard')}
-                  className="py-2 px-3 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 font-semibold rounded-xl text-xs flex items-center justify-center gap-1.5 shadow-2xs cursor-pointer"
-                >
-                  <Share2 className="w-3.5 h-3.5 text-sky-600" />
-                  <span>Bagikan KTA</span>
-                </button>
-              </div>
+              {/* KANAN: BAGIKAN */}
+              <button
+                type="button"
+                onClick={() => triggerToast('Tautan KTA disalin ke clipboard')}
+                className="w-13 h-13 rounded-full bg-white/15 hover:bg-white/25 active:scale-95 backdrop-blur-md border border-white/30 text-white flex items-center justify-center shadow-lg transition-all cursor-pointer"
+                title="Bagikan KTA"
+              >
+                <Share2 className="w-5 h-5 text-white" />
+              </button>
             </div>
           </div>
         </div>
@@ -3012,9 +3535,9 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
             {/* Modal Header */}
             <div className="flex justify-between items-center border-b border-slate-100 pb-3">
               <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center">
+                <div className="w-8 h-8 rounded-full bg-sky-50 flex items-center justify-center">
                   {activeIslamicMenu === 'quran' && <BookOpen className="w-4 h-4 text-sky-600" />}
-                  {activeIslamicMenu === 'majmuah' && <BookMarked className="w-4 h-4 text-slate-900" />}
+                  {activeIslamicMenu === 'majmuah' && <BookMarked className="w-4 h-4 text-sky-600" />}
                   {activeIslamicMenu === 'maulid' && <Scroll className="w-4 h-4 text-emerald-600" />}
                   {activeIslamicMenu === 'aurod' && <Flame className="w-4 h-4 text-amber-500" />}
                 </div>
@@ -3514,6 +4037,16 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
           onToggleLike={handleToggleLikeComment}
         />
       )}
+
+      {/* ================= MODAL PETA SEBARAN ALUMNI FULLSCREEN ================= */}
+      <AlumniDistributionMapModal
+        isOpen={isDistributionMapOpen}
+        onClose={() => setIsDistributionMapOpen(false)}
+        alumniList={allAlumni}
+        currentUser={alumni}
+        deviceGps={deviceGps}
+        onSelectAlumni={(selected) => setSelectedAlumniDetail(selected)}
+      />
     </div>
   );
 };
