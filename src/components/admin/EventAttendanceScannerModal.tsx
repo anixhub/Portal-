@@ -15,7 +15,7 @@ import {
   UserCheck,
   Plus
 } from 'lucide-react';
-import { EventAgenda, AlumniRecord } from '../../types';
+import { EventAgenda, AlumniRecord, AttendanceAttendee } from '../../types';
 
 export interface AttendanceRecord {
   id: string;
@@ -35,6 +35,9 @@ interface EventAttendanceScannerModalProps {
   alumniList: AlumniRecord[];
   onClose: () => void;
   onUpdateEventAttendees?: (eventId: string, newCount: number) => void;
+  onRecordCustomAttendee?: (attendee: AttendanceAttendee) => void;
+  existingAttendees?: AttendanceAttendee[];
+  onDeleteCustomAttendee?: (attendeeId: string) => void;
 }
 
 export const EventAttendanceScannerModal: React.FC<EventAttendanceScannerModalProps> = ({
@@ -43,8 +46,44 @@ export const EventAttendanceScannerModal: React.FC<EventAttendanceScannerModalPr
   alumniList,
   onClose,
   onUpdateEventAttendees,
+  onRecordCustomAttendee,
+  existingAttendees,
+  onDeleteCustomAttendee,
 }) => {
-  const [attendees, setAttendees] = useState<AttendanceRecord[]>([]);
+  const [attendees, setAttendees] = useState<AttendanceRecord[]>(() => {
+    if (existingAttendees && existingAttendees.length > 0) {
+      return existingAttendees.map((a) => ({
+        id: a.id,
+        alumniId: a.alumniId,
+        alumniName: a.alumniName,
+        alumniNis: a.alumniNis,
+        gradYear: a.gradYear || '',
+        jenjang: a.jenjang,
+        checkInTime: a.checkInTime,
+        photoUrl: a.photoUrl,
+        gender: a.gender || 'L',
+      }));
+    }
+    return [];
+  });
+
+  useEffect(() => {
+    if (existingAttendees) {
+      setAttendees(
+        existingAttendees.map((a) => ({
+          id: a.id,
+          alumniId: a.alumniId,
+          alumniName: a.alumniName,
+          alumniNis: a.alumniNis,
+          gradYear: a.gradYear || '',
+          jenjang: a.jenjang,
+          checkInTime: a.checkInTime,
+          photoUrl: a.photoUrl,
+          gender: a.gender || 'L',
+        }))
+      );
+    }
+  }, [existingAttendees]);
   const [searchQuery, setSearchQuery] = useState('');
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [isCameraActive, setIsCameraActive] = useState(false);
@@ -173,6 +212,19 @@ export const EventAttendanceScannerModal: React.FC<EventAttendanceScannerModalPr
     setAttendees((prev) => [newRecord, ...prev]);
     setLastScannedAlumni(alumni);
     showToast(`Presensi Berhasil: ${alumni.name}`);
+
+    onRecordCustomAttendee?.({
+      id: newRecord.id,
+      alumniId: alumni.id,
+      alumniName: alumni.name,
+      alumniNis: alumni.nis,
+      gradYear: alumni.gradYear,
+      jenjang: alumni.jenjang,
+      checkInTime: timeStr,
+      photoUrl: alumni.photoUrl,
+      gender: alumni.gender,
+      method: 'qr',
+    });
 
     // Update parent attendee count
     onUpdateEventAttendees?.(event.id, (event.attendeesCount || 0) + 1);
@@ -304,7 +356,7 @@ export const EventAttendanceScannerModal: React.FC<EventAttendanceScannerModalPr
   );
 
   return (
-    <div className="fixed inset-0 z-[100] bg-slate-950 flex flex-col overflow-hidden animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-[100050] bg-slate-950 flex flex-col overflow-hidden animate-in fade-in duration-200">
       {/* Toast Notification */}
       {toastMessage && (
         <div className="absolute top-16 left-1/2 -translate-x-1/2 z-[110] bg-slate-900/95 text-white text-xs font-semibold px-4 py-2 rounded-full shadow-2xl border border-white/20 backdrop-blur-md animate-in fade-in slide-in-from-top-2 flex items-center gap-2 whitespace-nowrap">
@@ -320,7 +372,7 @@ export const EventAttendanceScannerModal: React.FC<EventAttendanceScannerModalPr
           <button
             type="button"
             onClick={onClose}
-            className="w-9 h-9 rounded-full bg-black/40 backdrop-blur-md hover:bg-black/60 flex items-center justify-center text-white transition-colors cursor-pointer"
+            className="w-9 h-9 rounded-full bg-black/40 backdrop-blur-md hover:bg-black/60 flex items-center justify-center text-white transition-colors cursor-pointer shrink-0"
             title="Tutup Presensi"
           >
             <ArrowLeft className="w-5 h-5" />
@@ -328,34 +380,11 @@ export const EventAttendanceScannerModal: React.FC<EventAttendanceScannerModalPr
 
           <div className="text-center min-w-0 px-2 flex-1">
             <h3 className="font-bold text-xs sm:text-sm text-white truncate drop-shadow-sm">
-              Scan Presensi QR
-            </h3>
-            <p className="text-[10px] sm:text-[11px] text-emerald-400 truncate font-medium">
               {event.title}
-            </p>
+            </h3>
           </div>
 
-          <div className="flex items-center gap-1.5">
-            <button
-              type="button"
-              onClick={handleToggleTorch}
-              className={`w-9 h-9 rounded-full backdrop-blur-md flex items-center justify-center transition-colors cursor-pointer ${
-                torchOn ? 'bg-amber-400 text-slate-950 font-bold' : 'bg-black/40 hover:bg-black/60 text-white'
-              }`}
-              title="Nyalakan Lampu Senter"
-            >
-              {torchOn ? <Zap className="w-4 h-4 fill-current" /> : <ZapOff className="w-4 h-4" />}
-            </button>
-
-            <button
-              type="button"
-              onClick={handleToggleCameraFacing}
-              className="w-9 h-9 rounded-full bg-black/40 backdrop-blur-md hover:bg-black/60 flex items-center justify-center text-white transition-colors cursor-pointer"
-              title="Putar Kamera Depan/Belakang"
-            >
-              <RefreshCw className="w-4 h-4" />
-            </button>
-          </div>
+          <div className="w-9 shrink-0" />
         </div>
 
         {/* Video Camera Preview */}
@@ -367,6 +396,29 @@ export const EventAttendanceScannerModal: React.FC<EventAttendanceScannerModalPr
             muted
             className="w-full h-full object-cover"
           />
+
+          {/* Tombol Flash & Putar Kamera Berjajar Vertikal di Sisi Kanan Tengah */}
+          <div className="absolute right-3.5 top-1/2 -translate-y-1/2 z-20 flex flex-col items-center gap-2.5">
+            <button
+              type="button"
+              onClick={handleToggleTorch}
+              className={`w-9 h-9 rounded-full backdrop-blur-md flex items-center justify-center transition-colors cursor-pointer shadow-md ${
+                torchOn ? 'bg-amber-400 text-slate-950 font-bold' : 'bg-black/40 hover:bg-black/60 text-white'
+              }`}
+              title="Nyalakan Lampu Senter"
+            >
+              {torchOn ? <Zap className="w-4 h-4 fill-current" /> : <ZapOff className="w-4 h-4" />}
+            </button>
+
+            <button
+              type="button"
+              onClick={handleToggleCameraFacing}
+              className="w-9 h-9 rounded-full bg-black/40 backdrop-blur-md hover:bg-black/60 flex items-center justify-center text-white transition-colors cursor-pointer shadow-md"
+              title="Putar Kamera Depan/Belakang"
+            >
+              <RefreshCw className="w-4 h-4" />
+            </button>
+          </div>
 
           {/* Viewfinder Target Box Overlay */}
           <div className="absolute inset-0 pointer-events-none flex flex-col items-center justify-center">
@@ -393,7 +445,7 @@ export const EventAttendanceScannerModal: React.FC<EventAttendanceScannerModalPr
               <div className="max-w-xs">
                 <p className="text-xs font-semibold text-slate-300">{cameraError}</p>
                 <p className="text-[11px] text-slate-500 mt-1">
-                  Anda tetap dapat melakukan presensi menggunakan tombol simulasi cepat atau input manual di bawah.
+                  Anda tetap dapat melakukan presensi menggunakan tombol simulasi cepat atau tombol cari di bawah.
                 </p>
               </div>
               <button
@@ -407,22 +459,11 @@ export const EventAttendanceScannerModal: React.FC<EventAttendanceScannerModalPr
             </div>
           )}
 
-          {/* Quick Simulation Bar (Always available at bottom of camera view for testing) */}
-          <div className="absolute bottom-2 inset-x-3 z-20 flex items-center justify-center gap-2">
-            <button
-              type="button"
-              onClick={() => setShowManualModal(true)}
-              className="px-3 py-1.5 rounded-full bg-white/20 hover:bg-white/30 backdrop-blur-md text-white text-[11px] font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              <span>Input Manual / Cari Alumni</span>
-            </button>
-
-            {/* Quick Test Scan Dropdown / Trigger */}
+          {/* Quick Simulation Scan Cepat */}
+          <div className="absolute bottom-2 inset-x-3 z-20 flex items-center justify-center">
             <button
               type="button"
               onClick={() => {
-                // Pick an alumni that hasn't checked in yet, or first alumni
                 const unChecked = alumniList.find((a) => !attendees.some((att) => att.alumniId === a.id)) || alumniList[0];
                 if (unChecked) handleCheckInAlumni(unChecked);
               }}
@@ -437,20 +478,15 @@ export const EventAttendanceScannerModal: React.FC<EventAttendanceScannerModalPr
       </div>
 
       {/* ================= BAGIAN BAWAH (50% LAYAR): DAFTAR KEHADIRAN (BARIS PER BARIS) ================= */}
-      <div className="flex-1 bg-white rounded-t-[32px] shadow-[0_-8px_30px_rgba(0,0,0,0.3)] flex flex-col min-h-0 z-30 -mt-3">
+      <div className="relative flex-1 bg-white rounded-t-[32px] shadow-[0_-8px_30px_rgba(0,0,0,0.3)] flex flex-col min-h-0 z-30 -mt-3">
         {/* Header Bar Daftar Kehadiran */}
         <div className="px-5 pt-3 pb-2.5 border-b border-slate-100 flex flex-col gap-2 shrink-0">
           <div className="w-10 h-1.5 bg-slate-300 rounded-full mx-auto mb-1" />
 
           <div className="flex items-center justify-between gap-3">
-            <div className="flex items-center gap-2">
-              <h4 className="font-display font-bold text-sm text-slate-900">
-                Daftar Kehadiran
-              </h4>
-              <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-bold font-mono">
-                {attendees.length} Hadir
-              </span>
-            </div>
+            <h4 className="font-display font-bold text-sm text-slate-900">
+              Daftar Kehadiran
+            </h4>
 
             <div className="flex items-center gap-1.5">
               <span className="text-[11px] text-slate-400">
@@ -468,8 +504,17 @@ export const EventAttendanceScannerModal: React.FC<EventAttendanceScannerModalPr
               placeholder="Cari nama atau NIS di daftar hadir..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-8 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-800 focus:outline-none focus:bg-white focus:ring-1 focus:ring-sky-600"
+              className="w-full pl-8 pr-8 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-800 focus:outline-none focus:bg-white focus:ring-1 focus:ring-sky-600"
             />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery('')}
+                className="w-5 h-5 rounded-full flex items-center justify-center absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            )}
           </div>
         </div>
 
@@ -535,6 +580,18 @@ export const EventAttendanceScannerModal: React.FC<EventAttendanceScannerModalPr
           )}
         </div>
 
+        {/* Tombol Cari Melayang di atas Tombol Selesai */}
+        <div className="absolute bottom-16 right-4 z-40 pointer-events-auto">
+          <button
+            type="button"
+            onClick={() => setShowManualModal(true)}
+            className="w-12 h-12 rounded-full bg-sky-600 hover:bg-sky-700 text-white shadow-xl flex items-center justify-center cursor-pointer transition-all active:scale-95 group"
+            title="Cari Alumni & Presensi Manual"
+          >
+            <Search className="w-5 h-5 group-hover:scale-110 transition-transform" />
+          </button>
+        </div>
+
         {/* Bottom Selesai Bar */}
         <div className="p-3 border-t border-slate-100 bg-white flex items-center justify-between gap-3 shrink-0">
           <div className="text-xs text-slate-500 pl-1">
@@ -554,32 +611,39 @@ export const EventAttendanceScannerModal: React.FC<EventAttendanceScannerModalPr
       {/* ================= MODAL INPUT NIS MANUAL ================= */}
       {showManualModal && (
         <div className="fixed inset-0 z-[120] bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
-          <div className="bg-white rounded-3xl p-5 max-w-sm w-full space-y-4 shadow-2xl border border-slate-100">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
-              <h4 className="font-bold text-sm text-slate-900">Input Manual Presensi</h4>
-              <button
-                type="button"
-                onClick={() => setShowManualModal(false)}
-                className="w-7 h-7 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-500 cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
+          <div className="bg-white rounded-3xl p-4 max-w-sm w-full space-y-3 shadow-2xl border border-slate-100">
+            {/* Header dihapus, tombol X ditaruh di sebelah kanan kotak cari */}
             <form onSubmit={handleManualCheckInSubmit} className="space-y-3">
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Cari Nama, NIS, atau NIK Alumni
-                </label>
-                <input
-                  type="text"
-                  autoFocus
-                  required
-                  placeholder="Ketik nama atau NIS..."
-                  value={manualInputNis}
-                  onChange={(e) => setManualInputNis(e.target.value)}
-                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-sky-600 focus:bg-white font-medium"
-                />
+              <div className="flex items-center gap-2">
+                <div className="relative flex-1">
+                  <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    autoFocus
+                    required
+                    placeholder="Ketik Nama atau NIS alumni..."
+                    value={manualInputNis}
+                    onChange={(e) => setManualInputNis(e.target.value)}
+                    className="w-full pl-9 pr-9 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-sky-600 focus:bg-white font-medium"
+                  />
+                  {manualInputNis && (
+                    <button
+                      type="button"
+                      onClick={() => setManualInputNis('')}
+                      className="w-6 h-6 rounded-full flex items-center justify-center absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowManualModal(false)}
+                  className="w-9 h-9 rounded-xl bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-500 cursor-pointer shrink-0"
+                  title="Tutup"
+                >
+                  <X className="w-4 h-4" />
+                </button>
               </div>
 
               {/* Quick Matches Preview */}

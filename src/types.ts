@@ -98,6 +98,29 @@ export interface AnnouncementItem {
   isImportant?: boolean;
 }
 
+export interface AttendanceAttendee {
+  id: string;
+  alumniId: string;
+  alumniName: string;
+  alumniNis: string;
+  gradYear?: string;
+  jenjang?: string;
+  checkInTime: string;
+  photoUrl?: string;
+  gender?: 'L' | 'P';
+  method: 'qr' | 'manual';
+}
+
+export interface AttendanceSession {
+  id: string;
+  title: string;
+  date: string;
+  sourceEventId?: string;
+  sourceType: 'imported' | 'manual';
+  createdAt: string;
+  attendees: AttendanceAttendee[];
+}
+
 export interface EventCommentReply {
   id: string;
   commentId: string;

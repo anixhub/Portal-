@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { LoginScreen } from './components/LoginScreen';
 import { AlumniView } from './components/AlumniView';
 import { AdminView } from './components/AdminView';
@@ -12,6 +12,12 @@ import { RegisterModal } from './components/RegisterModal';
 import { ForgotPasswordModal } from './components/ForgotPasswordModal';
 import { INITIAL_ALUMNI, INITIAL_ADMIN, INITIAL_EVENTS, INITIAL_ANNOUNCEMENTS } from './data/mockData';
 import { AlumniRecord, AdminUser, EventAgenda, UserRole, ActiveSession, AnnouncementItem } from './types';
+import {
+  fetchAlumniFromHostinger,
+  updateAlumniInHostinger,
+  addAlumniToHostinger,
+  resetAlumniPasswordInHostinger,
+} from './services/apiService';
 
 export default function App() {
   const [alumniList, setAlumniList] = useState<AlumniRecord[]>(INITIAL_ALUMNI);
@@ -30,6 +36,25 @@ export default function App() {
   const [isRegisterOpen, setIsRegisterOpen] = useState(false);
   const [isForgotPasswordOpen, setIsForgotPasswordOpen] = useState(false);
 
+  // Load real data from Hostinger MySQL database on mount
+  useEffect(() => {
+    let isMounted = true;
+    async function loadData() {
+      try {
+        const res = await fetchAlumniFromHostinger();
+        if (isMounted && res.success && res.data && res.data.length > 0) {
+          setAlumniList(res.data);
+        }
+      } catch (err) {
+        console.warn('Gagal memuat data alumni dari Hostinger:', err);
+      }
+    }
+    loadData();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
   const handleLoginSuccess = (
     role: UserRole,
     alumniData?: AlumniRecord,
@@ -46,6 +71,8 @@ export default function App() {
         prev.map((alm) => (alm.id === alumniData.id ? { ...alm, hasLoggedIn: true } : alm))
       );
       setCurrentSession({ role: 'alumni', alumniData: updatedAlumni });
+      // Update hasLoggedIn / status in database
+      updateAlumniInHostinger(alumniData.id, { hasLoggedIn: true });
     }
   };
 
@@ -56,7 +83,7 @@ export default function App() {
   };
 
   // Alumni self-profile update
-  const handleUpdateAlumniProfile = (updates: Partial<AlumniRecord>) => {
+  const handleUpdateAlumniProfile = async (updates: Partial<AlumniRecord>) => {
     if (!currentSession?.alumniData) return;
 
     const updatedAlumni: AlumniRecord = {
@@ -80,6 +107,9 @@ export default function App() {
     setAlumniList((prev) =>
       prev.map((item) => (item.id === updatedAlumni.id ? updatedAlumni : item))
     );
+
+    // Sync secara realtime ke database Hostinger
+    await updateAlumniInHostinger(updatedAlumni.id, updates);
   };
 
   // First-time modal save
@@ -110,11 +140,13 @@ export default function App() {
   };
 
   // Admin actions
-  const handleAddAlumniByAdmin = (newAlumni: AlumniRecord) => {
+  const handleAddAlumniByAdmin = async (newAlumni: AlumniRecord) => {
     setAlumniList((prev) => [newAlumni, ...prev]);
+    // Simpan ke database Hostinger
+    await addAlumniToHostinger(newAlumni);
   };
 
-  const handleUpdateAlumniByAdmin = (id: string, updated: Partial<AlumniRecord>) => {
+  const handleUpdateAlumniByAdmin = async (id: string, updated: Partial<AlumniRecord>) => {
     setAlumniList((prev) =>
       prev.map((item) => (item.id === id ? { ...item, ...updated } : item))
     );
@@ -125,9 +157,11 @@ export default function App() {
         alumniData: { ...currentSession.alumniData, ...updated },
       });
     }
+    // Simpan ke database Hostinger
+    await updateAlumniInHostinger(id, updated);
   };
 
-  const handleResetAlumniPassword = (id: string) => {
+  const handleResetAlumniPassword = async (id: string) => {
     setAlumniList((prev) =>
       prev.map((item) =>
         item.id === id
@@ -135,6 +169,8 @@ export default function App() {
           : item
       )
     );
+    // Reset di database Hostinger
+    await resetAlumniPasswordInHostinger(id);
   };
 
   const handleUpdateAdmin = (updated: Partial<AdminUser>) => {

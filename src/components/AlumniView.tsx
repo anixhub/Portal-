@@ -388,13 +388,13 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
 
   // Profile Edit State
   const [editNik, setEditNik] = useState(alumni.nik);
-  const [editNoKk, setEditNoKk] = useState(alumni.noKk || '3507123456780000');
+  const [editNoKk, setEditNoKk] = useState(alumni.noKk || '');
   const [editName, setEditName] = useState(alumni.name);
-  const [editTempatLahir, setEditTempatLahir] = useState(alumni.tempatLahir || 'Rembang');
-  const [editTanggalLahir, setEditTanggalLahir] = useState(alumni.tanggalLahir || '1998-05-14');
+  const [editTempatLahir, setEditTempatLahir] = useState(alumni.tempatLahir || '');
+  const [editTanggalLahir, setEditTanggalLahir] = useState(alumni.tanggalLahir || '');
   const [editGender, setEditGender] = useState<'L' | 'P'>(alumni.gender || 'L');
-  const [editUrutanAnak, setEditUrutanAnak] = useState<number>(alumni.urutanAnak || 2);
-  const [editJumlahSaudara, setEditJumlahSaudara] = useState<number>(alumni.jumlahSaudara || 5);
+  const [editUrutanAnak, setEditUrutanAnak] = useState<number>(alumni.urutanAnak ?? 1);
+  const [editJumlahSaudara, setEditJumlahSaudara] = useState<number>(alumni.jumlahSaudara ?? 1);
   const [editUsername, setEditUsername] = useState(alumni.username || '');
   const [editPhone, setEditPhone] = useState(alumni.phone);
   const [editEmail, setEditEmail] = useState(alumni.email);
@@ -481,26 +481,26 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
   };
 
   // Riwayat Pendidikan State
-  const [editNism, setEditNism] = useState(alumni.nism || '131233170001');
-  const [editNisn, setEditNisn] = useState(alumni.nisn || '0012345678');
-  const [editEntryYear, setEditEntryYear] = useState(alumni.entryYear || '2014');
-  const [editGradYear, setEditGradYear] = useState(alumni.gradYear || '2020');
-  const [editEntryDate, setEditEntryDate] = useState(alumni.entryDate || `${alumni.entryYear || '2014'}-07-15`);
-  const [editGradDate, setEditGradDate] = useState(alumni.gradDate || `${alumni.gradYear || '2020'}-06-20`);
-  const [tempEntryDate, setTempEntryDate] = useState(alumni.entryDate || `${alumni.entryYear || '2014'}-07-15`);
-  const [tempGradDate, setTempGradDate] = useState(alumni.gradDate || `${alumni.gradYear || '2020'}-06-20`);
+  const [editNism, setEditNism] = useState(alumni.nism || '');
+  const [editNisn, setEditNisn] = useState(alumni.nisn || '');
+  const [editEntryYear, setEditEntryYear] = useState(alumni.entryYear || '');
+  const [editGradYear, setEditGradYear] = useState(alumni.gradYear || '');
+  const [editEntryDate, setEditEntryDate] = useState(alumni.entryDate || '');
+  const [editGradDate, setEditGradDate] = useState(alumni.gradDate || '');
+  const [tempEntryDate, setTempEntryDate] = useState(alumni.entryDate || '');
+  const [tempGradDate, setTempGradDate] = useState(alumni.gradDate || '');
   const [activeDateTab, setActiveDateTab] = useState<'masuk' | 'keluar'>('masuk');
 
   // Informasi Orang Tua State
-  const [editNamaAyah, setEditNamaAyah] = useState(alumni.namaAyah || 'H. Abdul Rasyid');
-  const [editNikAyah, setEditNikAyah] = useState(alumni.nikAyah || '3507123456780010');
-  const [editPekerjaanAyah, setEditPekerjaanAyah] = useState(alumni.pekerjaanAyah || 'Wiraswasta / Petani');
-  const [editPendidikanAyah, setEditPendidikanAyah] = useState(alumni.pendidikanAyah || 'S1 Tarbiyah');
+  const [editNamaAyah, setEditNamaAyah] = useState(alumni.namaAyah || '');
+  const [editNikAyah, setEditNikAyah] = useState(alumni.nikAyah || '');
+  const [editPekerjaanAyah, setEditPekerjaanAyah] = useState(alumni.pekerjaanAyah || '');
+  const [editPendidikanAyah, setEditPendidikanAyah] = useState(alumni.pendidikanAyah || '');
 
-  const [editNamaIbu, setEditNamaIbu] = useState(alumni.namaIbu || 'Hj. Siti Maryam');
-  const [editNikIbu, setEditNikIbu] = useState(alumni.nikIbu || '3507123456780020');
-  const [editPekerjaanIbu, setEditPekerjaanIbu] = useState(alumni.pekerjaanIbu || 'Ibu Rumah Tangga');
-  const [editPendidikanIbu, setEditPendidikanIbu] = useState(alumni.pendidikanIbu || 'Madrasah Aliyah');
+  const [editNamaIbu, setEditNamaIbu] = useState(alumni.namaIbu || '');
+  const [editNikIbu, setEditNikIbu] = useState(alumni.nikIbu || '');
+  const [editPekerjaanIbu, setEditPekerjaanIbu] = useState(alumni.pekerjaanIbu || '');
+  const [editPendidikanIbu, setEditPendidikanIbu] = useState(alumni.pendidikanIbu || '');
 
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -562,13 +562,13 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
 
   useEffect(() => {
     setEditNik(alumni.nik);
-    setEditNoKk(alumni.noKk || '3507123456780000');
+    setEditNoKk(alumni.noKk || '');
     setEditName(alumni.name);
-    setEditTempatLahir(alumni.tempatLahir || 'Rembang');
-    setEditTanggalLahir(alumni.tanggalLahir || '1998-05-14');
+    setEditTempatLahir(alumni.tempatLahir || '');
+    setEditTanggalLahir(alumni.tanggalLahir || '');
     setEditGender(alumni.gender || 'L');
-    setEditUrutanAnak(alumni.urutanAnak || 2);
-    setEditJumlahSaudara(alumni.jumlahSaudara || 5);
+    setEditUrutanAnak(alumni.urutanAnak ?? 1);
+    setEditJumlahSaudara(alumni.jumlahSaudara ?? 1);
     setEditUsername(alumni.username || '');
     setEditPhone(alumni.phone);
     setEditEmail(alumni.email);
@@ -586,20 +586,20 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
     setEditShareEmail(alumni.shareEmail !== false);
     setEditShareFullAddress(alumni.shareFullAddress !== false);
     setEditShareLocationTag(alumni.shareLocationTag !== false);
-    setEditNism(alumni.nism || '131233170001');
-    setEditNisn(alumni.nisn || '0012345678');
-    setEditEntryYear(alumni.entryYear || '2014');
-    setEditGradYear(alumni.gradYear || '2020');
-    setEditEntryDate(alumni.entryDate || `${alumni.entryYear || '2014'}-07-15`);
-    setEditGradDate(alumni.gradDate || `${alumni.gradYear || '2020'}-06-20`);
-    setEditNamaAyah(alumni.namaAyah || 'H. Abdul Rasyid');
-    setEditNikAyah(alumni.nikAyah || '3507123456780010');
-    setEditPekerjaanAyah(alumni.pekerjaanAyah || 'Wiraswasta / Petani');
-    setEditPendidikanAyah(alumni.pendidikanAyah || 'S1 Tarbiyah');
-    setEditNamaIbu(alumni.namaIbu || 'Hj. Siti Maryam');
-    setEditNikIbu(alumni.nikIbu || '3507123456780020');
-    setEditPekerjaanIbu(alumni.pekerjaanIbu || 'Ibu Rumah Tangga');
-    setEditPendidikanIbu(alumni.pendidikanIbu || 'Madrasah Aliyah');
+    setEditNism(alumni.nism || '');
+    setEditNisn(alumni.nisn || '');
+    setEditEntryYear(alumni.entryYear || '');
+    setEditGradYear(alumni.gradYear || '');
+    setEditEntryDate(alumni.entryDate || '');
+    setEditGradDate(alumni.gradDate || '');
+    setEditNamaAyah(alumni.namaAyah || '');
+    setEditNikAyah(alumni.nikAyah || '');
+    setEditPekerjaanAyah(alumni.pekerjaanAyah || '');
+    setEditPendidikanAyah(alumni.pendidikanAyah || '');
+    setEditNamaIbu(alumni.namaIbu || '');
+    setEditNikIbu(alumni.nikIbu || '');
+    setEditPekerjaanIbu(alumni.pekerjaanIbu || '');
+    setEditPendidikanIbu(alumni.pendidikanIbu || '');
   }, [alumni]);
 
   // Handle uploading and scaling photo
@@ -1991,7 +1991,9 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
                       <div className="min-w-0">
                         <p className="text-[11px] text-slate-400 font-medium leading-tight">Tempat, Tanggal Lahir (TTL)</p>
                         <p className="text-sm font-semibold text-slate-800 truncate mt-0.5">
-                          {editTempatLahir || 'Rembang'}, {formatTanggalIndonesia(editTanggalLahir)}
+                          {editTempatLahir || editTanggalLahir
+                            ? [editTempatLahir, formatTanggalIndonesia(editTanggalLahir)].filter(Boolean).join(', ')
+                            : 'Belum diisi'}
                         </p>
                       </div>
                     </div>
@@ -2010,7 +2012,9 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
                       <div className="min-w-0">
                         <p className="text-[11px] text-slate-400 font-medium leading-tight">Gender & Saudara</p>
                         <p className="text-sm font-semibold text-slate-800 truncate mt-0.5">
-                          {editGender === 'L' ? 'Laki-laki' : 'Perempuan'}, anak ke-{editUrutanAnak || 2} dari {editJumlahSaudara || 5} saudara
+                          {editGender === 'L' ? 'Laki-laki' : 'Perempuan'}
+                          {editUrutanAnak ? `, anak ke-${editUrutanAnak}` : ''}
+                          {editJumlahSaudara ? ` dari ${editJumlahSaudara} bersaudara` : ''}
                         </p>
                       </div>
                     </div>
@@ -2029,7 +2033,7 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
                       <div className="min-w-0">
                         <p className="text-[11px] text-slate-400 font-medium leading-tight">NIK & No. KK</p>
                         <p className="text-sm font-semibold text-slate-800 truncate mt-0.5">
-                          {editNik || alumni.nik} · {editNoKk || '3507123456780000'}
+                          {editNik || alumni.nik}{editNoKk ? ` · KK: ${editNoKk}` : ''}
                         </p>
                       </div>
                     </div>
@@ -2148,7 +2152,7 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
                       <div className="min-w-0">
                         <p className="text-[11px] text-slate-400 font-medium leading-tight">NISM (Nomor Induk Santri Madrasah)</p>
                         <p className="text-sm font-semibold font-mono text-slate-500 truncate mt-0.5">
-                          {editNism || alumni.nism || '131233170001'}
+                          {editNism || alumni.nism || '-'}
                         </p>
                       </div>
                     </div>
@@ -2163,7 +2167,7 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
                       <div className="min-w-0">
                         <p className="text-[11px] text-slate-400 font-medium leading-tight">NISN (Nomor Induk Siswa Nasional)</p>
                         <p className="text-sm font-semibold font-mono text-slate-500 truncate mt-0.5">
-                          {editNisn || alumni.nisn || '0012345678'}
+                          {editNisn || alumni.nisn || '-'}
                         </p>
                       </div>
                     </div>
@@ -2172,7 +2176,7 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
                   {/* 4. Tanggal Masuk */}
                   <div
                     onClick={() => {
-                      setTempEntryDate(editEntryDate || `${editEntryYear || '2014'}-07-15`);
+                      setTempEntryDate(editEntryDate || '');
                       setActiveEditModal('tanggal_masuk');
                     }}
                     className="flex items-center justify-between py-3.5 cursor-pointer hover:bg-slate-50/70 -mx-3 px-3 rounded-2xl transition-colors group"
@@ -2194,7 +2198,7 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
                   {/* 5. Tanggal Keluar */}
                   <div
                     onClick={() => {
-                      setTempGradDate(editGradDate || `${editGradYear || '2020'}-06-20`);
+                      setTempGradDate(editGradDate || '');
                       setActiveEditModal('tanggal_keluar');
                     }}
                     className="flex items-center justify-between py-3.5 cursor-pointer hover:bg-slate-50/70 -mx-3 px-3 rounded-2xl transition-colors group"
@@ -2233,9 +2237,16 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
                       </div>
                       <div className="min-w-0">
                         <p className="text-[11px] text-slate-400 font-medium leading-tight">Data Ayah Kandung</p>
-                        <p className="text-sm font-semibold text-slate-800 truncate mt-0.5">
-                          {editNamaAyah || alumni.namaAyah || 'H. Abdul Rasyid'} · {editNikAyah || alumni.nikAyah ? `NIK: ${editNikAyah || alumni.nikAyah}` : 'NIK: -'} · {editPekerjaanAyah || alumni.pekerjaanAyah || 'Wiraswasta'} · {editPendidikanAyah || alumni.pendidikanAyah || 'SMA'}
-                        </p>
+                        {editNamaAyah || alumni.namaAyah ? (
+                          <p className="text-sm font-semibold text-slate-800 truncate mt-0.5">
+                            {editNamaAyah || alumni.namaAyah}
+                            {(editNikAyah || alumni.nikAyah) ? ` · NIK: ${editNikAyah || alumni.nikAyah}` : ''}
+                            {(editPekerjaanAyah || alumni.pekerjaanAyah) ? ` · ${editPekerjaanAyah || alumni.pekerjaanAyah}` : ''}
+                            {(editPendidikanAyah || alumni.pendidikanAyah) ? ` · ${editPendidikanAyah || alumni.pendidikanAyah}` : ''}
+                          </p>
+                        ) : (
+                          <p className="text-sm font-normal text-slate-400 mt-0.5">Belum diisi</p>
+                        )}
                       </div>
                     </div>
                     <ChevronRight className="w-4 h-4 text-slate-400 shrink-0 group-hover:translate-x-0.5 transition-transform" />
@@ -2252,9 +2263,16 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
                       </div>
                       <div className="min-w-0">
                         <p className="text-[11px] text-slate-400 font-medium leading-tight">Data Ibu Kandung</p>
-                        <p className="text-sm font-semibold text-slate-800 truncate mt-0.5">
-                          {editNamaIbu || alumni.namaIbu || 'Hj. Siti Maryam'} · {editNikIbu || alumni.nikIbu ? `NIK: ${editNikIbu || alumni.nikIbu}` : 'NIK: -'} · {editPekerjaanIbu || alumni.pekerjaanIbu || 'Ibu Rumah Tangga'} · {editPendidikanIbu || alumni.pendidikanIbu || 'SMA'}
-                        </p>
+                        {editNamaIbu || alumni.namaIbu ? (
+                          <p className="text-sm font-semibold text-slate-800 truncate mt-0.5">
+                            {editNamaIbu || alumni.namaIbu}
+                            {(editNikIbu || alumni.nikIbu) ? ` · NIK: ${editNikIbu || alumni.nikIbu}` : ''}
+                            {(editPekerjaanIbu || alumni.pekerjaanIbu) ? ` · ${editPekerjaanIbu || alumni.pekerjaanIbu}` : ''}
+                            {(editPendidikanIbu || alumni.pendidikanIbu) ? ` · ${editPendidikanIbu || alumni.pendidikanIbu}` : ''}
+                          </p>
+                        ) : (
+                          <p className="text-sm font-normal text-slate-400 mt-0.5">Belum diisi</p>
+                        )}
                       </div>
                     </div>
                     <ChevronRight className="w-4 h-4 text-slate-400 shrink-0 group-hover:translate-x-0.5 transition-transform" />
@@ -2901,11 +2919,11 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
                       </div>
                       <div className="flex justify-between items-center">
                         <span className="text-slate-500 font-medium">NISM Madrasah:</span>
-                        <span className="font-mono font-bold text-slate-800">{editNism || alumni.nism || '131233170001'}</span>
+                        <span className="font-mono font-bold text-slate-800">{editNism || alumni.nism || '-'}</span>
                       </div>
                       <div className="flex justify-between items-center">
                         <span className="text-slate-500 font-medium">NISN Nasional:</span>
-                        <span className="font-mono font-bold text-slate-800">{editNisn || alumni.nisn || '0012345678'}</span>
+                        <span className="font-mono font-bold text-slate-800">{editNisn || alumni.nisn || '-'}</span>
                       </div>
                     </div>
                     <div className="p-2.5 bg-amber-50 border border-amber-200/80 rounded-2xl text-[11px] text-amber-800 flex items-start gap-2">

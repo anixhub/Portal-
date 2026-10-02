@@ -1,0 +1,212 @@
+import React, { useState, useEffect } from 'react';
+import { X, Calendar, Check, ChevronRight } from 'lucide-react';
+import { EventAgenda } from '../../types';
+
+interface CreateAttendanceModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  eventList: EventAgenda[];
+  initialEvent?: EventAgenda | null;
+  onSave: (session: {
+    title: string;
+    date: string;
+    sourceEventId?: string;
+    sourceType: 'imported' | 'manual';
+  }) => void;
+}
+
+export const CreateAttendanceModal: React.FC<CreateAttendanceModalProps> = ({
+  isOpen,
+  onClose,
+  eventList,
+  initialEvent,
+  onSave,
+}) => {
+  const [selectedEventId, setSelectedEventId] = useState<string>('');
+  const [title, setTitle] = useState('');
+  const [date, setDate] = useState('');
+  const [isPickerOpen, setIsPickerOpen] = useState(false);
+  const dateInputRef = React.useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    if (initialEvent) {
+      setSelectedEventId(initialEvent.id);
+      setTitle(initialEvent.title);
+      setDate(initialEvent.date || '');
+    } else {
+      setSelectedEventId('');
+      setTitle('');
+      setDate('');
+    }
+  }, [initialEvent, isOpen]);
+
+  const formatToIndonesianDate = (isoStr: string) => {
+    if (!isoStr) return '';
+    const d = new Date(isoStr);
+    if (isNaN(d.getTime())) return isoStr;
+    const months = [
+      'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+      'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
+    ];
+    return `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`;
+  };
+
+  const handleSelectEvent = (ev: EventAgenda) => {
+    setSelectedEventId(ev.id);
+    setTitle(ev.title);
+    setDate(ev.date || '');
+    setIsPickerOpen(false);
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!title.trim()) return;
+
+    onSave({
+      title: title.trim(),
+      date: date.trim() || '-',
+      sourceEventId: selectedEventId || undefined,
+      sourceType: selectedEventId ? 'imported' : 'manual',
+    });
+    onClose();
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-[100020] bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150">
+      <div
+        className="bg-white rounded-3xl p-5 w-full max-w-sm shadow-2xl border border-slate-100 flex flex-col gap-4 animate-in zoom-in-95 duration-150"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header Bersih Tanpa Icon & Tanpa Keterangan */}
+        <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+          <h3 className="font-bold text-sm text-slate-900 leading-tight">
+            Buat Presensi
+          </h3>
+          <button
+            type="button"
+            onClick={onClose}
+            className="w-7 h-7 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-500 cursor-pointer transition-colors"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        {/* Form Body 2 Kotak Minimalis */}
+        <form onSubmit={handleSubmit} className="space-y-3.5 text-xs">
+          {/* Kotak 1: Nama Agenda */}
+          <div>
+            <label className="block font-semibold text-slate-700 mb-1">
+              Nama Agenda
+            </label>
+            <input
+              type="text"
+              required
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="Ketik nama agenda..."
+              className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-semibold text-slate-900 focus:ring-2 focus:ring-sky-600 focus:bg-white focus:outline-none transition-colors"
+            />
+            {/* Tombol Impor di bawah kotak nama agenda */}
+            <div className="mt-1.5 flex items-center justify-start">
+              <button
+                type="button"
+                onClick={() => setIsPickerOpen(true)}
+                className="text-[11px] font-semibold text-sky-600 hover:text-sky-700 hover:underline flex items-center gap-1 cursor-pointer"
+              >
+                <Calendar className="w-3.5 h-3.5" />
+                <span>Impor dari Agenda</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Kotak 2: Tanggal */}
+          <div>
+            <label className="block font-semibold text-slate-700 mb-1">
+              Tanggal
+            </label>
+            <input
+              type="date"
+              required
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+              className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-semibold text-slate-900 focus:ring-2 focus:ring-sky-600 focus:bg-white focus:outline-none transition-colors"
+            />
+          </div>
+
+          {/* Action Buttons */}
+          <div className="flex items-center gap-2 pt-2 border-t border-slate-100">
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs transition-colors cursor-pointer"
+            >
+              Batal
+            </button>
+            <button
+              type="submit"
+              disabled={!title.trim()}
+              className="flex-1 py-2.5 bg-sky-600 hover:bg-sky-700 disabled:opacity-50 text-white font-bold rounded-xl text-xs transition-colors cursor-pointer shadow-md shadow-sky-600/20 flex items-center justify-center gap-1.5"
+            >
+              <Check className="w-4 h-4" />
+              <span>Buat Presensi</span>
+            </button>
+          </div>
+        </form>
+      </div>
+
+      {/* ================= MODAL PEMILIH AGENDA ================= */}
+      {isPickerOpen && (
+        <div
+          className="fixed inset-0 z-[100030] bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150"
+          onClick={() => setIsPickerOpen(false)}
+        >
+          <div
+            className="bg-white rounded-3xl p-5 w-full max-w-sm shadow-2xl border border-slate-100 flex flex-col gap-3 animate-in zoom-in-95 duration-150 max-h-[80vh]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+              <h4 className="font-bold text-sm text-slate-900">
+                Pilih Agenda
+              </h4>
+              <button
+                type="button"
+                onClick={() => setIsPickerOpen(false)}
+                className="w-7 h-7 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-500 cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="overflow-y-auto divide-y divide-slate-100 -mr-1 pr-1 max-h-[55vh]">
+              {eventList.map((ev) => (
+                <div
+                  key={ev.id}
+                  onClick={() => handleSelectEvent(ev)}
+                  className="py-2.5 px-2 hover:bg-slate-50 rounded-xl cursor-pointer transition-colors flex items-center justify-between gap-2"
+                >
+                  <div className="min-w-0 flex-1">
+                    <p className="font-bold text-xs text-slate-900 truncate">
+                      {ev.title}
+                    </p>
+                    <p className="text-[11px] text-slate-400 mt-0.5">
+                      {ev.date}
+                    </p>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />
+                </div>
+              ))}
+
+              {eventList.length === 0 && (
+                <p className="text-center text-xs text-slate-400 py-6">
+                  Belum ada agenda di halaman agenda.
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};

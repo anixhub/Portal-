@@ -45,11 +45,11 @@ export const AlumniDetailAdminModal: React.FC<AlumniDetailAdminModalProps> = ({
   // Form edit states
   const [editPhotoUrl, setEditPhotoUrl] = useState(alumni.photoUrl || '');
   const [editName, setEditName] = useState(alumni.name);
-  const [editTempatLahir, setEditTempatLahir] = useState(alumni.tempatLahir || 'Rembang');
-  const [editTanggalLahir, setEditTanggalLahir] = useState(alumni.tanggalLahir || '2000-01-01');
+  const [editTempatLahir, setEditTempatLahir] = useState(alumni.tempatLahir || '');
+  const [editTanggalLahir, setEditTanggalLahir] = useState(alumni.tanggalLahir || '');
   const [editGender, setEditGender] = useState(alumni.gender || 'L');
-  const [editUrutanAnak, setEditUrutanAnak] = useState(alumni.urutanAnak || 2);
-  const [editJumlahSaudara, setEditJumlahSaudara] = useState(alumni.jumlahSaudara || 5);
+  const [editUrutanAnak, setEditUrutanAnak] = useState(alumni.urutanAnak ?? 1);
+  const [editJumlahSaudara, setEditJumlahSaudara] = useState(alumni.jumlahSaudara ?? 1);
   const [editNik, setEditNik] = useState(alumni.nik || '');
   const [editNoKk, setEditNoKk] = useState(alumni.noKk || '');
   const [editPhone, setEditPhone] = useState(alumni.phone || '');
@@ -67,21 +67,21 @@ export const AlumniDetailAdminModal: React.FC<AlumniDetailAdminModalProps> = ({
 
   // Riwayat Pendidikan Pondok
   const [editNis, setEditNis] = useState(alumni.nis || '');
-  const [editNism, setEditNism] = useState(alumni.nism || '131233170001');
-  const [editNisn, setEditNisn] = useState(alumni.nisn || '0012345678');
-  const [editEntryDate, setEditEntryDate] = useState(alumni.entryDate || `${alumni.entryYear || '2014'}-07-15`);
-  const [editGradDate, setEditGradDate] = useState(alumni.gradDate || `${alumni.gradYear || '2020'}-06-20`);
+  const [editNism, setEditNism] = useState(alumni.nism || '');
+  const [editNisn, setEditNisn] = useState(alumni.nisn || '');
+  const [editEntryDate, setEditEntryDate] = useState(alumni.entryDate || '');
+  const [editGradDate, setEditGradDate] = useState(alumni.gradDate || '');
 
   // Parents
-  const [editNamaAyah, setEditNamaAyah] = useState(alumni.namaAyah || 'H. Abdul Rasyid');
-  const [editNikAyah, setEditNikAyah] = useState(alumni.nikAyah || '3507123456780001');
-  const [editPekerjaanAyah, setEditPekerjaanAyah] = useState(alumni.pekerjaanAyah || 'Wiraswasta');
-  const [editPendidikanAyah, setEditPendidikanAyah] = useState(alumni.pendidikanAyah || 'SMA / Aliyah');
+  const [editNamaAyah, setEditNamaAyah] = useState(alumni.namaAyah || '');
+  const [editNikAyah, setEditNikAyah] = useState(alumni.nikAyah || '');
+  const [editPekerjaanAyah, setEditPekerjaanAyah] = useState(alumni.pekerjaanAyah || '');
+  const [editPendidikanAyah, setEditPendidikanAyah] = useState(alumni.pendidikanAyah || '');
 
-  const [editNamaIbu, setEditNamaIbu] = useState(alumni.namaIbu || 'Hj. Siti Maryam');
-  const [editNikIbu, setEditNikIbu] = useState(alumni.nikIbu || '3507123456780002');
-  const [editPekerjaanIbu, setEditPekerjaanIbu] = useState(alumni.pekerjaanIbu || 'Ibu Rumah Tangga');
-  const [editPendidikanIbu, setEditPendidikanIbu] = useState(alumni.pendidikanIbu || 'SMA / Aliyah');
+  const [editNamaIbu, setEditNamaIbu] = useState(alumni.namaIbu || '');
+  const [editNikIbu, setEditNikIbu] = useState(alumni.nikIbu || '');
+  const [editPekerjaanIbu, setEditPekerjaanIbu] = useState(alumni.pekerjaanIbu || '');
+  const [editPendidikanIbu, setEditPendidikanIbu] = useState(alumni.pendidikanIbu || '');
 
   const photoFileInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -467,9 +467,13 @@ export const AlumniDetailAdminModal: React.FC<AlumniDetailAdminModalProps> = ({
                     </div>
                     <div className="min-w-0">
                       <p className="text-[11px] text-slate-400 font-medium leading-tight">Data Ayah Kandung</p>
-                      <p className="text-sm font-semibold text-slate-800 truncate mt-0.5">
-                        {editNamaAyah} · NIK: {editNikAyah} · {editPekerjaanAyah} · {editPendidikanAyah}
-                      </p>
+                      {editNamaAyah ? (
+                        <p className="text-sm font-semibold text-slate-800 truncate mt-0.5">
+                          {editNamaAyah}{editNikAyah ? ` · NIK: ${editNikAyah}` : ''}{editPekerjaanAyah ? ` · ${editPekerjaanAyah}` : ''}{editPendidikanAyah ? ` · ${editPendidikanAyah}` : ''}
+                        </p>
+                      ) : (
+                        <p className="text-sm font-normal text-slate-400 mt-0.5">Belum diisi</p>
+                      )}
                     </div>
                   </div>
                   <ChevronRight className="w-4 h-4 text-slate-400 shrink-0 group-hover:translate-x-0.5 transition-transform" />
@@ -486,9 +490,13 @@ export const AlumniDetailAdminModal: React.FC<AlumniDetailAdminModalProps> = ({
                     </div>
                     <div className="min-w-0">
                       <p className="text-[11px] text-slate-400 font-medium leading-tight">Data Ibu Kandung</p>
-                      <p className="text-sm font-semibold text-slate-800 truncate mt-0.5">
-                        {editNamaIbu} · NIK: {editNikIbu} · {editPekerjaanIbu} · {editPendidikanIbu}
-                      </p>
+                      {editNamaIbu ? (
+                        <p className="text-sm font-semibold text-slate-800 truncate mt-0.5">
+                          {editNamaIbu}{editNikIbu ? ` · NIK: ${editNikIbu}` : ''}{editPekerjaanIbu ? ` · ${editPekerjaanIbu}` : ''}{editPendidikanIbu ? ` · ${editPendidikanIbu}` : ''}
+                        </p>
+                      ) : (
+                        <p className="text-sm font-normal text-slate-400 mt-0.5">Belum diisi</p>
+                      )}
                     </div>
                   </div>
                   <ChevronRight className="w-4 h-4 text-slate-400 shrink-0 group-hover:translate-x-0.5 transition-transform" />

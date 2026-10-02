@@ -30,9 +30,10 @@ import {
   Lock,
   Mail,
   Megaphone,
-  Check
+  Check,
+  MoreVertical
 } from 'lucide-react';
-import { AlumniRecord, AdminUser, EventAgenda, EventComment, EventCommentReply, AnnouncementItem } from '../types';
+import { AlumniRecord, AdminUser, EventAgenda, EventComment, EventCommentReply, AnnouncementItem, AttendanceSession, AttendanceAttendee } from '../types';
 import { AddAlumniModal } from './admin/AddAlumniModal';
 import { AlumniDetailAdminModal } from './admin/AlumniDetailAdminModal';
 import { AdminAnnouncementsTab } from './admin/AdminAnnouncementsTab';
@@ -42,6 +43,8 @@ import { CleanMediaPreviewModal } from './common/CleanMediaPreviewModal';
 import { FullscreenPhotoViewerModal } from './common/FullscreenPhotoViewerModal';
 import { EventCommentsModal } from './common/EventCommentsModal';
 import { EventAttendanceScannerModal } from './admin/EventAttendanceScannerModal';
+import { CreateAttendanceModal } from './admin/CreateAttendanceModal';
+import { FullAttendanceViewModal } from './admin/FullAttendanceViewModal';
 import { INITIAL_EVENT_COMMENTS, INITIAL_ANNOUNCEMENTS } from '../data/mockData';
 import logoPonpesImg from '../assets/images/logo_ponpes_attaroqqy_1790648746461.jpg';
 import posterReuniImg from '../assets/images/poster_reuni_akbar_1790648045947.jpg';
@@ -79,7 +82,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
   onUpdateAnnouncement,
   onDeleteAnnouncement,
 }) => {
-  const [activeTab, setActiveTab] = useState<AdminTab>('agenda');
+  const [activeTab, setActiveTab] = useState<AdminTab>('alumni');
   const [eventList, setEventList] = useState<EventAgenda[]>(events);
   const [announcementList, setAnnouncementList] = useState<AnnouncementItem[]>(
     announcements || INITIAL_ANNOUNCEMENTS
@@ -221,6 +224,85 @@ export const AdminView: React.FC<AdminViewProps> = ({
   const [isScannerOpen, setIsScannerOpen] = useState(false);
   const [selectedEventForAttendance, setSelectedEventForAttendance] = useState<EventAgenda | null>(null);
 
+  // Sesi Presensi State (Daftar sesi presensi yang dibuat)
+  const [attendanceSessions, setAttendanceSessions] = useState<AttendanceSession[]>(() => {
+    const saved = localStorage.getItem('attaroqqy_attendance_sessions');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        console.warn(e);
+      }
+    }
+    return [
+      {
+        id: 'att-session-1',
+        title: 'Reuni Akbar & Haul Masyayikh Ponpes At-Taroqqy',
+        date: '2026-06-20',
+        sourceEventId: 'ev-1',
+        sourceType: 'imported',
+        createdAt: '2026-06-20 07:00:00',
+        attendees: [],
+      },
+      {
+        id: 'att-session-2',
+        title: 'Registrasi Khataman Ihya Ulumiddin & Ijazahan Kubro',
+        date: '2026-05-15',
+        sourceType: 'manual',
+        createdAt: '2026-05-15 08:30:00',
+        attendees: [],
+      },
+    ];
+  });
+
+  useEffect(() => {
+    localStorage.setItem('attaroqqy_attendance_sessions', JSON.stringify(attendanceSessions));
+  }, [attendanceSessions]);
+
+  // Sesi aktif yang dibuka di halaman penuh daftar hadir
+  const [activeAttendanceSession, setActiveAttendanceSession] = useState<AttendanceSession | null>(null);
+
+  // Modal Buat Presensi State
+  const [isCreateAttendanceModalOpen, setIsCreateAttendanceModalOpen] = useState(false);
+  const [initialEventForCreateAttendance, setInitialEventForCreateAttendance] = useState<EventAgenda | null>(null);
+
+  // Bottom Sheet Menu Opsi Agenda (Titik 3)
+  const [activeMenuEvent, setActiveMenuEvent] = useState<EventAgenda | null>(null);
+
+  // Modal Konfirmasi Hapus Sesi Presensi
+  const [sessionToDelete, setSessionToDelete] = useState<AttendanceSession | null>(null);
+
+  // Simpan sesi presensi baru
+  const handleSaveNewAttendanceSession = (data: {
+    title: string;
+    date: string;
+    sourceEventId?: string;
+    sourceType: 'imported' | 'manual';
+  }) => {
+    const newSession: AttendanceSession = {
+      id: 'att-session-' + Date.now(),
+      title: data.title,
+      date: data.date,
+      sourceEventId: data.sourceEventId,
+      sourceType: data.sourceType,
+      createdAt: new Date().toISOString().replace('T', ' ').slice(0, 19),
+      attendees: [],
+    };
+
+    setAttendanceSessions((prev) => [newSession, ...prev]);
+    triggerToast(`Sesi presensi "${data.title}" berhasil dibuat`);
+  };
+
+  // Update kehadiran santri pada sesi presensi
+  const handleUpdateSessionAttendees = (sessionId: string, newAttendees: AttendanceAttendee[]) => {
+    setAttendanceSessions((prev) =>
+      prev.map((s) => (s.id === sessionId ? { ...s, attendees: newAttendees } : s))
+    );
+    if (activeAttendanceSession && activeAttendanceSession.id === sessionId) {
+      setActiveAttendanceSession((prev) => (prev ? { ...prev, attendees: newAttendees } : null));
+    }
+  };
+
   // Expanded caption toggles for agenda cards
   const [expandedCaptions, setExpandedCaptions] = useState<{ [id: string]: boolean }>({});
   const toggleCaption = (id: string) => {
@@ -316,6 +398,8 @@ export const AdminView: React.FC<AdminViewProps> = ({
 
   // Search & Filter state for Kelola Alumni
   const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'semua' | 'aktif' | 'tidak_aktif'>('semua');
+  const [visibleCount, setVisibleCount] = useState(60);
   const [isFilterSheetOpen, setIsFilterSheetOpen] = useState(false);
   const [filterEntryFrom, setFilterEntryFrom] = useState('');
   const [filterEntryTo, setFilterEntryTo] = useState('');
@@ -325,6 +409,21 @@ export const AdminView: React.FC<AdminViewProps> = ({
   const [filterCity, setFilterCity] = useState('');
   const [filterKecamatan, setFilterKecamatan] = useState('');
   const [filterDesa, setFilterDesa] = useState('');
+
+  useEffect(() => {
+    setVisibleCount(60);
+  }, [
+    searchQuery,
+    filterEntryFrom,
+    filterEntryTo,
+    filterGradFrom,
+    filterGradTo,
+    filterProvince,
+    filterCity,
+    filterKecamatan,
+    filterDesa,
+    statusFilter,
+  ]);
 
   const hasActiveFilters = Boolean(
     filterEntryFrom ||
@@ -360,6 +459,11 @@ export const AdminView: React.FC<AdminViewProps> = ({
   const [eventTitle, setEventTitle] = useState('');
   const [eventDate, setEventDate] = useState('');
   const [eventTime, setEventTime] = useState('08.00 - 15.00 WIB');
+  const [isTimePickerSheetOpen, setIsTimePickerSheetOpen] = useState(false);
+  const [startHour, setStartHour] = useState('08');
+  const [startMinute, setStartMinute] = useState('00');
+  const [endHour, setEndHour] = useState('15');
+  const [endMinute, setEndMinute] = useState('00');
   const [eventLocation, setEventLocation] = useState('');
   const [eventDesc, setEventDesc] = useState('');
   const [eventPosterUrl, setEventPosterUrl] = useState<string>(posterReuniImg);
@@ -382,9 +486,6 @@ export const AdminView: React.FC<AdminViewProps> = ({
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [passwordError, setPasswordError] = useState<string | null>(null);
-
-  // Status Filter for Kelola Alumni: 'semua' | 'aktif' | 'tidak_aktif' (Aktif = NIK pernah login)
-  const [statusFilter, setStatusFilter] = useState<'semua' | 'aktif' | 'tidak_aktif'>('semua');
 
   // Counts for status labels
   const activeCount = alumniList.filter((item) => item.hasLoggedIn === true || item.isPasswordChanged === true).length;
@@ -692,20 +793,11 @@ export const AdminView: React.FC<AdminViewProps> = ({
                       <div className="flex items-center gap-1 shrink-0">
                         <button
                           type="button"
-                          onClick={() => triggerToast('Poster agenda berhasil diunduh')}
+                          onClick={() => setActiveMenuEvent(ev)}
                           className="w-8 h-8 rounded-full text-slate-400 hover:text-slate-700 hover:bg-slate-100 flex items-center justify-center transition-colors cursor-pointer active:scale-95"
-                          title="Unduh Poster"
+                          title="Menu Opsi Agenda"
                         >
-                          <Download className="w-4 h-4" />
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() => triggerToast('Tautan agenda disalin')}
-                          className="w-8 h-8 rounded-full text-slate-400 hover:text-slate-700 hover:bg-slate-100 flex items-center justify-center transition-colors cursor-pointer active:scale-95"
-                          title="Bagikan Agenda"
-                        >
-                          <Share2 className="w-4 h-4" />
+                          <MoreVertical className="w-4 h-4" />
                         </button>
                       </div>
                     </div>
@@ -723,7 +815,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
                       />
                     </div>
 
-                    {/* 3. BARIS KETERANGAN KEHADIRAN (KETERANGAN KEHADIRAN DI KIRI TANPA 'STATUS RESPON', TOMBOL EDIT DI KANAN) */}
+                    {/* 3. BARIS KETERANGAN KEHADIRAN (KETERANGAN KEHADIRAN DI KIRI, TOMBOL BUAT PRESENSI DI KANAN) */}
                     <div className="px-4 py-2.5 flex items-center justify-between border-b border-slate-100 bg-white text-xs select-none gap-2">
                       <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
                         <span className="font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-full text-[11px] sm:text-xs">
@@ -732,19 +824,19 @@ export const AdminView: React.FC<AdminViewProps> = ({
                         <span className="font-bold text-rose-700 bg-rose-50 border border-rose-200 px-2.5 py-1 rounded-full text-[11px] sm:text-xs">
                           Tidak: {ev.notAttendingCount || 0}
                         </span>
-                        <span className="font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-full text-[11px] sm:text-xs">
-                          Ragu: {ev.uncertainCount || 0}
-                        </span>
                       </div>
 
                       <button
                         type="button"
-                        onClick={() => handleOpenEditEvent(ev)}
-                        className="flex items-center gap-1.5 px-3 py-1.5 bg-sky-50 hover:bg-sky-100 text-sky-700 text-xs font-bold rounded-xl border border-sky-200 transition-all cursor-pointer active:scale-95 shadow-2xs shrink-0"
-                        title="Edit Agenda Acara"
+                        onClick={() => {
+                          setInitialEventForCreateAttendance(ev);
+                          setIsCreateAttendanceModalOpen(true);
+                        }}
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-xs transition-all cursor-pointer active:scale-95 shrink-0"
+                        title="Buat Sesi Presensi dari Agenda Ini"
                       >
-                        <Pencil className="w-3.5 h-3.5" />
-                        <span>Edit</span>
+                        <QrCode className="w-3.5 h-3.5" />
+                        <span>Buat Presensi</span>
                       </button>
                     </div>
 
@@ -825,104 +917,60 @@ export const AdminView: React.FC<AdminViewProps> = ({
               </div>
             )}
 
-            {/* SUB-TAB 2: PRESENSI */}
+            {/* SUB-TAB 2: PRESENSI BERSIH */}
             {agendaSubTab === 'presensi' && (
-              <div className="space-y-4">
-                {/* Banner CTA Buat Presensi */}
-                <div className="bg-gradient-to-br from-slate-900 via-sky-950 to-slate-900 text-white rounded-3xl p-5 shadow-lg space-y-4 border border-slate-800">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-bold text-sky-300 bg-sky-900/80 px-2.5 py-1 rounded-full uppercase tracking-wider border border-sky-700/50">
-                      Presensi QR Event
-                    </span>
-                    <span className="text-xs text-slate-400 font-mono">
-                      {eventList.length} Agenda
-                    </span>
-                  </div>
-
-                  <div>
-                    <h3 className="font-display font-extrabold text-base sm:text-lg text-white">
-                      Presensi Kehadiran Santri & Alumni
-                    </h3>
-                    <p className="text-xs text-slate-300 mt-1 leading-relaxed">
-                      Pindai QR code kartu santri alumni secara instan menggunakan kamera untuk mencatat kehadiran secara langsung di daftar presensi.
-                    </p>
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const targetEvent = selectedEventForAttendance || eventList[0];
-                      if (targetEvent) {
-                        setSelectedEventForAttendance(targetEvent);
-                        setIsScannerOpen(true);
-                      } else {
-                        triggerToast('Belum ada agenda acara untuk presensi');
-                      }
-                    }}
-                    className="w-full py-3.5 px-4 bg-sky-600 hover:bg-sky-500 active:scale-98 text-white font-bold rounded-2xl text-xs sm:text-sm flex items-center justify-center gap-2 shadow-lg shadow-sky-600/30 transition-all cursor-pointer"
+              <div className="space-y-2.5">
+                {attendanceSessions.map((session) => (
+                  <div
+                    key={session.id}
+                    onClick={() => setActiveAttendanceSession(session)}
+                    className="bg-white rounded-2xl p-4 border border-slate-200/90 shadow-2xs hover:border-sky-300 hover:shadow-xs transition-all cursor-pointer flex flex-col gap-2.5 group"
                   >
-                    <QrCode className="w-4 h-4 sm:w-5 sm:h-5" />
-                    <span>Buat Presensi</span>
-                  </button>
-                </div>
-
-                {/* List Agenda untuk Presensi */}
-                <div className="space-y-3 pt-1">
-                  <h4 className="font-bold text-xs text-slate-700 uppercase tracking-wider px-1">
-                    Daftar Agenda Acara
-                  </h4>
-
-                  {eventList.map((ev) => (
-                    <div
-                      key={ev.id}
-                      className="bg-white rounded-2xl p-4 border border-slate-200/90 shadow-2xs hover:border-sky-300 transition-all flex flex-col gap-3"
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0 flex-1">
-                          <h5 className="font-bold text-xs sm:text-sm text-slate-900 leading-snug">
-                            {ev.title}
-                          </h5>
-                          <div className="flex items-center gap-2 text-[11px] text-slate-500 mt-1 flex-wrap">
-                            <span className="flex items-center gap-1">
-                              <Calendar className="w-3.5 h-3.5 text-slate-400" />
-                              {ev.date}
-                            </span>
-                            <span>•</span>
-                            <span className="flex items-center gap-1">
-                              <Clock className="w-3.5 h-3.5 text-slate-400" />
-                              {ev.time}
-                            </span>
-                          </div>
-                          <p className="text-[11px] text-slate-400 truncate mt-0.5">
-                            {ev.location}
-                          </p>
-                        </div>
-
-                        <span className="px-2.5 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 font-bold text-xs font-mono shrink-0">
-                          {ev.attendeesCount || 0} Hadir
-                        </span>
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0 flex-1">
+                        <h5 className="font-bold text-sm text-slate-900 leading-snug group-hover:text-sky-600 transition-colors">
+                          {session.title}
+                        </h5>
+                        <p className="text-xs text-slate-400 font-medium mt-1">
+                          {session.date}
+                        </p>
                       </div>
 
-                      <div className="flex items-center justify-between pt-2.5 border-t border-slate-100 gap-2">
-                        <span className="text-[11px] text-slate-500 font-medium">
-                          Scanner Layar Terbagi
-                        </span>
-
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setSelectedEventForAttendance(ev);
-                            setIsScannerOpen(true);
-                          }}
-                          className="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white font-bold rounded-xl text-xs flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs active:scale-95"
-                        >
-                          <QrCode className="w-3.5 h-3.5" />
-                          <span>Buka Scan Presensi</span>
-                        </button>
-                      </div>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSessionToDelete(session);
+                        }}
+                        className="w-8 h-8 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 flex items-center justify-center transition-colors cursor-pointer shrink-0"
+                        title="Hapus Sesi Presensi"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
                     </div>
-                  ))}
-                </div>
+
+                    <div className="flex items-center justify-between pt-2 border-t border-slate-100 text-xs text-slate-600 font-medium">
+                      <span>{session.attendees.length} orang hadir</span>
+                      <ChevronRight className="w-4 h-4 text-slate-400 group-hover:translate-x-0.5 transition-transform" />
+                    </div>
+                  </div>
+                ))}
+
+                {attendanceSessions.length === 0 && (
+                  <div className="bg-white rounded-3xl border border-slate-200/90 p-8 sm:p-12 text-center flex flex-col items-center gap-3 shadow-2xs">
+                    <div className="w-14 h-14 rounded-full bg-sky-50 text-sky-600 flex items-center justify-center font-bold">
+                      <QrCode className="w-7 h-7" />
+                    </div>
+                    <div>
+                      <h4 className="font-bold text-sm text-slate-800">
+                        Belum Ada Sesi Presensi
+                      </h4>
+                      <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto leading-relaxed">
+                        Ketuk tombol melayang <strong>+</strong> di kanan bawah untuk membuat presensi baru (bisa impor dari agenda atau buat presensi mandiri).
+                      </p>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -1013,7 +1061,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
 
             {/* Daftar Kartu Alumni */}
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-              {filteredList.map((item) => {
+              {filteredList.slice(0, visibleCount).map((item) => {
                 const addressText = item.shareFullAddress === false
                   ? [item.kecamatan, item.city].filter(Boolean).join(', ') || item.city || item.province || 'Alamat disembunyikan'
                   : [item.desa, item.kecamatan, item.city].filter(Boolean).join(', ') || item.province || 'Alamat belum diisi';
@@ -1071,6 +1119,18 @@ export const AdminView: React.FC<AdminViewProps> = ({
                 );
               })}
             </div>
+
+            {filteredList.length > visibleCount && (
+              <div className="flex justify-center pt-2">
+                <button
+                  type="button"
+                  onClick={() => setVisibleCount((prev) => prev + 60)}
+                  className="w-full sm:w-auto px-6 py-3 bg-white hover:bg-slate-50 border border-slate-200 text-sky-700 font-bold text-xs rounded-2xl shadow-xs transition-colors cursor-pointer flex items-center justify-center gap-2"
+                >
+                  <span>Muat Lebih Banyak ({visibleCount} dari {filteredList.length} alumni)</span>
+                </button>
+              </div>
+            )}
 
             {filteredList.length === 0 && (
               <div className="bg-white rounded-2xl border border-slate-200 p-8 text-center text-slate-500 text-xs">
@@ -1314,16 +1374,13 @@ export const AdminView: React.FC<AdminViewProps> = ({
           <button
             type="button"
             onClick={() => {
-              const target = selectedEventForAttendance || eventList[0];
-              if (target) {
-                setSelectedEventForAttendance(target);
-                setIsScannerOpen(true);
-              }
+              setInitialEventForCreateAttendance(null);
+              setIsCreateAttendanceModalOpen(true);
             }}
-            className="fixed bottom-20 right-5 z-40 w-13 h-13 sm:w-14 sm:h-14 rounded-full bg-sky-600 hover:bg-sky-700 text-white shadow-2xl flex items-center justify-center cursor-pointer transition-all active:scale-95 group"
-            title="Buka Scan Presensi"
+            className="fixed bottom-20 right-5 z-40 w-14 h-14 rounded-full bg-sky-600 hover:bg-sky-700 text-white shadow-2xl flex items-center justify-center cursor-pointer transition-all active:scale-95 group"
+            title="Buat Sesi Presensi Baru"
           >
-            <QrCode className="w-6 h-6" />
+            <Plus className="w-7 h-7 group-hover:rotate-90 transition-transform duration-200" />
           </button>
         )
       )}
@@ -2109,6 +2166,153 @@ export const AdminView: React.FC<AdminViewProps> = ({
             </div>
           </div>
         </div>
+      )}
+
+      {/* ================= BOTTOM SHEET MENU AGENDA (TITIK 3: EDIT, BAGIKAN, UNDUH) ================= */}
+      {activeMenuEvent && (
+        <div 
+          className="fixed inset-0 z-[100020] bg-black/60 backdrop-blur-xs flex items-end justify-center animate-in fade-in duration-150"
+          onClick={() => setActiveMenuEvent(null)}
+        >
+          <div 
+            className="bg-white rounded-t-3xl w-full max-w-lg p-5 pb-6 space-y-2 shadow-2xl border-t border-slate-200 animate-in slide-in-from-bottom duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Top Drag Handle */}
+            <div className="w-10 h-1 bg-slate-300 rounded-full mx-auto mb-2" />
+
+            <div className="space-y-1">
+              {/* 1. Edit */}
+              <button
+                type="button"
+                onClick={() => {
+                  const evToEdit = activeMenuEvent;
+                  setActiveMenuEvent(null);
+                  handleOpenEditEvent(evToEdit);
+                }}
+                className="w-full flex items-center gap-3.5 px-4 py-3 rounded-2xl hover:bg-slate-50 text-slate-800 font-semibold text-sm transition-colors cursor-pointer text-left"
+              >
+                <Pencil className="w-5 h-5 text-slate-700 shrink-0" />
+                <span>Edit</span>
+              </button>
+
+              {/* 2. Bagikan */}
+              <button
+                type="button"
+                onClick={() => {
+                  const evToShare = activeMenuEvent;
+                  setActiveMenuEvent(null);
+                  if (navigator.clipboard) {
+                    navigator.clipboard.writeText(
+                      `*${evToShare.title}*\nTanggal: ${evToShare.date}\nWaktu: ${evToShare.time}\nTempat: ${evToShare.location}\n\nInfo selengkapnya di Portal Alumni Ponpes At-Taroqqy: https://attaroqqy.com`
+                    );
+                  }
+                  triggerToast('Tautan agenda disalin');
+                }}
+                className="w-full flex items-center gap-3.5 px-4 py-3 rounded-2xl hover:bg-slate-50 text-slate-800 font-semibold text-sm transition-colors cursor-pointer text-left"
+              >
+                <Share2 className="w-5 h-5 text-slate-700 shrink-0" />
+                <span>Bagikan</span>
+              </button>
+
+              {/* 3. Unduh */}
+              <button
+                type="button"
+                onClick={() => {
+                  const posterUrl = activeMenuEvent.posterUrl || posterReuniImg;
+                  const link = document.createElement('a');
+                  link.href = posterUrl;
+                  link.download = `Poster_${activeMenuEvent.title.replace(/\s+/g, '_')}.jpg`;
+                  document.body.appendChild(link);
+                  link.click();
+                  document.body.removeChild(link);
+                  setActiveMenuEvent(null);
+                  triggerToast('Poster agenda diunduh');
+                }}
+                className="w-full flex items-center gap-3.5 px-4 py-3 rounded-2xl hover:bg-slate-50 text-slate-800 font-semibold text-sm transition-colors cursor-pointer text-left"
+              >
+                <Download className="w-5 h-5 text-slate-700 shrink-0" />
+                <span>Unduh</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ================= MODAL KONFIRMASI HAPUS SESI PRESENSI ================= */}
+      {sessionToDelete && (
+        <div 
+          className="fixed inset-0 z-[100030] bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150"
+          onClick={() => setSessionToDelete(null)}
+        >
+          <div 
+            className="bg-white rounded-3xl p-5 w-full max-w-sm shadow-2xl border border-slate-100 flex flex-col gap-3 animate-in zoom-in-95 duration-150"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-rose-50 text-rose-600 flex items-center justify-center shrink-0">
+                <Trash2 className="w-5 h-5" />
+              </div>
+              <div className="min-w-0">
+                <h4 className="font-bold text-sm text-slate-900 leading-tight">
+                  Hapus Sesi Presensi?
+                </h4>
+                <p className="text-xs text-slate-500 truncate mt-0.5">
+                  {sessionToDelete.title}
+                </p>
+              </div>
+            </div>
+
+            <p className="text-xs text-slate-600 leading-relaxed">
+              Seluruh rekapan data presensi yang sudah tercatat pada sesi ini akan ikut terhapus. Tindakan ini tidak dapat dibatalkan.
+            </p>
+
+            <div className="flex items-center gap-2 pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setSessionToDelete(null)}
+                className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs transition-colors cursor-pointer"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setAttendanceSessions((prev) => prev.filter((s) => s.id !== sessionToDelete.id));
+                  setSessionToDelete(null);
+                  triggerToast('Sesi presensi berhasil dihapus');
+                }}
+                className="flex-1 py-2.5 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-xl text-xs transition-colors cursor-pointer shadow-md shadow-rose-600/20"
+              >
+                Hapus
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ================= MODAL BUAT SESI PRESENSI ================= */}
+      {isCreateAttendanceModalOpen && (
+        <CreateAttendanceModal
+          isOpen={isCreateAttendanceModalOpen}
+          onClose={() => {
+            setIsCreateAttendanceModalOpen(false);
+            setInitialEventForCreateAttendance(null);
+          }}
+          eventList={eventList}
+          initialEvent={initialEventForCreateAttendance}
+          onSave={handleSaveNewAttendanceSession}
+        />
+      )}
+
+      {/* ================= HALAMAN PENUH BERSIH DAFTAR HADIR ================= */}
+      {activeAttendanceSession && (
+        <FullAttendanceViewModal
+          session={activeAttendanceSession}
+          alumniList={alumniList}
+          onClose={() => setActiveAttendanceSession(null)}
+          onUpdateSessionAttendees={handleUpdateSessionAttendees}
+        />
       )}
     </div>
   );
