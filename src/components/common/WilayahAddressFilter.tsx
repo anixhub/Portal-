@@ -105,6 +105,11 @@ export const WilayahAddressFilter: React.FC<WilayahAddressFilterProps> = ({
       if (!previewMapRef.current) return;
 
       if (!miniMapInstanceRef.current) {
+        if ((previewMapRef.current as any)._leaflet_id) {
+          delete (previewMapRef.current as any)._leaflet_id;
+          previewMapRef.current.innerHTML = '';
+        }
+
         const miniMap = L.map(previewMapRef.current, {
           center: [targetLat, targetLng],
           zoom: 15,
@@ -967,7 +972,8 @@ export const WilayahAddressFilter: React.FC<WilayahAddressFilterProps> = ({
       {/* 4. KOTAK PREVIEW PETA & TAG LOKASI (PALING BAWAH) */}
       {showLocationTag && (
         <div
-          onClick={() => {
+          onClick={(e) => {
+            e.stopPropagation();
             if (coordinates?.lat && coordinates?.lng) {
               setCachedCenter(coordinates);
             } else {

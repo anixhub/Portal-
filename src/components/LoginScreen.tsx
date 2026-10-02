@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Lock, Eye, EyeOff, Sparkles, GraduationCap, Calendar, AlertCircle, ShieldCheck, User, Users } from 'lucide-react';
+import { Lock, Eye, EyeOff, AlertCircle, ShieldCheck, User, Users } from 'lucide-react';
 import { AlumniRecord, AdminUser, UserRole } from '../types';
 import alumniIllustrationImg from '../assets/images/alumni_highfive_illustration_1790612738105.jpg';
 
@@ -7,7 +7,7 @@ interface LoginScreenProps {
   alumniList: AlumniRecord[];
   adminAccount: AdminUser;
   onLoginSuccess: (role: UserRole, alumniData?: AlumniRecord, adminData?: AdminUser) => void;
-  onOpenRegister: () => void;
+  onOpenRegister?: () => void;
   onOpenForgotPassword: () => void;
 }
 
@@ -15,12 +15,11 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
   alumniList,
   adminAccount,
   onLoginSuccess,
-  onOpenRegister,
   onOpenForgotPassword,
 }) => {
   const [selectedRole, setSelectedRole] = useState<UserRole>('alumni');
-  const [loginIdentifier, setLoginIdentifier] = useState('3507123456780001'); // default NIK Mulia Ningsih
-  const [password, setPassword] = useState('1234'); // default 1234
+  const [username, setUsername] = useState('mulia_ningsih');
+  const [password, setPassword] = useState('1234');
   const [showPassword, setShowPassword] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -30,27 +29,27 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
     setSelectedRole(role);
     setErrorMessage(null);
     if (role === 'alumni') {
-      setLoginIdentifier('3507123456780001'); // NIK Mulia Ningsih
+      setUsername('mulia_ningsih');
       setPassword('1234');
     } else {
-      setLoginIdentifier(adminAccount.email || 'superadmin@attaroqqy.com');
+      setUsername('@admin_pusat');
       setPassword(adminAccount.password || '1997');
     }
   };
 
-  const handleQuickDemo = (type: 'mulia_1234' | 'fauzi_custom' | 'admin') => {
+  const handleQuickDemo = (type: 'mulia' | 'fauzi' | 'admin') => {
     setErrorMessage(null);
-    if (type === 'mulia_1234') {
+    if (type === 'mulia') {
       setSelectedRole('alumni');
-      setLoginIdentifier('3507123456780001');
+      setUsername('mulia_ningsih');
       setPassword('1234');
-    } else if (type === 'fauzi_custom') {
+    } else if (type === 'fauzi') {
       setSelectedRole('alumni');
-      setLoginIdentifier('3507123456780002');
+      setUsername('fauzi_trq');
       setPassword('passwordfauzi');
     } else if (type === 'admin') {
       setSelectedRole('admin');
-      setLoginIdentifier(adminAccount.email || 'superadmin@attaroqqy.com');
+      setUsername('@admin_pusat');
       setPassword(adminAccount.password || '1997');
     }
   };
@@ -59,12 +58,12 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
     e.preventDefault();
     setErrorMessage(null);
 
-    const identifier = loginIdentifier.trim();
-    if (!identifier) {
+    const inputVal = username.trim();
+    if (!inputVal) {
       setErrorMessage(
         selectedRole === 'alumni'
-          ? 'Silakan masukkan NIK atau Username Anda.'
-          : 'Silakan masukkan Email Admin.'
+          ? 'Silakan masukkan username alumni Anda.'
+          : 'Silakan masukkan username admin.'
       );
       return;
     }
@@ -80,112 +79,90 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
       setIsLoading(false);
 
       if (selectedRole === 'admin') {
-        const expectedEmail = (adminAccount.email || 'superadmin@attaroqqy.com').toLowerCase();
-        const expectedUsername = (adminAccount.username || 'superadmin').toLowerCase();
+        const expectedUsername = (adminAccount.username || '@admin_pusat').toLowerCase();
+        const cleanExpected = expectedUsername.replace(/^@/, '');
         const expectedPassword = adminAccount.password || '1997';
 
-        const inputId = identifier.toLowerCase();
+        const inputId = inputVal.toLowerCase();
+        const cleanInput = inputId.replace(/^@/, '');
+
         const isMatch =
-          inputId === expectedEmail ||
+          cleanInput === cleanExpected ||
           inputId === expectedUsername ||
-          inputId === 'superadmin' ||
-          inputId === 'admin';
+          cleanInput === 'admin_pusat' ||
+          cleanInput === 'superadmin' ||
+          cleanInput === 'admin';
 
         if (isMatch && password === expectedPassword) {
           onLoginSuccess('admin', undefined, adminAccount);
           return;
         } else {
-          setErrorMessage('Kredensial Admin tidak cocok. Gunakan email: superadmin@attaroqqy.com / sandi: 1997');
+          setErrorMessage('Kredensial Admin tidak cocok. Gunakan username: @admin_pusat / sandi: 1997');
           return;
         }
       }
 
-      // Role Alumni: Cari berdasarkan NIK, NIS, atau Username
+      // Role Alumni: Cari berdasarkan Username (dengan fallback NIK / NIS)
       const matchedAlumni = alumniList.find((alm) => {
-        const idMatch =
-          alm.nik === identifier ||
-          alm.nis.toLowerCase() === identifier.toLowerCase() ||
-          (alm.username && alm.username.toLowerCase() === identifier.toLowerCase()) ||
-          alm.email.toLowerCase() === identifier.toLowerCase();
+        const cleanInput = inputVal.toLowerCase().replace(/^@/, '');
+        const almUser = (alm.username || '').toLowerCase().replace(/^@/, '');
+        const isUserMatch = almUser && almUser === cleanInput;
+        const isNikMatch = alm.nik === inputVal;
+        const isNisMatch = alm.nis.toLowerCase() === inputVal.toLowerCase();
+        const isEmailMatch = alm.email.toLowerCase() === inputVal.toLowerCase();
 
-        return idMatch;
+        return isUserMatch || isNikMatch || isNisMatch || isEmailMatch;
       });
 
       if (!matchedAlumni) {
         setErrorMessage(
-          'NIK atau Username belum terdaftar di database alumni pondok. Pastikan status santri telah diubah menjadi alumni.'
+          'Username belum terdaftar di database alumni. Silakan periksa kembali nama pengguna Anda.'
         );
         return;
       }
 
-      // Check password (bisa 1234 jika belum ganti, atau password baru)
       if (matchedAlumni.password !== password) {
         setErrorMessage(
-          'Kata sandi salah. Jika belum pernah mengubah sandi, gunakan sandi standar: 1234.'
+          'Kata sandi salah. Jika belum pernah mengubah sandi, gunakan kata sandi awal: 1234.'
         );
         return;
       }
 
       onLoginSuccess('alumni', matchedAlumni);
-    }, 600);
+    }, 450);
   };
 
   return (
     <div className="relative w-full h-full min-h-[660px] flex flex-col bg-gradient-to-b from-[#006bd6] via-[#0284c7] to-[#0ea5e9] overflow-hidden select-none">
       {/* Background subtle droplet bokeh overlay */}
-      <div className="absolute inset-0 droplet-pattern opacity-30 pointer-events-none" />
+      <div className="absolute inset-0 droplet-pattern opacity-25 pointer-events-none" />
 
       {/* Decorative radial lighting */}
       <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-80 h-80 bg-sky-300/20 rounded-full blur-3xl pointer-events-none" />
 
       {/* TOP SECTION: Portal Titles */}
-      <div className="relative z-10 pt-7 sm:pt-9 px-6 text-center text-white flex flex-col items-center">
+      <div className="relative z-10 pt-8 sm:pt-10 px-6 text-center text-white flex flex-col items-center">
         <h1 className="text-2xl sm:text-3xl font-display font-extrabold tracking-wider uppercase drop-shadow-md text-white">
           Portal Alumni
         </h1>
         <p className="text-xl sm:text-2xl font-display font-bold tracking-widest uppercase text-sky-100 drop-shadow-sm mt-0.5">
           At-taroqqy
         </p>
-
-        {/* Subtitle / role guidance */}
-        <div className="mt-2 text-center">
-          <p className="text-xs font-semibold text-white">
-            {selectedRole === 'alumni' ? 'Login Alumni (Gunakan NIK & Sandi 1234)' : 'Portal Pengelolaan Data Admin'}
-          </p>
-        </div>
+        <p className="text-xs text-sky-100 font-medium mt-1.5 opacity-90">
+          {selectedRole === 'alumni' ? 'Masuk ke Akun Alumni' : 'Akses Panel Pengurus Admin'}
+        </p>
       </div>
 
-      {/* CENTER SECTION: Illustration with Badges */}
-      <div className="relative z-10 flex-1 flex items-center justify-center px-4 py-1 min-h-[160px] max-h-[220px]">
-        <div className="relative w-full max-w-[280px] h-[175px] flex items-center justify-center">
-          {/* Floating badge 1: KTA Digital */}
-          <div className="absolute -top-1 left-1 z-20 bg-white/95 backdrop-blur-md px-2.5 py-1.5 rounded-xl shadow-lg border border-sky-100/80 flex items-center gap-1.5 transform -rotate-3">
-            <div className="w-5 h-5 rounded-md bg-sky-600 text-white flex items-center justify-center">
-              <GraduationCap className="w-3.5 h-3.5" />
-            </div>
-            <span className="text-[10px] font-bold text-slate-800 tracking-tight">KTA Digital</span>
-          </div>
-
-          {/* Floating badge 2: Reuni Akbar */}
-          <div className="absolute top-2 right-1 z-20 bg-white/95 backdrop-blur-md px-2.5 py-1.5 rounded-xl shadow-lg border border-sky-100/80 flex items-center gap-1.5 transform rotate-3">
-            <div className="w-5 h-5 rounded-md bg-amber-500 text-white flex items-center justify-center">
-              <Calendar className="w-3.5 h-3.5" />
-            </div>
-            <span className="text-[10px] font-bold text-slate-800 tracking-tight">Reuni 2026</span>
-          </div>
-
-          <div className="absolute top-1/2 -left-2 text-sky-200 pointer-events-none opacity-80">
-            <Sparkles className="w-4 h-4" />
-          </div>
-
-          {/* Image */}
-          <div className="w-full h-full rounded-2xl overflow-hidden flex items-center justify-center relative">
+      {/* CENTER SECTION: Clean Illustration */}
+      <div className="relative z-10 flex-1 flex items-center justify-center px-4 py-2 min-h-[150px] max-h-[200px]">
+        <div className="relative w-full max-w-[270px] h-[165px] flex items-center justify-center">
+          <div className="w-full h-full rounded-2xl overflow-hidden flex items-center justify-center relative shadow-lg">
             {!imageError ? (
               <img
                 src={alumniIllustrationImg}
                 alt="Alumni At-taroqqy"
                 onError={() => setImageError(true)}
-                className="w-full h-full object-cover object-center rounded-2xl drop-shadow-md"
+                className="w-full h-full object-cover object-center rounded-2xl"
               />
             ) : (
               <div className="w-full h-full flex flex-col items-center justify-center bg-sky-600/30 rounded-2xl p-4 text-white">
@@ -197,10 +174,10 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
         </div>
       </div>
 
-      {/* BOTTOM SHEET: Curved White Surface */}
-      <div className="relative z-20 bg-white rounded-t-[34px] sm:rounded-3xl shadow-[0_-10px_35px_rgba(0,0,0,0.15)] px-6 pt-5 pb-6 mt-auto flex flex-col max-w-md mx-auto w-full sm:mb-5 sm:border sm:border-slate-100">
+      {/* BOTTOM SHEET: Clean Minimal Surface */}
+      <div className="relative z-20 bg-white rounded-t-[32px] sm:rounded-3xl shadow-[0_-10px_35px_rgba(0,0,0,0.12)] px-6 pt-5 pb-7 mt-auto flex flex-col max-w-md mx-auto w-full sm:mb-5 sm:border sm:border-slate-100">
         {/* Handle Bar */}
-        <div className="w-10 h-1 bg-slate-200 rounded-full mx-auto mb-3" />
+        <div className="w-9 h-1 bg-slate-200 rounded-full mx-auto mb-3.5" />
 
         {/* ROLE SELECTOR TABS: ALUMNI VS ADMIN */}
         <div className="p-1 bg-slate-100 rounded-2xl flex items-center mb-3">
@@ -214,7 +191,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
             }`}
           >
             <Users className="w-3.5 h-3.5" />
-            <span>Masuk Alumni</span>
+            <span>Alumni</span>
           </button>
           <button
             type="button"
@@ -230,63 +207,60 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
           </button>
         </div>
 
-        {/* QUICK DEMO SHORTCUTS BAR */}
-        <div className="mb-3 flex items-center justify-between text-[11px] bg-sky-50/80 px-2.5 py-1.5 rounded-xl border border-sky-100">
-          <span className="text-sky-700 font-semibold">Demo Cepat:</span>
+        {/* QUICK SHORTCUTS */}
+        <div className="mb-3.5 flex items-center justify-between text-[11px] bg-slate-50 px-2.5 py-1.5 rounded-xl border border-slate-200/80">
+          <span className="text-slate-500 font-medium">Contoh Akun:</span>
           <div className="flex gap-1">
             <button
               type="button"
-              onClick={() => handleQuickDemo('mulia_1234')}
-              className={`px-2 py-0.5 rounded-lg border text-[10px] font-medium cursor-pointer transition-colors ${
-                loginIdentifier === '3507123456780001'
+              onClick={() => handleQuickDemo('mulia')}
+              className={`px-2 py-0.5 rounded-lg border text-[10px] font-semibold cursor-pointer transition-colors ${
+                selectedRole === 'alumni' && username === 'mulia_ningsih'
                   ? 'bg-sky-600 text-white border-sky-600'
-                  : 'bg-white text-sky-800 border-sky-200 hover:bg-sky-100'
+                  : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
               }`}
-              title="Alumni Baru dengan sandi 1234 (Akan muncul prompt ganti sandi)"
             >
-              Mulia (Sandi 1234)
+              Mulia (1234)
             </button>
             <button
               type="button"
-              onClick={() => handleQuickDemo('fauzi_custom')}
-              className={`px-2 py-0.5 rounded-lg border text-[10px] font-medium cursor-pointer transition-colors ${
-                loginIdentifier === '3507123456780002'
+              onClick={() => handleQuickDemo('fauzi')}
+              className={`px-2 py-0.5 rounded-lg border text-[10px] font-semibold cursor-pointer transition-colors ${
+                selectedRole === 'alumni' && username === 'fauzi_trq'
                   ? 'bg-sky-600 text-white border-sky-600'
-                  : 'bg-white text-sky-800 border-sky-200 hover:bg-sky-100'
+                  : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
               }`}
-              title="Alumni yang sudah ubah sandi"
             >
-              Fauzi (Aktif)
+              Fauzi
             </button>
             <button
               type="button"
               onClick={() => handleQuickDemo('admin')}
-              className={`px-2 py-0.5 rounded-lg border text-[10px] font-medium cursor-pointer transition-colors ${
-                selectedRole === 'admin'
+              className={`px-2 py-0.5 rounded-lg border text-[10px] font-semibold cursor-pointer transition-colors ${
+                selectedRole === 'admin' && username === '@admin_pusat'
                   ? 'bg-sky-600 text-white border-sky-600'
-                  : 'bg-white text-slate-800 border-slate-200 hover:bg-slate-100'
+                  : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
               }`}
-              title="Admin (superadmin@attaroqqy.com)"
             >
-              Admin
+              @admin_pusat
             </button>
           </div>
         </div>
 
         {/* Error notification */}
         {errorMessage && (
-          <div className="mb-2.5 p-2 bg-rose-50 border border-rose-200 rounded-xl text-rose-700 text-xs flex items-center gap-2 animate-in fade-in duration-150">
+          <div className="mb-3 p-2.5 bg-rose-50 border border-rose-200 rounded-xl text-rose-700 text-xs flex items-center gap-2">
             <AlertCircle className="w-4 h-4 shrink-0" />
-            <span className="text-[11px] leading-tight">{errorMessage}</span>
+            <span className="text-[11px] leading-tight font-medium">{errorMessage}</span>
           </div>
         )}
 
-        {/* 2 VERTICALLY STACKED INPUT BOXES AS REQUESTED */}
+        {/* FORM LOGIN: USERNAME & KATA SANDI */}
         <form onSubmit={handleSubmit} className="space-y-3">
-          {/* KOTAK 1: NIK / USERNAME (FOR ALUMNI) OR EMAIL (FOR ADMIN) */}
+          {/* KOTAK 1: USERNAME */}
           <div>
             <label className="block text-xs font-bold text-slate-700 mb-1">
-              {selectedRole === 'alumni' ? 'NIK / Username Alumni' : 'Email Admin'}
+              Username
             </label>
             <div className="relative">
               <div className="absolute left-3.5 top-1/2 -translate-y-1/2 text-sky-600">
@@ -297,19 +271,14 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
                 required
                 placeholder={
                   selectedRole === 'alumni'
-                    ? 'Masukkan NIK (16 digit) atau Username'
-                    : 'Contoh: superadmin@attaroqqy.com'
+                    ? 'Contoh: mulia_ningsih'
+                    : 'Contoh: @admin_pusat'
                 }
-                value={loginIdentifier}
-                onChange={(e) => setLoginIdentifier(e.target.value)}
-                className="w-full pl-10 pr-3.5 py-2.5 sm:py-3 bg-slate-50 border border-slate-200 rounded-2xl text-xs sm:text-sm font-medium text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#0284c7] focus:bg-white focus:border-transparent transition-all shadow-xs"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                className="w-full pl-10 pr-3.5 py-2.5 sm:py-3 bg-slate-50 border border-slate-200 rounded-2xl text-xs sm:text-sm font-medium text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#0284c7] focus:bg-white focus:border-transparent transition-all shadow-2xs"
               />
             </div>
-            {selectedRole === 'alumni' && (
-              <p className="text-[10px] text-slate-400 mt-1">
-                Gunakan NIK KTP Anda yang terdaftar pada database santri pondok.
-              </p>
-            )}
           </div>
 
           {/* KOTAK 2: KATA SANDI */}
@@ -337,12 +306,12 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
                 required
                 placeholder={
                   selectedRole === 'alumni'
-                    ? 'Sandi awal default: 1234'
+                    ? 'Kata sandi (default: 1234)'
                     : 'Kata sandi admin'
                 }
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full pl-10 pr-10 py-2.5 sm:py-3 bg-slate-50 border border-slate-200 rounded-2xl text-xs sm:text-sm font-medium text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#0284c7] focus:bg-white focus:border-transparent transition-all shadow-xs"
+                className="w-full pl-10 pr-10 py-2.5 sm:py-3 bg-slate-50 border border-slate-200 rounded-2xl text-xs sm:text-sm font-medium text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#0284c7] focus:bg-white focus:border-transparent transition-all shadow-2xs"
               />
               <button
                 type="button"
@@ -353,19 +322,14 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
                 {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
               </button>
             </div>
-            {selectedRole === 'alumni' && (
-              <p className="text-[10px] text-amber-700 font-medium bg-amber-50 px-2 py-0.5 rounded-lg mt-1 inline-block">
-                💡 Login pertama kali? Gunakan kata sandi bawaan: <strong className="font-mono">1234</strong>
-              </p>
-            )}
           </div>
 
-          {/* TOMBOL LOGIN PENUH (TANPA FINGERPRINT) */}
-          <div className="pt-1.5">
+          {/* TOMBOL LOGIN */}
+          <div className="pt-2">
             <button
               type="submit"
               disabled={isLoading}
-              className={`w-full h-11 sm:h-12 py-2.5 sm:py-3 font-bold rounded-2xl shadow-md text-white text-sm sm:text-base transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-75 ${
+              className={`w-full h-11 sm:h-12 py-2.5 sm:py-3 font-bold rounded-2xl shadow-md text-white text-sm transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-75 ${
                 selectedRole === 'admin'
                   ? 'bg-sky-700 hover:bg-sky-800 shadow-sky-700/25'
                   : 'bg-[#0284c7] hover:bg-[#0369a1] shadow-sky-600/30'
@@ -380,20 +344,6 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
                 <span>{selectedRole === 'admin' ? 'Masuk Sebagai Admin' : 'Login Alumni'}</span>
               )}
             </button>
-          </div>
-
-          {/* TEKS KECIL: "Belum punya akun? Daftar ." */}
-          <div className="text-center pt-1">
-            <p className="text-xs text-slate-600">
-              Belum punya akun?{' '}
-              <button
-                type="button"
-                onClick={onOpenRegister}
-                className="text-[#0284c7] font-bold hover:text-[#0369a1] hover:underline cursor-pointer focus:outline-none"
-              >
-                Daftar .
-              </button>
-            </p>
           </div>
         </form>
       </div>

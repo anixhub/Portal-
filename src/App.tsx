@@ -10,13 +10,14 @@ import { AdminView } from './components/AdminView';
 import { FirstLoginModal } from './components/FirstLoginModal';
 import { RegisterModal } from './components/RegisterModal';
 import { ForgotPasswordModal } from './components/ForgotPasswordModal';
-import { INITIAL_ALUMNI, INITIAL_ADMIN, INITIAL_EVENTS } from './data/mockData';
-import { AlumniRecord, AdminUser, EventAgenda, UserRole, ActiveSession } from './types';
+import { INITIAL_ALUMNI, INITIAL_ADMIN, INITIAL_EVENTS, INITIAL_ANNOUNCEMENTS } from './data/mockData';
+import { AlumniRecord, AdminUser, EventAgenda, UserRole, ActiveSession, AnnouncementItem } from './types';
 
 export default function App() {
   const [alumniList, setAlumniList] = useState<AlumniRecord[]>(INITIAL_ALUMNI);
   const [adminAccount, setAdminAccount] = useState<AdminUser>(INITIAL_ADMIN);
   const [events, setEvents] = useState<EventAgenda[]>(INITIAL_EVENTS);
+  const [announcements, setAnnouncements] = useState<AnnouncementItem[]>(INITIAL_ANNOUNCEMENTS);
 
   // Current session
   const [currentSession, setCurrentSession] = useState<ActiveSession | null>(null);
@@ -184,6 +185,20 @@ export default function App() {
     setEvents((prev) => [newEvent, ...prev]);
   };
 
+  const handleAddAnnouncement = (newAnn: AnnouncementItem) => {
+    setAnnouncements((prev) => [newAnn, ...prev]);
+  };
+
+  const handleUpdateAnnouncement = (id: string, updated: Partial<AnnouncementItem>) => {
+    setAnnouncements((prev) =>
+      prev.map((item) => (item.id === id ? { ...item, ...updated } : item))
+    );
+  };
+
+  const handleDeleteAnnouncement = (id: string) => {
+    setAnnouncements((prev) => prev.filter((item) => item.id !== id));
+  };
+
   const handleRegisterSuccess = (data: { email: string; name: string }) => {
     // Automatically register as a pending alumni record
     const newAlm: AlumniRecord = {
@@ -233,12 +248,16 @@ export default function App() {
           admin={currentSession.adminData}
           alumniList={alumniList}
           events={events}
+          announcements={announcements}
           onLogout={handleLogout}
           onAddAlumni={handleAddAlumniByAdmin}
           onUpdateAlumni={handleUpdateAlumniByAdmin}
           onResetPassword={handleResetAlumniPassword}
           onAddEvent={handleAddEvent}
           onUpdateAdmin={handleUpdateAdmin}
+          onAddAnnouncement={handleAddAnnouncement}
+          onUpdateAnnouncement={handleUpdateAnnouncement}
+          onDeleteAnnouncement={handleDeleteAnnouncement}
         />
       )}
 

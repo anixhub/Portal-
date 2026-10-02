@@ -28,18 +28,21 @@ import {
   Eye,
   EyeOff,
   Lock,
-  Mail
+  Mail,
+  Megaphone,
+  Check
 } from 'lucide-react';
-import { AlumniRecord, AdminUser, EventAgenda, EventComment, EventCommentReply } from '../types';
+import { AlumniRecord, AdminUser, EventAgenda, EventComment, EventCommentReply, AnnouncementItem } from '../types';
 import { AddAlumniModal } from './admin/AddAlumniModal';
 import { AlumniDetailAdminModal } from './admin/AlumniDetailAdminModal';
+import { AdminAnnouncementsTab } from './admin/AdminAnnouncementsTab';
 import { WilayahAddressFilter } from './common/WilayahAddressFilter';
 import { AlumniDistributionMapModal } from './common/AlumniDistributionMapModal';
 import { CleanMediaPreviewModal } from './common/CleanMediaPreviewModal';
 import { FullscreenPhotoViewerModal } from './common/FullscreenPhotoViewerModal';
 import { EventCommentsModal } from './common/EventCommentsModal';
 import { EventAttendanceScannerModal } from './admin/EventAttendanceScannerModal';
-import { INITIAL_EVENT_COMMENTS } from '../data/mockData';
+import { INITIAL_EVENT_COMMENTS, INITIAL_ANNOUNCEMENTS } from '../data/mockData';
 import logoPonpesImg from '../assets/images/logo_ponpes_attaroqqy_1790648746461.jpg';
 import posterReuniImg from '../assets/images/poster_reuni_akbar_1790648045947.jpg';
 
@@ -47,39 +50,93 @@ interface AdminViewProps {
   admin: AdminUser;
   alumniList: AlumniRecord[];
   events: EventAgenda[];
+  announcements?: AnnouncementItem[];
   onLogout: () => void;
   onAddAlumni: (newAlumni: AlumniRecord) => void;
   onUpdateAlumni: (id: string, updated: Partial<AlumniRecord>) => void;
   onResetPassword: (id: string) => void;
   onAddEvent: (newEvent: EventAgenda) => void;
   onUpdateAdmin?: (updated: Partial<AdminUser>) => void;
+  onAddAnnouncement?: (ann: AnnouncementItem) => void;
+  onUpdateAnnouncement?: (id: string, updated: Partial<AnnouncementItem>) => void;
+  onDeleteAnnouncement?: (id: string) => void;
 }
 
-type AdminTab = 'agenda' | 'alumni' | 'profile';
+type AdminTab = 'agenda' | 'alumni' | 'pengumuman' | 'profile';
 
 export const AdminView: React.FC<AdminViewProps> = ({
   admin,
   alumniList,
   events,
+  announcements,
   onLogout,
   onAddAlumni,
   onUpdateAlumni,
   onResetPassword,
   onAddEvent,
   onUpdateAdmin,
+  onAddAnnouncement,
+  onUpdateAnnouncement,
+  onDeleteAnnouncement,
 }) => {
   const [activeTab, setActiveTab] = useState<AdminTab>('agenda');
   const [eventList, setEventList] = useState<EventAgenda[]>(events);
+  const [announcementList, setAnnouncementList] = useState<AnnouncementItem[]>(
+    announcements || INITIAL_ANNOUNCEMENTS
+  );
 
   // Admin Profile Edit State
   const [adminUser, setAdminUser] = useState<AdminUser>(admin);
   const [editAdminName, setEditAdminName] = useState(admin.name);
   const [isEditNameModalOpen, setIsEditNameModalOpen] = useState(false);
+  const [editAdminUsername, setEditAdminUsername] = useState(admin.username || '@admin_pusat');
+  const [isEditUsernameModalOpen, setIsEditUsernameModalOpen] = useState(false);
 
   useEffect(() => {
     setAdminUser(admin);
     setEditAdminName(admin.name);
+    setEditAdminUsername(admin.username || '@admin_pusat');
   }, [admin]);
+
+  useEffect(() => {
+    if (announcements) {
+      setAnnouncementList(announcements);
+    }
+  }, [announcements]);
+
+  const handleAddAnnouncement = (newAnn: AnnouncementItem) => {
+    setAnnouncementList((prev) => [newAnn, ...prev]);
+    onAddAnnouncement?.(newAnn);
+  };
+
+  const handleUpdateAnnouncement = (id: string, updated: Partial<AnnouncementItem>) => {
+    setAnnouncementList((prev) =>
+      prev.map((item) => (item.id === id ? { ...item, ...updated } : item))
+    );
+    onUpdateAnnouncement?.(id, updated);
+  };
+
+  const handleDeleteAnnouncement = (id: string) => {
+    setAnnouncementList((prev) => prev.filter((item) => item.id !== id));
+    onDeleteAnnouncement?.(id);
+  };
+
+  const handleSaveAdminUsername = (e: React.FormEvent) => {
+    e.preventDefault();
+    const clean = editAdminUsername.trim();
+    if (!clean) {
+      triggerToast('Username tidak boleh kosong');
+      return;
+    }
+    const formatted = clean.startsWith('@') ? clean : '@' + clean;
+    const updated: Partial<AdminUser> = {
+      username: formatted,
+    };
+    setAdminUser((prev) => ({ ...prev, ...updated }));
+    onUpdateAdmin?.(updated);
+    setIsEditUsernameModalOpen(false);
+    triggerToast('Username admin berhasil diperbarui');
+  };
 
   const handleSaveAdminName = (e: React.FormEvent) => {
     e.preventDefault();
@@ -1023,7 +1080,19 @@ export const AdminView: React.FC<AdminViewProps> = ({
           </div>
         )}
 
-        {/* ================= TAB 3: PROFIL ADMIN ================= */}
+        {/* ================= TAB 3: PENGUMUMAN & MAKLUMAT ADMIN ================= */}
+        {activeTab === 'pengumuman' && (
+          <AdminAnnouncementsTab
+            announcements={announcementList}
+            adminUser={adminUser}
+            onAddAnnouncement={handleAddAnnouncement}
+            onUpdateAnnouncement={handleUpdateAnnouncement}
+            onDeleteAnnouncement={handleDeleteAnnouncement}
+            triggerToast={triggerToast}
+          />
+        )}
+
+        {/* ================= TAB 4: PROFIL ADMIN ================= */}
         {activeTab === 'profile' && (
           <div className="bg-[#f0f2fb] min-h-full flex flex-col animate-in fade-in duration-150">
             {/* FOTO SAMPUL / COVER PHOTO - UKURAN PENUH SAMA DENGAN AKUN BIASA */}
@@ -1126,10 +1195,10 @@ export const AdminView: React.FC<AdminViewProps> = ({
                   <h3 className="font-display font-extrabold text-lg text-slate-900 leading-tight">
                     {adminUser.name}
                   </h3>
-                  {/* USERNAME DIGANTI EMAIL SAJA */}
-                  <p className="text-xs text-sky-700 font-medium mt-0.5 flex items-center justify-center gap-1.5">
-                    <Mail className="w-3.5 h-3.5 text-sky-600" />
-                    <span>{adminUser.email || 'superadmin@attaroqqy.com'}</span>
+                  {/* USERNAME ADMIN */}
+                  <p className="text-xs text-sky-700 font-semibold mt-0.5 flex items-center justify-center gap-1.5">
+                    <User className="w-3.5 h-3.5 text-sky-600" />
+                    <span>{adminUser.username.startsWith('@') ? adminUser.username : '@' + adminUser.username}</span>
                   </p>
                   <p className="text-xs text-slate-500 mt-0.5">
                     {adminUser.jabatan || 'Pengurus Pondok'}
@@ -1140,7 +1209,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
                 </div>
               </div>
 
-              {/* CARD LEBIH RINGKAS: KOLOM NAMA LENGKAP, EMAIL, GANTI KATA SANDI, LOGOUT */}
+              {/* CARD LEBIH RINGKAS: KOLOM NAMA LENGKAP, USERNAME, GANTI KATA SANDI, LOGOUT */}
               <div className="space-y-4">
                 <div className="bg-white rounded-2xl border border-slate-200/90 divide-y divide-slate-100 shadow-2xs overflow-hidden">
                   {/* 1. Kolom Nama Lengkap (Saat diklik munculkan modal edit nama lengkap) */}
@@ -1163,48 +1232,27 @@ export const AdminView: React.FC<AdminViewProps> = ({
                     <ChevronRight className="w-4 h-4 text-slate-400 group-hover:translate-x-0.5 transition-transform shrink-0 ml-2" />
                   </div>
 
-                  {/* 2. Kolom Email (Khusus Superadmin unclickable / tidak bisa diedit) */}
-                  {adminUser.role === 'super_admin' || (adminUser.email && adminUser.email.toLowerCase().includes('superadmin')) ? (
-                    <div
-                      className="flex items-center justify-between p-3.5 bg-slate-50/50 cursor-default select-none"
-                      title="Email akun superadmin utama permanen dan tidak dapat diubah"
-                    >
-                      <div className="flex items-center gap-3 min-w-0">
-                        <div className="w-9 h-9 rounded-xl bg-slate-100 text-slate-500 flex items-center justify-center shrink-0">
-                          <Mail className="w-4 h-4" />
-                        </div>
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-1.5">
-                            <p className="text-[11px] font-medium text-slate-400">Email</p>
-                          </div>
-                          <p className="text-xs font-bold text-slate-700 truncate">
-                            {adminUser.email || 'superadmin@attaroqqy.com'}
-                          </p>
-                        </div>
+                  {/* 2. Kolom Username */}
+                  <div
+                    onClick={() => {
+                      setEditAdminUsername(adminUser.username || '@admin_pusat');
+                      setIsEditUsernameModalOpen(true);
+                    }}
+                    className="flex items-center justify-between p-3.5 cursor-pointer hover:bg-slate-50 transition-colors group"
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-9 h-9 rounded-xl bg-sky-50 text-sky-600 flex items-center justify-center shrink-0">
+                        <User className="w-4 h-4" />
                       </div>
-                      <span className="text-[10px] font-bold text-slate-400 bg-slate-200/70 px-2 py-0.5 rounded-md flex items-center gap-1 shrink-0 ml-2">
-                        <Lock className="w-3 h-3 text-slate-400" />
-                        Tetap
-                      </span>
-                    </div>
-                  ) : (
-                    <div
-                      className="flex items-center justify-between p-3.5 cursor-pointer hover:bg-slate-50 transition-colors group"
-                    >
-                      <div className="flex items-center gap-3 min-w-0">
-                        <div className="w-9 h-9 rounded-xl bg-sky-50 text-sky-600 flex items-center justify-center shrink-0">
-                          <Mail className="w-4 h-4" />
-                        </div>
-                        <div className="min-w-0">
-                          <p className="text-[11px] font-medium text-slate-400">Email</p>
-                          <p className="text-xs font-bold text-slate-800 truncate">
-                            {adminUser.email || 'superadmin@attaroqqy.com'}
-                          </p>
-                        </div>
+                      <div className="min-w-0">
+                        <p className="text-[11px] font-medium text-slate-400">Username</p>
+                        <p className="text-xs font-bold text-slate-800 truncate">
+                          {adminUser.username.startsWith('@') ? adminUser.username : '@' + adminUser.username}
+                        </p>
                       </div>
-                      <ChevronRight className="w-4 h-4 text-slate-400 group-hover:translate-x-0.5 transition-transform shrink-0 ml-2" />
                     </div>
-                  )}
+                    <ChevronRight className="w-4 h-4 text-slate-400 group-hover:translate-x-0.5 transition-transform shrink-0 ml-2" />
+                  </div>
 
                   {/* 3. Kolom Ganti Kata Sandi (Saat diklik munculkan modal dengan 2 kolom input) */}
                   <div
@@ -1305,12 +1353,12 @@ export const AdminView: React.FC<AdminViewProps> = ({
         </div>
       )}
 
-      {/* ================= DOCKER / BOTTOM NAVIGATION (HANYA AGENDA, KELOLA ALUMNI, PROFIL ADMIN) ================= */}
-      <div className="bg-white border-t border-slate-200 px-6 py-2 flex items-center justify-around shrink-0 select-none z-30 shadow-xs">
+      {/* ================= DOCKER / BOTTOM NAVIGATION (AGENDA, KELOLA ALUMNI, PENGUMUMAN, PROFIL ADMIN) ================= */}
+      <div className="bg-white border-t border-slate-200 px-4 py-2 flex items-center justify-around shrink-0 select-none z-30 shadow-xs">
         <button
           type="button"
           onClick={() => setActiveTab('agenda')}
-          className={`flex flex-col items-center gap-1 py-1 px-4 rounded-xl transition-colors cursor-pointer ${
+          className={`flex flex-col items-center gap-1 py-1 px-3 rounded-xl transition-colors cursor-pointer ${
             activeTab === 'agenda' ? 'text-[#0284c7] font-bold' : 'text-slate-500 hover:text-slate-800'
           }`}
         >
@@ -1321,7 +1369,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
         <button
           type="button"
           onClick={() => setActiveTab('alumni')}
-          className={`flex flex-col items-center gap-1 py-1 px-4 rounded-xl transition-colors cursor-pointer ${
+          className={`flex flex-col items-center gap-1 py-1 px-3 rounded-xl transition-colors cursor-pointer ${
             activeTab === 'alumni' ? 'text-[#0284c7] font-bold' : 'text-slate-500 hover:text-slate-800'
           }`}
         >
@@ -1331,8 +1379,19 @@ export const AdminView: React.FC<AdminViewProps> = ({
 
         <button
           type="button"
+          onClick={() => setActiveTab('pengumuman')}
+          className={`flex flex-col items-center gap-1 py-1 px-3 rounded-xl transition-colors cursor-pointer ${
+            activeTab === 'pengumuman' ? 'text-[#0284c7] font-bold' : 'text-slate-500 hover:text-slate-800'
+          }`}
+        >
+          <Megaphone className="w-5 h-5" />
+          <span className="text-[10px]">Pengumuman</span>
+        </button>
+
+        <button
+          type="button"
           onClick={() => setActiveTab('profile')}
-          className={`flex flex-col items-center gap-1 py-1 px-4 rounded-xl transition-colors cursor-pointer ${
+          className={`flex flex-col items-center gap-1 py-1 px-3 rounded-xl transition-colors cursor-pointer ${
             activeTab === 'profile' ? 'text-[#0284c7] font-bold' : 'text-slate-500 hover:text-slate-800'
           }`}
         >
@@ -1479,6 +1538,66 @@ export const AdminView: React.FC<AdminViewProps> = ({
                   className="flex-1 py-2.5 bg-sky-600 hover:bg-sky-700 text-white font-bold rounded-xl text-xs transition-colors cursor-pointer shadow-md shadow-sky-600/20"
                 >
                   Simpan Perubahan
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ================= MODAL EDIT USERNAME ADMIN ================= */}
+      {isEditUsernameModalOpen && (
+        <div className="fixed inset-0 z-[100010] bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
+          <div className="bg-white rounded-3xl p-6 max-w-sm w-full space-y-4 shadow-2xl border border-slate-100 animate-in zoom-in-95">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-lg bg-sky-50 text-sky-600 flex items-center justify-center">
+                  <User className="w-4 h-4" />
+                </div>
+                <h3 className="font-display font-bold text-base text-slate-900">
+                  Edit Username Admin
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsEditUsernameModalOpen(false)}
+                className="w-7 h-7 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-500 cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveAdminUsername} className="space-y-4 text-xs">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Username Akun Admin
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={editAdminUsername}
+                  onChange={(e) => setEditAdminUsername(e.target.value)}
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-sky-600 focus:bg-white"
+                  placeholder="Contoh: @admin_pusat"
+                />
+                <p className="text-[10px] text-slate-400 mt-1">
+                  Username digunakan untuk masuk (login) ke portal admin.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2 pt-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setIsEditUsernameModalOpen(false)}
+                  className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs transition-colors cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 py-2.5 bg-sky-600 hover:bg-sky-700 text-white font-bold rounded-xl text-xs transition-colors cursor-pointer shadow-md shadow-sky-600/20"
+                >
+                  Simpan
                 </button>
               </div>
             </form>

@@ -165,7 +165,10 @@ export const FullscreenLocationMapModal: React.FC<FullscreenLocationMapModalProp
   useEffect(() => {
     if (!isOpen || !mapContainerRef.current) return;
 
-    const timer = setTimeout(() => {
+    let resizeObserver: ResizeObserver | null = null;
+    let timers: ReturnType<typeof setTimeout>[] = [];
+
+    const initTimer = setTimeout(() => {
       if (!mapContainerRef.current) return;
 
       if (mapInstanceRef.current) {
@@ -173,8 +176,14 @@ export const FullscreenLocationMapModal: React.FC<FullscreenLocationMapModalProp
         mapInstanceRef.current = null;
       }
 
-      const initialLat = selectedCoords.lat;
-      const initialLng = selectedCoords.lng;
+      // Clean up any stale leaflet ID to prevent "Map container is already initialized"
+      if ((mapContainerRef.current as any)._leaflet_id) {
+        delete (mapContainerRef.current as any)._leaflet_id;
+        mapContainerRef.current.innerHTML = '';
+      }
+
+      const initialLat = initialCoordinates?.lat ?? selectedCoords.lat ?? DEFAULT_CENTER.lat;
+      const initialLng = initialCoordinates?.lng ?? selectedCoords.lng ?? DEFAULT_CENTER.lng;
       const currentZoom = initialZoom || 15;
 
       const map = L.map(mapContainerRef.current, {
@@ -194,8 +203,9 @@ export const FullscreenLocationMapModal: React.FC<FullscreenLocationMapModalProp
         attribution: '&copy; OpenStreetMap contributors',
       }).addTo(map);
 
-      // Marker - add only if pinned location exists
-      if (hasPinnedLocation) {
+      // Marker - add if pinned location exists
+      const shouldHavePin = Boolean(initialCoordinates?.lat && initialCoordinates?.lng) || hasPinnedLocation;
+      if (shouldHavePin) {
         const pinIcon = createCustomPinIcon(isMovingRef.current);
         const marker = L.marker([initialLat, initialLng], {
           draggable: isMovingRef.current,
@@ -205,7 +215,7 @@ export const FullscreenLocationMapModal: React.FC<FullscreenLocationMapModalProp
         markerInstanceRef.current = marker;
       }
 
-      // Move or create marker on map click (always available so user can tap to place or move pin)
+      // Move or create marker on map click
       map.on('click', (e: L.LeafletMouseEvent) => {
         const { lat, lng } = e.latlng;
         setSelectedCoords({ lat, lng });
@@ -230,13 +240,35 @@ export const FullscreenLocationMapModal: React.FC<FullscreenLocationMapModalProp
 
       mapInstanceRef.current = map;
 
-      // Invalidate size immediately so the map renders with exact same center and zoom
-      map.invalidateSize();
+      // Invalidate size immediately and repeatedly to ensure tiles render perfectly
+      const triggerInvalidate = () => {
+        if (mapInstanceRef.current) {
+          mapInstanceRef.current.invalidateSize();
+        }
+      };
+
+      triggerInvalidate();
       map.setView([initialLat, initialLng], currentZoom, { animate: false });
-    }, 60);
+
+      timers.push(setTimeout(triggerInvalidate, 80));
+      timers.push(setTimeout(triggerInvalidate, 200));
+      timers.push(setTimeout(triggerInvalidate, 450));
+      timers.push(setTimeout(triggerInvalidate, 800));
+
+      if (typeof ResizeObserver !== 'undefined' && mapContainerRef.current) {
+        resizeObserver = new ResizeObserver(() => {
+          triggerInvalidate();
+        });
+        resizeObserver.observe(mapContainerRef.current);
+      }
+    }, 40);
 
     return () => {
-      clearTimeout(timer);
+      clearTimeout(initTimer);
+      timers.forEach(clearTimeout);
+      if (resizeObserver) {
+        resizeObserver.disconnect();
+      }
       if (mapInstanceRef.current) {
         mapInstanceRef.current.remove();
         mapInstanceRef.current = null;
@@ -470,7 +502,8 @@ export const FullscreenLocationMapModal: React.FC<FullscreenLocationMapModalProp
     setShowSavedFeedback(true);
     setTimeout(() => {
       setShowSavedFeedback(false);
-    }, 2500);
+      onClose();
+    }, 400);
   };
 
   if (!isOpen) return null;
@@ -479,7 +512,11 @@ export const FullscreenLocationMapModal: React.FC<FullscreenLocationMapModalProp
   return createPortal(
     <div className="fixed inset-0 z-[200000] w-screen h-screen bg-slate-950 overflow-hidden animate-in fade-in duration-150">
       {/* ================= FULL VIEWPORT LEAFLET MAP ================= */}
-      <div ref={mapContainerRef} className="w-full h-full z-10" />
+      <div 
+        ref={mapContainerRef} 
+        className="absolute inset-0 w-full h-full z-10" 
+        style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }}
+      />
 
       {/* ================= ULTRA-CLEAN FLOATING TOP CONTROLS ================= */}
       <div className="absolute top-4 left-4 right-4 z-30 flex items-center justify-between pointer-events-none">
@@ -538,16 +575,16 @@ export const FullscreenLocationMapModal: React.FC<FullscreenLocationMapModalProp
             </button>
           )}
 
-          {/* Tombol Simpan - Hanya Muncul Saat Ada Perubahan Titik */}
-          {hasChanged && (
+          {/* Tombol Simpan - Muncul Saat Lokasi Sudah Ditandai */}
+          {hasPinnedLocation && (
             <button
               type="button"
               onClick={handleConfirmLocation}
               className="h-10 px-4 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-lg shadow-emerald-700/30 flex items-center gap-1.5 transition-all cursor-pointer active:scale-95 animate-in fade-in zoom-in-95 duration-150"
-              title="Simpan Titik Baru"
+              title="Gunakan titik lokasi ini"
             >
               <Check className="w-4 h-4" />
-              <span>Simpan</span>
+              <span>Gunakan Titik</span>
             </button>
           )}
         </div>
