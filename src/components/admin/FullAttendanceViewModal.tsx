@@ -70,11 +70,21 @@ export const FullAttendanceViewModal: React.FC<FullAttendanceViewModalProps> = (
       second: '2-digit',
     }) + ' WIB';
 
+    const cleanDesa = (alumni.desa || '').trim();
+    const cleanKec = (alumni.kecamatan || '').replace(/^kecamatan\s+/i, '').replace(/^kec\.\s*/i, '').trim();
+    const cleanKab = (alumni.city || '').replace(/^kabupaten\s+/i, '').replace(/^kab\.\s*/i, '').replace(/^kota\s+/i, '').trim();
+    const addressParts = [cleanDesa, cleanKec, cleanKab].filter(Boolean);
+    const addressText = addressParts.length > 0 ? addressParts.join(', ') : (alumni.alamatLengkap || alumni.province || 'Alamat belum diatur');
+
     const newAttendee: AttendanceAttendee = {
       id: 'att-' + Date.now(),
       alumniId: alumni.id,
       alumniName: alumni.name,
       alumniNis: alumni.nis,
+      desa: alumni.desa,
+      kecamatan: alumni.kecamatan,
+      city: alumni.city,
+      addressText,
       gradYear: alumni.gradYear,
       jenjang: alumni.jenjang,
       checkInTime: timeStr,
@@ -102,15 +112,23 @@ export const FullAttendanceViewModal: React.FC<FullAttendanceViewModalProps> = (
       return;
     }
 
-    const headers = ['No', 'Nama Alumni', 'NIS', 'Angkatan/Tahun Lulus', 'Waktu Hadir', 'Metode'];
-    const rows = session.attendees.map((a, idx) => [
-      idx + 1,
-      `"${a.alumniName.replace(/"/g, '""')}"`,
-      `"${a.alumniNis}"`,
-      `"${a.gradYear || '-'}"`,
-      `"${a.checkInTime}"`,
-      a.method === 'qr' ? 'Scan QR' : 'Manual',
-    ]);
+    const headers = ['No', 'Nama Alumni', 'Alamat (Desa, Kec, Kab)', 'Waktu Hadir', 'Metode'];
+    const rows = session.attendees.map((a, idx) => {
+      const alm = alumniList.find((item) => item.id === a.alumniId || item.nis === a.alumniNis);
+      const cleanDesa = (a.desa || alm?.desa || '').trim();
+      const cleanKec = (a.kecamatan || alm?.kecamatan || '').replace(/^kecamatan\s+/i, '').replace(/^kec\.\s*/i, '').trim();
+      const cleanKab = (a.city || alm?.city || '').replace(/^kabupaten\s+/i, '').replace(/^kab\.\s*/i, '').replace(/^kota\s+/i, '').trim();
+      const addressParts = [cleanDesa, cleanKec, cleanKab].filter(Boolean);
+      const addressText = addressParts.length > 0 ? addressParts.join(', ') : (alm?.province || a.addressText || '-');
+
+      return [
+        idx + 1,
+        `"${a.alumniName.replace(/"/g, '""')}"`,
+        `"${addressText.replace(/"/g, '""')}"`,
+        `"${a.checkInTime}"`,
+        a.method === 'qr' ? 'Scan QR' : 'Manual',
+      ];
+    });
 
     const csvContent =
       'data:text/csv;charset=utf-8,\uFEFF' +
@@ -222,66 +240,69 @@ export const FullAttendanceViewModal: React.FC<FullAttendanceViewModalProps> = (
 
         {/* Daftar Santri Hadir */}
         <div className="space-y-2.5">
-          {filteredAttendees.map((att, idx) => (
-            <div
-              key={att.id}
-              className="bg-white rounded-2xl p-3.5 border border-slate-200/90 shadow-2xs flex items-center justify-between gap-3 hover:border-slate-300 transition-colors"
-            >
-              <div className="flex items-center gap-3 min-w-0">
-                <span className="text-xs font-mono text-slate-400 w-5 text-center shrink-0">
-                  {idx + 1}
-                </span>
+          {filteredAttendees.map((att) => {
+            const alm = alumniList.find(
+              (a) => a.id === att.alumniId || (a.nis && a.nis === att.alumniNis) || a.name.toLowerCase() === att.alumniName.toLowerCase()
+            );
+            const cleanDesa = (att.desa || alm?.desa || '').trim();
+            const cleanKec = (att.kecamatan || alm?.kecamatan || '').replace(/^kecamatan\s+/i, '').replace(/^kec\.\s*/i, '').trim();
+            const cleanKab = (att.city || alm?.city || '').replace(/^kabupaten\s+/i, '').replace(/^kab\.\s*/i, '').replace(/^kota\s+/i, '').trim();
+            const addressParts = [cleanDesa, cleanKec, cleanKab].filter(Boolean);
+            const addressText = addressParts.length > 0 ? addressParts.join(', ') : (alm?.province || att.addressText || 'Alamat belum diatur');
 
-                <div className="w-10 h-10 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center shrink-0 overflow-hidden font-bold text-slate-600">
-                  {att.photoUrl ? (
-                    <img src={att.photoUrl} alt={att.alumniName} className="w-full h-full object-cover" />
-                  ) : (
-                    <span>{att.alumniName.slice(0, 2).toUpperCase()}</span>
-                  )}
-                </div>
-
-                <div className="min-w-0">
-                  <h4 className="font-bold text-xs sm:text-sm text-slate-900 truncate leading-tight">
-                    {att.alumniName}
-                  </h4>
-                  <div className="flex items-center gap-2 text-[11px] text-slate-500 mt-0.5 flex-wrap">
-                    <span className="font-mono">{att.alumniNis || 'NIS: -'}</span>
-                    {att.gradYear && (
-                      <>
-                        <span>•</span>
-                        <span>Lulus: {att.gradYear}</span>
-                      </>
+            return (
+              <div
+                key={att.id}
+                className="bg-white rounded-2xl p-3.5 border border-slate-200/90 shadow-2xs flex items-center justify-between gap-3 hover:border-slate-300 transition-colors"
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-10 h-10 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center shrink-0 overflow-hidden font-bold text-slate-600">
+                    {att.photoUrl || alm?.photoUrl ? (
+                      <img src={att.photoUrl || alm?.photoUrl} alt={att.alumniName} className="w-full h-full object-cover" />
+                    ) : (
+                      <span>{att.alumniName.slice(0, 2).toUpperCase()}</span>
                     )}
                   </div>
-                  <div className="flex items-center gap-1.5 text-[10px] text-slate-400 mt-0.5">
-                    <Clock className="w-3 h-3 text-slate-400" />
-                    <span>{att.checkInTime}</span>
+
+                  <div className="min-w-0">
+                    <h4 className="font-bold text-xs sm:text-sm text-slate-900 truncate leading-tight">
+                      {att.alumniName}
+                    </h4>
+                    <p className="text-xs text-slate-500 capitalize truncate mt-0.5">
+                      {addressText}
+                    </p>
                   </div>
                 </div>
-              </div>
 
-              <div className="flex items-center gap-2 shrink-0">
-                <span
-                  className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
-                    att.method === 'qr'
-                      ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                      : 'bg-sky-50 text-sky-700 border-sky-200'
-                  }`}
-                >
-                  {att.method === 'qr' ? 'Scan QR' : 'Manual'}
-                </span>
+                <div className="flex items-center gap-2 shrink-0">
+                  <div className="flex flex-col items-end gap-1">
+                    <span
+                      className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
+                        att.method === 'qr'
+                          ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                          : 'bg-sky-50 text-sky-700 border-sky-200'
+                      }`}
+                    >
+                      {att.method === 'qr' ? 'Scan QR' : 'Manual'}
+                    </span>
+                    <span className="text-[10px] text-slate-400 font-mono flex items-center gap-1">
+                      <Clock className="w-2.5 h-2.5" />
+                      <span>{att.checkInTime}</span>
+                    </span>
+                  </div>
 
-                <button
-                  type="button"
-                  onClick={() => setAttendeeToDelete({ id: att.id, name: att.alumniName })}
-                  className="w-7 h-7 rounded-lg text-slate-300 hover:text-rose-600 hover:bg-rose-50 flex items-center justify-center transition-colors cursor-pointer"
-                  title="Batalkan Kehadiran"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                </button>
+                  <button
+                    type="button"
+                    onClick={() => setAttendeeToDelete({ id: att.id, name: att.alumniName })}
+                    className="w-7 h-7 rounded-lg text-slate-300 hover:text-rose-600 hover:bg-rose-50 flex items-center justify-center transition-colors cursor-pointer"
+                    title="Batalkan Kehadiran"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
               </div>
-            </div>
-          ))}
+            );
+        })}
 
           {session.attendees.length === 0 && (
             <div className="bg-white rounded-3xl border border-slate-200/90 p-8 sm:p-12 text-center flex flex-col items-center gap-3 shadow-2xs">
@@ -308,7 +329,7 @@ export const FullAttendanceViewModal: React.FC<FullAttendanceViewModalProps> = (
       </div>
 
       {/* ================= TOMBOL MELAYANG DI KANAN BAWAH (HANYA MUNCUL JIKA SCANNER TIDAK BUKA) ================= */}
-      {!isScannerOpen && (
+      {!isScannerOpen && !isManualModalOpen && (
         <div className="fixed bottom-6 right-5 z-[100020] flex flex-col items-end gap-3 pointer-events-auto">
           {/* Tombol Melayang Pencarian Manual */}
           <button
@@ -399,8 +420,8 @@ export const FullAttendanceViewModal: React.FC<FullAttendanceViewModalProps> = (
                       </div>
                       <div className="min-w-0">
                         <p className="font-bold text-slate-900 truncate">{alm.name}</p>
-                        <p className="text-[10px] text-slate-500 font-mono">
-                          NIS: {alm.nis || '-'} • Lulus: {alm.gradYear || '-'}
+                        <p className="text-xs text-slate-500 capitalize truncate mt-0.5">
+                          {[alm.desa, alm.kecamatan, alm.city].filter(Boolean).join(', ') || alm.province || 'Alamat belum diatur'}
                         </p>
                       </div>
                     </div>

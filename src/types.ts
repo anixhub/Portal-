@@ -38,6 +38,8 @@ export interface AlumniRecord {
   // Informasi Tambahan
   tempatLahir?: string;
   tanggalLahir?: string;
+  anak_ke?: number | string;
+  dari_bersaudara?: number | string;
   urutanAnak?: number;
   jumlahSaudara?: number;
   nism?: string;
@@ -103,6 +105,10 @@ export interface AttendanceAttendee {
   alumniId: string;
   alumniName: string;
   alumniNis: string;
+  desa?: string;
+  kecamatan?: string;
+  city?: string;
+  addressText?: string;
   gradYear?: string;
   jenjang?: string;
   checkInTime: string;

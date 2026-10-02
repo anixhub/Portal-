@@ -21,6 +21,9 @@ export const EditAlumniModal: React.FC<EditAlumniModalProps> = ({
   const [nik, setNik] = useState(alumni?.nik || '');
   const [noKk, setNoKk] = useState(alumni?.noKk || '');
   const [nis, setNis] = useState(alumni?.nis || '');
+  const [gender, setGender] = useState<'L' | 'P'>((alumni?.gender as 'L' | 'P') || 'L');
+  const [anakKe, setAnakKe] = useState<number>(Number(alumni?.anak_ke ?? alumni?.urutanAnak) || 1);
+  const [dariBersaudara, setDariBersaudara] = useState<number>(Number(alumni?.dari_bersaudara ?? alumni?.jumlahSaudara) || 1);
   const [gradYear, setGradYear] = useState(alumni?.gradYear || '');
   const [jenjang, setJenjang] = useState(alumni?.jenjang || '');
   const [asramaDulu, setAsramaDulu] = useState(alumni?.asramaDulu || '');
@@ -41,6 +44,9 @@ export const EditAlumniModal: React.FC<EditAlumniModalProps> = ({
       setNik(alumni.nik || '');
       setNoKk(alumni.noKk || '');
       setNis(alumni.nis || '');
+      setGender((alumni.gender as 'L' | 'P') || 'L');
+      setAnakKe(Number(alumni.anak_ke ?? alumni.urutanAnak) || 1);
+      setDariBersaudara(Number(alumni.dari_bersaudara ?? alumni.jumlahSaudara) || 1);
       setGradYear(alumni.gradYear || '');
       setJenjang(alumni.jenjang || '');
       setAsramaDulu(alumni.asramaDulu || '');
@@ -66,6 +72,11 @@ export const EditAlumniModal: React.FC<EditAlumniModalProps> = ({
       nik,
       noKk: noKk || undefined,
       nis,
+      gender,
+      anak_ke: anakKe,
+      dari_bersaudara: dariBersaudara,
+      urutanAnak: anakKe,
+      jumlahSaudara: dariBersaudara,
       gradYear,
       jenjang,
       asramaDulu,
@@ -155,6 +166,42 @@ export const EditAlumniModal: React.FC<EditAlumniModalProps> = ({
                 value={gradYear}
                 onChange={(e) => setGradYear(e.target.value)}
                 className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-sky-600 focus:bg-white"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-3 gap-2.5">
+            <div>
+              <label className="block font-semibold text-slate-700 mb-1">Jenis Kelamin (gender)</label>
+              <select
+                value={gender}
+                onChange={(e) => setGender(e.target.value as 'L' | 'P')}
+                className="w-full px-2.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-sky-600 focus:bg-white"
+              >
+                <option value="L">Laki-laki</option>
+                <option value="P">Perempuan</option>
+              </select>
+            </div>
+            <div>
+              <label className="block font-semibold text-slate-700 mb-1">Anak Ke- (anak_ke)</label>
+              <input
+                type="number"
+                min={1}
+                max={25}
+                value={anakKe}
+                onChange={(e) => setAnakKe(parseInt(e.target.value) || 1)}
+                className="w-full px-2.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:ring-2 focus:ring-sky-600 focus:bg-white"
+              />
+            </div>
+            <div>
+              <label className="block font-semibold text-slate-700 mb-1">Dari Bersaudara (dari_bersaudara)</label>
+              <input
+                type="number"
+                min={1}
+                max={25}
+                value={dariBersaudara}
+                onChange={(e) => setDariBersaudara(parseInt(e.target.value) || 1)}
+                className="w-full px-2.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:ring-2 focus:ring-sky-600 focus:bg-white"
               />
             </div>
           </div>

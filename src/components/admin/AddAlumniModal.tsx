@@ -32,6 +32,8 @@ export const AddAlumniModal: React.FC<AddAlumniModalProps> = ({
   const [nis, setNis] = useState('');
   const [name, setName] = useState('');
   const [gender, setGender] = useState<'L' | 'P'>('L');
+  const [anakKe, setAnakKe] = useState<number>(1);
+  const [dariBersaudara, setDariBersaudara] = useState<number>(1);
 
   // Form State - Step 2: Pendidikan Pondok
   const [gradYear, setGradYear] = useState('2024');
@@ -103,6 +105,10 @@ export const AddAlumniModal: React.FC<AddAlumniModalProps> = ({
       name: name.trim(),
       username: '',
       gender,
+      anak_ke: anakKe,
+      dari_bersaudara: dariBersaudara,
+      urutanAnak: anakKe,
+      jumlahSaudara: dariBersaudara,
       gradYear,
       entryYear,
       jenjang: jenjang.trim(),
@@ -280,6 +286,36 @@ export const AddAlumniModal: React.FC<AddAlumniModalProps> = ({
                         value={nis}
                         onChange={(e) => setNis(e.target.value)}
                         className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-mono text-xs text-slate-800 focus:ring-2 focus:ring-sky-600 focus:bg-white focus:outline-none"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                        Anak Ke- (anak_ke)
+                      </label>
+                      <input
+                        type="number"
+                        min={1}
+                        max={25}
+                        value={anakKe}
+                        onChange={(e) => setAnakKe(parseInt(e.target.value) || 1)}
+                        className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-sky-600 focus:bg-white focus:outline-none"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                        Dari Bersaudara (dari_bersaudara)
+                      </label>
+                      <input
+                        type="number"
+                        min={1}
+                        max={25}
+                        value={dariBersaudara}
+                        onChange={(e) => setDariBersaudara(parseInt(e.target.value) || 1)}
+                        className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-sky-600 focus:bg-white focus:outline-none"
                       />
                     </div>
                   </div>

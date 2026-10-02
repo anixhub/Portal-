@@ -13,7 +13,8 @@ import {
   AlertCircle,
   Clock,
   UserCheck,
-  Plus
+  Plus,
+  Trash2
 } from 'lucide-react';
 import { EventAgenda, AlumniRecord, AttendanceAttendee } from '../../types';
 
@@ -22,6 +23,10 @@ export interface AttendanceRecord {
   alumniId: string;
   alumniName: string;
   alumniNis: string;
+  desa?: string;
+  kecamatan?: string;
+  city?: string;
+  addressText?: string;
   gradYear: string;
   jenjang?: string;
   checkInTime: string;
@@ -93,6 +98,7 @@ export const EventAttendanceScannerModal: React.FC<EventAttendanceScannerModalPr
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [manualInputNis, setManualInputNis] = useState('');
   const [showManualModal, setShowManualModal] = useState(false);
+  const [attendeeToDelete, setAttendeeToDelete] = useState<{ id: string; name: string } | null>(null);
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -196,11 +202,21 @@ export const EventAttendanceScannerModal: React.FC<EventAttendanceScannerModalPr
       second: '2-digit',
     }) + ' WIB';
 
+    const cleanDesa = (alumni.desa || '').trim();
+    const cleanKec = (alumni.kecamatan || '').replace(/^kecamatan\s+/i, '').replace(/^kec\.\s*/i, '').trim();
+    const cleanKab = (alumni.city || '').replace(/^kabupaten\s+/i, '').replace(/^kab\.\s*/i, '').replace(/^kota\s+/i, '').trim();
+    const addressParts = [cleanDesa, cleanKec, cleanKab].filter(Boolean);
+    const addressText = addressParts.length > 0 ? addressParts.join(', ') : (alumni.alamatLengkap || alumni.province || 'Alamat belum diatur');
+
     const newRecord: AttendanceRecord = {
       id: 'att-' + Date.now(),
       alumniId: alumni.id,
       alumniName: alumni.name,
       alumniNis: alumni.nis,
+      desa: alumni.desa,
+      kecamatan: alumni.kecamatan,
+      city: alumni.city,
+      addressText,
       gradYear: alumni.gradYear,
       jenjang: alumni.jenjang,
       checkInTime: timeStr,
@@ -218,6 +234,10 @@ export const EventAttendanceScannerModal: React.FC<EventAttendanceScannerModalPr
       alumniId: alumni.id,
       alumniName: alumni.name,
       alumniNis: alumni.nis,
+      desa: alumni.desa,
+      kecamatan: alumni.kecamatan,
+      city: alumni.city,
+      addressText,
       gradYear: alumni.gradYear,
       jenjang: alumni.jenjang,
       checkInTime: timeStr,
@@ -356,7 +376,7 @@ export const EventAttendanceScannerModal: React.FC<EventAttendanceScannerModalPr
   );
 
   return (
-    <div className="fixed inset-0 z-[100050] bg-slate-950 flex flex-col overflow-hidden animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-[100060] bg-slate-950 flex flex-col overflow-hidden animate-in fade-in duration-200">
       {/* Toast Notification */}
       {toastMessage && (
         <div className="absolute top-16 left-1/2 -translate-x-1/2 z-[110] bg-slate-900/95 text-white text-xs font-semibold px-4 py-2 rounded-full shadow-2xl border border-white/20 backdrop-blur-md animate-in fade-in slide-in-from-top-2 flex items-center gap-2 whitespace-nowrap">
@@ -531,53 +551,76 @@ export const EventAttendanceScannerModal: React.FC<EventAttendanceScannerModalPr
               </p>
             </div>
           ) : (
-            filteredAttendees.map((att, idx) => (
-              <div
-                key={att.id}
-                className="p-3 rounded-2xl bg-slate-50/80 hover:bg-slate-100/80 border border-slate-200/70 flex items-center justify-between gap-3 transition-colors animate-in slide-in-from-top-2 duration-150"
-              >
-                <div className="flex items-center gap-3 min-w-0">
-                  <div className="w-10 h-10 rounded-xl overflow-hidden bg-sky-100 border border-slate-200 shrink-0 flex items-center justify-center font-bold text-xs text-sky-700">
-                    {att.photoUrl ? (
-                      <img src={att.photoUrl} alt="" className="w-full h-full object-cover" />
-                    ) : (
-                      <div
-                        className={`w-full h-full flex items-center justify-center text-white ${
-                          att.gender === 'P'
-                            ? 'bg-gradient-to-br from-rose-400 to-pink-500'
-                            : 'bg-gradient-to-br from-sky-500 to-blue-600'
-                        }`}
-                      >
-                        {att.alumniName.charAt(0)}
-                      </div>
-                    )}
-                  </div>
+            filteredAttendees.map((att) => {
+              const alm = alumniList.find(
+                (a) => a.id === att.alumniId || (a.nis && a.nis === att.alumniNis) || a.name.toLowerCase() === att.alumniName.toLowerCase()
+              );
+              const cleanDesa = (att.desa || alm?.desa || '').trim();
+              const cleanKec = (att.kecamatan || alm?.kecamatan || '').replace(/^kecamatan\s+/i, '').replace(/^kec\.\s*/i, '').trim();
+              const cleanKab = (att.city || alm?.city || '').replace(/^kabupaten\s+/i, '').replace(/^kab\.\s*/i, '').replace(/^kota\s+/i, '').trim();
+              const addressParts = [cleanDesa, cleanKec, cleanKab].filter(Boolean);
+              const addressText = addressParts.length > 0 ? addressParts.join(', ') : (alm?.province || att.addressText || 'Alamat belum diatur');
 
-                  <div className="min-w-0 flex-1">
-                    <h5 className="font-bold text-xs text-slate-900 truncate">
-                      {att.alumniName}
-                    </h5>
-                    <div className="flex items-center gap-1.5 text-[11px] text-slate-500 font-mono truncate mt-0.5">
-                      <span>NIS: {att.alumniNis}</span>
-                      <span>•</span>
-                      <span>Lulus {att.gradYear}</span>
+              return (
+                <div
+                  key={att.id}
+                  className="p-3 rounded-2xl bg-slate-50/80 hover:bg-slate-100/80 border border-slate-200/70 flex items-center justify-between gap-3 transition-colors animate-in slide-in-from-top-2 duration-150"
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-10 h-10 rounded-xl overflow-hidden bg-sky-100 border border-slate-200 shrink-0 flex items-center justify-center font-bold text-xs text-sky-700">
+                      {att.photoUrl || alm?.photoUrl ? (
+                        <img src={att.photoUrl || alm?.photoUrl} alt="" className="w-full h-full object-cover" />
+                      ) : (
+                        <div
+                          className={`w-full h-full flex items-center justify-center text-white ${
+                            (alm?.gender || att.gender) === 'P'
+                              ? 'bg-gradient-to-br from-rose-400 to-pink-500'
+                              : 'bg-gradient-to-br from-sky-500 to-blue-600'
+                          }`}
+                        >
+                          {att.alumniName.charAt(0)}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="min-w-0 flex-1">
+                      <h5 className="font-bold text-xs text-slate-900 truncate">
+                        {att.alumniName}
+                      </h5>
+                      <p className="text-xs text-slate-500 capitalize truncate mt-0.5">
+                        {addressText}
+                      </p>
                     </div>
                   </div>
-                </div>
 
-                <div className="text-right shrink-0 flex flex-col items-end gap-1">
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold text-[10px]">
-                    <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                    <span>Hadir</span>
-                  </span>
-                  <span className="text-[10px] text-slate-400 font-mono flex items-center gap-1">
-                    <Clock className="w-2.5 h-2.5" />
-                    <span>{att.checkInTime}</span>
-                  </span>
+                  <div className="text-right shrink-0 flex items-center gap-2">
+                  <div className="flex flex-col items-end gap-1">
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold text-[10px]">
+                      <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                      <span>Hadir</span>
+                    </span>
+                    <span className="text-[10px] text-slate-400 font-mono flex items-center gap-1">
+                      <Clock className="w-2.5 h-2.5" />
+                      <span>{att.checkInTime}</span>
+                    </span>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setAttendeeToDelete({ id: att.id, name: att.alumniName });
+                    }}
+                    className="w-7 h-7 rounded-lg text-slate-300 hover:text-rose-600 hover:bg-rose-50 flex items-center justify-center transition-colors cursor-pointer"
+                    title="Batalkan Kehadiran"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
                 </div>
               </div>
-            ))
-          )}
+            );
+          })
+        )}
         </div>
 
         {/* Tombol Cari Melayang di atas Tombol Selesai */}
@@ -669,7 +712,9 @@ export const EventAttendanceScannerModal: React.FC<EventAttendanceScannerModalPr
                       >
                         <div className="min-w-0 pr-2">
                           <p className="font-bold text-slate-900 truncate">{alm.name}</p>
-                          <p className="text-[10px] text-slate-400 font-mono">NIS: {alm.nis}</p>
+                          <p className="text-xs text-slate-500 capitalize truncate mt-0.5">
+                            {[alm.desa, alm.kecamatan, alm.city].filter(Boolean).join(', ') || alm.province || 'Alamat belum diatur'}
+                          </p>
                         </div>
                         <span className="text-[10px] font-bold text-sky-600 shrink-0">Pilih</span>
                       </button>
@@ -693,6 +738,56 @@ export const EventAttendanceScannerModal: React.FC<EventAttendanceScannerModalPr
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ================= MODAL KONFIRMASI HAPUS PRESENSI ================= */}
+      {attendeeToDelete && (
+        <div
+          className="fixed inset-0 z-[100080] bg-black/60 backdrop-blur-2xs flex items-center justify-center p-4 animate-in fade-in duration-150"
+          onClick={() => setAttendeeToDelete(null)}
+        >
+          <div
+            className="w-full max-w-xs bg-white rounded-3xl p-5 space-y-3.5 shadow-2xl text-center animate-in zoom-in-95 duration-150 border border-slate-100"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="w-12 h-12 rounded-full bg-rose-50 text-rose-600 flex items-center justify-center mx-auto">
+              <Trash2 className="w-6 h-6" />
+            </div>
+
+            <div>
+              <h4 className="font-bold text-sm text-slate-900 leading-tight">
+                Hapus Presensi?
+              </h4>
+              <p className="text-xs text-slate-500 mt-1.5 leading-relaxed">
+                Apakah Anda yakin ingin membatalkan dan menghapus status hadir untuk <strong className="text-slate-800">{attendeeToDelete.name}</strong>?
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2 pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setAttendeeToDelete(null)}
+                className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs transition-colors cursor-pointer"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const id = attendeeToDelete.id;
+                  const name = attendeeToDelete.name;
+                  setAttendees((prev) => prev.filter((a) => a.id !== id));
+                  onDeleteCustomAttendee?.(id);
+                  showToast(`Presensi ${name} berhasil dibatalkan`);
+                  setAttendeeToDelete(null);
+                }}
+                className="flex-1 py-2.5 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-xl text-xs transition-colors cursor-pointer shadow-md shadow-rose-600/20"
+              >
+                Hapus
+              </button>
+            </div>
           </div>
         </div>
       )}

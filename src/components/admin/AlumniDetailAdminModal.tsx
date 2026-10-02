@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   X, 
   ArrowLeft, 
@@ -47,9 +47,9 @@ export const AlumniDetailAdminModal: React.FC<AlumniDetailAdminModalProps> = ({
   const [editName, setEditName] = useState(alumni.name);
   const [editTempatLahir, setEditTempatLahir] = useState(alumni.tempatLahir || '');
   const [editTanggalLahir, setEditTanggalLahir] = useState(alumni.tanggalLahir || '');
-  const [editGender, setEditGender] = useState(alumni.gender || 'L');
-  const [editUrutanAnak, setEditUrutanAnak] = useState(alumni.urutanAnak ?? 1);
-  const [editJumlahSaudara, setEditJumlahSaudara] = useState(alumni.jumlahSaudara ?? 1);
+  const [editGender, setEditGender] = useState<'L' | 'P'>((alumni.gender as 'L' | 'P') || 'L');
+  const [editUrutanAnak, setEditUrutanAnak] = useState<number>(Number(alumni.anak_ke ?? alumni.urutanAnak) || 1);
+  const [editJumlahSaudara, setEditJumlahSaudara] = useState<number>(Number(alumni.dari_bersaudara ?? alumni.jumlahSaudara) || 1);
   const [editNik, setEditNik] = useState(alumni.nik || '');
   const [editNoKk, setEditNoKk] = useState(alumni.noKk || '');
   const [editPhone, setEditPhone] = useState(alumni.phone || '');
@@ -82,6 +82,42 @@ export const AlumniDetailAdminModal: React.FC<AlumniDetailAdminModalProps> = ({
   const [editNikIbu, setEditNikIbu] = useState(alumni.nikIbu || '');
   const [editPekerjaanIbu, setEditPekerjaanIbu] = useState(alumni.pekerjaanIbu || '');
   const [editPendidikanIbu, setEditPendidikanIbu] = useState(alumni.pendidikanIbu || '');
+
+  // Sinkronisasi state saat data alumni dari props berubah
+  useEffect(() => {
+    setEditPhotoUrl(alumni.photoUrl || '');
+    setEditName(alumni.name);
+    setEditTempatLahir(alumni.tempatLahir || '');
+    setEditTanggalLahir(alumni.tanggalLahir || '');
+    setEditGender((alumni.gender as 'L' | 'P') || 'L');
+    setEditUrutanAnak(Number(alumni.anak_ke ?? alumni.urutanAnak) || 1);
+    setEditJumlahSaudara(Number(alumni.dari_bersaudara ?? alumni.jumlahSaudara) || 1);
+    setEditNik(alumni.nik || '');
+    setEditNoKk(alumni.noKk || '');
+    setEditPhone(alumni.phone || '');
+    setEditEmail(alumni.email || '');
+    setEditOccupation(alumni.occupation || '');
+    setEditInstitution(alumni.institution || '');
+    setEditProvince(alumni.province || '');
+    setEditCity(alumni.city || '');
+    setEditKecamatan(alumni.kecamatan || '');
+    setEditDesa(alumni.desa || '');
+    setEditAlamatLengkap(alumni.alamatLengkap || '');
+    setEditCoordinates(alumni.coordinates || null);
+    setEditNis(alumni.nis || '');
+    setEditNism(alumni.nism || '');
+    setEditNisn(alumni.nisn || '');
+    setEditEntryDate(alumni.entryDate || '');
+    setEditGradDate(alumni.gradDate || '');
+    setEditNamaAyah(alumni.namaAyah || '');
+    setEditNikAyah(alumni.nikAyah || '');
+    setEditPekerjaanAyah(alumni.pekerjaanAyah || '');
+    setEditPendidikanAyah(alumni.pendidikanAyah || '');
+    setEditNamaIbu(alumni.namaIbu || '');
+    setEditNikIbu(alumni.nikIbu || '');
+    setEditPekerjaanIbu(alumni.pekerjaanIbu || '');
+    setEditPendidikanIbu(alumni.pendidikanIbu || '');
+  }, [alumni]);
 
   const photoFileInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -259,7 +295,12 @@ export const AlumniDetailAdminModal: React.FC<AlumniDetailAdminModalProps> = ({
                     <div className="min-w-0">
                       <p className="text-[11px] text-slate-400 font-medium leading-tight">Jenis Kelamin & Saudara</p>
                       <p className="text-sm font-semibold text-slate-800 truncate mt-0.5">
-                        {editGender === 'L' ? 'Laki-laki' : 'Perempuan'}, anak ke-{editUrutanAnak} dari {editJumlahSaudara} bersaudara
+                        {editGender === 'P' ? 'Perempuan' : 'Laki-laki'}
+                        {editUrutanAnak && editJumlahSaudara && editJumlahSaudara > 0
+                          ? `, anak ke-${editUrutanAnak} dari ${editJumlahSaudara} bersaudara`
+                          : editUrutanAnak
+                          ? `, anak ke-${editUrutanAnak}`
+                          : ''}
                       </p>
                     </div>
                   </div>
@@ -617,7 +658,7 @@ export const AlumniDetailAdminModal: React.FC<AlumniDetailAdminModalProps> = ({
             </div>
             <div className="space-y-3 text-xs">
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">Jenis Kelamin</label>
+                <label className="block font-semibold text-slate-700 mb-1">Jenis Kelamin (gender)</label>
                 <div className="grid grid-cols-2 gap-3">
                   <button
                     type="button"
@@ -641,28 +682,32 @@ export const AlumniDetailAdminModal: React.FC<AlumniDetailAdminModalProps> = ({
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Anak Ke-</label>
+                  <label className="block font-semibold text-slate-700 mb-1">Anak Ke- (anak_ke)</label>
                   <input
                     type="number"
+                    min={1}
+                    max={25}
                     value={editUrutanAnak}
-                    onChange={(e) => setEditUrutanAnak(Number(e.target.value))}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white text-xs"
+                    onChange={(e) => setEditUrutanAnak(Number(e.target.value) || 1)}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white text-xs font-semibold"
                   />
                 </div>
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Dari Jumlah Saudara</label>
+                  <label className="block font-semibold text-slate-700 mb-1">Dari Bersaudara (dari_bersaudara)</label>
                   <input
                     type="number"
+                    min={1}
+                    max={25}
                     value={editJumlahSaudara}
-                    onChange={(e) => setEditJumlahSaudara(Number(e.target.value))}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white text-xs"
+                    onChange={(e) => setEditJumlahSaudara(Number(e.target.value) || 1)}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white text-xs font-semibold"
                   />
                 </div>
               </div>
             </div>
             <div className="flex gap-2 pt-2">
               <button type="button" onClick={() => setActiveEditModal(null)} className="flex-1 py-2 rounded-xl border border-slate-200 text-slate-600 font-semibold text-xs cursor-pointer">Batal</button>
-              <button type="button" onClick={() => { handleUpdate({ gender: editGender, urutanAnak: editUrutanAnak, jumlahSaudara: editJumlahSaudara }); setActiveEditModal(null); }} className="flex-1 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs cursor-pointer">Simpan</button>
+              <button type="button" onClick={() => { handleUpdate({ gender: editGender, anak_ke: editUrutanAnak, dari_bersaudara: editJumlahSaudara, urutanAnak: editUrutanAnak, jumlahSaudara: editJumlahSaudara }); setActiveEditModal(null); }} className="flex-1 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs cursor-pointer">Simpan</button>
             </div>
           </div>
         </div>

@@ -45,9 +45,58 @@ import { EventCommentsModal } from './common/EventCommentsModal';
 import { EventAttendanceScannerModal } from './admin/EventAttendanceScannerModal';
 import { CreateAttendanceModal } from './admin/CreateAttendanceModal';
 import { FullAttendanceViewModal } from './admin/FullAttendanceViewModal';
+import { TimeWheelPickerBottomSheet } from './admin/TimeWheelPickerBottomSheet';
 import { INITIAL_EVENT_COMMENTS, INITIAL_ANNOUNCEMENTS } from '../data/mockData';
 import logoPonpesImg from '../assets/images/logo_ponpes_attaroqqy_1790648746461.jpg';
 import posterReuniImg from '../assets/images/poster_reuni_akbar_1790648045947.jpg';
+
+const indonesianMonthMap: Record<string, string> = {
+  januari: '01', februari: '02', maret: '03', april: '04',
+  mei: '05', juni: '06', juli: '07', agustus: '08',
+  september: '09', oktober: '10', november: '11', desember: '12'
+};
+
+const indonesianMonths = [
+  'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+  'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
+];
+
+const formatToIndonesianDate = (isoStr: string) => {
+  if (!isoStr) return '';
+  const [y, m, d] = isoStr.split('-');
+  if (!y || !m || !d) return isoStr;
+  const monthIdx = parseInt(m, 10) - 1;
+  const monthName = indonesianMonths[monthIdx] || m;
+  return `${parseInt(d, 10)} ${monthName} ${y}`;
+};
+
+const parseIndonesianDateToIso = (str: string): string => {
+  if (!str) return '';
+  if (/^\d{4}-\d{2}-\d{2}$/.test(str)) return str;
+  const parts = str.trim().split(/\s+/);
+  if (parts.length >= 3) {
+    const day = parts[0].padStart(2, '0');
+    const month = indonesianMonthMap[parts[1].toLowerCase()];
+    const year = parts[2];
+    if (day && month && year) {
+      return `${year}-${month}-${day}`;
+    }
+  }
+  return '';
+};
+
+const calculateAge = (birthDateStr?: string): number | null => {
+  if (!birthDateStr) return null;
+  const birth = new Date(birthDateStr);
+  if (isNaN(birth.getTime())) return null;
+  const today = new Date();
+  let age = today.getFullYear() - birth.getFullYear();
+  const m = today.getMonth() - birth.getMonth();
+  if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) {
+    age--;
+  }
+  return age >= 0 && age < 130 ? age : null;
+};
 
 interface AdminViewProps {
   admin: AdminUser;
@@ -458,6 +507,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
   const [editingEvent, setEditingEvent] = useState<EventAgenda | null>(null);
   const [eventTitle, setEventTitle] = useState('');
   const [eventDate, setEventDate] = useState('');
+  const eventDateInputRef = useRef<HTMLInputElement>(null);
   const [eventTime, setEventTime] = useState('08.00 - 15.00 WIB');
   const [isTimePickerSheetOpen, setIsTimePickerSheetOpen] = useState(false);
   const [startHour, setStartHour] = useState('08');
@@ -982,14 +1032,24 @@ export const AdminView: React.FC<AdminViewProps> = ({
             {/* Search & Filter Bar */}
             <div className="flex items-center gap-2">
               <div className="relative flex-1">
-                <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                 <input
                   type="text"
                   placeholder="Cari NIK, NIS, nama, atau domisili..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-9 pr-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-medium focus:ring-2 focus:ring-sky-600 focus:outline-none shadow-2xs"
+                  className="w-full pl-9 pr-9 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-medium focus:ring-2 focus:ring-sky-600 focus:outline-none shadow-2xs"
                 />
+                {searchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => setSearchQuery('')}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 cursor-pointer transition-colors"
+                    title="Hapus pencarian"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
               </div>
 
               <button
@@ -1067,6 +1127,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
                   : [item.desa, item.kecamatan, item.city].filter(Boolean).join(', ') || item.province || 'Alamat belum diisi';
 
                 const isItemActive = item.hasLoggedIn === true || item.isPasswordChanged === true;
+                const age = calculateAge(item.tanggalLahir);
 
                 return (
                   <div
@@ -1079,42 +1140,68 @@ export const AdminView: React.FC<AdminViewProps> = ({
                         <img
                           src={item.photoUrl}
                           alt={item.name}
-                          className="w-12 h-12 rounded-full object-cover border border-slate-100 ring-2 ring-slate-100 group-hover:ring-sky-200 transition-all"
+                          className={`w-12 h-12 rounded-full object-cover border-2 transition-all ${
+                            item.gender === 'P'
+                              ? 'border-pink-300 ring-2 ring-pink-100 group-hover:ring-pink-200'
+                              : 'border-sky-300 ring-2 ring-sky-100 group-hover:ring-sky-200'
+                          }`}
                         />
                       ) : (
                         <div
-                          className={`w-12 h-12 rounded-full flex items-center justify-center font-display font-bold text-base shadow-2xs border border-white ring-2 ring-slate-100 group-hover:ring-sky-200 transition-all ${
+                          className={`w-12 h-12 rounded-full flex items-center justify-center font-display font-bold text-base shadow-2xs border-2 transition-all ${
                             item.gender === 'P'
-                              ? 'bg-gradient-to-br from-rose-100 to-pink-200 text-rose-700'
-                              : 'bg-gradient-to-br from-sky-100 to-blue-200 text-sky-800'
+                              ? 'border-pink-300 ring-2 ring-pink-100 bg-pink-50 text-pink-600'
+                              : 'border-sky-300 ring-2 ring-sky-100 bg-sky-50 text-sky-700'
                           }`}
                         >
                           {item.name.charAt(0)}
                         </div>
                       )}
+
+                      {/* Lingkaran di sisi kiri bawah foto berupa umurnya saat ini */}
+                      {age !== null && (
+                        <span
+                          className={`absolute -bottom-1 -left-1 px-1 min-w-[18px] h-[18px] rounded-full text-white font-mono font-bold text-[9px] flex items-center justify-center border border-white shadow-xs z-10 ${
+                            item.gender === 'P' ? 'bg-pink-600' : 'bg-sky-700'
+                          }`}
+                          title={`Usia: ${age} tahun`}
+                        >
+                          {age}
+                        </span>
+                      )}
                     </div>
 
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-1.5">
-                        <h4 className="font-display font-bold text-sm text-slate-900 group-hover:text-sky-700 transition-colors truncate">
-                          {item.name}
-                        </h4>
-                        {isItemActive ? (
-                          <span className="text-[9px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded-full border border-emerald-200/80 shrink-0">
-                            Aktif
-                          </span>
-                        ) : (
-                          <span className="text-[9px] font-medium text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded-full border border-slate-200/80 shrink-0">
-                            Tidak Aktif
+                      <h4 className="font-display font-bold text-sm text-slate-900 group-hover:text-sky-700 transition-colors truncate">
+                        {item.name}
+                      </h4>
+                      <div className="flex items-center gap-1.5 mt-0.5 text-xs text-slate-500">
+                        {item.gradYear && (
+                          <span className="font-medium text-slate-600 shrink-0">
+                            Boyong {item.gradYear}
                           </span>
                         )}
+                        {item.gradYear && addressText && (
+                          <span className="text-slate-300">•</span>
+                        )}
+                        <p className="truncate capitalize text-slate-500">
+                          {addressText}
+                        </p>
                       </div>
-                      <p className="text-xs text-slate-500 capitalize truncate mt-0.5">
-                        {addressText}
-                      </p>
                     </div>
 
-                    <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-sky-500 group-hover:translate-x-0.5 transition-all shrink-0 ml-auto" />
+                    {/* Di sebelah kiri icon > : lingkaran hijau / lingkaran mati */}
+                    <div className="flex items-center gap-2 shrink-0 ml-auto">
+                      <span
+                        className={`w-2.5 h-2.5 rounded-full ${
+                          isItemActive
+                            ? 'bg-emerald-500 ring-2 ring-emerald-100 shadow-xs'
+                            : 'bg-slate-300 ring-1 ring-slate-200'
+                        }`}
+                        title={isItemActive ? 'Aktif' : 'Tidak Aktif'}
+                      />
+                      <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-sky-500 group-hover:translate-x-0.5 transition-all shrink-0" />
+                    </div>
                   </div>
                 );
               })}
@@ -1410,19 +1497,8 @@ export const AdminView: React.FC<AdminViewProps> = ({
         </div>
       )}
 
-      {/* ================= DOCKER / BOTTOM NAVIGATION (AGENDA, KELOLA ALUMNI, PENGUMUMAN, PROFIL ADMIN) ================= */}
+      {/* ================= DOCKER / BOTTOM NAVIGATION (KELOLA ALUMNI, AGENDA, PENGUMUMAN, PROFIL ADMIN) ================= */}
       <div className="bg-white border-t border-slate-200 px-4 py-2 flex items-center justify-around shrink-0 select-none z-30 shadow-xs">
-        <button
-          type="button"
-          onClick={() => setActiveTab('agenda')}
-          className={`flex flex-col items-center gap-1 py-1 px-3 rounded-xl transition-colors cursor-pointer ${
-            activeTab === 'agenda' ? 'text-[#0284c7] font-bold' : 'text-slate-500 hover:text-slate-800'
-          }`}
-        >
-          <Calendar className="w-5 h-5" />
-          <span className="text-[10px]">Agenda</span>
-        </button>
-
         <button
           type="button"
           onClick={() => setActiveTab('alumni')}
@@ -1432,6 +1508,17 @@ export const AdminView: React.FC<AdminViewProps> = ({
         >
           <Users className="w-5 h-5" />
           <span className="text-[10px]">Kelola Alumni</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab('agenda')}
+          className={`flex flex-col items-center gap-1 py-1 px-3 rounded-xl transition-colors cursor-pointer ${
+            activeTab === 'agenda' ? 'text-[#0284c7] font-bold' : 'text-slate-500 hover:text-slate-800'
+          }`}
+        >
+          <Calendar className="w-5 h-5" />
+          <span className="text-[10px]">Agenda</span>
         </button>
 
         <button
@@ -1751,26 +1838,39 @@ export const AdminView: React.FC<AdminViewProps> = ({
                     />
                   </div>
 
-                  <div className="py-2.5 flex items-center gap-3">
-                    <Calendar className="w-4 h-4 text-slate-400 shrink-0" />
+                  <div 
+                    onClick={() => eventDateInputRef.current?.showPicker?.() || eventDateInputRef.current?.focus()}
+                    className="py-2.5 flex items-center justify-between cursor-pointer group"
+                  >
+                    <div className="flex items-center gap-3 min-w-0 flex-1">
+                      <Calendar className="w-4 h-4 text-slate-400 group-hover:text-sky-600 transition-colors shrink-0" />
+                      <span className={`text-xs truncate ${eventDate ? 'font-semibold text-slate-800' : 'text-slate-400'}`}>
+                        {eventDate || 'Pilih tanggal kegiatan...'}
+                      </span>
+                    </div>
                     <input
-                      type="text"
-                      value={eventDate}
-                      onChange={(e) => setEventDate(e.target.value)}
-                      placeholder="Tanggal (contoh: 20 Oktober 2026)"
-                      className="w-full text-xs text-slate-800 placeholder-slate-400 focus:outline-none"
+                      ref={eventDateInputRef}
+                      type="date"
+                      className="sr-only"
+                      value={parseIndonesianDateToIso(eventDate)}
+                      onChange={(e) => {
+                        if (e.target.value) {
+                          setEventDate(formatToIndonesianDate(e.target.value));
+                        }
+                      }}
                     />
                   </div>
 
-                  <div className="py-2.5 flex items-center gap-3">
-                    <Clock className="w-4 h-4 text-slate-400 shrink-0" />
-                    <input
-                      type="text"
-                      value={eventTime}
-                      onChange={(e) => setEventTime(e.target.value)}
-                      placeholder="Waktu (contoh: 08.00 - 15.00 WIB)"
-                      className="w-full text-xs text-slate-800 placeholder-slate-400 focus:outline-none"
-                    />
+                  <div 
+                    onClick={() => setIsTimePickerSheetOpen(true)}
+                    className="py-2.5 flex items-center justify-between cursor-pointer group"
+                  >
+                    <div className="flex items-center gap-3 min-w-0 flex-1">
+                      <Clock className="w-4 h-4 text-slate-400 group-hover:text-sky-600 transition-colors shrink-0" />
+                      <span className={`text-xs truncate ${eventTime ? 'font-semibold text-slate-800' : 'text-slate-400'}`}>
+                        {eventTime || 'Pilih waktu kegiatan (jam menit)...'}
+                      </span>
+                    </div>
                   </div>
 
                   <div className="py-2.5 flex items-center gap-3">
@@ -1835,6 +1935,14 @@ export const AdminView: React.FC<AdminViewProps> = ({
           </div>
         </div>
       )}
+
+      {/* ================= BOTTOM SHEET WHEEL PICKER WAKTU ================= */}
+      <TimeWheelPickerBottomSheet
+        isOpen={isTimePickerSheetOpen}
+        value={eventTime}
+        onClose={() => setIsTimePickerSheetOpen(false)}
+        onSelect={(range) => setEventTime(range)}
+      />
 
       {/* ================= MODAL GANTI SANDI ADMIN (2 KOLOM: KATA SANDI BARU & KONFIRMASI) ================= */}
       {isPasswordModalOpen && (

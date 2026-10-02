@@ -40,15 +40,39 @@ export const CreateAttendanceModal: React.FC<CreateAttendanceModalProps> = ({
     }
   }, [initialEvent, isOpen]);
 
+  const indonesianMonthMap: Record<string, string> = {
+    januari: '01', februari: '02', maret: '03', april: '04',
+    mei: '05', juni: '06', juli: '07', agustus: '08',
+    september: '09', oktober: '10', november: '11', desember: '12'
+  };
+
+  const indonesianMonths = [
+    'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+    'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
+  ];
+
+  const parseIndonesianDateToIso = (str: string): string => {
+    if (!str) return '';
+    if (/^\d{4}-\d{2}-\d{2}$/.test(str)) return str;
+    const parts = str.trim().split(/\s+/);
+    if (parts.length >= 3) {
+      const day = parts[0].padStart(2, '0');
+      const month = indonesianMonthMap[parts[1].toLowerCase()];
+      const year = parts[2];
+      if (day && month && year) {
+        return `${year}-${month}-${day}`;
+      }
+    }
+    return '';
+  };
+
   const formatToIndonesianDate = (isoStr: string) => {
     if (!isoStr) return '';
-    const d = new Date(isoStr);
-    if (isNaN(d.getTime())) return isoStr;
-    const months = [
-      'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
-      'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
-    ];
-    return `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`;
+    const [y, m, d] = isoStr.split('-');
+    if (!y || !m || !d) return isoStr;
+    const monthIdx = parseInt(m, 10) - 1;
+    const monthName = indonesianMonths[monthIdx] || m;
+    return `${parseInt(d, 10)} ${monthName} ${y}`;
   };
 
   const handleSelectEvent = (ev: EventAgenda) => {
@@ -126,13 +150,41 @@ export const CreateAttendanceModal: React.FC<CreateAttendanceModalProps> = ({
             <label className="block font-semibold text-slate-700 mb-1">
               Tanggal
             </label>
-            <input
-              type="date"
-              required
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
-              className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-semibold text-slate-900 focus:ring-2 focus:ring-sky-600 focus:bg-white focus:outline-none transition-colors"
-            />
+            <div
+              onClick={() => dateInputRef.current?.showPicker?.() || dateInputRef.current?.focus()}
+              className="w-full px-3.5 py-2.5 bg-slate-50 hover:bg-slate-100/70 border border-slate-200 rounded-xl font-semibold text-slate-900 flex items-center justify-between cursor-pointer transition-colors group"
+            >
+              <span className={date ? 'text-slate-900 text-xs' : 'text-slate-400 font-normal text-xs'}>
+                {date ? date : 'Belum ditentukan (klik untuk pilih tanggal)'}
+              </span>
+              <div className="flex items-center gap-1.5 text-slate-400 group-hover:text-sky-600 transition-colors">
+                {date && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setDate('');
+                    }}
+                    className="w-5 h-5 rounded-full hover:bg-slate-200 flex items-center justify-center text-slate-400 hover:text-slate-700 transition-colors"
+                    title="Hapus tanggal"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                )}
+                <Calendar className="w-4 h-4 shrink-0" />
+              </div>
+              <input
+                ref={dateInputRef}
+                type="date"
+                className="sr-only"
+                value={parseIndonesianDateToIso(date)}
+                onChange={(e) => {
+                  if (e.target.value) {
+                    setDate(formatToIndonesianDate(e.target.value));
+                  }
+                }}
+              />
+            </div>
           </div>
 
           {/* Action Buttons */}

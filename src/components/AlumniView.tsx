@@ -83,6 +83,19 @@ import bgMenuMajmuahImg from '../assets/images/bg_menu_majmuah_1790822579673.jpg
 import bgMenuMaulidImg from '../assets/images/bg_menu_maulid_1790822594019.jpg';
 import bgMenuAurodImg from '../assets/images/bg_menu_aurod_1790822607881.jpg';
 
+const calculateAge = (birthDateStr?: string): number | null => {
+  if (!birthDateStr) return null;
+  const birth = new Date(birthDateStr);
+  if (isNaN(birth.getTime())) return null;
+  const today = new Date();
+  let age = today.getFullYear() - birth.getFullYear();
+  const m = today.getMonth() - birth.getMonth();
+  if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) {
+    age--;
+  }
+  return age >= 0 && age < 130 ? age : null;
+};
+
 interface AlumniViewProps {
   alumni: AlumniRecord;
   allAlumni: AlumniRecord[];
@@ -392,9 +405,9 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
   const [editName, setEditName] = useState(alumni.name);
   const [editTempatLahir, setEditTempatLahir] = useState(alumni.tempatLahir || '');
   const [editTanggalLahir, setEditTanggalLahir] = useState(alumni.tanggalLahir || '');
-  const [editGender, setEditGender] = useState<'L' | 'P'>(alumni.gender || 'L');
-  const [editUrutanAnak, setEditUrutanAnak] = useState<number>(alumni.urutanAnak ?? 1);
-  const [editJumlahSaudara, setEditJumlahSaudara] = useState<number>(alumni.jumlahSaudara ?? 1);
+  const [editGender, setEditGender] = useState<'L' | 'P'>((alumni.gender as 'L' | 'P') || 'L');
+  const [editUrutanAnak, setEditUrutanAnak] = useState<number>(Number(alumni.anak_ke ?? alumni.urutanAnak) || 1);
+  const [editJumlahSaudara, setEditJumlahSaudara] = useState<number>(Number(alumni.dari_bersaudara ?? alumni.jumlahSaudara) || 1);
   const [editUsername, setEditUsername] = useState(alumni.username || '');
   const [editPhone, setEditPhone] = useState(alumni.phone);
   const [editEmail, setEditEmail] = useState(alumni.email);
@@ -566,9 +579,9 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
     setEditName(alumni.name);
     setEditTempatLahir(alumni.tempatLahir || '');
     setEditTanggalLahir(alumni.tanggalLahir || '');
-    setEditGender(alumni.gender || 'L');
-    setEditUrutanAnak(alumni.urutanAnak ?? 1);
-    setEditJumlahSaudara(alumni.jumlahSaudara ?? 1);
+    setEditGender((alumni.gender as 'L' | 'P') || 'L');
+    setEditUrutanAnak(Number(alumni.anak_ke ?? alumni.urutanAnak) || 1);
+    setEditJumlahSaudara(Number(alumni.dari_bersaudara ?? alumni.jumlahSaudara) || 1);
     setEditUsername(alumni.username || '');
     setEditPhone(alumni.phone);
     setEditEmail(alumni.email);
@@ -1670,14 +1683,24 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
             {/* Search & Filter Button - NOT inside a container */}
             <div className="flex items-center gap-2">
               <div className="relative flex-1">
-                <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                 <input
                   type="text"
                   placeholder="Cari NIK, NIS, nama, atau domisili..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-9 pr-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-medium focus:ring-2 focus:ring-sky-600 focus:outline-none shadow-2xs"
+                  className="w-full pl-9 pr-9 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-medium focus:ring-2 focus:ring-sky-600 focus:outline-none shadow-2xs"
                 />
+                {searchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => setSearchQuery('')}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 cursor-pointer transition-colors"
+                    title="Hapus pencarian"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
               </div>
 
               {/* Tombol filter sejajar di samping kanan (dinonaktifkan jika tag lokasi aktif) */}
@@ -1777,6 +1800,7 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
                   ? [item.kecamatan, item.city].filter(Boolean).join(', ') || item.city || item.province || 'Alamat disembunyikan'
                   : [item.desa, item.kecamatan, item.city].filter(Boolean).join(', ') || item.province || 'Alamat belum diisi';
                 const distance = getAlumniDistance(item);
+                const age = calculateAge(item.tanggalLahir);
 
                 return (
                   <div
@@ -1790,18 +1814,34 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
                         <img
                           src={item.photoUrl}
                           alt={item.name}
-                          className="w-12 h-12 rounded-full object-cover border border-slate-100 ring-2 ring-slate-100 group-hover:ring-sky-200 transition-all"
+                          className={`w-12 h-12 rounded-full object-cover border-2 transition-all ${
+                            item.gender === 'P'
+                              ? 'border-pink-300 ring-2 ring-pink-100 group-hover:ring-pink-200'
+                              : 'border-sky-300 ring-2 ring-sky-100 group-hover:ring-sky-200'
+                          }`}
                         />
                       ) : (
                         <div
-                          className={`w-12 h-12 rounded-full flex items-center justify-center font-display font-bold text-base shadow-2xs border border-white ring-2 ring-slate-100 group-hover:ring-sky-200 transition-all ${
+                          className={`w-12 h-12 rounded-full flex items-center justify-center font-display font-bold text-base shadow-2xs border-2 transition-all ${
                             item.gender === 'P'
-                              ? 'bg-gradient-to-br from-rose-100 to-pink-200 text-rose-700'
-                              : 'bg-gradient-to-br from-sky-100 to-blue-200 text-sky-800'
+                              ? 'border-pink-300 ring-2 ring-pink-100 bg-pink-50 text-pink-600'
+                              : 'border-sky-300 ring-2 ring-sky-100 bg-sky-50 text-sky-700'
                           }`}
                         >
                           {item.name.charAt(0)}
                         </div>
+                      )}
+
+                      {/* Lingkaran umur di sisi kiri bawah foto */}
+                      {age !== null && (
+                        <span
+                          className={`absolute -bottom-1 -left-1 px-1 min-w-[18px] h-[18px] rounded-full text-white font-mono font-bold text-[9px] flex items-center justify-center border border-white shadow-xs z-10 ${
+                            item.gender === 'P' ? 'bg-pink-600' : 'bg-sky-700'
+                          }`}
+                          title={`Usia: ${age} tahun`}
+                        >
+                          {age}
+                        </span>
                       )}
                     </div>
 
@@ -1822,9 +1862,19 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
                           </span>
                         ) : null}
                       </div>
-                      <p className="text-xs text-slate-500 capitalize truncate mt-0.5">
-                        {addressText}
-                      </p>
+                      <div className="flex items-center gap-1.5 mt-0.5 text-xs text-slate-500">
+                        {item.gradYear && (
+                          <span className="font-medium text-slate-600 shrink-0">
+                            Boyong {item.gradYear}
+                          </span>
+                        )}
+                        {item.gradYear && addressText && (
+                          <span className="text-slate-300">•</span>
+                        )}
+                        <p className="truncate capitalize text-slate-500">
+                          {addressText}
+                        </p>
+                      </div>
                     </div>
 
                     {/* Chevron Panah Detail */}
@@ -2012,9 +2062,12 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
                       <div className="min-w-0">
                         <p className="text-[11px] text-slate-400 font-medium leading-tight">Gender & Saudara</p>
                         <p className="text-sm font-semibold text-slate-800 truncate mt-0.5">
-                          {editGender === 'L' ? 'Laki-laki' : 'Perempuan'}
-                          {editUrutanAnak ? `, anak ke-${editUrutanAnak}` : ''}
-                          {editJumlahSaudara ? ` dari ${editJumlahSaudara} bersaudara` : ''}
+                          {editGender === 'P' ? 'Perempuan' : 'Laki-laki'}
+                          {editUrutanAnak && editJumlahSaudara && editJumlahSaudara > 0
+                            ? `, anak ke-${editUrutanAnak} dari ${editJumlahSaudara} bersaudara`
+                            : editUrutanAnak
+                            ? `, anak ke-${editUrutanAnak}`
+                            : ''}
                         </p>
                       </div>
                     </div>
@@ -2566,7 +2619,7 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
                   </div>
                   <div className="space-y-3 text-xs">
                     <div>
-                      <label className="block font-semibold text-slate-700 mb-1">Jenis Kelamin</label>
+                      <label className="block font-semibold text-slate-700 mb-1">Jenis Kelamin (gender)</label>
                       <div className="grid grid-cols-2 gap-2">
                         <button
                           type="button"
@@ -2590,7 +2643,7 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
                     </div>
                     <div className="grid grid-cols-2 gap-2">
                       <div>
-                        <label className="block font-semibold text-slate-700 mb-1">Anak Ke-</label>
+                        <label className="block font-semibold text-slate-700 mb-1">Anak Ke- (anak_ke)</label>
                         <input
                           type="number"
                           min={1}
@@ -2601,7 +2654,7 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
                         />
                       </div>
                       <div>
-                        <label className="block font-semibold text-slate-700 mb-1">Jumlah Saudara</label>
+                        <label className="block font-semibold text-slate-700 mb-1">Dari Bersaudara (dari_bersaudara)</label>
                         <input
                           type="number"
                           min={1}
@@ -2615,7 +2668,7 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
                   </div>
                   <div className="flex gap-2 pt-2">
                     <button type="button" onClick={() => setActiveEditModal(null)} className="flex-1 py-2 rounded-xl border border-slate-200 text-slate-600 font-semibold text-xs cursor-pointer">Batal</button>
-                    <button type="button" onClick={() => { onUpdateProfile({ gender: editGender, urutanAnak: editUrutanAnak, jumlahSaudara: editJumlahSaudara }); setActiveEditModal(null); triggerToast('Status keluarga berhasil diperbarui'); }} className="flex-1 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs cursor-pointer">Simpan</button>
+                    <button type="button" onClick={() => { onUpdateProfile({ gender: editGender, anak_ke: editUrutanAnak, dari_bersaudara: editJumlahSaudara, urutanAnak: editUrutanAnak, jumlahSaudara: editJumlahSaudara }); setActiveEditModal(null); triggerToast('Status keluarga berhasil diperbarui'); }} className="flex-1 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs cursor-pointer">Simpan</button>
                   </div>
                 </div>
               </div>
