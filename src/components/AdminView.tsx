@@ -46,6 +46,8 @@ import { EventAttendanceScannerModal } from './admin/EventAttendanceScannerModal
 import { CreateAttendanceModal } from './admin/CreateAttendanceModal';
 import { FullAttendanceViewModal } from './admin/FullAttendanceViewModal';
 import { TimeWheelPickerBottomSheet } from './admin/TimeWheelPickerBottomSheet';
+import { DateWheelPicker } from './common/DateWheelPicker';
+import { CreateAnnouncementModal } from './common/CreateAnnouncementModal';
 import { INITIAL_EVENT_COMMENTS, INITIAL_ANNOUNCEMENTS } from '../data/mockData';
 import logoPonpesImg from '../assets/images/logo_ponpes_attaroqqy_1790648746461.jpg';
 import posterReuniImg from '../assets/images/poster_reuni_akbar_1790648045947.jpg';
@@ -507,7 +509,9 @@ export const AdminView: React.FC<AdminViewProps> = ({
   const [editingEvent, setEditingEvent] = useState<EventAgenda | null>(null);
   const [eventTitle, setEventTitle] = useState('');
   const [eventDate, setEventDate] = useState('');
-  const eventDateInputRef = useRef<HTMLInputElement>(null);
+  const [isDatePickerSheetOpen, setIsDatePickerSheetOpen] = useState(false);
+  const [tempDateIso, setTempDateIso] = useState('2026-10-20');
+  const [isAdminCreateAnnouncementOpen, setIsAdminCreateAnnouncementOpen] = useState(false);
   const [eventTime, setEventTime] = useState('08.00 - 15.00 WIB');
   const [isTimePickerSheetOpen, setIsTimePickerSheetOpen] = useState(false);
   const [startHour, setStartHour] = useState('08');
@@ -1236,6 +1240,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
             onUpdateAnnouncement={handleUpdateAnnouncement}
             onDeleteAnnouncement={handleDeleteAnnouncement}
             triggerToast={triggerToast}
+            onOpenCreateModal={() => setIsAdminCreateAnnouncementOpen(true)}
           />
         )}
 
@@ -1495,6 +1500,18 @@ export const AdminView: React.FC<AdminViewProps> = ({
             <UserPlus className="w-6 h-6 group-hover:scale-110 transition-transform duration-200" />
           </button>
         </div>
+      )}
+
+      {/* 3. Tombol Melayang Khusus Tab Pengumuman: Tambah Pengumuman Baru */}
+      {activeTab === 'pengumuman' && (
+        <button
+          type="button"
+          onClick={() => setIsAdminCreateAnnouncementOpen(true)}
+          className="fixed bottom-20 right-5 z-40 w-13 h-13 sm:w-14 sm:h-14 rounded-full bg-sky-600 hover:bg-sky-700 text-white shadow-2xl flex items-center justify-center cursor-pointer transition-all active:scale-95 group"
+          title="Buat Pengumuman Baru"
+        >
+          <Plus className="w-6 h-6 sm:w-7 sm:h-7 group-hover:rotate-90 transition-transform duration-200" />
+        </button>
       )}
 
       {/* ================= DOCKER / BOTTOM NAVIGATION (KELOLA ALUMNI, AGENDA, PENGUMUMAN, PROFIL ADMIN) ================= */}
@@ -1774,115 +1791,87 @@ export const AdminView: React.FC<AdminViewProps> = ({
             </button>
           </div>
 
-          {/* Form Body - Fokus Postingan */}
+          {/* Form Body - Halaman Buat Agenda Benar-benar Bersih (Nama Agenda di atas Keterangan) */}
           <div className="flex-1 overflow-y-auto">
-            <div className="max-w-lg mx-auto w-full pb-16">
-              {/* Media Preview Aspect 4:3 / 16:9 */}
-              <div className="relative w-full aspect-[4/3] sm:aspect-[16/9] bg-slate-900 overflow-hidden select-none">
-                <img
-                  src={eventPosterUrl || posterReuniImg}
-                  alt="Poster Agenda"
-                  className="w-full h-full object-cover"
-                />
-                <button
-                  type="button"
-                  onClick={() => posterFileInputRef.current?.click()}
-                  className="absolute bottom-3 right-3 px-3 py-1.5 rounded-full bg-black/60 hover:bg-black/80 backdrop-blur-md text-white text-xs font-semibold flex items-center gap-1.5 cursor-pointer shadow-md active:scale-95 transition-all"
-                >
-                  <Camera className="w-3.5 h-3.5 text-white" />
-                  <span>Ganti Gambar</span>
-                </button>
+            <div className="max-w-lg mx-auto w-full p-4 space-y-4 pb-20">
+              {/* 1. Kotak Nama Agenda (DI ATAS KOTAK KETERANGAN) */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                  Nama Agenda <span className="text-rose-500">*</span>
+                </label>
                 <input
-                  ref={posterFileInputRef}
-                  type="file"
-                  accept="image/*"
-                  onChange={handlePosterFileSelect}
-                  className="hidden"
+                  type="text"
+                  value={eventTitle}
+                  onChange={(e) => setEventTitle(e.target.value)}
+                  placeholder="Tulis nama agenda kegiatan..."
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:bg-white transition-all shadow-2xs"
                 />
               </div>
 
-              {/* Caption & Field Detail */}
-              <div className="p-4 space-y-4">
-                {/* Author Info */}
-                <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-full overflow-hidden bg-sky-100 border border-slate-200 shrink-0">
-                    <img src={logoPonpesImg} alt="Logo" className="w-full h-full object-cover" />
+              {/* 2. Kotak Keterangan (DI BAWAH KOTAK NAMA AGENDA) */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                  Keterangan Agenda
+                </label>
+                <textarea
+                  rows={5}
+                  value={eventDesc}
+                  onChange={(e) => setEventDesc(e.target.value)}
+                  placeholder="Tuliskan keterangan lengkap agenda kegiatan..."
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:bg-white resize-none leading-relaxed transition-all shadow-2xs"
+                />
+              </div>
+
+              {/* 3. Detail Waktu & Lokasi Kegiatan */}
+              <div className="divide-y divide-slate-100 border-t border-b border-slate-100 py-1">
+                {/* Tanggal Kegiatan */}
+                <div 
+                  onClick={() => {
+                    const curIso = parseIndonesianDateToIso(eventDate) || '2026-10-20';
+                    setTempDateIso(curIso);
+                    setIsDatePickerSheetOpen(true);
+                  }}
+                  className="py-3 flex items-center justify-between cursor-pointer group hover:bg-slate-50 px-2 rounded-xl transition-colors select-none"
+                >
+                  <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                    <Calendar className="w-4 h-4 text-slate-400 group-hover:text-sky-600 transition-colors shrink-0" />
+                    <span className="text-xs font-semibold text-slate-700">Tanggal</span>
                   </div>
-                  <div>
-                    <p className="text-xs font-bold text-slate-900 leading-tight">
-                      Pondok Pesantren At-taroqqy
-                    </p>
-                    <p className="text-[11px] text-slate-400">@attaroqqy_official</p>
+                  <div className="flex items-center gap-1.5">
+                    <span className={`text-xs ${eventDate ? 'font-bold text-sky-700' : 'text-slate-400'}`}>
+                      {eventDate || 'Pilih tanggal...'}
+                    </span>
+                    <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-slate-600 transition-all" />
                   </div>
                 </div>
 
-                {/* Caption Input */}
-                <textarea
-                  rows={4}
-                  value={eventDesc}
-                  onChange={(e) => setEventDesc(e.target.value)}
-                  placeholder="Tulis keterangan agenda..."
-                  className="w-full text-sm text-slate-800 placeholder-slate-400 focus:outline-none resize-none leading-relaxed"
-                />
-
-                {/* Clean Field Inputs */}
-                <div className="divide-y divide-slate-100 border-t border-b border-slate-100 py-1">
-                  <div className="py-2.5 flex items-center gap-3">
-                    <Tag className="w-4 h-4 text-slate-400 shrink-0" />
-                    <input
-                      type="text"
-                      value={eventTitle}
-                      onChange={(e) => setEventTitle(e.target.value)}
-                      placeholder="Nama agenda kegiatan..."
-                      className="w-full text-xs font-semibold text-slate-800 placeholder-slate-400 focus:outline-none"
-                    />
+                {/* Waktu Kegiatan */}
+                <div 
+                  onClick={() => setIsTimePickerSheetOpen(true)}
+                  className="py-3 flex items-center justify-between cursor-pointer group hover:bg-slate-50 px-2 rounded-xl transition-colors select-none"
+                >
+                  <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                    <Clock className="w-4 h-4 text-slate-400 group-hover:text-sky-600 transition-colors shrink-0" />
+                    <span className="text-xs font-semibold text-slate-700">Waktu</span>
                   </div>
-
-                  <div 
-                    onClick={() => eventDateInputRef.current?.showPicker?.() || eventDateInputRef.current?.focus()}
-                    className="py-2.5 flex items-center justify-between cursor-pointer group"
-                  >
-                    <div className="flex items-center gap-3 min-w-0 flex-1">
-                      <Calendar className="w-4 h-4 text-slate-400 group-hover:text-sky-600 transition-colors shrink-0" />
-                      <span className={`text-xs truncate ${eventDate ? 'font-semibold text-slate-800' : 'text-slate-400'}`}>
-                        {eventDate || 'Pilih tanggal kegiatan...'}
-                      </span>
-                    </div>
-                    <input
-                      ref={eventDateInputRef}
-                      type="date"
-                      className="sr-only"
-                      value={parseIndonesianDateToIso(eventDate)}
-                      onChange={(e) => {
-                        if (e.target.value) {
-                          setEventDate(formatToIndonesianDate(e.target.value));
-                        }
-                      }}
-                    />
+                  <div className="flex items-center gap-1.5">
+                    <span className={`text-xs ${eventTime ? 'font-bold text-sky-700' : 'text-slate-400'}`}>
+                      {eventTime || 'Pilih waktu...'}
+                    </span>
+                    <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-slate-600 transition-all" />
                   </div>
+                </div>
 
-                  <div 
-                    onClick={() => setIsTimePickerSheetOpen(true)}
-                    className="py-2.5 flex items-center justify-between cursor-pointer group"
-                  >
-                    <div className="flex items-center gap-3 min-w-0 flex-1">
-                      <Clock className="w-4 h-4 text-slate-400 group-hover:text-sky-600 transition-colors shrink-0" />
-                      <span className={`text-xs truncate ${eventTime ? 'font-semibold text-slate-800' : 'text-slate-400'}`}>
-                        {eventTime || 'Pilih waktu kegiatan (jam menit)...'}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="py-2.5 flex items-center gap-3">
-                    <MapPin className="w-4 h-4 text-slate-400 shrink-0" />
-                    <input
-                      type="text"
-                      value={eventLocation}
-                      onChange={(e) => setEventLocation(e.target.value)}
-                      placeholder="Lokasi kegiatan..."
-                      className="w-full text-xs text-slate-800 placeholder-slate-400 focus:outline-none"
-                    />
-                  </div>
+                {/* Lokasi Kegiatan */}
+                <div className="py-2.5 px-2 flex items-center gap-2.5">
+                  <MapPin className="w-4 h-4 text-slate-400 shrink-0" />
+                  <input
+                    type="text"
+                    value={eventLocation}
+                    onChange={(e) => setEventLocation(e.target.value)}
+                    placeholder="Tulis lokasi atau tempat kegiatan..."
+                    className="w-full text-xs font-semibold text-slate-800 placeholder-slate-400 focus:outline-none"
+                  />
                 </div>
               </div>
             </div>
@@ -1943,6 +1932,79 @@ export const AdminView: React.FC<AdminViewProps> = ({
         onClose={() => setIsTimePickerSheetOpen(false)}
         onSelect={(range) => setEventTime(range)}
       />
+
+      {/* ================= BOTTOM SHEET WHEEL PICKER TANGGAL ================= */}
+      {isDatePickerSheetOpen && (
+        <div 
+          className="fixed inset-0 z-[100060] bg-black/60 backdrop-blur-xs flex items-end justify-center animate-in fade-in duration-150 select-none"
+          onClick={() => setIsDatePickerSheetOpen(false)}
+        >
+          <div 
+            className="w-full max-w-none bg-white rounded-t-[32px] sm:rounded-t-[36px] p-5 sm:p-6 shadow-2xl flex flex-col gap-4 animate-in slide-in-from-bottom duration-200 border-t border-slate-100"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="w-12 h-1.5 bg-slate-300 rounded-full mx-auto" />
+            <div className="flex items-center justify-between pb-1">
+              <div>
+                <h3 className="font-bold text-base text-slate-900 leading-tight">
+                  Pilih Tanggal Kegiatan
+                </h3>
+                <p className="text-[11px] text-slate-400 mt-0.5">
+                  Atur hari, bulan, dan tahun pelaksanaan agenda
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsDatePickerSheetOpen(false)}
+                className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-500 cursor-pointer transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="py-2.5 px-4 bg-sky-50/90 rounded-2xl border border-sky-100 text-center shadow-2xs">
+              <span className="text-[11px] text-sky-600 font-bold uppercase tracking-wider block mb-0.5">
+                Tanggal Terpilih
+              </span>
+              <span className="font-bold text-lg text-sky-900">
+                {formatToIndonesianDate(tempDateIso || '2026-10-20')}
+              </span>
+            </div>
+
+            <div className="bg-slate-50 rounded-3xl border border-slate-200/90 p-3">
+              <DateWheelPicker
+                value={tempDateIso || '2026-10-20'}
+                onChange={(newVal) => setTempDateIso(newVal)}
+                minYear={2020}
+                maxYear={2035}
+              />
+            </div>
+
+            <div className="flex gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setIsDatePickerSheetOpen(false)}
+                className="flex-1 py-3 border border-slate-200 text-slate-600 font-semibold rounded-2xl text-xs cursor-pointer hover:bg-slate-50 transition-colors"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (tempDateIso) {
+                    setEventDate(formatToIndonesianDate(tempDateIso));
+                  }
+                  setIsDatePickerSheetOpen(false);
+                }}
+                className="flex-1 py-3 bg-sky-600 hover:bg-sky-700 active:scale-[0.99] text-white font-bold rounded-2xl text-xs cursor-pointer shadow-lg shadow-sky-600/25 transition-all flex items-center justify-center gap-1.5"
+              >
+                <Check className="w-4 h-4" />
+                <span>Terapkan Tanggal</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ================= MODAL GANTI SANDI ADMIN (2 KOLOM: KATA SANDI BARU & KONFIRMASI) ================= */}
       {isPasswordModalOpen && (
@@ -2422,6 +2484,19 @@ export const AdminView: React.FC<AdminViewProps> = ({
           onUpdateSessionAttendees={handleUpdateSessionAttendees}
         />
       )}
+      {/* ================= MODAL FULLSCREEN BUAT PENGUMUMAN OLEH ADMIN ================= */}
+      <CreateAnnouncementModal
+        isOpen={isAdminCreateAnnouncementOpen}
+        onClose={() => setIsAdminCreateAnnouncementOpen(false)}
+        onSubmit={handleAddAnnouncement}
+        triggerToast={triggerToast}
+        author={{
+          name: adminUser.name || 'Pondok Pesantren At-taroqqy',
+          username: adminUser.username || 'attaroqqy_official',
+          photoUrl: logoPonpesImg,
+          role: adminUser.jabatan || 'Pengurus Pondok',
+        }}
+      />
     </div>
   );
 };

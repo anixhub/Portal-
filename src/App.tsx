@@ -272,9 +272,11 @@ export default function App() {
           alumni={currentSession.alumniData}
           allAlumni={alumniList}
           events={events}
+          announcements={announcements}
           onLogout={handleLogout}
           onUpdateProfile={handleUpdateAlumniProfile}
           onRsvpEvent={handleRsvpEvent}
+          onAddAnnouncement={handleAddAnnouncement}
         />
       )}
 

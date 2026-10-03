@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useLayoutEffect } from 'react';
+import React, { useRef, useEffect, useState, useCallback } from 'react';
 
 interface DateWheelPickerProps {
   value: string; // Format: 'YYYY-MM-DD'
@@ -12,11 +12,15 @@ const BULAN_SINGKAT = [
   'JUL', 'AGU', 'SEP', 'OKT', 'NOV', 'DES'
 ];
 
+const ITEM_HEIGHT = 50; // px per baris
+// Container height = 150px (3 baris terlihat: atas 50px, tengah 50px, bawah 50px)
+const PADDING_SPACER = 50; // Spacer atas & bawah tepat 50px agar item pertama & terakhir pas di tengah (75px)
+
 export const DateWheelPicker: React.FC<DateWheelPickerProps> = ({
   value,
   onChange,
-  minYear = 1980,
-  maxYear = 2035,
+  minYear = 1970,
+  maxYear = 2050,
 }) => {
   // Parse date value
   let initialDate = new Date();
@@ -33,8 +37,8 @@ export const DateWheelPicker: React.FC<DateWheelPickerProps> = ({
   }
 
   const selectedYear = isNaN(initialDate.getFullYear()) ? 2026 : initialDate.getFullYear();
-  const selectedMonth = isNaN(initialDate.getMonth()) ? 5 : initialDate.getMonth(); // 0-indexed (5 = JUN)
-  const selectedDay = isNaN(initialDate.getDate()) ? 30 : initialDate.getDate();
+  const selectedMonth = isNaN(initialDate.getMonth()) ? 9 : initialDate.getMonth();
+  const selectedDay = isNaN(initialDate.getDate()) ? 20 : initialDate.getDate();
 
   // Days in month
   const daysInMonth = new Date(selectedYear, selectedMonth + 1, 0).getDate();
@@ -43,184 +47,284 @@ export const DateWheelPicker: React.FC<DateWheelPickerProps> = ({
   const days = Array.from({ length: daysInMonth }, (_, i) => i + 1);
   const years = Array.from({ length: maxYear - minYear + 1 }, (_, i) => minYear + i);
 
+  // Active highlighted items during scroll
+  const [activeDay, setActiveDay] = useState(validDay);
+  const [activeMonth, setActiveMonth] = useState(selectedMonth);
+  const [activeYear, setActiveYear] = useState(selectedYear);
+
   const dayRef = useRef<HTMLDivElement>(null);
   const monthRef = useRef<HTMLDivElement>(null);
   const yearRef = useRef<HTMLDivElement>(null);
 
-  const ITEM_HEIGHT = 50; // px
-  const PADDING_OFFSET = 50; // 3 visible rows: 1 above (50px), 1 center (50px), 1 below (50px)
+  const isUserScrollingRef = useRef<{ day: boolean; month: boolean; year: boolean }>({
+    day: false,
+    month: false,
+    year: false,
+  });
 
-  const updateDate = (newYear: number, newMonth: number, newDay: number) => {
-    const maxDays = new Date(newYear, newMonth + 1, 0).getDate();
-    const clampedDay = Math.min(newDay, maxDays);
-    const mm = String(newMonth + 1).padStart(2, '0');
-    const dd = String(clampedDay).padStart(2, '0');
-    onChange(`${newYear}-${mm}-${dd}`);
-  };
+  const scrollTimerRef = useRef<{ day?: any; month?: any; year?: any }>({});
 
-  // Sync scroll positions without flicker
-  useLayoutEffect(() => {
-    if (dayRef.current) {
-      dayRef.current.scrollTop = (validDay - 1) * ITEM_HEIGHT;
-    }
-    if (monthRef.current) {
-      monthRef.current.scrollTop = selectedMonth * ITEM_HEIGHT;
-    }
-    if (yearRef.current) {
-      const yearIndex = years.indexOf(selectedYear);
-      if (yearIndex >= 0) {
-        yearRef.current.scrollTop = yearIndex * ITEM_HEIGHT;
+  const updateDate = useCallback(
+    (newYear: number, newMonth: number, newDay: number) => {
+      const maxDays = new Date(newYear, newMonth + 1, 0).getDate();
+      const clampedDay = Math.max(1, Math.min(newDay, maxDays));
+      const mm = String(newMonth + 1).padStart(2, '0');
+      const dd = String(clampedDay).padStart(2, '0');
+      onChange(`${newYear}-${mm}-${dd}`);
+    },
+    [onChange]
+  );
+
+  // Sync scroll position whenever value changes externally
+  useEffect(() => {
+    setActiveDay(validDay);
+    if (dayRef.current && !isUserScrollingRef.current.day) {
+      const targetScroll = (validDay - 1) * ITEM_HEIGHT;
+      if (Math.abs(dayRef.current.scrollTop - targetScroll) > 2) {
+        dayRef.current.scrollTop = targetScroll;
       }
     }
-  }, []);
+  }, [validDay]);
 
   useEffect(() => {
-    if (dayRef.current) {
-      dayRef.current.scrollTop = (validDay - 1) * ITEM_HEIGHT;
+    setActiveMonth(selectedMonth);
+    if (monthRef.current && !isUserScrollingRef.current.month) {
+      const targetScroll = selectedMonth * ITEM_HEIGHT;
+      if (Math.abs(monthRef.current.scrollTop - targetScroll) > 2) {
+        monthRef.current.scrollTop = targetScroll;
+      }
     }
-    if (monthRef.current) {
-      monthRef.current.scrollTop = selectedMonth * ITEM_HEIGHT;
-    }
-    if (yearRef.current) {
+  }, [selectedMonth]);
+
+  useEffect(() => {
+    setActiveYear(selectedYear);
+    if (yearRef.current && !isUserScrollingRef.current.year) {
       const yearIndex = years.indexOf(selectedYear);
       if (yearIndex >= 0) {
-        yearRef.current.scrollTop = yearIndex * ITEM_HEIGHT;
+        const targetScroll = yearIndex * ITEM_HEIGHT;
+        if (Math.abs(yearRef.current.scrollTop - targetScroll) > 2) {
+          yearRef.current.scrollTop = targetScroll;
+        }
       }
     }
-  }, [selectedYear, selectedMonth, validDay, years]);
+  }, [selectedYear, years]);
 
-  // Handle scroll snap selection
-  const handleScrollEnd = (
-    ref: React.RefObject<HTMLDivElement | null>,
-    type: 'day' | 'month' | 'year'
-  ) => {
-    if (!ref.current) return;
-    const scrollTop = ref.current.scrollTop;
-    const index = Math.round(scrollTop / ITEM_HEIGHT);
+  const handleScroll = (type: 'day' | 'month' | 'year', container: HTMLDivElement | null) => {
+    if (!container) return;
+    isUserScrollingRef.current[type] = true;
 
+    const scrollTop = container.scrollTop;
+    const snapIdx = Math.round(scrollTop / ITEM_HEIGHT);
+
+    // Update real-time visually highlighted item while scrolling
     if (type === 'day') {
-      const newDay = Math.max(1, Math.min(daysInMonth, index + 1));
-      if (newDay !== validDay) {
-        updateDate(selectedYear, selectedMonth, newDay);
-      }
+      const d = Math.max(1, Math.min(daysInMonth, snapIdx + 1));
+      setActiveDay(d);
     } else if (type === 'month') {
-      const newMonth = Math.max(0, Math.min(11, index));
-      if (newMonth !== selectedMonth) {
-        updateDate(selectedYear, newMonth, validDay);
-      }
+      const m = Math.max(0, Math.min(11, snapIdx));
+      setActiveMonth(m);
     } else if (type === 'year') {
-      const newYear = years[Math.max(0, Math.min(years.length - 1, index))];
-      if (newYear && newYear !== selectedYear) {
-        updateDate(newYear, selectedMonth, validDay);
+      const yIdx = Math.max(0, Math.min(years.length - 1, snapIdx));
+      if (years[yIdx]) {
+        setActiveYear(years[yIdx]);
+      }
+    }
+
+    if (scrollTimerRef.current[type]) {
+      clearTimeout(scrollTimerRef.current[type]);
+    }
+
+    // Scroll end debouncer: ensures the element lands EXACTLY at snapIdx * ITEM_HEIGHT
+    scrollTimerRef.current[type] = setTimeout(() => {
+      if (!container) return;
+
+      const currentScrollTop = container.scrollTop;
+      const targetIdx = Math.round(currentScrollTop / ITEM_HEIGHT);
+
+      if (type === 'day') {
+        const clampedDay = Math.max(1, Math.min(daysInMonth, targetIdx + 1));
+        const finalScroll = (clampedDay - 1) * ITEM_HEIGHT;
+        container.scrollTo({ top: finalScroll, behavior: 'smooth' });
+        setActiveDay(clampedDay);
+        updateDate(selectedYear, selectedMonth, clampedDay);
+      } else if (type === 'month') {
+        const clampedMonth = Math.max(0, Math.min(11, targetIdx));
+        const finalScroll = clampedMonth * ITEM_HEIGHT;
+        container.scrollTo({ top: finalScroll, behavior: 'smooth' });
+        setActiveMonth(clampedMonth);
+        updateDate(selectedYear, clampedMonth, validDay);
+      } else if (type === 'year') {
+        const clampedYearIdx = Math.max(0, Math.min(years.length - 1, targetIdx));
+        const finalScroll = clampedYearIdx * ITEM_HEIGHT;
+        const newYear = years[clampedYearIdx];
+        container.scrollTo({ top: finalScroll, behavior: 'smooth' });
+        if (newYear) {
+          setActiveYear(newYear);
+          updateDate(newYear, selectedMonth, validDay);
+        }
+      }
+
+      // Re-enable external sync after snap has completed
+      setTimeout(() => {
+        isUserScrollingRef.current[type] = false;
+      }, 100);
+    }, 100);
+  };
+
+  const handleItemClick = (type: 'day' | 'month' | 'year', val: number) => {
+    if (type === 'day') {
+      setActiveDay(val);
+      updateDate(selectedYear, selectedMonth, val);
+      dayRef.current?.scrollTo({ top: (val - 1) * ITEM_HEIGHT, behavior: 'smooth' });
+    } else if (type === 'month') {
+      setActiveMonth(val);
+      updateDate(selectedYear, val, validDay);
+      monthRef.current?.scrollTo({ top: val * ITEM_HEIGHT, behavior: 'smooth' });
+    } else if (type === 'year') {
+      setActiveYear(val);
+      updateDate(val, selectedMonth, validDay);
+      const idx = years.indexOf(val);
+      if (idx !== -1) {
+        yearRef.current?.scrollTo({ top: idx * ITEM_HEIGHT, behavior: 'smooth' });
       }
     }
   };
 
   return (
     <div className="w-full relative select-none max-w-xs mx-auto py-1">
-      {/* 3-Column Wheel Container persis seperti di screenshot */}
+      {/* 3-Column Wheel Container (Tinggi 150px = 3 baris item) */}
       <div className="relative h-[150px] flex items-stretch justify-center gap-2 sm:gap-4 overflow-hidden px-2">
-        {/* Subtle center selector divider lines */}
-        <div className="absolute inset-x-2 top-[50px] h-[50px] border-y border-slate-100/90 pointer-events-none z-10" />
+        {/* Garis batas seleksi tengah (50px persis di tengah) */}
+        <div 
+          className="absolute inset-x-2 top-[50px] h-[50px] border-y-2 border-sky-300 bg-sky-100/30 pointer-events-none z-10 rounded-xl shadow-xs" 
+          aria-hidden="true"
+        />
 
-        {/* Soft top & bottom gradient fades */}
-        <div className="absolute inset-x-0 top-0 h-10 bg-gradient-to-b from-white via-white/80 to-transparent pointer-events-none z-20" />
-        <div className="absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-white via-white/80 to-transparent pointer-events-none z-20" />
+        {/* Gradien fade atas & bawah agar estetik ala iOS picker */}
+        <div 
+          className="absolute inset-x-0 top-0 h-11 bg-gradient-to-b from-white via-white/80 to-transparent pointer-events-none z-20" 
+          aria-hidden="true" 
+        />
+        <div 
+          className="absolute inset-x-0 bottom-0 h-11 bg-gradient-to-t from-white via-white/80 to-transparent pointer-events-none z-20" 
+          aria-hidden="true" 
+        />
 
-        {/* 1. COLUMN: TANGGAL (01 - 31) */}
+        {/* 1. KOLOM TANGGAL (01 - 31) */}
         <div className="w-20 h-full relative z-10">
           <div
             ref={dayRef}
-            onTouchEnd={() => setTimeout(() => handleScrollEnd(dayRef, 'day'), 80)}
-            onMouseUp={() => setTimeout(() => handleScrollEnd(dayRef, 'day'), 80)}
-            onWheel={() => setTimeout(() => handleScrollEnd(dayRef, 'day'), 120)}
-            className="w-full h-full overflow-y-auto no-scrollbar snap-y snap-mandatory text-center"
+            onScroll={() => handleScroll('day', dayRef.current)}
+            className="w-full h-full overflow-y-auto no-scrollbar snap-y snap-mandatory text-center touch-pan-y"
             style={{
-              paddingTop: `${PADDING_OFFSET}px`,
-              paddingBottom: `${PADDING_OFFSET}px`,
+              overscrollBehavior: 'contain',
+              scrollSnapType: 'y mandatory',
             }}
           >
+            {/* Top Spacer persis 50px agar item pertama mendarat di tengah */}
+            <div style={{ height: `${PADDING_SPACER}px` }} className="shrink-0 pointer-events-none" aria-hidden="true" />
             {days.map((d) => {
-              const isSelected = d === validDay;
+              const isSelected = d === activeDay;
               const formatted = String(d).padStart(2, '0');
               return (
                 <div
                   key={d}
-                  onClick={() => updateDate(selectedYear, selectedMonth, d)}
-                  className={`h-[50px] flex items-center justify-center snap-center cursor-pointer transition-all duration-150 ${
+                  onClick={() => handleItemClick('day', d)}
+                  style={{
+                    height: `${ITEM_HEIGHT}px`,
+                    scrollSnapAlign: 'center',
+                    scrollSnapStop: 'normal',
+                  }}
+                  className={`flex items-center justify-center cursor-pointer transition-all duration-100 select-none ${
                     isSelected
-                      ? 'text-slate-900 font-bold text-2xl scale-105'
-                      : 'text-slate-300 font-medium text-xl hover:text-slate-400'
+                      ? 'text-sky-900 font-black text-2xl scale-110 drop-shadow-xs'
+                      : 'text-slate-400 font-medium text-base hover:text-slate-600 opacity-60'
                   }`}
                 >
                   {formatted}
                 </div>
               );
             })}
+            {/* Bottom Spacer persis 50px agar item terakhir mendarat di tengah */}
+            <div style={{ height: `${PADDING_SPACER}px` }} className="shrink-0 pointer-events-none" aria-hidden="true" />
           </div>
         </div>
 
-        {/* 2. COLUMN: BULAN (JAN - DES) */}
+        {/* 2. KOLOM BULAN (JAN - DES) */}
         <div className="w-24 h-full relative z-10">
           <div
             ref={monthRef}
-            onTouchEnd={() => setTimeout(() => handleScrollEnd(monthRef, 'month'), 80)}
-            onMouseUp={() => setTimeout(() => handleScrollEnd(monthRef, 'month'), 80)}
-            onWheel={() => setTimeout(() => handleScrollEnd(monthRef, 'month'), 120)}
-            className="w-full h-full overflow-y-auto no-scrollbar snap-y snap-mandatory text-center"
+            onScroll={() => handleScroll('month', monthRef.current)}
+            className="w-full h-full overflow-y-auto no-scrollbar snap-y snap-mandatory text-center touch-pan-y"
             style={{
-              paddingTop: `${PADDING_OFFSET}px`,
-              paddingBottom: `${PADDING_OFFSET}px`,
+              overscrollBehavior: 'contain',
+              scrollSnapType: 'y mandatory',
             }}
           >
+            {/* Top Spacer */}
+            <div style={{ height: `${PADDING_SPACER}px` }} className="shrink-0 pointer-events-none" aria-hidden="true" />
             {BULAN_SINGKAT.map((m, idx) => {
-              const isSelected = idx === selectedMonth;
+              const isSelected = idx === activeMonth;
               return (
                 <div
                   key={m}
-                  onClick={() => updateDate(selectedYear, idx, validDay)}
-                  className={`h-[50px] flex items-center justify-center snap-center cursor-pointer transition-all duration-150 ${
+                  onClick={() => handleItemClick('month', idx)}
+                  style={{
+                    height: `${ITEM_HEIGHT}px`,
+                    scrollSnapAlign: 'center',
+                    scrollSnapStop: 'normal',
+                  }}
+                  className={`flex items-center justify-center cursor-pointer transition-all duration-100 select-none ${
                     isSelected
-                      ? 'text-slate-900 font-bold text-2xl scale-105'
-                      : 'text-slate-300 font-medium text-xl hover:text-slate-400'
+                      ? 'text-sky-900 font-black text-2xl scale-110 drop-shadow-xs'
+                      : 'text-slate-400 font-medium text-base hover:text-slate-600 opacity-60'
                   }`}
                 >
                   {m}
                 </div>
               );
             })}
+            {/* Bottom Spacer */}
+            <div style={{ height: `${PADDING_SPACER}px` }} className="shrink-0 pointer-events-none" aria-hidden="true" />
           </div>
         </div>
 
-        {/* 3. COLUMN: TAHUN (e.g. 2026) */}
+        {/* 3. KOLOM TAHUN (e.g. 1970 - 2050 / 2020 - 2035) */}
         <div className="w-24 h-full relative z-10">
           <div
             ref={yearRef}
-            onTouchEnd={() => setTimeout(() => handleScrollEnd(yearRef, 'year'), 80)}
-            onMouseUp={() => setTimeout(() => handleScrollEnd(yearRef, 'year'), 80)}
-            onWheel={() => setTimeout(() => handleScrollEnd(yearRef, 'year'), 120)}
-            className="w-full h-full overflow-y-auto no-scrollbar snap-y snap-mandatory text-center"
+            onScroll={() => handleScroll('year', yearRef.current)}
+            className="w-full h-full overflow-y-auto no-scrollbar snap-y snap-mandatory text-center touch-pan-y"
             style={{
-              paddingTop: `${PADDING_OFFSET}px`,
-              paddingBottom: `${PADDING_OFFSET}px`,
+              overscrollBehavior: 'contain',
+              scrollSnapType: 'y mandatory',
             }}
           >
+            {/* Top Spacer */}
+            <div style={{ height: `${PADDING_SPACER}px` }} className="shrink-0 pointer-events-none" aria-hidden="true" />
             {years.map((y) => {
-              const isSelected = y === selectedYear;
+              const isSelected = y === activeYear;
               return (
                 <div
                   key={y}
-                  onClick={() => updateDate(y, selectedMonth, validDay)}
-                  className={`h-[50px] flex items-center justify-center snap-center cursor-pointer transition-all duration-150 ${
+                  onClick={() => handleItemClick('year', y)}
+                  style={{
+                    height: `${ITEM_HEIGHT}px`,
+                    scrollSnapAlign: 'center',
+                    scrollSnapStop: 'normal',
+                  }}
+                  className={`flex items-center justify-center cursor-pointer transition-all duration-100 select-none ${
                     isSelected
-                      ? 'text-slate-900 font-bold text-2xl scale-105'
-                      : 'text-slate-300 font-medium text-xl hover:text-slate-400'
+                      ? 'text-sky-900 font-black text-2xl scale-110 drop-shadow-xs'
+                      : 'text-slate-400 font-medium text-base hover:text-slate-600 opacity-60'
                   }`}
                 >
                   {y}
                 </div>
               );
             })}
+            {/* Bottom Spacer */}
+            <div style={{ height: `${PADDING_SPACER}px` }} className="shrink-0 pointer-events-none" aria-hidden="true" />
           </div>
         </div>
       </div>

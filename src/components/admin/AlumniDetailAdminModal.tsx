@@ -688,7 +688,13 @@ export const AlumniDetailAdminModal: React.FC<AlumniDetailAdminModalProps> = ({
                     min={1}
                     max={25}
                     value={editUrutanAnak}
-                    onChange={(e) => setEditUrutanAnak(Number(e.target.value) || 1)}
+                    onChange={(e) => {
+                      const val = Math.max(1, Number(e.target.value) || 1);
+                      setEditUrutanAnak(val);
+                      if (val > editJumlahSaudara) {
+                        setEditJumlahSaudara(val);
+                      }
+                    }}
                     className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white text-xs font-semibold"
                   />
                 </div>
@@ -696,18 +702,45 @@ export const AlumniDetailAdminModal: React.FC<AlumniDetailAdminModalProps> = ({
                   <label className="block font-semibold text-slate-700 mb-1">Dari Bersaudara (dari_bersaudara)</label>
                   <input
                     type="number"
-                    min={1}
+                    min={editUrutanAnak}
                     max={25}
                     value={editJumlahSaudara}
-                    onChange={(e) => setEditJumlahSaudara(Number(e.target.value) || 1)}
+                    onChange={(e) => {
+                      const val = Math.max(1, Number(e.target.value) || 1);
+                      setEditJumlahSaudara(Math.max(val, editUrutanAnak));
+                    }}
                     className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white text-xs font-semibold"
                   />
                 </div>
               </div>
+              {editUrutanAnak > editJumlahSaudara && (
+                <p className="text-[11px] text-rose-500 font-medium">
+                  * Jumlah bersaudara tidak boleh lebih kecil dari anak ke-{editUrutanAnak}
+                </p>
+              )}
             </div>
             <div className="flex gap-2 pt-2">
               <button type="button" onClick={() => setActiveEditModal(null)} className="flex-1 py-2 rounded-xl border border-slate-200 text-slate-600 font-semibold text-xs cursor-pointer">Batal</button>
-              <button type="button" onClick={() => { handleUpdate({ gender: editGender, anak_ke: editUrutanAnak, dari_bersaudara: editJumlahSaudara, urutanAnak: editUrutanAnak, jumlahSaudara: editJumlahSaudara }); setActiveEditModal(null); }} className="flex-1 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs cursor-pointer">Simpan</button>
+              <button 
+                type="button" 
+                onClick={() => { 
+                  const finalAnak = Math.max(1, editUrutanAnak);
+                  const finalSaudara = Math.max(finalAnak, editJumlahSaudara);
+                  setEditUrutanAnak(finalAnak);
+                  setEditJumlahSaudara(finalSaudara);
+                  handleUpdate({ 
+                    gender: editGender, 
+                    anak_ke: finalAnak, 
+                    dari_bersaudara: finalSaudara, 
+                    urutanAnak: finalAnak, 
+                    jumlahSaudara: finalSaudara 
+                  }); 
+                  setActiveEditModal(null); 
+                }} 
+                className="flex-1 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs cursor-pointer"
+              >
+                Simpan
+              </button>
             </div>
           </div>
         </div>

@@ -81,6 +81,7 @@ export interface EventAgenda {
   userRsvp?: 'hadir' | 'belum_pasti' | 'tidak_hadir';
   rsvpNote?: string;
   posterUrl?: string;
+  images?: string[];
   authorName?: string;
   authorHandle?: string;
   authorAvatar?: string;
@@ -98,6 +99,7 @@ export interface AnnouncementItem {
   authorAvatar?: string;
   authorRole: string;
   isImportant?: boolean;
+  images?: string[];
 }
 
 export interface AttendanceAttendee {

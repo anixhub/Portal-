@@ -54,6 +54,7 @@ export async function fetchAlumniFromHostinger(): Promise<{
         const isPutri = 
           rawGender === 'p' ||
           rawGender === 'f' ||
+          rawGender === '2' ||
           rawGender.startsWith('perem') ||
           rawGender.startsWith('putri') ||
           rawGender === 'wanita' ||
@@ -69,11 +70,11 @@ export async function fetchAlumniFromHostinger(): Promise<{
           item.urutanAnak ??
           item.urutan_anak ??
           item.urutan ??
-          item.anak;
-        const anak_ke = rawAnakKe !== undefined && rawAnakKe !== null && rawAnakKe !== '' && !isNaN(Number(rawAnakKe))
-          ? Number(rawAnakKe)
-          : (rawAnakKe !== undefined && rawAnakKe !== null ? rawAnakKe : undefined);
-        const urutanAnak = typeof anak_ke === 'number' ? anak_ke : Number(anak_ke) || undefined;
+          item.anak ??
+          item.anak_ke_berapa;
+        const parsedAnakKe = parseInt(String(rawAnakKe !== undefined && rawAnakKe !== null ? rawAnakKe : '').replace(/[^0-9]/g, ''), 10);
+        const urutanAnak = !isNaN(parsedAnakKe) && parsedAnakKe > 0 ? parsedAnakKe : 1;
+        const anak_ke = urutanAnak;
 
         // Dari bersaudara (database field: dari_bersaudara)
         const rawDariBersaudara = 
@@ -89,11 +90,14 @@ export async function fetchAlumniFromHostinger(): Promise<{
           item.saudara_kandung ??
           item.jumlah_saudara_kandung ??
           item.total_saudara ??
-          item.saudara_total;
-        const dari_bersaudara = rawDariBersaudara !== undefined && rawDariBersaudara !== null && rawDariBersaudara !== '' && !isNaN(Number(rawDariBersaudara))
-          ? Number(rawDariBersaudara)
-          : (rawDariBersaudara !== undefined && rawDariBersaudara !== null ? rawDariBersaudara : undefined);
-        const jumlahSaudara = typeof dari_bersaudara === 'number' ? dari_bersaudara : Number(dari_bersaudara) || undefined;
+          item.saudara_total ??
+          item.banyak_saudara;
+        const parsedSaudara = parseInt(String(rawDariBersaudara !== undefined && rawDariBersaudara !== null ? rawDariBersaudara : '').replace(/[^0-9]/g, ''), 10);
+        let jumlahSaudara = !isNaN(parsedSaudara) && parsedSaudara > 0 ? parsedSaudara : Math.max(urutanAnak, 1);
+        if (jumlahSaudara < urutanAnak) {
+          jumlahSaudara = urutanAnak;
+        }
+        const dari_bersaudara = jumlahSaudara;
 
         // Tempat & Tanggal Lahir
         const tempatLahir = item.tempatLahir || item.tempat_lahir || item.tmp_lahir || item.tmplahir || item.kota_lahir || '';
@@ -217,17 +221,28 @@ export async function updateAlumniInHostinger(
       id,
       ...updates,
       // Pastikan field gender, anak_ke, dan dari_bersaudara terisi sesuai format database
-      ...(updates.gender !== undefined ? { gender: updates.gender } : {}),
+      ...(updates.gender !== undefined
+        ? {
+            gender: updates.gender,
+            jenis_kelamin: updates.gender === 'P' ? 'Perempuan' : 'Laki-laki',
+            jenisKelamin: updates.gender,
+            jk: updates.gender,
+          }
+        : {}),
       ...(updates.anak_ke !== undefined || updates.urutanAnak !== undefined
         ? {
             anak_ke: updates.anak_ke ?? updates.urutanAnak,
             urutanAnak: updates.anak_ke ?? updates.urutanAnak,
+            anakKe: updates.anak_ke ?? updates.urutanAnak,
+            urutan_anak: updates.anak_ke ?? updates.urutanAnak,
           }
         : {}),
       ...(updates.dari_bersaudara !== undefined || updates.jumlahSaudara !== undefined
         ? {
             dari_bersaudara: updates.dari_bersaudara ?? updates.jumlahSaudara,
             jumlahSaudara: updates.dari_bersaudara ?? updates.jumlahSaudara,
+            dariBersaudara: updates.dari_bersaudara ?? updates.jumlahSaudara,
+            jumlah_saudara: updates.dari_bersaudara ?? updates.jumlahSaudara,
           }
         : {}),
     };
@@ -269,10 +284,17 @@ export async function addAlumniToHostinger(
     const payload = {
       ...newAlumni,
       gender: newAlumni.gender,
+      jenis_kelamin: newAlumni.gender === 'P' ? 'Perempuan' : 'Laki-laki',
+      jenisKelamin: newAlumni.gender,
+      jk: newAlumni.gender,
       anak_ke: newAlumni.anak_ke ?? newAlumni.urutanAnak ?? 1,
       dari_bersaudara: newAlumni.dari_bersaudara ?? newAlumni.jumlahSaudara ?? 1,
       urutanAnak: newAlumni.anak_ke ?? newAlumni.urutanAnak ?? 1,
       jumlahSaudara: newAlumni.dari_bersaudara ?? newAlumni.jumlahSaudara ?? 1,
+      anakKe: newAlumni.anak_ke ?? newAlumni.urutanAnak ?? 1,
+      urutan_anak: newAlumni.anak_ke ?? newAlumni.urutanAnak ?? 1,
+      dariBersaudara: newAlumni.dari_bersaudara ?? newAlumni.jumlahSaudara ?? 1,
+      jumlah_saudara: newAlumni.dari_bersaudara ?? newAlumni.jumlahSaudara ?? 1,
     };
 
     const response = await fetch(`${HOSTINGER_API_URL}?action=add_alumni`, {

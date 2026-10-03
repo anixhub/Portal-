@@ -300,7 +300,13 @@ export const AddAlumniModal: React.FC<AddAlumniModalProps> = ({
                         min={1}
                         max={25}
                         value={anakKe}
-                        onChange={(e) => setAnakKe(parseInt(e.target.value) || 1)}
+                        onChange={(e) => {
+                          const val = Math.max(1, parseInt(e.target.value) || 1);
+                          setAnakKe(val);
+                          if (val > dariBersaudara) {
+                            setDariBersaudara(val);
+                          }
+                        }}
                         className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-sky-600 focus:bg-white focus:outline-none"
                       />
                     </div>
@@ -311,10 +317,13 @@ export const AddAlumniModal: React.FC<AddAlumniModalProps> = ({
                       </label>
                       <input
                         type="number"
-                        min={1}
+                        min={anakKe}
                         max={25}
                         value={dariBersaudara}
-                        onChange={(e) => setDariBersaudara(parseInt(e.target.value) || 1)}
+                        onChange={(e) => {
+                          const val = Math.max(1, parseInt(e.target.value) || 1);
+                          setDariBersaudara(Math.max(val, anakKe));
+                        }}
                         className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-sky-600 focus:bg-white focus:outline-none"
                       />
                     </div>

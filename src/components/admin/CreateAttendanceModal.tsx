@@ -151,7 +151,13 @@ export const CreateAttendanceModal: React.FC<CreateAttendanceModalProps> = ({
               Tanggal
             </label>
             <div
-              onClick={() => dateInputRef.current?.showPicker?.() || dateInputRef.current?.focus()}
+              onClick={() => {
+                try {
+                  dateInputRef.current?.showPicker?.();
+                } catch {
+                  dateInputRef.current?.focus?.();
+                }
+              }}
               className="w-full px-3.5 py-2.5 bg-slate-50 hover:bg-slate-100/70 border border-slate-200 rounded-xl font-semibold text-slate-900 flex items-center justify-between cursor-pointer transition-colors group"
             >
               <span className={date ? 'text-slate-900 text-xs' : 'text-slate-400 font-normal text-xs'}>

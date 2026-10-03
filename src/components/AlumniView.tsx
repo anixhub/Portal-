@@ -12,6 +12,7 @@ import {
   Search, 
   Sparkles, 
   ChevronRight, 
+  ChevronLeft,
   Share2, 
   Download, 
   QrCode, 
@@ -63,7 +64,9 @@ import {
   Navigation,
   Map,
   AlertCircle,
-  Upload
+  Upload,
+  Pin,
+  Plus
 } from 'lucide-react';
 import { AlumniRecord, EventAgenda, AnnouncementItem, EventComment, EventCommentReply, NotificationItem } from '../types';
 import { INITIAL_ANNOUNCEMENTS, INITIAL_EVENT_COMMENTS } from '../data/mockData';
@@ -100,9 +103,11 @@ interface AlumniViewProps {
   alumni: AlumniRecord;
   allAlumni: AlumniRecord[];
   events: EventAgenda[];
+  announcements?: AnnouncementItem[];
   onLogout: () => void;
   onUpdateProfile: (updated: Partial<AlumniRecord>) => void;
   onRsvpEvent: (eventId: string, rsvp: 'hadir' | 'belum_pasti' | 'tidak_hadir', note?: string) => void;
+  onAddAnnouncement?: (newAnn: AnnouncementItem) => void;
 }
 
 type TabType = 'home' | 'events' | 'directory' | 'finance' | 'profile' | 'notifications' | 'announcements';
@@ -320,9 +325,11 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
   alumni,
   allAlumni,
   events,
+  announcements: propAnnouncements,
   onLogout,
   onUpdateProfile,
   onRsvpEvent,
+  onAddAnnouncement,
 }) => {
   const [activeTab, setActiveTab] = useState<TabType>('home');
   const [isCardFlipped, setIsCardFlipped] = useState(false);
@@ -526,7 +533,15 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
 
   // Sub-tab Event & Pengumuman
   const [eventSubTab, setEventSubTab] = useState<'event' | 'pengumuman'>('event');
-  const [announcements] = useState<AnnouncementItem[]>(INITIAL_ANNOUNCEMENTS);
+  const [announcements, setAnnouncements] = useState<AnnouncementItem[]>(propAnnouncements || INITIAL_ANNOUNCEMENTS);
+  const [previewPhotoUrl, setPreviewPhotoUrl] = useState<string | null>(null);
+  const [selectedAnnouncementCategory, setSelectedAnnouncementCategory] = useState<'semua' | 'maklumat' | 'umum' | 'kegiatan'>('semua');
+
+  useEffect(() => {
+    if (propAnnouncements) {
+      setAnnouncements(propAnnouncements);
+    }
+  }, [propAnnouncements]);
 
   // Caption expand/collapse state (default terpotong, klik selengkapnya untuk memperlihatkan semuanya)
   const [expandedCaptions, setExpandedCaptions] = useState<Record<string, boolean>>({});
@@ -2649,7 +2664,13 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
                           min={1}
                           max={25}
                           value={editUrutanAnak}
-                          onChange={(e) => setEditUrutanAnak(parseInt(e.target.value) || 1)}
+                          onChange={(e) => {
+                            const val = Math.max(1, parseInt(e.target.value) || 1);
+                            setEditUrutanAnak(val);
+                            if (val > editJumlahSaudara) {
+                              setEditJumlahSaudara(val);
+                            }
+                          }}
                           className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-medium focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500 text-xs"
                         />
                       </div>
@@ -2657,18 +2678,46 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
                         <label className="block font-semibold text-slate-700 mb-1">Dari Bersaudara (dari_bersaudara)</label>
                         <input
                           type="number"
-                          min={1}
+                          min={editUrutanAnak}
                           max={25}
                           value={editJumlahSaudara}
-                          onChange={(e) => setEditJumlahSaudara(parseInt(e.target.value) || 1)}
+                          onChange={(e) => {
+                            const val = Math.max(1, parseInt(e.target.value) || 1);
+                            setEditJumlahSaudara(Math.max(val, editUrutanAnak));
+                          }}
                           className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-medium focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500 text-xs"
                         />
                       </div>
                     </div>
+                    {editUrutanAnak > editJumlahSaudara && (
+                      <p className="text-[11px] text-rose-500 font-medium">
+                        * Jumlah bersaudara tidak boleh lebih kecil dari anak ke-{editUrutanAnak}
+                      </p>
+                    )}
                   </div>
                   <div className="flex gap-2 pt-2">
                     <button type="button" onClick={() => setActiveEditModal(null)} className="flex-1 py-2 rounded-xl border border-slate-200 text-slate-600 font-semibold text-xs cursor-pointer">Batal</button>
-                    <button type="button" onClick={() => { onUpdateProfile({ gender: editGender, anak_ke: editUrutanAnak, dari_bersaudara: editJumlahSaudara, urutanAnak: editUrutanAnak, jumlahSaudara: editJumlahSaudara }); setActiveEditModal(null); triggerToast('Status keluarga berhasil diperbarui'); }} className="flex-1 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs cursor-pointer">Simpan</button>
+                    <button 
+                      type="button" 
+                      onClick={() => { 
+                        const finalAnak = Math.max(1, editUrutanAnak);
+                        const finalSaudara = Math.max(finalAnak, editJumlahSaudara);
+                        setEditUrutanAnak(finalAnak);
+                        setEditJumlahSaudara(finalSaudara);
+                        onUpdateProfile({ 
+                          gender: editGender, 
+                          anak_ke: finalAnak, 
+                          dari_bersaudara: finalSaudara, 
+                          urutanAnak: finalAnak, 
+                          jumlahSaudara: finalSaudara 
+                        }); 
+                        setActiveEditModal(null); 
+                        triggerToast('Status keluarga berhasil diperbarui'); 
+                      }} 
+                      className="flex-1 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs cursor-pointer"
+                    >
+                      Simpan
+                    </button>
                   </div>
                 </div>
               </div>
@@ -3487,7 +3536,7 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
 
         {/* ================= TAB 6: HALAMAN PENGUMUMAN RESMI TERSENDIRI ================= */}
         {activeTab === 'announcements' && (
-          <div className="space-y-4 max-w-md mx-auto w-full pb-8">
+          <div className="space-y-4 max-w-md mx-auto w-full pb-20 relative">
             {/* Header Pengumuman dengan Tombol Kembali ke Home */}
             <div className="flex items-center gap-2.5 border-b border-slate-200/90 pb-3 pt-1">
               <button
@@ -3503,72 +3552,171 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
               </h2>
             </div>
 
-            {/* Daftar Pengumuman Resmi */}
-            <div className="space-y-3.5">
-              {announcements.map((ann) => (
+            {/* Category Filter Pills */}
+            <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1">
+              {(['semua', 'maklumat', 'umum', 'kegiatan'] as const).map((cat) => {
+                const count = cat === 'semua' 
+                  ? announcements.length 
+                  : announcements.filter(a => a.category === cat).length;
+                const isActive = selectedAnnouncementCategory === cat;
+
+                return (
+                  <button
+                    key={cat}
+                    type="button"
+                    onClick={() => setSelectedAnnouncementCategory(cat)}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap cursor-pointer transition-all border flex items-center gap-1.5 ${
+                      isActive
+                        ? 'bg-sky-600 text-white border-sky-600 shadow-xs'
+                        : 'bg-white text-slate-600 border-slate-200/90 hover:bg-slate-50'
+                    }`}
+                  >
+                    <span className="capitalize">{cat}</span>
+                    <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
+                      isActive ? 'bg-white/25 text-white' : 'bg-slate-100 text-slate-500'
+                    }`}>
+                      {count}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Daftar Pengumuman Resmi (Tampilan Ala Agenda) */}
+            <div className="space-y-5">
+              {announcements
+                .filter(a => selectedAnnouncementCategory === 'semua' || a.category === selectedAnnouncementCategory)
+                .map((ann) => (
                 <div
                   key={ann.id}
-                  className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200/90 shadow-2xs space-y-3"
+                  className="bg-white rounded-3xl border border-slate-200/80 shadow-xs overflow-hidden"
                 >
-                  <div className="flex items-center justify-between gap-2 border-b border-slate-100 pb-2.5">
-                    <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
-                      ann.category === 'maklumat'
-                        ? 'bg-amber-100 text-amber-800'
-                        : ann.category === 'beasiswa'
-                        ? 'bg-emerald-100 text-emerald-800'
-                        : 'bg-sky-100 text-sky-800'
-                    }`}>
-                      {ann.category}
-                    </span>
-                    <span className="text-[11px] text-slate-400 font-medium">
-                      {ann.date}
-                    </span>
-                  </div>
-
-                  <div>
-                    <h4 className="font-display font-bold text-sm text-slate-900 leading-snug">
-                      {ann.title}
-                    </h4>
-                    <p className="text-xs text-slate-600 leading-relaxed mt-2">
-                      {ann.content}
-                    </p>
-                  </div>
-
-                  {/* KIRI BAWAH: FOTO AKUN, NAMA AKUN & USERNAME DI BAWAH NAMA */}
-                  <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-3 text-xs">
-                    <div className="flex items-center gap-2.5 min-w-0">
-                      <div className="shrink-0">
+                  {/* 1. Header Kartu: Profil Penulis + Label Kategori di sebelah kiri tanggal (tepat di bawah nama) */}
+                  <div className="p-4 flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-10 h-10 rounded-full bg-slate-100 border border-slate-200 overflow-hidden shrink-0 flex items-center justify-center">
                         <img
                           src={ann.authorAvatar || logoPonpesImg}
                           alt={ann.authorName}
-                          className="w-8 h-8 rounded-full object-cover border border-slate-200 shadow-2xs"
+                          className="w-full h-full object-cover"
                         />
                       </div>
-                      <div className="min-w-0 leading-tight">
-                        <span className="font-bold text-slate-800 text-xs block truncate">
-                          {ann.authorName}
-                        </span>
-                        <span className="text-[11px] text-slate-500 font-mono block truncate">
-                          @{ann.authorHandle || 'attaroqqy_official'}
-                        </span>
+                      <div className="min-w-0">
+                        <h4 className="font-display font-bold text-xs sm:text-sm text-slate-900 truncate leading-tight">
+                          {ann.authorName || 'Pondok Pesantren At-taroqqy'}
+                        </h4>
+                        <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md capitalize border leading-none ${
+                            ann.category === 'maklumat'
+                              ? 'text-amber-800 bg-amber-50 border-amber-200'
+                              : ann.category === 'kegiatan'
+                              ? 'text-emerald-800 bg-emerald-50 border-emerald-200'
+                              : 'text-sky-800 bg-sky-50 border-sky-200'
+                          }`}>
+                            {ann.category}
+                          </span>
+                          {ann.isImportant && (
+                            <span className="text-[10px] font-bold text-rose-700 bg-rose-50 border border-rose-200 px-1.5 py-0.5 rounded-md flex items-center gap-0.5 leading-none">
+                              <Pin className="w-2.5 h-2.5 text-rose-600 fill-rose-600" />
+                              <span>Penting</span>
+                            </span>
+                          )}
+                          <span className="text-[11px] text-slate-400">
+                            {ann.date}
+                          </span>
+                        </div>
                       </div>
                     </div>
+                  </div>
 
+                  {/* 2. Media Poster / Multi-foto Carousel */}
+                  {ann.images && ann.images.length > 0 && (
+                    <div className="relative w-full aspect-[4/3] sm:aspect-[16/9] bg-slate-950 overflow-hidden select-none group">
+                      {ann.images.length === 1 ? (
+                        <div
+                          onClick={() => setPreviewPhotoUrl(ann.images![0])}
+                          className="w-full h-full cursor-pointer"
+                        >
+                          <img
+                            src={ann.images[0]}
+                            alt={ann.title}
+                            className="w-full h-full object-cover group-hover:scale-[1.01] transition-transform duration-200"
+                          />
+                        </div>
+                      ) : (
+                        <div className="w-full h-full flex overflow-x-auto snap-x snap-mandatory scroll-smooth no-scrollbar">
+                          {ann.images.map((imgSrc, idx) => (
+                            <div
+                              key={idx}
+                              onClick={() => setPreviewPhotoUrl(imgSrc)}
+                              className="min-w-full w-full h-full flex-shrink-0 snap-center relative bg-slate-950 flex items-center justify-center cursor-pointer"
+                            >
+                              <img
+                                src={imgSrc}
+                                alt={`Foto ${idx + 1}`}
+                                className="w-full h-full object-cover"
+                              />
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Badge Counter Foto jika lebih dari 1 */}
+                      {ann.images.length > 1 && (
+                        <div className="absolute top-3 left-3 px-2 py-0.5 rounded-full bg-black/60 backdrop-blur-md text-[11px] font-mono font-bold text-white tracking-wide shadow-md pointer-events-none">
+                          {ann.images.length} Foto (Geser)
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* 3. Caption & Detail Pengumuman */}
+                  <div className="px-4 py-3 space-y-2 text-xs">
+                    <div className="text-slate-800 text-xs">
+                      <p 
+                        onClick={() => toggleCaption(ann.id)}
+                        className={`leading-relaxed cursor-pointer select-none ${expandedCaptions[ann.id] ? '' : 'line-clamp-2'}`}
+                        title={expandedCaptions[ann.id] ? "Klik untuk menyembunyikan" : "Klik untuk membaca selengkapnya"}
+                      >
+                        <span className="font-bold text-slate-900 mr-1.5 font-mono text-[11px] bg-slate-100 px-1.5 py-0.5 rounded">
+                          @{ann.authorHandle || 'attaroqqy_official'}
+                        </span>
+                        <span className="font-bold text-slate-900 mr-1">{ann.title}</span>
+                        <span className="text-slate-600 whitespace-pre-line">{ann.content}</span>
+                      </p>
+
+                      <button
+                        type="button"
+                        onClick={() => toggleCaption(ann.id)}
+                        className="text-slate-400 hover:text-slate-600 text-xs font-normal mt-1 cursor-pointer block select-none"
+                      >
+                        {expandedCaptions[ann.id] ? 'sembunyikan' : 'selengkapnya'}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* 4. Footer Bagikan */}
+                  <div className="border-t border-slate-100 bg-white">
                     <button
                       type="button"
                       onClick={() => handleShareAnnouncement(ann)}
-                      className="p-1.5 px-2.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 flex items-center gap-1 font-semibold text-xs cursor-pointer shrink-0"
+                      className="w-full py-2.5 px-4 flex items-center justify-center gap-1.5 text-slate-600 hover:text-emerald-600 hover:bg-emerald-50/50 text-xs font-semibold transition-colors cursor-pointer active:scale-95"
+                      title="Bagikan Pengumuman"
                     >
                       <Share2 className="w-3.5 h-3.5" />
-                      <span>Bagikan</span>
+                      <span>Bagikan Pengumuman</span>
                     </button>
                   </div>
                 </div>
               ))}
 
-              {announcements.length === 0 && (
-                <div className="bg-white rounded-2xl border border-slate-200 p-8 text-center text-slate-500 text-xs">
-                  Belum ada pengumuman resmi terbaru saat ini.
+              {announcements.filter(a => selectedAnnouncementCategory === 'semua' || a.category === selectedAnnouncementCategory).length === 0 && (
+                <div className="bg-white rounded-3xl border border-slate-200/90 p-8 text-center text-slate-500 text-xs space-y-2">
+                  <FileText className="w-8 h-8 text-slate-300 mx-auto" />
+                  <p className="font-semibold text-slate-700">Tidak ada pengumuman</p>
+                  <p className="text-slate-400 text-[11px]">
+                    Belum ada informasi pada kategori yang dipilih.
+                  </p>
                 </div>
               )}
             </div>
@@ -4406,6 +4554,15 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
         onSelectAlumni={(selected) => setSelectedAlumniDetail(selected)}
         onUpdateProfile={onUpdateProfile}
       />
+
+      {/* FULLSCREEN PREVIEW FOTO LAMPIRAN PENGUMUMAN */}
+      {previewPhotoUrl && (
+        <CleanMediaPreviewModal
+          isOpen={Boolean(previewPhotoUrl)}
+          imageUrl={previewPhotoUrl}
+          onClose={() => setPreviewPhotoUrl(null)}
+        />
+      )}
     </div>
   );
 };

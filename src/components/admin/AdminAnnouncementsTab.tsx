@@ -1,20 +1,20 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { 
-  Megaphone, 
-  Plus, 
   Search, 
   Pencil, 
   Trash2, 
   Pin, 
   X, 
-  Check, 
-  Calendar, 
   Share2, 
-  AlertCircle,
-  FileText
+  FileText,
+  ChevronLeft,
+  ChevronRight,
+  Maximize2
 } from 'lucide-react';
 import { AnnouncementItem, AdminUser } from '../../types';
 import logoPonpesImg from '../../assets/images/logo_ponpes_attaroqqy_1790648746461.jpg';
+import { shareMediaWithCaption } from '../../utils/shareUtils';
+import { PostMediaCarousel } from '../common/PostMediaCarousel';
 
 interface AdminAnnouncementsTabProps {
   announcements: AnnouncementItem[];
@@ -23,107 +23,292 @@ interface AdminAnnouncementsTabProps {
   onUpdateAnnouncement: (id: string, updated: Partial<AnnouncementItem>) => void;
   onDeleteAnnouncement: (id: string) => void;
   triggerToast: (msg: string) => void;
+  onOpenCreateModal?: () => void;
+  onOpenEditModal?: (ann: AnnouncementItem) => void;
 }
+
+// Media Carousel Component yang persis seperti postingan / agenda dengan multi-foto yang bisa digeser
+const AnnouncementMediaCarousel: React.FC<{
+  images: string[];
+  title: string;
+  onPreview: (url: string) => void;
+  onSlideChange?: (idx: number) => void;
+}> = ({ images, title, onPreview, onSlideChange }) => {
+  const [currentSlide, setCurrentSlide] = useState(0);
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  const handleScroll = () => {
+    if (!scrollRef.current) return;
+    const { scrollLeft, clientWidth } = scrollRef.current;
+    if (clientWidth > 0) {
+      const idx = Math.round(scrollLeft / clientWidth);
+      setCurrentSlide(idx);
+      onSlideChange?.(idx);
+    }
+  };
+
+  const scrollToSlide = (idx: number, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!scrollRef.current) return;
+    const clamped = Math.max(0, Math.min(images.length - 1, idx));
+    scrollRef.current.scrollTo({
+      left: clamped * scrollRef.current.clientWidth,
+      behavior: 'smooth',
+    });
+    setCurrentSlide(clamped);
+    onSlideChange?.(clamped);
+  };
+
+  if (!images || images.length === 0) return null;
+
+  if (images.length === 1) {
+    return (
+      <div
+        onClick={() => onPreview(images[0])}
+        className="relative w-full aspect-[4/3] sm:aspect-[16/9] bg-slate-950 overflow-hidden cursor-pointer select-none group"
+        title="Ketuk untuk melihat foto layar penuh"
+      >
+        <img
+          src={images[0]}
+          alt={title}
+          className="w-full h-full object-cover group-hover:scale-[1.01] transition-transform duration-200"
+        />
+        <div className="absolute bottom-2.5 right-2.5 p-1.5 rounded-full bg-black/60 text-white opacity-0 group-hover:opacity-100 transition-opacity backdrop-blur-xs">
+          <Maximize2 className="w-3.5 h-3.5" />
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="relative w-full aspect-[4/3] sm:aspect-[16/9] bg-slate-950 overflow-hidden select-none group">
+      {/* Horizontal Scrollable Slider yang Bisa Digeser */}
+      <div
+        ref={scrollRef}
+        onScroll={handleScroll}
+        className="w-full h-full flex overflow-x-auto snap-x snap-mandatory scroll-smooth no-scrollbar"
+      >
+        {images.map((imgSrc, idx) => (
+          <div
+            key={idx}
+            onClick={() => onPreview(imgSrc)}
+            className="min-w-full w-full h-full flex-shrink-0 snap-center relative bg-slate-950 flex items-center justify-center cursor-pointer"
+          >
+            <img
+              src={imgSrc}
+              alt={`${title} - foto ${idx + 1}`}
+              className="w-full h-full object-cover"
+            />
+          </div>
+        ))}
+      </div>
+
+      {/* Navigasi Panah Geser */}
+      <button
+        type="button"
+        onClick={(e) => scrollToSlide(currentSlide - 1, e)}
+        disabled={currentSlide === 0}
+        className={`absolute left-2.5 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-black/60 hover:bg-black/80 text-white flex items-center justify-center backdrop-blur-xs transition-opacity cursor-pointer z-10 ${
+          currentSlide === 0 ? 'opacity-0 pointer-events-none' : 'opacity-90 hover:opacity-100'
+        }`}
+        title="Foto Sebelumnya"
+      >
+        <ChevronLeft className="w-5 h-5" />
+      </button>
+
+      <button
+        type="button"
+        onClick={(e) => scrollToSlide(currentSlide + 1, e)}
+        disabled={currentSlide === images.length - 1}
+        className={`absolute right-2.5 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-black/60 hover:bg-black/80 text-white flex items-center justify-center backdrop-blur-xs transition-opacity cursor-pointer z-10 ${
+          currentSlide === images.length - 1 ? 'opacity-0 pointer-events-none' : 'opacity-90 hover:opacity-100'
+        }`}
+        title="Foto Berikutnya"
+      >
+        <ChevronRight className="w-5 h-5" />
+      </button>
+
+      {/* Indicator Badge: misal 1/3 */}
+      <div className="absolute top-3 left-3 px-2 py-0.5 rounded-full bg-black/60 backdrop-blur-md text-[11px] font-mono font-bold text-white tracking-wide shadow-md z-10 pointer-events-none">
+        {currentSlide + 1} / {images.length}
+      </div>
+
+      {/* Dot Indicators */}
+      <div className="absolute bottom-2.5 left-1/2 -translate-x-1/2 flex items-center gap-1.5 pointer-events-none z-10">
+        {images.map((_, i) => (
+          <span
+            key={i}
+            className={`rounded-full transition-all duration-300 ${
+              i === currentSlide
+                ? 'w-2 h-2 bg-white ring-2 ring-white/40'
+                : 'w-1.5 h-1.5 bg-white/50'
+            }`}
+          />
+        ))}
+      </div>
+    </div>
+  );
+};
+
+// Item Kartu Pengumuman dengan tracking slide aktif untuk keperluan share gambar yang sedang disorot
+const AnnouncementCardItem: React.FC<{
+  ann: AnnouncementItem;
+  onPreview: (url: string) => void;
+  onEdit: () => void;
+  onDelete: () => void;
+  triggerToast: (msg: string) => void;
+}> = ({ ann, onPreview, onEdit, onDelete, triggerToast }) => {
+  const [activeSlide, setActiveSlide] = useState(0);
+  const [isExpanded, setIsExpanded] = useState(false);
+
+  const handleShare = async () => {
+    const imageToShare = ann.images && ann.images.length > 0
+      ? ann.images[activeSlide] || ann.images[0]
+      : null;
+
+    const captionText = `*[${ann.category.toUpperCase()}] ${ann.title}*
+
+${ann.content}
+
+📅 Tanggal: ${ann.date}
+Diterbitkan oleh: ${ann.authorName || 'Pondok Pesantren At-taroqqy'}`;
+
+    await shareMediaWithCaption({
+      imageUrl: imageToShare,
+      title: ann.title,
+      text: captionText,
+      onToast: triggerToast,
+    });
+  };
+
+  return (
+    <div className="bg-white rounded-3xl border border-slate-200/80 shadow-xs overflow-hidden">
+      {/* 1. HEADER KARTU PENGUMUMAN: PROFIL PENULIS + LABEL KATEGORI DI SEBELAH KIRI TANGGAL (TEPAT DI BAWAH NAMA) */}
+      <div className="p-4 flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="w-10 h-10 rounded-full bg-slate-100 border border-slate-200 overflow-hidden shrink-0 flex items-center justify-center">
+            <img
+              src={ann.authorAvatar || logoPonpesImg}
+              alt={ann.authorName}
+              className="w-full h-full object-cover"
+            />
+          </div>
+          <div className="min-w-0">
+            <h4 className="font-display font-bold text-xs sm:text-sm text-slate-900 truncate leading-tight">
+              {ann.authorName || 'Pondok Pesantren At-taroqqy'}
+            </h4>
+            {/* TEPAT DI BAWAH NAMA: LABEL MAKLUMAT DLL DI SEBELAH KIRI TANGGAL */}
+            <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md capitalize border leading-none ${
+                ann.category === 'maklumat'
+                  ? 'text-amber-800 bg-amber-50 border-amber-200'
+                  : ann.category === 'kegiatan'
+                  ? 'text-emerald-800 bg-emerald-50 border-emerald-200'
+                  : 'text-sky-800 bg-sky-50 border-sky-200'
+              }`}>
+                {ann.category}
+              </span>
+              {ann.isImportant && (
+                <span className="text-[10px] font-bold text-rose-700 bg-rose-50 border border-rose-200 px-1.5 py-0.5 rounded-md flex items-center gap-0.5 leading-none">
+                  <Pin className="w-2.5 h-2.5 text-rose-600 fill-rose-600" />
+                  <span>Penting</span>
+                </span>
+              )}
+              <span className="text-[11px] text-slate-400">
+                {ann.date}
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* 2. MEDIA SLIDER FOTO (BISA LEBIH DARI SATU FOTO & BISA DIGESER) */}
+      {ann.images && ann.images.length > 0 && (
+        <PostMediaCarousel
+          images={ann.images}
+          title={ann.title}
+          onPreview={onPreview}
+          onSlideChange={setActiveSlide}
+        />
+      )}
+
+      {/* 3. CAPTION & DETAIL INFORMASI PENGUMUMAN */}
+      <div className="px-4 py-3 space-y-2 text-xs">
+        <div className="text-slate-800 text-xs">
+          <p 
+            onClick={() => setIsExpanded(!isExpanded)}
+            className={`leading-relaxed cursor-pointer select-none ${isExpanded ? '' : 'line-clamp-2'}`}
+            title={isExpanded ? "Klik untuk menyembunyikan" : "Klik untuk membaca selengkapnya"}
+          >
+            <span className="font-bold text-slate-900 mr-1.5 font-mono text-[11px] bg-slate-100 px-1.5 py-0.5 rounded">
+              @{ann.authorHandle || 'attaroqqy_official'}
+            </span>
+            <span className="font-bold text-slate-900 mr-1">{ann.title}</span>
+            <span className="text-slate-600 whitespace-pre-line">{ann.content}</span>
+          </p>
+
+          <button
+            type="button"
+            onClick={() => setIsExpanded(!isExpanded)}
+            className="text-slate-400 hover:text-slate-600 text-xs font-normal mt-1 cursor-pointer block select-none"
+          >
+            {isExpanded ? 'sembunyikan' : 'selengkapnya'}
+          </button>
+        </div>
+      </div>
+
+      {/* 4. FOOTER 3 AREA DENGAN GARIS TIPIS: TOMBOL EDIT, BAGIKAN, DAN HAPUS */}
+      <div className="border-t border-slate-100 grid grid-cols-3 divide-x divide-slate-100 bg-white">
+        <button
+          type="button"
+          onClick={onEdit}
+          className="py-2.5 px-2 flex items-center justify-center gap-1.5 text-slate-600 hover:text-sky-600 hover:bg-sky-50/50 text-xs font-semibold transition-colors cursor-pointer active:scale-95"
+          title="Edit Pengumuman"
+        >
+          <Pencil className="w-3.5 h-3.5" />
+          <span>Edit</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={handleShare}
+          className="py-2.5 px-2 flex items-center justify-center gap-1.5 text-slate-600 hover:text-emerald-600 hover:bg-emerald-50/50 text-xs font-semibold transition-colors cursor-pointer active:scale-95"
+          title="Bagikan Foto yang Sedang Disorot & Teks ke WhatsApp"
+        >
+          <Share2 className="w-3.5 h-3.5" />
+          <span>Bagikan</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={onDelete}
+          className="py-2.5 px-2 flex items-center justify-center gap-1.5 text-slate-600 hover:text-rose-600 hover:bg-rose-50/50 text-xs font-semibold transition-colors cursor-pointer active:scale-95"
+          title="Hapus Pengumuman"
+        >
+          <Trash2 className="w-3.5 h-3.5" />
+          <span>Hapus</span>
+        </button>
+      </div>
+    </div>
+  );
+};
 
 export const AdminAnnouncementsTab: React.FC<AdminAnnouncementsTabProps> = ({
   announcements,
-  adminUser,
-  onAddAnnouncement,
-  onUpdateAnnouncement,
+  adminUser: _adminUser,
+  onAddAnnouncement: _onAddAnnouncement,
+  onUpdateAnnouncement: _onUpdateAnnouncement,
   onDeleteAnnouncement,
   triggerToast,
+  onOpenCreateModal: _onOpenCreateModal,
+  onOpenEditModal,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState<'semua' | 'maklumat' | 'kegiatan' | 'beasiswa' | 'umum'>('semua');
-  
-  // Modal state
-  const [isFormModalOpen, setIsFormModalOpen] = useState(false);
-  const [editingItem, setEditingItem] = useState<AnnouncementItem | null>(null);
+  const [selectedCategory, setSelectedCategory] = useState<'semua' | 'maklumat' | 'umum' | 'kegiatan' | 'beasiswa'>('semua');
+  const [previewPhotoUrl, setPreviewPhotoUrl] = useState<string | null>(null);
 
   // Delete confirm modal state
   const [deleteCandidate, setDeleteCandidate] = useState<AnnouncementItem | null>(null);
-
-  // Form input states
-  const [formTitle, setFormTitle] = useState('');
-  const [formCategory, setFormCategory] = useState<'maklumat' | 'kegiatan' | 'beasiswa' | 'umum'>('maklumat');
-  const [formContent, setFormContent] = useState('');
-  const [formIsImportant, setFormIsImportant] = useState(false);
-  const [formAuthorName, setFormAuthorName] = useState('');
-  const [formAuthorRole, setFormAuthorRole] = useState('');
-
-  const openAddModal = () => {
-    setEditingItem(null);
-    setFormTitle('');
-    setFormCategory('maklumat');
-    setFormContent('');
-    setFormIsImportant(false);
-    setFormAuthorName(adminUser.name || 'Pengurus Pondok At-taroqqy');
-    setFormAuthorRole(adminUser.jabatan || 'Bidang Kesantrian & Alumni');
-    setIsFormModalOpen(true);
-  };
-
-  const openEditModal = (item: AnnouncementItem) => {
-    setEditingItem(item);
-    setFormTitle(item.title);
-    setFormCategory(item.category);
-    setFormContent(item.content);
-    setFormIsImportant(Boolean(item.isImportant));
-    setFormAuthorName(item.authorName);
-    setFormAuthorRole(item.authorRole || 'Pengurus');
-    setIsFormModalOpen(true);
-  };
-
-  const handleFormSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!formTitle.trim()) {
-      triggerToast('Judul pengumuman wajib diisi');
-      return;
-    }
-    if (!formContent.trim()) {
-      triggerToast('Isi pengumuman wajib diisi');
-      return;
-    }
-
-    if (editingItem) {
-      // Update
-      onUpdateAnnouncement(editingItem.id, {
-        title: formTitle.trim(),
-        category: formCategory,
-        content: formContent.trim(),
-        isImportant: formIsImportant,
-        authorName: formAuthorName.trim() || adminUser.name,
-        authorRole: formAuthorRole.trim() || 'Pengurus',
-      });
-      triggerToast('Pengumuman berhasil diperbarui');
-    } else {
-      // Create new
-      const today = new Date();
-      const months = [
-        'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
-        'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
-      ];
-      const dateStr = `${today.getDate()} ${months[today.getMonth()]} ${today.getFullYear()}`;
-
-      const newAnnouncement: AnnouncementItem = {
-        id: 'ann-' + Date.now(),
-        title: formTitle.trim(),
-        date: dateStr,
-        category: formCategory,
-        content: formContent.trim(),
-        authorName: formAuthorName.trim() || adminUser.name,
-        authorHandle: 'admin_pusat',
-        authorAvatar: logoPonpesImg,
-        authorRole: formAuthorRole.trim() || 'Pengurus Pondok At-taroqqy',
-        isImportant: formIsImportant,
-      };
-
-      onAddAnnouncement(newAnnouncement);
-      triggerToast('Pengumuman baru berhasil dipublikasikan');
-    }
-
-    setIsFormModalOpen(false);
-    setEditingItem(null);
-  };
 
   const confirmDelete = () => {
     if (!deleteCandidate) return;
@@ -148,38 +333,18 @@ export const AdminAnnouncementsTab: React.FC<AdminAnnouncementsTabProps> = ({
   });
 
   return (
-    <div className="flex-1 overflow-y-auto px-4 py-4 max-w-2xl mx-auto w-full space-y-4 pb-28">
-      {/* Top Header Row */}
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <h2 className="text-lg font-display font-extrabold text-slate-900 flex items-center gap-2">
-            <Megaphone className="w-5 h-5 text-sky-600" />
-            <span>Pengumuman & Maklumat</span>
-          </h2>
-          <p className="text-xs text-slate-500 mt-0.5">
-            Total {announcements.length} informasi diterbitkan
-          </p>
-        </div>
+    <div className="flex-1 overflow-y-auto px-4 py-3 max-w-lg mx-auto w-full flex flex-col pb-28">
+      {/* ================= HEADER SUDAH DIHAPUS ================= */}
 
-        <button
-          type="button"
-          onClick={openAddModal}
-          className="px-3.5 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs flex items-center gap-1.5 shadow-sm transition-all cursor-pointer active:scale-95"
-        >
-          <Plus className="w-4 h-4" />
-          <span>Buat Pengumuman</span>
-        </button>
-      </div>
-
-      {/* Search Input */}
-      <div className="relative">
+      {/* ================= 1. SEARCH INPUT ================= */}
+      <div className="relative mb-3 shrink-0">
         <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
         <input
           type="text"
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          placeholder="Cari judul atau isi pengumuman..."
-          className="w-full pl-10 pr-9 py-2.5 bg-white border border-slate-200 rounded-2xl text-xs font-medium text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-500 shadow-2xs"
+          placeholder="Cari pengumuman atau informasi..."
+          className="w-full pl-10 pr-9 py-2.5 bg-white border border-slate-200/90 rounded-2xl text-xs font-medium text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-500 shadow-2xs"
         />
         {searchQuery && (
           <button
@@ -192,9 +357,9 @@ export const AdminAnnouncementsTab: React.FC<AdminAnnouncementsTabProps> = ({
         )}
       </div>
 
-      {/* Category Filter Pills */}
-      <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
-        {(['semua', 'maklumat', 'kegiatan', 'beasiswa', 'umum'] as const).map((cat) => {
+      {/* ================= 2. FILTER KATEGORI: MAKLUMAT, UMUM, KEGIATAN ================= */}
+      <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-3 shrink-0">
+        {(['semua', 'maklumat', 'umum', 'kegiatan'] as const).map((cat) => {
           const count = cat === 'semua' 
             ? announcements.length 
             : announcements.filter(a => a.category === cat).length;
@@ -205,15 +370,15 @@ export const AdminAnnouncementsTab: React.FC<AdminAnnouncementsTabProps> = ({
               key={cat}
               type="button"
               onClick={() => setSelectedCategory(cat)}
-              className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap cursor-pointer transition-all border flex items-center gap-1.5 ${
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap cursor-pointer transition-all border flex items-center gap-1.5 ${
                 isActive
                   ? 'bg-sky-600 text-white border-sky-600 shadow-xs'
-                  : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                  : 'bg-white text-slate-600 border-slate-200/90 hover:bg-slate-50'
               }`}
             >
               <span className="capitalize">{cat}</span>
               <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
-                isActive ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-500'
+                isActive ? 'bg-white/25 text-white' : 'bg-slate-100 text-slate-500'
               }`}>
                 {count}
               </span>
@@ -222,94 +387,25 @@ export const AdminAnnouncementsTab: React.FC<AdminAnnouncementsTabProps> = ({
         })}
       </div>
 
-      {/* Announcement Cards List */}
-      <div className="space-y-3 pt-1">
-        {filteredAnnouncements.map((ann) => {
-          return (
-            <div
-              key={ann.id}
-              className={`bg-white rounded-2xl border p-4 shadow-2xs transition-all space-y-2.5 ${
-                ann.isImportant 
-                  ? 'border-amber-300 ring-1 ring-amber-200/60' 
-                  : 'border-slate-200/80 hover:border-slate-300'
-              }`}
-            >
-              {/* Badges & Date Header */}
-              <div className="flex items-center justify-between gap-2 flex-wrap">
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  {/* Category Badge */}
-                  <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-lg border ${
-                    ann.category === 'maklumat'
-                      ? 'bg-amber-50 text-amber-800 border-amber-200'
-                      : ann.category === 'kegiatan'
-                      ? 'bg-sky-50 text-sky-800 border-sky-200'
-                      : ann.category === 'beasiswa'
-                      ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
-                      : 'bg-slate-100 text-slate-800 border-slate-200'
-                  }`}>
-                    {ann.category}
-                  </span>
-
-                  {/* Important Pin Badge */}
-                  {ann.isImportant && (
-                    <span className="text-[10px] font-bold text-rose-700 bg-rose-50 border border-rose-200 px-2 py-0.5 rounded-lg flex items-center gap-1">
-                      <Pin className="w-3 h-3 text-rose-600 fill-rose-600" />
-                      <span>Penting</span>
-                    </span>
-                  )}
-                </div>
-
-                <div className="flex items-center gap-1 text-[11px] text-slate-400 font-medium">
-                  <Calendar className="w-3.5 h-3.5" />
-                  <span>{ann.date}</span>
-                </div>
-              </div>
-
-              {/* Title */}
-              <h3 className="font-display font-bold text-slate-900 text-sm sm:text-base leading-snug">
-                {ann.title}
-              </h3>
-
-              {/* Content */}
-              <p className="text-xs text-slate-600 leading-relaxed whitespace-pre-line">
-                {ann.content}
-              </p>
-
-              {/* Footer Author & Action Buttons */}
-              <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-2">
-                <div className="text-[11px] text-slate-500 font-medium truncate">
-                  <span>Diterbitkan oleh: </span>
-                  <span className="font-semibold text-slate-700">{ann.authorName}</span>
-                  {ann.authorRole && (
-                    <span className="text-slate-400"> ({ann.authorRole})</span>
-                  )}
-                </div>
-
-                <div className="flex items-center gap-1 shrink-0">
-                  <button
-                    type="button"
-                    onClick={() => openEditModal(ann)}
-                    className="p-1.5 rounded-lg text-slate-500 hover:text-sky-600 hover:bg-sky-50 transition-colors cursor-pointer"
-                    title="Edit Pengumuman"
-                  >
-                    <Pencil className="w-4 h-4" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setDeleteCandidate(ann)}
-                    className="p-1.5 rounded-lg text-slate-500 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
-                    title="Hapus Pengumuman"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
-            </div>
-          );
-        })}
+      {/* ================= 3. DAFTAR PEMBERITAHUAN (PERSIS TAMPILAN AGENDA) ================= */}
+      <div className="space-y-5">
+        {filteredAnnouncements.map((ann) => (
+          <AnnouncementCardItem
+            key={ann.id}
+            ann={ann}
+            onPreview={(url) => setPreviewPhotoUrl(url)}
+            onEdit={() => {
+              if (onOpenEditModal) {
+                onOpenEditModal(ann);
+              }
+            }}
+            onDelete={() => setDeleteCandidate(ann)}
+            triggerToast={triggerToast}
+          />
+        ))}
 
         {filteredAnnouncements.length === 0 && (
-          <div className="bg-white rounded-2xl border border-slate-200 p-8 text-center text-slate-500 text-xs space-y-2">
+          <div className="bg-white rounded-3xl border border-slate-200/90 p-8 text-center text-slate-500 text-xs space-y-2">
             <FileText className="w-8 h-8 text-slate-300 mx-auto" />
             <p className="font-semibold text-slate-700">Tidak ada pengumuman</p>
             <p className="text-slate-400 text-[11px]">
@@ -318,145 +414,6 @@ export const AdminAnnouncementsTab: React.FC<AdminAnnouncementsTabProps> = ({
           </div>
         )}
       </div>
-
-      {/* ================= MODAL TAMBAH / EDIT PENGUMUMAN ================= */}
-      {isFormModalOpen && (
-        <div className="fixed inset-0 z-[100010] bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in select-none">
-          <div className="bg-white rounded-3xl p-6 max-w-md w-full space-y-4 shadow-2xl border border-slate-100 max-h-[90vh] overflow-y-auto animate-in zoom-in-95">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-xl bg-sky-50 text-sky-600 flex items-center justify-center">
-                  <Megaphone className="w-4 h-4" />
-                </div>
-                <div>
-                  <h3 className="font-display font-bold text-base text-slate-900 leading-tight">
-                    {editingItem ? 'Edit Pengumuman' : 'Buat Pengumuman Baru'}
-                  </h3>
-                  <p className="text-[11px] text-slate-400">
-                    Informasi resmi untuk seluruh santri & alumni
-                  </p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsFormModalOpen(false)}
-                className="w-7 h-7 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-500 cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <form onSubmit={handleFormSubmit} className="space-y-3.5 text-xs">
-              {/* Judul Pengumuman */}
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Judul Pengumuman <span className="text-rose-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={formTitle}
-                  onChange={(e) => setFormTitle(e.target.value)}
-                  placeholder="Contoh: Maklumat Reuni Akbar & KTA Digital 2026"
-                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-sky-600 focus:bg-white"
-                />
-              </div>
-
-              {/* Kategori */}
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Kategori
-                </label>
-                <select
-                  value={formCategory}
-                  onChange={(e) => setFormCategory(e.target.value as any)}
-                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-sky-600 focus:bg-white cursor-pointer"
-                >
-                  <option value="maklumat">Maklumat Penting</option>
-                  <option value="kegiatan">Agenda / Kegiatan</option>
-                  <option value="beasiswa">Beasiswa Santri</option>
-                  <option value="umum">Informasi Umum</option>
-                </select>
-              </div>
-
-              {/* Isi Pengumuman */}
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Isi Pengumuman <span className="text-rose-500">*</span>
-                </label>
-                <textarea
-                  required
-                  rows={4}
-                  value={formContent}
-                  onChange={(e) => setFormContent(e.target.value)}
-                  placeholder="Tuliskan isi pengumuman atau instruksi untuk alumni..."
-                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-sky-600 focus:bg-white leading-relaxed"
-                />
-              </div>
-
-              {/* Checkbox Penting */}
-              <div className="flex items-center gap-2.5 p-3 rounded-xl bg-slate-50 border border-slate-200 cursor-pointer select-none">
-                <input
-                  type="checkbox"
-                  id="formIsImportant"
-                  checked={formIsImportant}
-                  onChange={(e) => setFormIsImportant(e.target.checked)}
-                  className="w-4 h-4 text-sky-600 rounded cursor-pointer"
-                />
-                <label htmlFor="formIsImportant" className="text-xs font-medium text-slate-700 cursor-pointer flex items-center gap-1.5">
-                  <Pin className="w-3.5 h-3.5 text-rose-500" />
-                  <span>Sematkan sebagai pengumuman penting (Highlighted)</span>
-                </label>
-              </div>
-
-              {/* Penulis / Lembaga */}
-              <div className="grid grid-cols-2 gap-2.5">
-                <div>
-                  <label className="block text-[11px] font-semibold text-slate-600 mb-1">
-                    Nama Penulis
-                  </label>
-                  <input
-                    type="text"
-                    value={formAuthorName}
-                    onChange={(e) => setFormAuthorName(e.target.value)}
-                    placeholder="Nama Admin / Instansi"
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[11px] font-semibold text-slate-600 mb-1">
-                    Jabatan / Lembaga
-                  </label>
-                  <input
-                    type="text"
-                    value={formAuthorRole}
-                    onChange={(e) => setFormAuthorRole(e.target.value)}
-                    placeholder="Contoh: Kesantrian"
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900"
-                  />
-                </div>
-              </div>
-
-              {/* Tombol Aksi */}
-              <div className="flex items-center gap-2 pt-3 border-t border-slate-100">
-                <button
-                  type="button"
-                  onClick={() => setIsFormModalOpen(false)}
-                  className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs transition-colors cursor-pointer"
-                >
-                  Batal
-                </button>
-                <button
-                  type="submit"
-                  className="flex-1 py-2.5 bg-sky-600 hover:bg-sky-700 text-white font-bold rounded-xl text-xs transition-colors cursor-pointer shadow-md shadow-sky-600/20"
-                >
-                  {editingItem ? 'Simpan Perubahan' : 'Terbitkan Sekarang'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
 
       {/* ================= MODAL KONFIRMASI HAPUS ================= */}
       {deleteCandidate && (
@@ -489,6 +446,29 @@ export const AdminAnnouncementsTab: React.FC<AdminAnnouncementsTabProps> = ({
                 Hapus
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ================= PREVIEW FOTO FULLSCREEN ================= */}
+      {previewPhotoUrl && (
+        <div 
+          onClick={() => setPreviewPhotoUrl(null)}
+          className="fixed inset-0 z-[100070] bg-black/90 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in cursor-zoom-out"
+        >
+          <div className="relative max-w-3xl max-h-[90vh] w-full flex items-center justify-center">
+            <img
+              src={previewPhotoUrl}
+              alt="Preview"
+              className="max-w-full max-h-[85vh] object-contain rounded-2xl shadow-2xl"
+            />
+            <button
+              type="button"
+              onClick={() => setPreviewPhotoUrl(null)}
+              className="absolute -top-10 right-0 w-8 h-8 rounded-full bg-white/20 hover:bg-white/40 text-white flex items-center justify-center transition-colors cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
           </div>
         </div>
       )}
