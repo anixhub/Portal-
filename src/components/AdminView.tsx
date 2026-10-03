@@ -32,11 +32,13 @@ import {
   Mail,
   Megaphone,
   Check,
-  MoreVertical
+  MoreVertical,
+  Globe
 } from 'lucide-react';
 import { AlumniRecord, AdminUser, EventAgenda, EventComment, EventCommentReply, AnnouncementItem, AttendanceSession, AttendanceAttendee, AudienceTarget } from '../types';
 import { AddAlumniModal } from './admin/AddAlumniModal';
 import { AlumniDetailAdminModal } from './admin/AlumniDetailAdminModal';
+import { AlumniProfileCardModal } from './common/AlumniProfileCardModal';
 import { AdminAnnouncementsTab } from './admin/AdminAnnouncementsTab';
 import { WilayahAddressFilter } from './common/WilayahAddressFilter';
 import { AlumniDistributionMapModal } from './common/AlumniDistributionMapModal';
@@ -52,6 +54,7 @@ import { CreateAnnouncementModal } from './common/CreateAnnouncementModal';
 import { PostMediaCarousel } from './common/PostMediaCarousel';
 import { AudienceTargetModal, formatAudienceSummary } from './common/AudienceTargetModal';
 import { INITIAL_EVENT_COMMENTS, INITIAL_ANNOUNCEMENTS } from '../data/mockData';
+import { formatAuthorUsername, resolveAuthorAlumniRecord } from '../utils/authorUtils';
 import logoPonpesImg from '../assets/images/logo_ponpes_attaroqqy_1790648746461.jpg';
 import posterReuniImg from '../assets/images/poster_reuni_akbar_1790648045947.jpg';
 
@@ -140,6 +143,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
 }) => {
   const [activeTab, setActiveTab] = useState<AdminTab>('alumni');
   const [eventList, setEventList] = useState<EventAgenda[]>(events);
+  const [agendaScopeFilter, setAgendaScopeFilter] = useState<'Semua' | 'Umum' | 'Provinsi' | 'Kabupaten' | 'Kecamatan' | 'Desa'>('Semua');
   const [announcementList, setAnnouncementList] = useState<AnnouncementItem[]>(
     announcements || INITIAL_ANNOUNCEMENTS
   );
@@ -158,10 +162,22 @@ export const AdminView: React.FC<AdminViewProps> = ({
   }, [admin]);
 
   useEffect(() => {
+    setEventList(events);
+  }, [events]);
+
+  useEffect(() => {
     if (announcements) {
       setAnnouncementList(announcements);
     }
   }, [announcements]);
+
+  // Modal profil author postingan
+  const [selectedAuthorProfile, setSelectedAuthorProfile] = useState<AlumniRecord | null>(null);
+
+  const handleAuthorClick = (authorName?: string, authorHandle?: string, authorAvatar?: string) => {
+    const record = resolveAuthorAlumniRecord(authorName, authorHandle, authorAvatar, alumniList, adminUser);
+    setSelectedAuthorProfile(record);
+  };
 
   const handleAddAnnouncement = (newAnn: AnnouncementItem) => {
     setAnnouncementList((prev) => [newAnn, ...prev]);
@@ -188,11 +204,29 @@ export const AdminView: React.FC<AdminViewProps> = ({
       return;
     }
     const formatted = clean.startsWith('@') ? clean : '@' + clean;
+    const prevUsername = adminUser.username;
     const updated: Partial<AdminUser> = {
       username: formatted,
     };
     setAdminUser((prev) => ({ ...prev, ...updated }));
     onUpdateAdmin?.(updated);
+
+    // Sync all existing admin events & announcements locally immediately
+    setEventList((prev) =>
+      prev.map((ev) =>
+        !ev.authorHandle || ev.authorHandle === prevUsername || ev.authorName === adminUser.name || ev.authorHandle === '@admin_pusat'
+          ? { ...ev, authorHandle: formatted }
+          : ev
+      )
+    );
+    setAnnouncementList((prev) =>
+      prev.map((ann) =>
+        !ann.authorHandle || ann.authorHandle === prevUsername || ann.authorName === adminUser.name || ann.authorHandle === '@admin_pusat'
+          ? { ...ann, authorHandle: formatted }
+          : ann
+      )
+    );
+
     setIsEditUsernameModalOpen(false);
     triggerToast('Username admin berhasil diperbarui');
   };
@@ -204,12 +238,31 @@ export const AdminView: React.FC<AdminViewProps> = ({
       return;
     }
 
+    const prevName = adminUser.name;
+    const newName = editAdminName.trim();
     const updated: Partial<AdminUser> = {
-      name: editAdminName.trim(),
+      name: newName,
     };
 
     setAdminUser((prev) => ({ ...prev, ...updated }));
     onUpdateAdmin?.(updated);
+
+    // Sync all existing admin events & announcements locally immediately
+    setEventList((prev) =>
+      prev.map((ev) =>
+        ev.authorName === prevName || ev.authorHandle === adminUser.username || ev.authorName === 'Ust. H. Abdurrahman, M.Pd.'
+          ? { ...ev, authorName: newName }
+          : ev
+      )
+    );
+    setAnnouncementList((prev) =>
+      prev.map((ann) =>
+        ann.authorName === prevName || ann.authorHandle === adminUser.username || ann.authorName === 'Ust. H. Abdurrahman, M.Pd.'
+          ? { ...ann, authorName: newName }
+          : ann
+      )
+    );
+
     setIsEditNameModalOpen(false);
     triggerToast('Nama lengkap berhasil diperbarui');
   };
@@ -235,6 +288,23 @@ export const AdminView: React.FC<AdminViewProps> = ({
       const result = event.target?.result as string;
       setAdminUser((prev) => ({ ...prev, avatar: result }));
       onUpdateAdmin?.({ avatar: result });
+
+      // Sync avatar on posts
+      setEventList((prev) =>
+        prev.map((ev) =>
+          ev.authorHandle === adminUser.username || ev.authorName === adminUser.name || ev.authorHandle === '@admin_pusat'
+            ? { ...ev, authorAvatar: result }
+            : ev
+        )
+      );
+      setAnnouncementList((prev) =>
+        prev.map((ann) =>
+          ann.authorHandle === adminUser.username || ann.authorName === adminUser.name || ann.authorHandle === '@admin_pusat'
+            ? { ...ann, authorAvatar: result }
+            : ann
+        )
+      );
+
       triggerToast('Foto profil admin berhasil diperbarui');
     };
     reader.readAsDataURL(file);
@@ -244,6 +314,22 @@ export const AdminView: React.FC<AdminViewProps> = ({
   const handleRemoveAvatar = () => {
     setAdminUser((prev) => ({ ...prev, avatar: undefined }));
     onUpdateAdmin?.({ avatar: undefined });
+
+    setEventList((prev) =>
+      prev.map((ev) =>
+        ev.authorHandle === adminUser.username || ev.authorName === adminUser.name || ev.authorHandle === '@admin_pusat'
+          ? { ...ev, authorAvatar: undefined }
+          : ev
+      )
+    );
+    setAnnouncementList((prev) =>
+      prev.map((ann) =>
+        ann.authorHandle === adminUser.username || ann.authorName === adminUser.name || ann.authorHandle === '@admin_pusat'
+          ? { ...ann, authorAvatar: undefined }
+          : ann
+      )
+    );
+
     setShowFullscreenAvatar(false);
     triggerToast('Foto profil admin berhasil dihapus');
   };
@@ -915,40 +1001,86 @@ export const AdminView: React.FC<AdminViewProps> = ({
 
             {/* SUB-TAB 1: KELOLA AGENDA */}
             {agendaSubTab === 'kelola' && (
-              <div className="space-y-5">
-                {eventList.map((ev) => (
+              <div className="space-y-4">
+                {/* Filter Tag Jangkauan: Semua, Umum, Provinsi, Kabupaten, Kecamatan, Desa */}
+                <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1 shrink-0">
+                  {(['Semua', 'Umum', 'Provinsi', 'Kabupaten', 'Kecamatan', 'Desa'] as const).map((tag) => {
+                    const isActive = agendaScopeFilter === tag;
+                    return (
+                      <button
+                        key={tag}
+                        type="button"
+                        onClick={() => setAgendaScopeFilter(tag)}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap cursor-pointer transition-all border ${
+                          isActive
+                            ? 'bg-sky-600 text-white border-sky-600 shadow-2xs'
+                            : 'bg-white text-slate-600 border-slate-200/90 hover:bg-slate-50'
+                        }`}
+                      >
+                        {tag}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {eventList
+                  .filter((ev) => {
+                    if (agendaScopeFilter === 'Semua') return true;
+                    if (agendaScopeFilter === 'Umum') {
+                      return (
+                        !ev.targetAudience ||
+                        ev.targetAudience.regionScope === 'semua' ||
+                        (!ev.targetAudience.provinceId &&
+                          !ev.targetAudience.regencyId &&
+                          !ev.targetAudience.districtId &&
+                          !ev.targetAudience.villageId)
+                      );
+                    }
+                    if (agendaScopeFilter === 'Provinsi') {
+                      return Boolean(ev.targetAudience?.provinceId && !ev.targetAudience?.regencyId);
+                    }
+                    if (agendaScopeFilter === 'Kabupaten') {
+                      return Boolean(ev.targetAudience?.regencyId && !ev.targetAudience?.districtId);
+                    }
+                    if (agendaScopeFilter === 'Kecamatan') {
+                      return Boolean(ev.targetAudience?.districtId && !ev.targetAudience?.villageId);
+                    }
+                    if (agendaScopeFilter === 'Desa') {
+                      return Boolean(ev.targetAudience?.villageId || ev.targetAudience?.villageName);
+                    }
+                    return true;
+                  })
+                  .map((ev) => (
                   <div
                     key={ev.id}
                     className="bg-white rounded-3xl border border-slate-200/80 shadow-xs overflow-hidden"
                   >
-                    {/* 1. HEADER KARTU EVENT: PROFIL ADMIN PONDOK + AKSI */}
+                    {/* 1. HEADER KARTU EVENT: USERNAME ADMIN PONDOK + AKSI */}
                     <div className="p-4 flex items-center justify-between gap-3">
-                      <div className="flex items-center gap-3 min-w-0">
-                        <div className="w-10 h-10 rounded-full bg-slate-100 border border-slate-200 overflow-hidden shrink-0 flex items-center justify-center">
+                      <div 
+                        onClick={() => handleAuthorClick(ev.authorName, ev.authorHandle, ev.authorAvatar)}
+                        className="flex items-center gap-3 min-w-0 cursor-pointer group select-none"
+                        title="Lihat profil"
+                      >
+                        <div className="w-10 h-10 rounded-full bg-slate-100 border border-slate-200 overflow-hidden shrink-0 flex items-center justify-center group-hover:ring-2 group-hover:ring-sky-400 transition-all">
                           <img
                             src={ev.authorAvatar || logoPonpesImg}
-                            alt={ev.authorName || adminUser.name}
+                            alt={ev.authorHandle || ev.authorName || adminUser.name}
                             className="w-full h-full object-cover"
                           />
                         </div>
                         <div className="min-w-0">
-                          <h4 className="font-display font-bold text-xs sm:text-sm text-slate-900 truncate leading-tight">
-                            {ev.authorName || adminUser.name}
+                          <h4 className="font-display font-bold text-xs sm:text-sm text-slate-900 truncate leading-tight group-hover:text-sky-600 transition-colors">
+                            {formatAuthorUsername(ev.authorHandle || adminUser.username || ev.authorName)}
                           </h4>
                           <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
-                            <span className="text-[11px] text-slate-500 font-medium">
-                              {ev.authorHandle ? (ev.authorHandle.startsWith('@') ? ev.authorHandle : '@' + ev.authorHandle) : (adminUser.username.startsWith('@') ? adminUser.username : '@' + adminUser.username)}
-                            </span>
-                            <span className="text-[10px] text-slate-300">•</span>
                             <span className="text-[11px] text-slate-400">
                               {ev.postedAt || '2 jam yang lalu'}
                             </span>
-                            {ev.targetAudience && (
-                              <span className="text-[10px] font-bold text-sky-700 bg-sky-50 border border-sky-200 px-2 py-0.5 rounded-full flex items-center gap-1">
-                                <Users className="w-2.5 h-2.5 text-sky-600" />
-                                <span>{formatAudienceSummary(ev.targetAudience)}</span>
-                              </span>
-                            )}
+                            <span className="text-[10px] font-bold text-sky-700 bg-sky-50 border border-sky-200 px-2 py-0.5 rounded-full flex items-center gap-1">
+                              <Globe className="w-2.5 h-2.5 text-sky-600" />
+                              <span>{formatAudienceSummary(ev.targetAudience)}</span>
+                            </span>
                           </div>
                         </div>
                       </div>
@@ -1235,7 +1367,6 @@ export const AdminView: React.FC<AdminViewProps> = ({
                   : [item.desa, item.kecamatan, item.city].filter(Boolean).join(', ') || item.province || 'Alamat belum diisi';
 
                 const isItemActive = item.hasLoggedIn === true || item.isPasswordChanged === true;
-                const age = calculateAge(item.tanggalLahir);
 
                 return (
                   <div
@@ -1264,18 +1395,6 @@ export const AdminView: React.FC<AdminViewProps> = ({
                         >
                           {item.name.charAt(0)}
                         </div>
-                      )}
-
-                      {/* Lingkaran di sisi kiri bawah foto berupa umurnya saat ini */}
-                      {age !== null && (
-                        <span
-                          className={`absolute -bottom-1 -left-1 px-1 min-w-[18px] h-[18px] rounded-full text-white font-mono font-bold text-[9px] flex items-center justify-center border border-white shadow-xs z-10 ${
-                            item.gender === 'P' ? 'bg-pink-600' : 'bg-sky-700'
-                          }`}
-                          title={`Usia: ${age} tahun`}
-                        >
-                          {age}
-                        </span>
                       )}
                     </div>
 
@@ -1340,6 +1459,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
           <AdminAnnouncementsTab
             announcements={announcementList}
             adminUser={adminUser}
+            alumniList={alumniList}
             onAddAnnouncement={handleAddAnnouncement}
             onUpdateAnnouncement={handleUpdateAnnouncement}
             onDeleteAnnouncement={handleDeleteAnnouncement}
@@ -1352,6 +1472,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
               setEditingAnnouncement(ann);
               setIsAdminCreateAnnouncementOpen(true);
             }}
+            onOpenAuthorProfile={(record) => setSelectedAuthorProfile(record)}
           />
         )}
 
@@ -2071,16 +2192,15 @@ export const AdminView: React.FC<AdminViewProps> = ({
                   />
                 </div>
 
-                {/* Target Pemirsa Agenda */}
+                {/* Jangkauan Agenda */}
                 <div 
                   onClick={() => setIsEventAudienceModalOpen(true)}
                   className="py-3 flex items-center justify-between cursor-pointer group hover:bg-slate-50 px-2 rounded-xl transition-colors select-none"
                 >
                   <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                    <Users className="w-4 h-4 text-slate-400 group-hover:text-sky-600 transition-colors shrink-0" />
+                    <Globe className="w-4 h-4 text-slate-400 group-hover:text-sky-600 transition-colors shrink-0" />
                     <div>
-                      <span className="text-xs font-semibold text-slate-700 block">Target Pemirsa</span>
-                      <span className="text-[10px] text-slate-400">Atur jangkauan gender & wilayah alumni</span>
+                      <span className="text-xs font-semibold text-slate-700 block">Jangkauan</span>
                     </div>
                   </div>
                   <div className="flex items-center gap-1.5 shrink-0 ml-2">
@@ -2720,7 +2840,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
         }}
       />
 
-      {/* ================= MODAL TARGET PEMIRSA UNTUK AGENDA ================= */}
+      {/* ================= MODAL PENGATUR JANGKAUAN UNTUK AGENDA ================= */}
       {isEventAudienceModalOpen && (
         <AudienceTargetModal
           isOpen={isEventAudienceModalOpen}
@@ -2728,9 +2848,18 @@ export const AdminView: React.FC<AdminViewProps> = ({
           initialTarget={eventAudienceTarget}
           onSave={(target) => {
             setEventAudienceTarget(target);
-            triggerToast('Target pemirsa agenda diperbarui');
+            triggerToast('Jangkauan agenda diperbarui');
           }}
-          title="Target Pemirsa Agenda"
+          title="Atur Jangkauan"
+        />
+      )}
+
+      {/* ================= MODAL PROFIL ALUMNI BIASA UNTUK AUTHOR AGENDA / PENGUMUMAN ================= */}
+      {selectedAuthorProfile && (
+        <AlumniProfileCardModal
+          isOpen={Boolean(selectedAuthorProfile)}
+          alumni={selectedAuthorProfile}
+          onClose={() => setSelectedAuthorProfile(null)}
         />
       )}
     </div>

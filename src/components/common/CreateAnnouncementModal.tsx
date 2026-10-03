@@ -4,13 +4,12 @@ import {
   X, 
   Camera, 
   Plus, 
-  Pin, 
-  Tag, 
   ChevronLeft, 
   ChevronRight, 
   Check, 
   ImageIcon,
-  Users
+  Users,
+  Globe
 } from 'lucide-react';
 import { AnnouncementItem, AudienceTarget } from '../../types';
 import logoPonpesImg from '../../assets/images/logo_ponpes_attaroqqy_1790648746461.jpg';
@@ -43,9 +42,6 @@ export const CreateAnnouncementModal: React.FC<CreateAnnouncementModalProps> = (
 }) => {
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
-  const [category, setCategory] = useState<'maklumat' | 'umum' | 'kegiatan'>('maklumat');
-  const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
-  const [isImportant, setIsImportant] = useState(false);
   const [targetAudience, setTargetAudience] = useState<AudienceTarget>({ gender: 'semua', regionScope: 'semua' });
   const [isAudienceModalOpen, setIsAudienceModalOpen] = useState(false);
   const [images, setImages] = useState<string[]>([]);
@@ -59,17 +55,12 @@ export const CreateAnnouncementModal: React.FC<CreateAnnouncementModalProps> = (
     if (initialData) {
       setTitle(initialData.title || '');
       setContent(initialData.content || '');
-      const validCat = (initialData.category === 'beasiswa' ? 'umum' : initialData.category) as 'maklumat' | 'umum' | 'kegiatan';
-      setCategory(validCat || 'maklumat');
-      setIsImportant(Boolean(initialData.isImportant));
       setTargetAudience(initialData.targetAudience || { gender: 'semua', regionScope: 'semua' });
       setImages(initialData.images || []);
       setCurrentSlide(0);
     } else {
       setTitle('');
       setContent('');
-      setCategory('maklumat');
-      setIsImportant(false);
       setTargetAudience({ gender: 'semua', regionScope: 'semua' });
       setImages([]);
       setCurrentSlide(0);
@@ -152,8 +143,6 @@ export const CreateAnnouncementModal: React.FC<CreateAnnouncementModalProps> = (
       onUpdate(initialData.id, {
         title: title.trim(),
         content: content.trim(),
-        category,
-        isImportant,
         targetAudience,
         images: images.length > 0 ? images : undefined,
       });
@@ -173,15 +162,16 @@ export const CreateAnnouncementModal: React.FC<CreateAnnouncementModalProps> = (
       id: `ann-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
       title: title.trim(),
       date: formattedDate,
-      category,
       content: content.trim(),
       authorName: author.name,
-      authorHandle: author.username ? (author.username.startsWith('@') ? author.username : `@${author.username}`) : '@admin_pusat',
+      authorHandle: author.username || `@${author.name.toLowerCase().replace(/[^a-z0-9]/g, '_')}`,
       authorAvatar: author.photoUrl || logoPonpesImg,
       authorRole: author.role || 'Pengurus & Alumni',
-      isImportant,
       targetAudience,
       images: images.length > 0 ? images : undefined,
+      likesCount: 0,
+      commentsCount: 0,
+      isLiked: false,
     };
 
     onSubmit(newAnnouncement);
@@ -337,46 +327,17 @@ export const CreateAnnouncementModal: React.FC<CreateAnnouncementModalProps> = (
             </div>
 
             {/* Clean Divider & Field Rows */}
-            <div className="divide-y divide-slate-100 border-t border-b border-slate-100 py-1">
-              {/* Field 3: Baris Kategori Satu Baris (Klik baris akan muncul modal pilih kategori) */}
-              <div 
-                onClick={() => setIsCategoryModalOpen(true)}
-                className="py-3 flex items-center justify-between cursor-pointer group hover:bg-slate-50 px-2 rounded-xl transition-colors select-none"
-              >
-                <div className="flex items-center gap-2.5">
-                  <Tag className="w-4 h-4 text-slate-400 group-hover:text-sky-600 transition-colors shrink-0" />
-                  <span className="text-xs font-semibold text-slate-700">
-                    Kategori
-                  </span>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <span className={`text-xs font-bold px-2.5 py-0.5 rounded-full capitalize border ${
-                    category === 'maklumat'
-                      ? 'bg-amber-50 text-amber-800 border-amber-200'
-                      : category === 'kegiatan'
-                      ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
-                      : 'bg-sky-50 text-sky-800 border-sky-200'
-                  }`}>
-                    {category}
-                  </span>
-                  <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-slate-600 group-hover:translate-x-0.5 transition-all" />
-                </div>
-              </div>
-
-              {/* Field 4: Target Pemirsa (Gender & Wilayah) */}
+            <div className="border-t border-b border-slate-100 py-1">
+              {/* Field: Jangkauan */}
               <div
                 onClick={() => setIsAudienceModalOpen(true)}
                 className="py-3 px-2 flex items-center justify-between cursor-pointer group hover:bg-slate-50 rounded-xl transition-colors select-none"
               >
                 <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                  <Users className="w-4 h-4 text-slate-400 group-hover:text-sky-600 transition-colors shrink-0" />
+                  <Globe className="w-4 h-4 text-slate-400 group-hover:text-sky-600 transition-colors shrink-0" />
                   <div>
                     <span className="text-xs font-semibold text-slate-800 block">
-                      Target Pemirsa
-                    </span>
-                    <span className="text-[11px] text-slate-400 block">
-                      Atur jangkauan gender & wilayah alumni
+                      Jangkauan
                     </span>
                   </div>
                 </div>
@@ -388,134 +349,12 @@ export const CreateAnnouncementModal: React.FC<CreateAnnouncementModalProps> = (
                   <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-slate-600 group-hover:translate-x-0.5 transition-all" />
                 </div>
               </div>
-
-              {/* Field 5: Toggle Tandai Penting */}
-              <div className="py-3 px-2 flex items-center justify-between">
-                <div className="flex items-center gap-2.5">
-                  <Pin className={`w-4 h-4 shrink-0 ${isImportant ? 'text-rose-600 fill-rose-600' : 'text-slate-400'}`} />
-                  <div>
-                    <span className="text-xs font-semibold text-slate-800 block">
-                      Tandai Penting
-                    </span>
-                    <span className="text-[11px] text-slate-400 block">
-                      Sematkan tanda prioritas pada pengumuman ini
-                    </span>
-                  </div>
-                </div>
-
-                <label className="relative inline-flex items-center cursor-pointer shrink-0">
-                  <input
-                    type="checkbox"
-                    checked={isImportant}
-                    onChange={(e) => setIsImportant(e.target.checked)}
-                    className="sr-only peer"
-                  />
-                  <div className="w-10 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-amber-500"></div>
-                </label>
-              </div>
             </div>
           </div>
         </div>
       </div>
 
-      {/* ================= MODAL PILIH KATEGORI (MUNCUL SAAT KLIK BARIS KATEGORI) ================= */}
-      {isCategoryModalOpen && (
-        <div 
-          className="fixed inset-0 z-[100080] bg-black/60 backdrop-blur-2xs flex items-end sm:items-center justify-center p-0 sm:p-4 animate-in fade-in select-none"
-          onClick={() => setIsCategoryModalOpen(false)}
-        >
-          <div 
-            className="w-full sm:max-w-sm bg-white rounded-t-3xl sm:rounded-3xl p-5 space-y-4 shadow-2xl animate-in slide-in-from-bottom-6 sm:zoom-in-95 border border-slate-100"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <div>
-                <h4 className="font-display font-bold text-sm text-slate-900 leading-tight">
-                  Pilih Kategori Pengumuman
-                </h4>
-                <p className="text-[11px] text-slate-400 mt-0.5">
-                  Tentukan jenis informasi yang akan dibagikan
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsCategoryModalOpen(false)}
-                className="w-7 h-7 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-500 cursor-pointer transition-colors"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <div className="space-y-2">
-              {[
-                { 
-                  id: 'maklumat', 
-                  label: 'Maklumat', 
-                  desc: 'Pemberitahuan resmi, instruksi penting, atau edaran pondok',
-                  badgeBg: 'bg-amber-50 text-amber-800 border-amber-200' 
-                },
-                { 
-                  id: 'umum', 
-                  label: 'Umum', 
-                  desc: 'Informasi umum, kabar santri, atau warta alumni sehari-hari',
-                  badgeBg: 'bg-sky-50 text-sky-800 border-sky-200' 
-                },
-                { 
-                  id: 'kegiatan', 
-                  label: 'Kegiatan', 
-                  desc: 'Agenda silaturahmi, reuni, pengajian, dan kegiatan pondok',
-                  badgeBg: 'bg-emerald-50 text-emerald-800 border-emerald-200' 
-                },
-              ].map((opt) => {
-                const isSelected = category === opt.id;
-                return (
-                  <div
-                    key={opt.id}
-                    onClick={() => {
-                      setCategory(opt.id as any);
-                      setIsCategoryModalOpen(false);
-                    }}
-                    className={`p-3.5 rounded-2xl border transition-all cursor-pointer flex items-center justify-between gap-3 ${
-                      isSelected
-                        ? 'bg-sky-50/70 border-sky-400 ring-1 ring-sky-300'
-                        : 'bg-white border-slate-200 hover:bg-slate-50'
-                    }`}
-                  >
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
-                        <span className={`text-xs font-bold px-2.5 py-0.5 rounded-full border ${opt.badgeBg}`}>
-                          {opt.label}
-                        </span>
-                      </div>
-                      <p className="text-[11px] text-slate-500 mt-1 leading-snug">
-                        {opt.desc}
-                      </p>
-                    </div>
-
-                    <div className={`w-5 h-5 rounded-full border flex items-center justify-center shrink-0 ${
-                      isSelected
-                        ? 'bg-sky-600 border-sky-600 text-white'
-                        : 'border-slate-300 bg-white'
-                    }`}>
-                      {isSelected && <Check className="w-3.5 h-3.5 stroke-[3]" />}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-
-            <button
-              type="button"
-              onClick={() => setIsCategoryModalOpen(false)}
-              className="w-full py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs cursor-pointer transition-colors"
-            >
-              Tutup
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* ================= MODAL PENGATURAN TARGET PEMIRSA (AUDIENS) ================= */}
+      {/* ================= MODAL PENGATUR JANGKAUAN ================= */}
       {isAudienceModalOpen && (
         <AudienceTargetModal
           isOpen={isAudienceModalOpen}
@@ -523,9 +362,9 @@ export const CreateAnnouncementModal: React.FC<CreateAnnouncementModalProps> = (
           initialTarget={targetAudience}
           onSave={(target) => {
             setTargetAudience(target);
-            triggerToast('Target pemirsa diperbarui');
+            triggerToast('Jangkauan pengumuman diperbarui');
           }}
-          title="Target Pemirsa Pengumuman"
+          title="Atur Jangkauan"
         />
       )}
     </div>

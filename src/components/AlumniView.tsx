@@ -66,7 +66,11 @@ import {
   AlertCircle,
   Upload,
   Pin,
-  Plus
+  Plus,
+  Globe,
+  MessageSquare,
+  MoreVertical,
+  Copy
 } from 'lucide-react';
 import { AlumniRecord, EventAgenda, AnnouncementItem, EventComment, EventCommentReply, NotificationItem, AudienceTarget } from '../types';
 import { INITIAL_ANNOUNCEMENTS, INITIAL_EVENT_COMMENTS } from '../data/mockData';
@@ -81,6 +85,7 @@ import { CleanMediaPreviewModal } from './common/CleanMediaPreviewModal';
 import { PostMediaCarousel } from './common/PostMediaCarousel';
 import { formatAudienceSummary } from './common/AudienceTargetModal';
 import { AlumniFinanceView } from './AlumniFinanceView';
+import { formatAuthorUsername, resolveAuthorAlumniRecord } from '../utils/authorUtils';
 import posterReuniImg from '../assets/images/poster_reuni_akbar_1790648045947.jpg';
 import logoPonpesImg from '../assets/images/logo_ponpes_attaroqqy_1790648746461.jpg';
 import bgMenuQuranImg from '../assets/images/bg_menu_alquran_1790822566925.jpg';
@@ -100,7 +105,13 @@ const matchesAudienceTarget = (target?: AudienceTarget, alumniUser?: AlumniRecor
 
   // 2. Region check
   if (target.regionScope === 'khusus') {
-    if (target.districtName) {
+    if (target.villageName) {
+      const userDesa = (alumniUser.desa || '').toLowerCase();
+      const targetDesa = target.villageName.toLowerCase();
+      if (!userDesa.includes(targetDesa) && !targetDesa.includes(userDesa)) {
+        return false;
+      }
+    } else if (target.districtName) {
       const userKec = (alumniUser.kecamatan || '').toLowerCase();
       const targetKec = target.districtName.toLowerCase();
       if (!userKec.includes(targetKec) && !targetKec.includes(userKec)) {
@@ -436,6 +447,10 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
     return () => clearInterval(interval);
   }, []);
 
+  // Filter Jangkauan untuk Agenda & Pengumuman
+  const [alumniEventScopeFilter, setAlumniEventScopeFilter] = useState<'Semua' | 'Umum' | 'Provinsi' | 'Kabupaten' | 'Kecamatan' | 'Desa'>('Semua');
+  const [alumniAnnouncementScopeFilter, setAlumniAnnouncementScopeFilter] = useState<'Semua' | 'Umum' | 'Provinsi' | 'Kabupaten' | 'Kecamatan' | 'Desa'>('Semua');
+
   const getGreeting = () => {
     const hour = new Date().getHours();
     if (hour < 11) return 'Selamat Pagi';
@@ -573,7 +588,6 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
   const [eventSubTab, setEventSubTab] = useState<'event' | 'pengumuman'>('event');
   const [announcements, setAnnouncements] = useState<AnnouncementItem[]>(propAnnouncements || INITIAL_ANNOUNCEMENTS);
   const [previewPhotoUrl, setPreviewPhotoUrl] = useState<string | null>(null);
-  const [selectedAnnouncementCategory, setSelectedAnnouncementCategory] = useState<'semua' | 'maklumat' | 'umum' | 'kegiatan'>('semua');
 
   useEffect(() => {
     if (propAnnouncements) {
@@ -593,6 +607,73 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
   // Tanggapan / Komentar Ala Instagram (Persis Screenshot 2)
   const [commentsList, setCommentsList] = useState<EventComment[]>(INITIAL_EVENT_COMMENTS);
   const [activeCommentsModalEvent, setActiveCommentsModalEvent] = useState<EventAgenda | null>(null);
+
+  // Komentar & Menu Pengumuman untuk Akun Alumni
+  const [activeCommentsAnnouncement, setActiveCommentsAnnouncement] = useState<AnnouncementItem | null>(null);
+  const [activeMenuAnnouncement, setActiveMenuAnnouncement] = useState<AnnouncementItem | null>(null);
+
+  const handleToggleLikeAnnouncement = (annId: string) => {
+    setAnnouncements((prev) =>
+      prev.map((a) => {
+        if (a.id !== annId) return a;
+        const isNowLiked = !a.isLiked;
+        return {
+          ...a,
+          isLiked: isNowLiked,
+          likesCount: Math.max(0, (a.likesCount || 0) + (isNowLiked ? 1 : -1)),
+        };
+      })
+    );
+  };
+
+  const handleAddAnnouncementComment = (targetId: string, text: string, replyToCommentId?: string) => {
+    if (!text.trim()) return;
+
+    if (replyToCommentId) {
+      const newReply: EventCommentReply = {
+        id: `ann-rep-${Date.now()}`,
+        commentId: replyToCommentId,
+        authorName: alumni.name,
+        authorAvatar: alumni.photoUrl,
+        content: text.trim(),
+        timeAgo: 'Baru saja',
+        likesCount: 0,
+        isLiked: false,
+      };
+
+      setCommentsList((prev) =>
+        prev.map((c) => {
+          if (c.id === replyToCommentId) {
+            const replies = c.replies || [];
+            return {
+              ...c,
+              repliesCount: (c.repliesCount || replies.length) + 1,
+              replies: [...replies, newReply],
+            };
+          }
+          return c;
+        })
+      );
+    } else {
+      const newComment: EventComment = {
+        id: `ann-comm-${Date.now()}`,
+        eventId: targetId,
+        authorName: alumni.name,
+        authorAvatar: alumni.photoUrl,
+        content: text.trim(),
+        timeAgo: 'Baru saja',
+        likesCount: 0,
+        isLiked: false,
+        repliesCount: 0,
+        replies: [],
+      };
+
+      setCommentsList((prev) => [newComment, ...prev]);
+      setAnnouncements((prev) =>
+        prev.map((a) => (a.id === targetId ? { ...a, commentsCount: (a.commentsCount || 0) + 1 } : a))
+      );
+    }
+  };
 
   // Modal RSVP Text Confirmation
   const [rsvpModalData, setRsvpModalData] = useState<{
@@ -726,6 +807,11 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
   // Directory Search State (Persis Kelola Data Alumni di Akun Admin)
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedAlumniDetail, setSelectedAlumniDetail] = useState<AlumniRecord | null>(null);
+
+  const handleOpenAuthorProfile = (authorName?: string, authorHandle?: string, authorAvatar?: string) => {
+    const record = resolveAuthorAlumniRecord(authorName, authorHandle, authorAvatar, allAlumni);
+    setSelectedAlumniDetail(record);
+  };
   const [isFilterSheetOpen, setIsFilterSheetOpen] = useState(false);
   const [filterEntryFrom, setFilterEntryFrom] = useState('');
   const [filterEntryTo, setFilterEntryTo] = useState('');
@@ -1543,48 +1629,91 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
               </h2>
             </div>
 
+            {/* Filter Tag Jangkauan: Semua, Umum, Provinsi, Kabupaten, Kecamatan, Desa */}
+            <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1">
+              {(['Semua', 'Umum', 'Provinsi', 'Kabupaten', 'Kecamatan', 'Desa'] as const).map((tag) => {
+                const isActive = alumniEventScopeFilter === tag;
+                return (
+                  <button
+                    key={tag}
+                    type="button"
+                    onClick={() => setAlumniEventScopeFilter(tag)}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap cursor-pointer transition-all border ${
+                      isActive
+                        ? 'bg-sky-600 text-white border-sky-600 shadow-2xs'
+                        : 'bg-white text-slate-600 border-slate-200/90 hover:bg-slate-50'
+                    }`}
+                  >
+                    {tag}
+                  </button>
+                );
+              })}
+            </div>
+
             {/* List Event Feed */}
             <div className="space-y-4">
               {events
                 .filter((ev) => matchesAudienceTarget(ev.targetAudience, alumni))
+                .filter((ev) => {
+                  if (alumniEventScopeFilter === 'Semua') return true;
+                  if (alumniEventScopeFilter === 'Umum') {
+                    return (
+                      !ev.targetAudience ||
+                      ev.targetAudience.regionScope === 'semua' ||
+                      (!ev.targetAudience.provinceId &&
+                        !ev.targetAudience.regencyId &&
+                        !ev.targetAudience.districtId &&
+                        !ev.targetAudience.villageId)
+                    );
+                  }
+                  if (alumniEventScopeFilter === 'Provinsi') {
+                    return Boolean(ev.targetAudience?.provinceId && !ev.targetAudience?.regencyId);
+                  }
+                  if (alumniEventScopeFilter === 'Kabupaten') {
+                    return Boolean(ev.targetAudience?.regencyId && !ev.targetAudience?.districtId);
+                  }
+                  if (alumniEventScopeFilter === 'Kecamatan') {
+                    return Boolean(ev.targetAudience?.districtId && !ev.targetAudience?.villageId);
+                  }
+                  if (alumniEventScopeFilter === 'Desa') {
+                    return Boolean(ev.targetAudience?.villageId || ev.targetAudience?.villageName);
+                  }
+                  return true;
+                })
                 .map((ev) => (
                   <div
                     key={ev.id}
                     className="bg-white rounded-3xl border border-slate-200/90 shadow-2xs overflow-hidden"
                   >
-                    {/* 1. POST HEADER (FOTO PROFIL, NAMA AKUN & USERNAME ADMIN) */}
+                    {/* 1. POST HEADER (FOTO PROFIL, USERNAME & JANGKAUAN) */}
                     <div className="px-4 py-3 flex items-center justify-between border-b border-slate-100 bg-white">
-                      <div className="flex items-center gap-3 min-w-0">
+                      <div 
+                        onClick={() => handleOpenAuthorProfile(ev.authorName, ev.authorHandle, ev.authorAvatar)}
+                        className="flex items-center gap-3 min-w-0 cursor-pointer group select-none"
+                        title="Lihat profil"
+                      >
                         {/* Avatar Admin / Logo Pondok */}
                         <div className="relative shrink-0">
                           <img
                             src={ev.authorAvatar || logoPonpesImg}
-                            alt={ev.authorName || 'Admin Humas'}
-                            className="w-10 h-10 rounded-full object-cover border border-slate-200 ring-2 ring-slate-100 shadow-2xs"
+                            alt={ev.authorHandle || ev.authorName || 'Admin Humas'}
+                            className="w-10 h-10 rounded-full object-cover border border-slate-200 ring-2 ring-slate-100 shadow-2xs group-hover:ring-sky-400 transition-all"
                           />
                         </div>
                         <div className="min-w-0">
-                          {/* Nama Akun Admin */}
-                          <h4 className="font-display font-bold text-xs sm:text-sm text-slate-900 truncate leading-tight">
-                            {ev.authorName || 'Ust. H. Abdurrahman, M.Pd.'}
+                          {/* Username Saja */}
+                          <h4 className="font-display font-bold text-xs sm:text-sm text-slate-900 truncate leading-tight group-hover:text-sky-600 transition-colors">
+                            {formatAuthorUsername(ev.authorHandle || ev.authorName)}
                           </h4>
-                          {/* Username, Waktu Posting & Target Pemirsa */}
+                          {/* Waktu Posting & Jangkauan */}
                           <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
-                            {ev.authorHandle && (
-                              <span className="text-[11px] text-slate-500 font-medium">
-                                {ev.authorHandle.startsWith('@') ? ev.authorHandle : `@${ev.authorHandle}`}
-                              </span>
-                            )}
-                            <span className="text-[10px] text-slate-300">•</span>
                             <span className="text-[11px] text-slate-400">
                               {ev.postedAt || '2 jam yang lalu'}
                             </span>
-                            {ev.targetAudience && (
-                              <span className="text-[10px] font-bold text-sky-700 bg-sky-50 border border-sky-200 px-2 py-0.5 rounded-full flex items-center gap-1">
-                                <Users className="w-2.5 h-2.5 text-sky-600" />
-                                <span>{formatAudienceSummary(ev.targetAudience)}</span>
-                              </span>
-                            )}
+                            <span className="text-[10px] font-bold text-sky-700 bg-sky-50 border border-sky-200 px-2 py-0.5 rounded-full flex items-center gap-1">
+                              <Globe className="w-2.5 h-2.5 text-sky-600" />
+                              <span>{formatAudienceSummary(ev.targetAudience)}</span>
+                            </span>
                           </div>
                         </div>
                       </div>
@@ -1674,10 +1803,7 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
                           className={`leading-relaxed cursor-pointer select-none ${expandedCaptions[ev.id] ? '' : 'line-clamp-2'}`}
                           title={expandedCaptions[ev.id] ? "Klik untuk menyembunyikan" : "Klik untuk membaca selengkapnya"}
                         >
-                          <span className="font-bold text-slate-900 mr-1.5 font-mono text-[11px] bg-slate-100 px-1.5 py-0.5 rounded">
-                            @{ev.authorHandle || 'attaroqqy_official'}
-                          </span>
-                          <span className="font-bold text-slate-900 mr-1">{ev.title}</span>
+                          <span className="font-bold text-slate-900 mr-1.5">{ev.title}</span>
                           <span className="text-slate-600">{ev.description}</span>
                         </p>
 
@@ -1864,7 +1990,6 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
                   ? [item.kecamatan, item.city].filter(Boolean).join(', ') || item.city || item.province || 'Alamat disembunyikan'
                   : [item.desa, item.kecamatan, item.city].filter(Boolean).join(', ') || item.province || 'Alamat belum diisi';
                 const distance = getAlumniDistance(item);
-                const age = calculateAge(item.tanggalLahir);
 
                 return (
                   <div
@@ -1894,18 +2019,6 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
                         >
                           {item.name.charAt(0)}
                         </div>
-                      )}
-
-                      {/* Lingkaran umur di sisi kiri bawah foto */}
-                      {age !== null && (
-                        <span
-                          className={`absolute -bottom-1 -left-1 px-1 min-w-[18px] h-[18px] rounded-full text-white font-mono font-bold text-[9px] flex items-center justify-center border border-white shadow-xs z-10 ${
-                            item.gender === 'P' ? 'bg-pink-600' : 'bg-sky-700'
-                          }`}
-                          title={`Usia: ${age} tahun`}
-                        >
-                          {age}
-                        </span>
                       )}
                     </div>
 
@@ -3601,32 +3714,22 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
               </h2>
             </div>
 
-            {/* Category Filter Pills */}
+            {/* Scope Filter Tags: Semua, Umum, Provinsi, Kabupaten, Kecamatan, Desa */}
             <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1">
-              {(['semua', 'maklumat', 'umum', 'kegiatan'] as const).map((cat) => {
-                const visibleAnnouncements = announcements.filter((a) => matchesAudienceTarget(a.targetAudience, alumni));
-                const count = cat === 'semua' 
-                  ? visibleAnnouncements.length 
-                  : visibleAnnouncements.filter(a => a.category === cat).length;
-                const isActive = selectedAnnouncementCategory === cat;
-
+              {(['Semua', 'Umum', 'Provinsi', 'Kabupaten', 'Kecamatan', 'Desa'] as const).map((tag) => {
+                const isActive = alumniAnnouncementScopeFilter === tag;
                 return (
                   <button
-                    key={cat}
+                    key={tag}
                     type="button"
-                    onClick={() => setSelectedAnnouncementCategory(cat)}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap cursor-pointer transition-all border flex items-center gap-1.5 ${
+                    onClick={() => setAlumniAnnouncementScopeFilter(tag)}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap cursor-pointer transition-all border ${
                       isActive
-                        ? 'bg-sky-600 text-white border-sky-600 shadow-xs'
+                        ? 'bg-sky-600 text-white border-sky-600 shadow-2xs'
                         : 'bg-white text-slate-600 border-slate-200/90 hover:bg-slate-50'
                     }`}
                   >
-                    <span className="capitalize">{cat}</span>
-                    <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
-                      isActive ? 'bg-white/25 text-white' : 'bg-slate-100 text-slate-500'
-                    }`}>
-                      {count}
-                    </span>
+                    {tag}
                   </button>
                 );
               })}
@@ -3636,58 +3739,77 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
             <div className="space-y-5">
               {announcements
                 .filter((a) => matchesAudienceTarget(a.targetAudience, alumni))
-                .filter(a => selectedAnnouncementCategory === 'semua' || a.category === selectedAnnouncementCategory)
+                .filter((a) => {
+                  if (alumniAnnouncementScopeFilter === 'Semua') return true;
+                  if (alumniAnnouncementScopeFilter === 'Umum') {
+                    return (
+                      !a.targetAudience ||
+                      a.targetAudience.regionScope === 'semua' ||
+                      (!a.targetAudience.provinceId &&
+                        !a.targetAudience.regencyId &&
+                        !a.targetAudience.districtId &&
+                        !a.targetAudience.villageId)
+                    );
+                  }
+                  if (alumniAnnouncementScopeFilter === 'Provinsi') {
+                    return Boolean(a.targetAudience?.provinceId && !a.targetAudience?.regencyId);
+                  }
+                  if (alumniAnnouncementScopeFilter === 'Kabupaten') {
+                    return Boolean(a.targetAudience?.regencyId && !a.targetAudience?.districtId);
+                  }
+                  if (alumniAnnouncementScopeFilter === 'Kecamatan') {
+                    return Boolean(a.targetAudience?.districtId && !a.targetAudience?.villageId);
+                  }
+                  if (alumniAnnouncementScopeFilter === 'Desa') {
+                    return Boolean(a.targetAudience?.villageId || a.targetAudience?.villageName);
+                  }
+                  return true;
+                })
                 .map((ann) => (
                 <div
                   key={ann.id}
                   className="bg-white rounded-3xl border border-slate-200/80 shadow-xs overflow-hidden"
                 >
-                  {/* 1. Header Kartu: Profil Penulis + Label Kategori di sebelah kiri tanggal (tepat di bawah nama) */}
+                  {/* 1. Header Kartu: Username Penulis + Jangkauan + Titik 3 Kanan Atas */}
                   <div className="p-4 flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className="w-10 h-10 rounded-full bg-slate-100 border border-slate-200 overflow-hidden shrink-0 flex items-center justify-center">
+                    <div 
+                      onClick={() => handleOpenAuthorProfile(ann.authorName, ann.authorHandle, ann.authorAvatar)}
+                      className="flex items-center gap-3 min-w-0 cursor-pointer group select-none"
+                      title="Lihat profil"
+                    >
+                      <div className="w-10 h-10 rounded-full bg-slate-100 border border-slate-200 overflow-hidden shrink-0 flex items-center justify-center group-hover:ring-2 group-hover:ring-sky-400 transition-all">
                         <img
                           src={ann.authorAvatar || logoPonpesImg}
-                          alt={ann.authorName}
+                          alt={ann.authorHandle || ann.authorName}
                           className="w-full h-full object-cover"
                         />
                       </div>
                       <div className="min-w-0">
-                        <h4 className="font-display font-bold text-xs sm:text-sm text-slate-900 truncate leading-tight">
-                          {ann.authorName || 'Ust. H. Abdurrahman, M.Pd.'}
+                        <h4 className="font-display font-bold text-xs sm:text-sm text-slate-900 truncate leading-tight group-hover:text-sky-600 transition-colors">
+                          {formatAuthorUsername(ann.authorHandle || ann.authorName)}
                         </h4>
                         <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
-                          {ann.authorHandle && (
-                            <span className="text-[11px] text-slate-500 font-medium">
-                              {ann.authorHandle.startsWith('@') ? ann.authorHandle : `@${ann.authorHandle}`}
-                            </span>
-                          )}
-                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md capitalize border leading-none ${
-                            ann.category === 'maklumat'
-                              ? 'text-amber-800 bg-amber-50 border-amber-200'
-                              : ann.category === 'kegiatan'
-                              ? 'text-emerald-800 bg-emerald-50 border-emerald-200'
-                              : 'text-sky-800 bg-sky-50 border-sky-200'
-                          }`}>
-                            {ann.category}
-                          </span>
-                          {ann.isImportant && (
-                            <span className="text-[10px] font-bold text-rose-700 bg-rose-50 border border-rose-200 px-1.5 py-0.5 rounded-md flex items-center gap-0.5 leading-none">
-                              <Pin className="w-2.5 h-2.5 text-rose-600 fill-rose-600" />
-                              <span>Penting</span>
-                            </span>
-                          )}
                           <span className="text-[11px] text-slate-400">
                             {ann.date}
                           </span>
-                          {ann.targetAudience && (
-                            <span className="text-[10px] font-bold text-sky-700 bg-sky-50 border border-sky-200 px-2 py-0.5 rounded-full flex items-center gap-1">
-                              <Users className="w-2.5 h-2.5 text-sky-600" />
-                              <span>{formatAudienceSummary(ann.targetAudience)}</span>
-                            </span>
-                          )}
+                          <span className="text-[10px] font-bold text-sky-700 bg-sky-50 border border-sky-200 px-2 py-0.5 rounded-full flex items-center gap-1">
+                            <Globe className="w-2.5 h-2.5 text-sky-600" />
+                            <span>{formatAudienceSummary(ann.targetAudience)}</span>
+                          </span>
                         </div>
                       </div>
+                    </div>
+
+                    {/* Titik 3 Kanan Atas */}
+                    <div className="flex items-center gap-1 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => setActiveMenuAnnouncement(ann)}
+                        className="w-8 h-8 rounded-full text-slate-400 hover:text-slate-700 hover:bg-slate-100 flex items-center justify-center transition-colors cursor-pointer active:scale-95"
+                        title="Opsi Pengumuman"
+                      >
+                        <MoreVertical className="w-4 h-4" />
+                      </button>
                     </div>
                   </div>
 
@@ -3740,10 +3862,7 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
                         className={`leading-relaxed cursor-pointer select-none ${expandedCaptions[ann.id] ? '' : 'line-clamp-2'}`}
                         title={expandedCaptions[ann.id] ? "Klik untuk menyembunyikan" : "Klik untuk membaca selengkapnya"}
                       >
-                        <span className="font-bold text-slate-900 mr-1.5 font-mono text-[11px] bg-slate-100 px-1.5 py-0.5 rounded">
-                          @{ann.authorHandle || 'attaroqqy_official'}
-                        </span>
-                        <span className="font-bold text-slate-900 mr-1">{ann.title}</span>
+                        <span className="font-bold text-slate-900 mr-1.5">{ann.title}</span>
                         <span className="text-slate-600 whitespace-pre-line">{ann.content}</span>
                       </p>
 
@@ -3757,27 +3876,80 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
                     </div>
                   </div>
 
-                  {/* 4. Footer Bagikan */}
-                  <div className="border-t border-slate-100 bg-white">
+                  {/* 4. Footer 3 Tombol: Suka (Ikon + Jumlah), Komentar (Ikon + Jumlah), Bagikan (Hanya Ikon) */}
+                  <div className="border-t border-slate-100 grid grid-cols-3 divide-x divide-slate-100 bg-white">
+                    {/* Tombol Suka */}
+                    <button
+                      type="button"
+                      onClick={() => handleToggleLikeAnnouncement(ann.id)}
+                      className={`py-2.5 px-2 flex items-center justify-center gap-1.5 text-xs font-semibold transition-colors cursor-pointer active:scale-95 ${
+                        ann.isLiked
+                          ? 'text-rose-600 hover:text-rose-700 bg-rose-50/40'
+                          : 'text-slate-600 hover:text-rose-600 hover:bg-slate-50'
+                      }`}
+                      title="Sukai Pengumuman"
+                    >
+                      <Heart className={`w-4 h-4 transition-transform active:scale-125 ${ann.isLiked ? 'fill-rose-500 text-rose-500' : 'text-slate-500'}`} />
+                      <span>{ann.likesCount || 0}</span>
+                    </button>
+
+                    {/* Tombol Komentar */}
+                    <button
+                      type="button"
+                      onClick={() => setActiveCommentsAnnouncement(ann)}
+                      className="py-2.5 px-2 flex items-center justify-center gap-1.5 text-slate-600 hover:text-sky-600 hover:bg-sky-50/50 text-xs font-semibold transition-colors cursor-pointer active:scale-95"
+                      title="Buka Komentar"
+                    >
+                      <MessageSquare className="w-4 h-4 text-slate-500" />
+                      <span>{ann.commentsCount || 0}</span>
+                    </button>
+
+                    {/* Tombol Bagikan (Hanya Ikon) */}
                     <button
                       type="button"
                       onClick={() => handleShareAnnouncement(ann)}
-                      className="w-full py-2.5 px-4 flex items-center justify-center gap-1.5 text-slate-600 hover:text-emerald-600 hover:bg-emerald-50/50 text-xs font-semibold transition-colors cursor-pointer active:scale-95"
+                      className="py-2.5 px-2 flex items-center justify-center text-slate-600 hover:text-emerald-600 hover:bg-emerald-50/50 text-xs font-semibold transition-colors cursor-pointer active:scale-95"
                       title="Bagikan Pengumuman"
                     >
-                      <Share2 className="w-3.5 h-3.5" />
-                      <span>Bagikan Pengumuman</span>
+                      <Share2 className="w-4 h-4 text-slate-500" />
                     </button>
                   </div>
                 </div>
               ))}
 
-              {announcements.filter(a => selectedAnnouncementCategory === 'semua' || a.category === selectedAnnouncementCategory).length === 0 && (
+              {announcements
+                .filter((a) => matchesAudienceTarget(a.targetAudience, alumni))
+                .filter((a) => {
+                  if (alumniAnnouncementScopeFilter === 'Semua') return true;
+                  if (alumniAnnouncementScopeFilter === 'Umum') {
+                    return (
+                      !a.targetAudience ||
+                      a.targetAudience.regionScope === 'semua' ||
+                      (!a.targetAudience.provinceId &&
+                        !a.targetAudience.regencyId &&
+                        !a.targetAudience.districtId &&
+                        !a.targetAudience.villageId)
+                    );
+                  }
+                  if (alumniAnnouncementScopeFilter === 'Provinsi') {
+                    return Boolean(a.targetAudience?.provinceId && !a.targetAudience?.regencyId);
+                  }
+                  if (alumniAnnouncementScopeFilter === 'Kabupaten') {
+                    return Boolean(a.targetAudience?.regencyId && !a.targetAudience?.districtId);
+                  }
+                  if (alumniAnnouncementScopeFilter === 'Kecamatan') {
+                    return Boolean(a.targetAudience?.districtId && !a.targetAudience?.villageId);
+                  }
+                  if (alumniAnnouncementScopeFilter === 'Desa') {
+                    return Boolean(a.targetAudience?.villageId || a.targetAudience?.villageName);
+                  }
+                  return true;
+                }).length === 0 && (
                 <div className="bg-white rounded-3xl border border-slate-200/90 p-8 text-center text-slate-500 text-xs space-y-2">
                   <FileText className="w-8 h-8 text-slate-300 mx-auto" />
                   <p className="font-semibold text-slate-700">Tidak ada pengumuman</p>
                   <p className="text-slate-400 text-[11px]">
-                    Belum ada informasi pada kategori yang dipilih.
+                    Belum ada informasi pada jangkauan {alumniAnnouncementScopeFilter}.
                   </p>
                 </div>
               )}
@@ -4502,6 +4674,73 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
           onAddComment={handleAddComment}
           onToggleLike={handleToggleLikeComment}
         />
+      )}
+
+      {/* ================= MODAL KOMENTAR PENGUMUMAN ================= */}
+      {activeCommentsAnnouncement && (
+        <EventCommentsModal
+          targetId={activeCommentsAnnouncement.id}
+          modalTitle="Komentar"
+          hideAttendanceSummary={true}
+          comments={commentsList}
+          currentUser={{
+            name: alumni.name,
+            username: alumni.username,
+            photoUrl: alumni.photoUrl,
+          }}
+          onClose={() => setActiveCommentsAnnouncement(null)}
+          onAddComment={handleAddAnnouncementComment}
+          onToggleLike={handleToggleLikeComment}
+        />
+      )}
+
+      {/* ================= BOTTOM SHEET MENU TITIK 3 PENGUMUMAN ALUMNI ================= */}
+      {activeMenuAnnouncement && (
+        <div 
+          className="fixed inset-0 z-[100020] bg-black/60 backdrop-blur-xs flex items-end justify-center animate-in fade-in duration-150"
+          onClick={() => setActiveMenuAnnouncement(null)}
+        >
+          <div 
+            className="bg-white rounded-t-3xl w-full max-w-lg p-5 pb-6 space-y-2 shadow-2xl border-t border-slate-200 animate-in slide-in-from-bottom duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Top Drag Handle */}
+            <div className="w-10 h-1 bg-slate-300 rounded-full mx-auto mb-2" />
+
+            <div className="space-y-1">
+              {/* 1. Bagikan */}
+              <button
+                type="button"
+                onClick={() => {
+                  const ann = activeMenuAnnouncement;
+                  setActiveMenuAnnouncement(null);
+                  handleShareAnnouncement(ann);
+                }}
+                className="w-full flex items-center gap-3.5 px-4 py-3 rounded-2xl hover:bg-slate-50 text-slate-800 font-semibold text-sm transition-colors cursor-pointer text-left"
+              >
+                <Share2 className="w-5 h-5 text-slate-700 shrink-0" />
+                <span>Bagikan Pengumuman</span>
+              </button>
+
+              {/* 2. Salin Teks */}
+              <button
+                type="button"
+                onClick={() => {
+                  const ann = activeMenuAnnouncement;
+                  setActiveMenuAnnouncement(null);
+                  if (navigator.clipboard) {
+                    navigator.clipboard.writeText(`*${ann.title}*\n\n${ann.content}\n\nInfo selengkapnya di Portal Alumni Ponpes At-Taroqqy`);
+                  }
+                  triggerToast('Teks pengumuman disalin');
+                }}
+                className="w-full flex items-center gap-3.5 px-4 py-3 rounded-2xl hover:bg-slate-50 text-slate-800 font-semibold text-sm transition-colors cursor-pointer text-left"
+              >
+                <Copy className="w-5 h-5 text-slate-700 shrink-0" />
+                <span>Salin Teks Pengumuman</span>
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* ================= BOTTOM SHEET FOTO SAMPUL (PERSIS SCREENSHOT REFERENSI) ================= */}

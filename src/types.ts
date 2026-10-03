@@ -75,6 +75,8 @@ export interface AudienceTarget {
   regencyName?: string;
   districtId?: string;
   districtName?: string;
+  villageId?: string;
+  villageName?: string;
 }
 
 export interface EventAgenda {
@@ -104,7 +106,7 @@ export interface AnnouncementItem {
   id: string;
   title: string;
   date: string;
-  category: 'maklumat' | 'kegiatan' | 'beasiswa' | 'umum';
+  category?: 'maklumat' | 'kegiatan' | 'beasiswa' | 'umum';
   content: string;
   authorName: string;
   authorHandle?: string;
@@ -113,6 +115,9 @@ export interface AnnouncementItem {
   isImportant?: boolean;
   images?: string[];
   targetAudience?: AudienceTarget;
+  likesCount?: number;
+  isLiked?: boolean;
+  commentsCount?: number;
 }
 
 export interface AttendanceAttendee {

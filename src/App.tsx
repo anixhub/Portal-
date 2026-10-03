@@ -86,6 +86,7 @@ export default function App() {
   const handleUpdateAlumniProfile = async (updates: Partial<AlumniRecord>) => {
     if (!currentSession?.alumniData) return;
 
+    const prevAlumni = currentSession.alumniData;
     const updatedAlumni: AlumniRecord = {
       ...currentSession.alumniData,
       ...updates,
@@ -107,6 +108,50 @@ export default function App() {
     setAlumniList((prev) =>
       prev.map((item) => (item.id === updatedAlumni.id ? updatedAlumni : item))
     );
+
+    // Sync all existing events and announcements authored by this alumni
+    if (updates.name || updates.username || updates.photoUrl !== undefined) {
+      const prevHandle = prevAlumni.username ? prevAlumni.username.replace(/^@/, '').toLowerCase() : '';
+      const newHandle = updates.username ? (updates.username.startsWith('@') ? updates.username : `@${updates.username}`) : undefined;
+
+      setEvents((prev) =>
+        prev.map((ev) => {
+          const evHandle = ev.authorHandle ? ev.authorHandle.replace(/^@/, '').toLowerCase() : '';
+          const isAuthor =
+            (prevHandle && evHandle === prevHandle) ||
+            ev.authorName === prevAlumni.name;
+
+          if (isAuthor) {
+            return {
+              ...ev,
+              authorName: updates.name ?? ev.authorName,
+              authorHandle: newHandle ?? ev.authorHandle,
+              authorAvatar: updates.photoUrl !== undefined ? updates.photoUrl : ev.authorAvatar,
+            };
+          }
+          return ev;
+        })
+      );
+
+      setAnnouncements((prev) =>
+        prev.map((ann) => {
+          const annHandle = ann.authorHandle ? ann.authorHandle.replace(/^@/, '').toLowerCase() : '';
+          const isAuthor =
+            (prevHandle && annHandle === prevHandle) ||
+            ann.authorName === prevAlumni.name;
+
+          if (isAuthor) {
+            return {
+              ...ann,
+              authorName: updates.name ?? ann.authorName,
+              authorHandle: newHandle ?? ann.authorHandle,
+              authorAvatar: updates.photoUrl !== undefined ? updates.photoUrl : ann.authorAvatar,
+            };
+          }
+          return ann;
+        })
+      );
+    }
 
     // Sync secara realtime ke database Hostinger
     await updateAlumniInHostinger(updatedAlumni.id, updates);
@@ -178,6 +223,9 @@ export default function App() {
   };
 
   const handleUpdateAdmin = (updated: Partial<AdminUser>) => {
+    const prevName = adminAccount.name;
+    const prevUsername = adminAccount.username;
+
     setAdminAccount((prev) => {
       const next = { ...prev, ...updated };
       if (currentSession?.role === 'admin' && currentSession.adminData) {
@@ -188,6 +236,55 @@ export default function App() {
       }
       return next;
     });
+
+    // Sync all existing events authored by admin
+    setEvents((prevEvents) =>
+      prevEvents.map((ev) => {
+        const evHandle = ev.authorHandle ? ev.authorHandle.replace(/^@/, '').toLowerCase() : '';
+        const prevH = prevUsername ? prevUsername.replace(/^@/, '').toLowerCase() : '';
+        const isAuthor =
+          !ev.authorHandle ||
+          evHandle === prevH ||
+          evHandle === 'admin_pusat' ||
+          ev.authorName === prevName ||
+          ev.authorName === 'Ust. H. Abdurrahman, M.Pd.';
+
+        if (isAuthor) {
+          return {
+            ...ev,
+            authorName: updated.name ?? ev.authorName,
+            authorHandle: updated.username ?? ev.authorHandle,
+            authorAvatar: updated.avatar !== undefined ? updated.avatar : ev.authorAvatar,
+          };
+        }
+        return ev;
+      })
+    );
+
+    // Sync all existing announcements authored by admin
+    setAnnouncements((prevAnn) =>
+      prevAnn.map((ann) => {
+        const annHandle = ann.authorHandle ? ann.authorHandle.replace(/^@/, '').toLowerCase() : '';
+        const prevH = prevUsername ? prevUsername.replace(/^@/, '').toLowerCase() : '';
+        const isAuthor =
+          !ann.authorHandle ||
+          annHandle === prevH ||
+          annHandle === 'admin_pusat' ||
+          ann.authorName === prevName ||
+          ann.authorName === 'Ust. H. Abdurrahman, M.Pd.' ||
+          ann.authorName === 'Pondok Pesantren At-taroqqy';
+
+        if (isAuthor) {
+          return {
+            ...ann,
+            authorName: updated.name ?? ann.authorName,
+            authorHandle: updated.username ?? ann.authorHandle,
+            authorAvatar: updated.avatar !== undefined ? updated.avatar : ann.authorAvatar,
+          };
+        }
+        return ann;
+      })
+    );
   };
 
   const handleRsvpEvent = (
