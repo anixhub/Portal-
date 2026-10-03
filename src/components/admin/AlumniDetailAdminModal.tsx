@@ -15,7 +15,8 @@ import {
   ChevronRight, 
   Camera,
   FileText,
-  FileCheck
+  FileCheck,
+  Trash2
 } from 'lucide-react';
 import { AlumniRecord } from '../../types';
 import { WilayahAddressFilter } from '../common/WilayahAddressFilter';
@@ -27,6 +28,7 @@ interface AlumniDetailAdminModalProps {
   onClose: () => void;
   onResetPassword: (id: string) => void;
   onSave?: (id: string, updated: Partial<AlumniRecord>) => void;
+  onDeleteAlumni?: (id: string) => void;
 }
 
 export const AlumniDetailAdminModal: React.FC<AlumniDetailAdminModalProps> = ({
@@ -35,12 +37,14 @@ export const AlumniDetailAdminModal: React.FC<AlumniDetailAdminModalProps> = ({
   onClose,
   onResetPassword,
   onSave,
+  onDeleteAlumni,
 }) => {
   if (!isOpen || !alumni) return null;
 
   // Active edit modal state for individual sections
   const [activeEditModal, setActiveEditModal] = useState<string | null>(null);
   const [showFullscreenPhoto, setShowFullscreenPhoto] = useState(false);
+  const [showDeleteConfirmModal, setShowDeleteConfirmModal] = useState(false);
 
   // Form edit states
   const [editPhotoUrl, setEditPhotoUrl] = useState(alumni.photoUrl || '');
@@ -573,9 +577,67 @@ export const AlumniDetailAdminModal: React.FC<AlumniDetailAdminModalProps> = ({
                 </div>
               </div>
             </div>
+
+            {/* TOMBOL HAPUS DATA ALUMNI (PALING BAWAH) */}
+            <div className="pt-4 pb-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setShowDeleteConfirmModal(true)}
+                className="w-full py-3 px-4 rounded-2xl border border-rose-200 bg-rose-50/70 hover:bg-rose-100 text-rose-700 font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer active:scale-[0.99] shadow-2xs"
+              >
+                <Trash2 className="w-4 h-4 text-rose-600" />
+                <span>Hapus Data Alumni</span>
+              </button>
+            </div>
           </div>
         </div>
       </div>
+
+      {/* ================= POPUP KONFIRMASI HAPUS ALUMNI ================= */}
+      {showDeleteConfirmModal && (
+        <div 
+          className="fixed inset-0 z-[100030] bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in select-none"
+          onClick={() => setShowDeleteConfirmModal(false)}
+        >
+          <div 
+            className="bg-white rounded-3xl p-5 max-w-sm w-full space-y-3.5 shadow-2xl border border-slate-100 text-center animate-in zoom-in-95"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="w-12 h-12 rounded-full bg-rose-50 text-rose-600 mx-auto flex items-center justify-center">
+              <Trash2 className="w-6 h-6" />
+            </div>
+            <div>
+              <h3 className="font-display font-bold text-base text-slate-900">
+                Hapus Data Alumni?
+              </h3>
+              <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+                Apakah Anda yakin ingin menghapus data alumni <b>"{alumni.name}"</b>? Tindakan ini akan menghapus seluruh data alumni dari portal.
+              </p>
+            </div>
+
+            <div className="flex gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowDeleteConfirmModal(false)}
+                className="flex-1 py-2.5 rounded-xl border border-slate-200 text-slate-600 font-semibold text-xs hover:bg-slate-50 transition-colors cursor-pointer"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowDeleteConfirmModal(false);
+                  onDeleteAlumni?.(alumni.id);
+                  onClose();
+                }}
+                className="flex-1 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs transition-colors cursor-pointer shadow-md shadow-rose-600/20"
+              >
+                Ya, Hapus
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ================= FULLSCREEN PHOTO VIEWER (DENGAN X, HAPUS, ZOOM IN/OUT & GESER) ================= */}
       {showFullscreenPhoto && (
@@ -820,6 +882,7 @@ export const AlumniDetailAdminModal: React.FC<AlumniDetailAdminModalProps> = ({
                   city: editCity,
                   kecamatan: editKecamatan,
                   desa: editDesa,
+                  alamatLengkap: editAlamatLengkap,
                   coordinates: editCoordinates || undefined
                 });
                 setActiveEditModal(null);

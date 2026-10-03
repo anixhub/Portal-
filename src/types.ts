@@ -66,6 +66,17 @@ export interface AdminUser {
   password?: string;
 }
 
+export interface AudienceTarget {
+  gender?: 'semua' | 'L' | 'P'; // 'semua' | 'L' (Ikhwan) | 'P' (Akhwat)
+  regionScope?: 'semua' | 'khusus'; // 'semua' wilayah | 'khusus' wilayah
+  provinceId?: string;
+  provinceName?: string;
+  regencyId?: string;
+  regencyName?: string;
+  districtId?: string;
+  districtName?: string;
+}
+
 export interface EventAgenda {
   id: string;
   title: string;
@@ -86,6 +97,7 @@ export interface EventAgenda {
   authorHandle?: string;
   authorAvatar?: string;
   postedAt?: string;
+  targetAudience?: AudienceTarget;
 }
 
 export interface AnnouncementItem {
@@ -100,6 +112,7 @@ export interface AnnouncementItem {
   authorRole: string;
   isImportant?: boolean;
   images?: string[];
+  targetAudience?: AudienceTarget;
 }
 
 export interface AttendanceAttendee {

@@ -508,11 +508,10 @@ export const EventAttendanceScannerModal: React.FC<EventAttendanceScannerModalPr
               Daftar Kehadiran
             </h4>
 
-            <div className="flex items-center gap-1.5">
-              <span className="text-[11px] text-slate-400">
-                Live Sinkron
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 border border-emerald-200">
+              <span className="text-[11px] font-semibold text-emerald-800">
+                Jumlah yang Hadir: <strong className="font-bold font-mono text-emerald-900">{attendees.length}</strong>
               </span>
-              <div className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
             </div>
           </div>
 
@@ -623,8 +622,8 @@ export const EventAttendanceScannerModal: React.FC<EventAttendanceScannerModalPr
         )}
         </div>
 
-        {/* Tombol Cari Melayang di atas Tombol Selesai */}
-        <div className="absolute bottom-16 right-4 z-40 pointer-events-auto">
+        {/* Tombol Cari Melayang */}
+        <div className="absolute bottom-5 right-4 z-40 pointer-events-auto">
           <button
             type="button"
             onClick={() => setShowManualModal(true)}
@@ -632,21 +631,6 @@ export const EventAttendanceScannerModal: React.FC<EventAttendanceScannerModalPr
             title="Cari Alumni & Presensi Manual"
           >
             <Search className="w-5 h-5 group-hover:scale-110 transition-transform" />
-          </button>
-        </div>
-
-        {/* Bottom Selesai Bar */}
-        <div className="p-3 border-t border-slate-100 bg-white flex items-center justify-between gap-3 shrink-0">
-          <div className="text-xs text-slate-500 pl-1">
-            Total Tercatat: <strong className="text-slate-900 font-mono">{attendees.length}</strong> orang
-          </div>
-
-          <button
-            type="button"
-            onClick={onClose}
-            className="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 active:scale-95 text-white font-bold rounded-xl text-xs transition-all cursor-pointer shadow-sm"
-          >
-            Selesai Presensi
           </button>
         </div>
       </div>

@@ -7,12 +7,14 @@ import {
   Pin, 
   Tag, 
   ChevronLeft, 
-  ChevronRight,
-  Check,
-  ImageIcon
+  ChevronRight, 
+  Check, 
+  ImageIcon,
+  Users
 } from 'lucide-react';
-import { AnnouncementItem } from '../../types';
+import { AnnouncementItem, AudienceTarget } from '../../types';
 import logoPonpesImg from '../../assets/images/logo_ponpes_attaroqqy_1790648746461.jpg';
+import { AudienceTargetModal, formatAudienceSummary } from './AudienceTargetModal';
 
 interface CreateAnnouncementModalProps {
   isOpen: boolean;
@@ -44,6 +46,8 @@ export const CreateAnnouncementModal: React.FC<CreateAnnouncementModalProps> = (
   const [category, setCategory] = useState<'maklumat' | 'umum' | 'kegiatan'>('maklumat');
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
   const [isImportant, setIsImportant] = useState(false);
+  const [targetAudience, setTargetAudience] = useState<AudienceTarget>({ gender: 'semua', regionScope: 'semua' });
+  const [isAudienceModalOpen, setIsAudienceModalOpen] = useState(false);
   const [images, setImages] = useState<string[]>([]);
   const [currentSlide, setCurrentSlide] = useState(0);
 
@@ -58,6 +62,7 @@ export const CreateAnnouncementModal: React.FC<CreateAnnouncementModalProps> = (
       const validCat = (initialData.category === 'beasiswa' ? 'umum' : initialData.category) as 'maklumat' | 'umum' | 'kegiatan';
       setCategory(validCat || 'maklumat');
       setIsImportant(Boolean(initialData.isImportant));
+      setTargetAudience(initialData.targetAudience || { gender: 'semua', regionScope: 'semua' });
       setImages(initialData.images || []);
       setCurrentSlide(0);
     } else {
@@ -65,6 +70,7 @@ export const CreateAnnouncementModal: React.FC<CreateAnnouncementModalProps> = (
       setContent('');
       setCategory('maklumat');
       setIsImportant(false);
+      setTargetAudience({ gender: 'semua', regionScope: 'semua' });
       setImages([]);
       setCurrentSlide(0);
     }
@@ -148,6 +154,7 @@ export const CreateAnnouncementModal: React.FC<CreateAnnouncementModalProps> = (
         content: content.trim(),
         category,
         isImportant,
+        targetAudience,
         images: images.length > 0 ? images : undefined,
       });
       triggerToast('Pengumuman berhasil diperbarui');
@@ -169,10 +176,11 @@ export const CreateAnnouncementModal: React.FC<CreateAnnouncementModalProps> = (
       category,
       content: content.trim(),
       authorName: author.name,
-      authorHandle: author.username || 'attaroqqy_official',
+      authorHandle: author.username ? (author.username.startsWith('@') ? author.username : `@${author.username}`) : '@admin_pusat',
       authorAvatar: author.photoUrl || logoPonpesImg,
       authorRole: author.role || 'Pengurus & Alumni',
       isImportant,
+      targetAudience,
       images: images.length > 0 ? images : undefined,
     };
 
@@ -234,52 +242,20 @@ export const CreateAnnouncementModal: React.FC<CreateAnnouncementModalProps> = (
                   ))}
                 </div>
 
-                {/* Counter & Navigasi Panah Geser jika lebih dari 1 foto */}
+                {/* Dot indicators hanya lingkaran-lingkaran kecil di bawah saja */}
                 {images.length > 1 && (
-                  <>
-                    <button
-                      type="button"
-                      onClick={() => scrollToSlide(currentSlide - 1)}
-                      disabled={currentSlide === 0}
-                      className={`absolute left-2.5 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-black/50 hover:bg-black/75 text-white flex items-center justify-center backdrop-blur-xs transition-opacity cursor-pointer ${
-                        currentSlide === 0 ? 'opacity-0 pointer-events-none' : 'opacity-100'
-                      }`}
-                      title="Foto Sebelumnya"
-                    >
-                      <ChevronLeft className="w-5 h-5" />
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => scrollToSlide(currentSlide + 1)}
-                      disabled={currentSlide === images.length - 1}
-                      className={`absolute right-2.5 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-black/50 hover:bg-black/75 text-white flex items-center justify-center backdrop-blur-xs transition-opacity cursor-pointer ${
-                        currentSlide === images.length - 1 ? 'opacity-0 pointer-events-none' : 'opacity-100'
-                      }`}
-                      title="Foto Berikutnya"
-                    >
-                      <ChevronRight className="w-5 h-5" />
-                    </button>
-
-                    {/* Indicator Badge: 1/3 */}
-                    <div className="absolute top-3 left-3 px-2 py-0.5 rounded-full bg-black/60 backdrop-blur-md text-[11px] font-mono font-bold text-white tracking-wide shadow-md">
-                      {currentSlide + 1} / {images.length}
-                    </div>
-
-                    {/* Dot indicators */}
-                    <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-1.5 pointer-events-none">
-                      {images.map((_, i) => (
-                        <span
-                          key={i}
-                          className={`rounded-full transition-all duration-300 ${
-                            i === currentSlide
-                              ? 'w-2 h-2 bg-white ring-2 ring-white/40'
-                              : 'w-1.5 h-1.5 bg-white/50'
-                          }`}
-                        />
-                      ))}
-                    </div>
-                  </>
+                  <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-1.5 pointer-events-none">
+                    {images.map((_, i) => (
+                      <span
+                        key={i}
+                        className={`rounded-full transition-all duration-300 ${
+                          i === currentSlide
+                            ? 'w-2 h-2 bg-white ring-2 ring-white/40'
+                            : 'w-1.5 h-1.5 bg-white/50'
+                        }`}
+                      />
+                    ))}
+                  </div>
                 )}
 
                 {/* Tombol Hapus Foto Aktif */}
@@ -388,7 +364,32 @@ export const CreateAnnouncementModal: React.FC<CreateAnnouncementModalProps> = (
                 </div>
               </div>
 
-              {/* Field 4: Toggle Tandai Penting */}
+              {/* Field 4: Target Pemirsa (Gender & Wilayah) */}
+              <div
+                onClick={() => setIsAudienceModalOpen(true)}
+                className="py-3 px-2 flex items-center justify-between cursor-pointer group hover:bg-slate-50 rounded-xl transition-colors select-none"
+              >
+                <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                  <Users className="w-4 h-4 text-slate-400 group-hover:text-sky-600 transition-colors shrink-0" />
+                  <div>
+                    <span className="text-xs font-semibold text-slate-800 block">
+                      Target Pemirsa
+                    </span>
+                    <span className="text-[11px] text-slate-400 block">
+                      Atur jangkauan gender & wilayah alumni
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-1.5 shrink-0 ml-2">
+                  <span className="text-[11px] font-bold text-sky-700 bg-sky-50 border border-sky-200 px-2.5 py-0.5 rounded-full">
+                    {formatAudienceSummary(targetAudience)}
+                  </span>
+                  <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-slate-600 group-hover:translate-x-0.5 transition-all" />
+                </div>
+              </div>
+
+              {/* Field 5: Toggle Tandai Penting */}
               <div className="py-3 px-2 flex items-center justify-between">
                 <div className="flex items-center gap-2.5">
                   <Pin className={`w-4 h-4 shrink-0 ${isImportant ? 'text-rose-600 fill-rose-600' : 'text-slate-400'}`} />
@@ -512,6 +513,20 @@ export const CreateAnnouncementModal: React.FC<CreateAnnouncementModalProps> = (
             </button>
           </div>
         </div>
+      )}
+
+      {/* ================= MODAL PENGATURAN TARGET PEMIRSA (AUDIENS) ================= */}
+      {isAudienceModalOpen && (
+        <AudienceTargetModal
+          isOpen={isAudienceModalOpen}
+          onClose={() => setIsAudienceModalOpen(false)}
+          initialTarget={targetAudience}
+          onSave={(target) => {
+            setTargetAudience(target);
+            triggerToast('Target pemirsa diperbarui');
+          }}
+          title="Target Pemirsa Pengumuman"
+        />
       )}
     </div>
   );

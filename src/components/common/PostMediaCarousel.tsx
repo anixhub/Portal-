@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { ChevronLeft, ChevronRight, Maximize2 } from 'lucide-react';
+import { Maximize2 } from 'lucide-react';
 
 interface PostMediaCarouselProps {
   images?: string[];
@@ -90,38 +90,7 @@ export const PostMediaCarousel: React.FC<PostMediaCarouselProps> = ({
         ))}
       </div>
 
-      {/* Navigasi Panah Geser Kiri */}
-      <button
-        type="button"
-        onClick={(e) => scrollToSlide(currentSlide - 1, e)}
-        disabled={currentSlide === 0}
-        className={`absolute left-2.5 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-black/60 hover:bg-black/80 text-white flex items-center justify-center backdrop-blur-xs transition-opacity cursor-pointer z-10 ${
-          currentSlide === 0 ? 'opacity-0 pointer-events-none' : 'opacity-90 hover:opacity-100'
-        }`}
-        title="Foto Sebelumnya"
-      >
-        <ChevronLeft className="w-5 h-5" />
-      </button>
-
-      {/* Navigasi Panah Geser Kanan */}
-      <button
-        type="button"
-        onClick={(e) => scrollToSlide(currentSlide + 1, e)}
-        disabled={currentSlide === mediaList.length - 1}
-        className={`absolute right-2.5 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-black/60 hover:bg-black/80 text-white flex items-center justify-center backdrop-blur-xs transition-opacity cursor-pointer z-10 ${
-          currentSlide === mediaList.length - 1 ? 'opacity-0 pointer-events-none' : 'opacity-90 hover:opacity-100'
-        }`}
-        title="Foto Berikutnya"
-      >
-        <ChevronRight className="w-5 h-5" />
-      </button>
-
-      {/* Indicator Badge: misal 1 / 3 */}
-      <div className="absolute top-3 left-3 px-2 py-0.5 rounded-full bg-black/60 backdrop-blur-md text-[11px] font-mono font-bold text-white tracking-wide shadow-md z-10 pointer-events-none">
-        {currentSlide + 1} / {mediaList.length}
-      </div>
-
-      {/* Dot Indicators */}
+      {/* Dot Indicators Hanya Lingkaran-lingkaran Kecil di Bawah Saja */}
       <div className="absolute bottom-2.5 left-1/2 -translate-x-1/2 flex items-center gap-1.5 pointer-events-none z-10">
         {mediaList.map((_, i) => (
           <span

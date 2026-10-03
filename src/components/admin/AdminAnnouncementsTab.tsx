@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState } from 'react';
 import { 
   Search, 
   Pencil, 
@@ -7,14 +7,13 @@ import {
   X, 
   Share2, 
   FileText,
-  ChevronLeft,
-  ChevronRight,
-  Maximize2
+  Users
 } from 'lucide-react';
 import { AnnouncementItem, AdminUser } from '../../types';
 import logoPonpesImg from '../../assets/images/logo_ponpes_attaroqqy_1790648746461.jpg';
 import { shareMediaWithCaption } from '../../utils/shareUtils';
 import { PostMediaCarousel } from '../common/PostMediaCarousel';
+import { formatAudienceSummary } from '../common/AudienceTargetModal';
 
 interface AdminAnnouncementsTabProps {
   announcements: AnnouncementItem[];
@@ -26,129 +25,6 @@ interface AdminAnnouncementsTabProps {
   onOpenCreateModal?: () => void;
   onOpenEditModal?: (ann: AnnouncementItem) => void;
 }
-
-// Media Carousel Component yang persis seperti postingan / agenda dengan multi-foto yang bisa digeser
-const AnnouncementMediaCarousel: React.FC<{
-  images: string[];
-  title: string;
-  onPreview: (url: string) => void;
-  onSlideChange?: (idx: number) => void;
-}> = ({ images, title, onPreview, onSlideChange }) => {
-  const [currentSlide, setCurrentSlide] = useState(0);
-  const scrollRef = useRef<HTMLDivElement>(null);
-
-  const handleScroll = () => {
-    if (!scrollRef.current) return;
-    const { scrollLeft, clientWidth } = scrollRef.current;
-    if (clientWidth > 0) {
-      const idx = Math.round(scrollLeft / clientWidth);
-      setCurrentSlide(idx);
-      onSlideChange?.(idx);
-    }
-  };
-
-  const scrollToSlide = (idx: number, e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (!scrollRef.current) return;
-    const clamped = Math.max(0, Math.min(images.length - 1, idx));
-    scrollRef.current.scrollTo({
-      left: clamped * scrollRef.current.clientWidth,
-      behavior: 'smooth',
-    });
-    setCurrentSlide(clamped);
-    onSlideChange?.(clamped);
-  };
-
-  if (!images || images.length === 0) return null;
-
-  if (images.length === 1) {
-    return (
-      <div
-        onClick={() => onPreview(images[0])}
-        className="relative w-full aspect-[4/3] sm:aspect-[16/9] bg-slate-950 overflow-hidden cursor-pointer select-none group"
-        title="Ketuk untuk melihat foto layar penuh"
-      >
-        <img
-          src={images[0]}
-          alt={title}
-          className="w-full h-full object-cover group-hover:scale-[1.01] transition-transform duration-200"
-        />
-        <div className="absolute bottom-2.5 right-2.5 p-1.5 rounded-full bg-black/60 text-white opacity-0 group-hover:opacity-100 transition-opacity backdrop-blur-xs">
-          <Maximize2 className="w-3.5 h-3.5" />
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="relative w-full aspect-[4/3] sm:aspect-[16/9] bg-slate-950 overflow-hidden select-none group">
-      {/* Horizontal Scrollable Slider yang Bisa Digeser */}
-      <div
-        ref={scrollRef}
-        onScroll={handleScroll}
-        className="w-full h-full flex overflow-x-auto snap-x snap-mandatory scroll-smooth no-scrollbar"
-      >
-        {images.map((imgSrc, idx) => (
-          <div
-            key={idx}
-            onClick={() => onPreview(imgSrc)}
-            className="min-w-full w-full h-full flex-shrink-0 snap-center relative bg-slate-950 flex items-center justify-center cursor-pointer"
-          >
-            <img
-              src={imgSrc}
-              alt={`${title} - foto ${idx + 1}`}
-              className="w-full h-full object-cover"
-            />
-          </div>
-        ))}
-      </div>
-
-      {/* Navigasi Panah Geser */}
-      <button
-        type="button"
-        onClick={(e) => scrollToSlide(currentSlide - 1, e)}
-        disabled={currentSlide === 0}
-        className={`absolute left-2.5 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-black/60 hover:bg-black/80 text-white flex items-center justify-center backdrop-blur-xs transition-opacity cursor-pointer z-10 ${
-          currentSlide === 0 ? 'opacity-0 pointer-events-none' : 'opacity-90 hover:opacity-100'
-        }`}
-        title="Foto Sebelumnya"
-      >
-        <ChevronLeft className="w-5 h-5" />
-      </button>
-
-      <button
-        type="button"
-        onClick={(e) => scrollToSlide(currentSlide + 1, e)}
-        disabled={currentSlide === images.length - 1}
-        className={`absolute right-2.5 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-black/60 hover:bg-black/80 text-white flex items-center justify-center backdrop-blur-xs transition-opacity cursor-pointer z-10 ${
-          currentSlide === images.length - 1 ? 'opacity-0 pointer-events-none' : 'opacity-90 hover:opacity-100'
-        }`}
-        title="Foto Berikutnya"
-      >
-        <ChevronRight className="w-5 h-5" />
-      </button>
-
-      {/* Indicator Badge: misal 1/3 */}
-      <div className="absolute top-3 left-3 px-2 py-0.5 rounded-full bg-black/60 backdrop-blur-md text-[11px] font-mono font-bold text-white tracking-wide shadow-md z-10 pointer-events-none">
-        {currentSlide + 1} / {images.length}
-      </div>
-
-      {/* Dot Indicators */}
-      <div className="absolute bottom-2.5 left-1/2 -translate-x-1/2 flex items-center gap-1.5 pointer-events-none z-10">
-        {images.map((_, i) => (
-          <span
-            key={i}
-            className={`rounded-full transition-all duration-300 ${
-              i === currentSlide
-                ? 'w-2 h-2 bg-white ring-2 ring-white/40'
-                : 'w-1.5 h-1.5 bg-white/50'
-            }`}
-          />
-        ))}
-      </div>
-    </div>
-  );
-};
 
 // Item Kartu Pengumuman dengan tracking slide aktif untuk keperluan share gambar yang sedang disorot
 const AnnouncementCardItem: React.FC<{
@@ -197,8 +73,12 @@ Diterbitkan oleh: ${ann.authorName || 'Pondok Pesantren At-taroqqy'}`;
             <h4 className="font-display font-bold text-xs sm:text-sm text-slate-900 truncate leading-tight">
               {ann.authorName || 'Pondok Pesantren At-taroqqy'}
             </h4>
-            {/* TEPAT DI BAWAH NAMA: LABEL MAKLUMAT DLL DI SEBELAH KIRI TANGGAL */}
-            <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+            <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+              {ann.authorHandle && (
+                <span className="text-[11px] text-slate-500 font-medium">
+                  {ann.authorHandle.startsWith('@') ? ann.authorHandle : `@${ann.authorHandle}`}
+                </span>
+              )}
               <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md capitalize border leading-none ${
                 ann.category === 'maklumat'
                   ? 'text-amber-800 bg-amber-50 border-amber-200'
@@ -217,6 +97,12 @@ Diterbitkan oleh: ${ann.authorName || 'Pondok Pesantren At-taroqqy'}`;
               <span className="text-[11px] text-slate-400">
                 {ann.date}
               </span>
+              {ann.targetAudience && (
+                <span className="text-[10px] font-bold text-sky-700 bg-sky-50 border border-sky-200 px-2 py-0.5 rounded-full flex items-center gap-1">
+                  <Users className="w-2.5 h-2.5 text-sky-600" />
+                  <span>{formatAudienceSummary(ann.targetAudience)}</span>
+                </span>
+              )}
             </div>
           </div>
         </div>

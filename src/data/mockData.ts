@@ -330,6 +330,7 @@ export const INITIAL_ADMIN: AdminUser = {
   email: 'admin_pusat@attaroqqy.com',
   role: 'super_admin',
   jabatan: 'Kepala Bidang Kesantrian & Alumni Ponpes At-taroqqy',
+  avatar: logoPonpesImg,
   password: '1997',
 };
 
@@ -347,9 +348,11 @@ export const INITIAL_EVENTS: EventAgenda[] = [
     userRsvp: 'hadir',
     rsvpNote: 'Insya Allah saya hadir',
     posterUrl: posterReuniImg,
-    authorName: 'Humas Ponpes At-taroqqy',
-    authorHandle: 'attaroqqy_official',
+    authorName: 'Ust. H. Abdurrahman, M.Pd.',
+    authorHandle: '@admin_pusat',
+    authorAvatar: logoPonpesImg,
     postedAt: '2 jam yang lalu',
+    targetAudience: { gender: 'semua', regionScope: 'semua' },
   },
   {
     id: 'ev-02',
@@ -362,9 +365,11 @@ export const INITIAL_EVENTS: EventAgenda[] = [
     attendeesCount: 165,
     absentCount: 22,
     userRsvp: 'belum_pasti',
-    authorName: 'Biro Pengembangan Alumni',
-    authorHandle: 'alumni_care',
+    authorName: 'Ust. H. Abdurrahman, M.Pd.',
+    authorHandle: '@admin_pusat',
+    authorAvatar: logoPonpesImg,
     postedAt: '1 hari yang lalu',
+    targetAudience: { gender: 'semua', regionScope: 'semua' },
   },
   {
     id: 'ev-03',
@@ -376,9 +381,11 @@ export const INITIAL_EVENTS: EventAgenda[] = [
     description: 'Pembentukan susunan pengurus koordinator daerah Jakarta Raya dan perencanaan program beasiswa santri asuh At-taroqqy.',
     attendeesCount: 84,
     absentCount: 7,
-    authorName: 'Pengurus Korda Jabodetabek',
-    authorHandle: 'korda_jakarta',
+    authorName: 'Ust. H. Abdurrahman, M.Pd.',
+    authorHandle: '@admin_pusat',
+    authorAvatar: logoPonpesImg,
     postedAt: '3 hari yang lalu',
+    targetAudience: { gender: 'semua', regionScope: 'semua' },
   }
 ];
 
@@ -389,11 +396,12 @@ export const INITIAL_ANNOUNCEMENTS: AnnouncementItem[] = [
     date: '28 September 2026',
     category: 'maklumat',
     isImportant: true,
-    authorName: 'Sekretariat Masyayikh Ponpes At-taroqqy',
-    authorHandle: 'sekretariat_attaroqqy',
+    authorName: 'Ust. H. Abdurrahman, M.Pd.',
+    authorHandle: '@admin_pusat',
     authorAvatar: logoPonpesImg,
-    authorRole: 'Badan Pengawas Yayasan & Pesantren',
-    content: 'Diberitahukan kepada seluruh alumni Pondok Pesantren At-taroqqy di manapun berada untuk melengkapi data profil, nomor kontak WhatsApp, dan domisili pada Portal Alumni guna penertiban KTA Digital serta konsolidasi database alumni menjelang Reuni Akbar 2026.'
+    authorRole: 'Kepala Bidang Kesantrian & Alumni Ponpes At-taroqqy',
+    content: 'Diberitahukan kepada seluruh alumni Pondok Pesantren At-taroqqy di manapun berada untuk melengkapi data profil, nomor kontak WhatsApp, dan domisili pada Portal Alumni guna penertiban KTA Digital serta konsolidasi database alumni menjelang Reuni Akbar 2026.',
+    targetAudience: { gender: 'semua', regionScope: 'semua' },
   },
   {
     id: 'ann-02',
@@ -401,11 +409,12 @@ export const INITIAL_ANNOUNCEMENTS: AnnouncementItem[] = [
     date: '20 September 2026',
     category: 'beasiswa',
     isImportant: false,
-    authorName: 'Lembaga Amil & Ziswaf At-taroqqy',
-    authorHandle: 'ziswaf_attaroqqy',
+    authorName: 'Ust. H. Abdurrahman, M.Pd.',
+    authorHandle: '@admin_pusat',
     authorAvatar: logoPonpesImg,
-    authorRole: 'Koordinator Beasiswa Pendidikan Santri',
-    content: 'Yayasan bersama Ikatan Alumni membuka program beasiswa penuh untuk santri yatim dan dhuafa berprestasi. Alumni yang ingin mendaftarkan anak santri binaan atau menyalurkan infaq dapat menghubungi narahubung panitia.'
+    authorRole: 'Kepala Bidang Kesantrian & Alumni Ponpes At-taroqqy',
+    content: 'Yayasan bersama Ikatan Alumni membuka program beasiswa penuh untuk santri yatim dan dhuafa berprestasi. Alumni yang ingin mendaftarkan anak santri binaan atau menyalurkan infaq dapat menghubungi narahubung panitia.',
+    targetAudience: { gender: 'semua', regionScope: 'semua' },
   },
   {
     id: 'ann-03',
@@ -413,11 +422,12 @@ export const INITIAL_ANNOUNCEMENTS: AnnouncementItem[] = [
     date: '15 September 2026',
     category: 'kegiatan',
     isImportant: false,
-    authorName: 'Pengurus Harian Santri & Alumni',
-    authorHandle: 'kesantrian_attaroqqy',
+    authorName: 'Ust. H. Abdurrahman, M.Pd.',
+    authorHandle: '@admin_pusat',
     authorAvatar: logoPonpesImg,
-    authorRole: 'Biro Kesantrian',
-    content: 'Insya Allah majelis khataman kitab Shahih Bukhari dan doa bersama akan diselenggarakan di masjid jami pesantren pada pertengahan bulan depan secara hybrid (luring & daring).'
+    authorRole: 'Kepala Bidang Kesantrian & Alumni Ponpes At-taroqqy',
+    content: 'Insya Allah majelis khataman kitab Shahih Bukhari dan doa bersama akan diselenggarakan di masjid jami pesantren pada pertengahan bulan depan secara hybrid (luring & daring).',
+    targetAudience: { gender: 'semua', regionScope: 'semua' },
   }
 ];
 

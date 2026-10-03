@@ -68,7 +68,7 @@ import {
   Pin,
   Plus
 } from 'lucide-react';
-import { AlumniRecord, EventAgenda, AnnouncementItem, EventComment, EventCommentReply, NotificationItem } from '../types';
+import { AlumniRecord, EventAgenda, AnnouncementItem, EventComment, EventCommentReply, NotificationItem, AudienceTarget } from '../types';
 import { INITIAL_ANNOUNCEMENTS, INITIAL_EVENT_COMMENTS } from '../data/mockData';
 import { WilayahAddressFilter } from './common/WilayahAddressFilter';
 import { DateWheelPicker } from './common/DateWheelPicker';
@@ -78,6 +78,8 @@ import { AlumniProfileCardModal } from './common/AlumniProfileCardModal';
 import { EventCommentsModal } from './common/EventCommentsModal';
 import { AlumniDistributionMapModal } from './common/AlumniDistributionMapModal';
 import { CleanMediaPreviewModal } from './common/CleanMediaPreviewModal';
+import { PostMediaCarousel } from './common/PostMediaCarousel';
+import { formatAudienceSummary } from './common/AudienceTargetModal';
 import { AlumniFinanceView } from './AlumniFinanceView';
 import posterReuniImg from '../assets/images/poster_reuni_akbar_1790648045947.jpg';
 import logoPonpesImg from '../assets/images/logo_ponpes_attaroqqy_1790648746461.jpg';
@@ -85,6 +87,42 @@ import bgMenuQuranImg from '../assets/images/bg_menu_alquran_1790822566925.jpg';
 import bgMenuMajmuahImg from '../assets/images/bg_menu_majmuah_1790822579673.jpg';
 import bgMenuMaulidImg from '../assets/images/bg_menu_maulid_1790822594019.jpg';
 import bgMenuAurodImg from '../assets/images/bg_menu_aurod_1790822607881.jpg';
+
+const matchesAudienceTarget = (target?: AudienceTarget, alumniUser?: AlumniRecord): boolean => {
+  if (!target || !alumniUser) return true;
+
+  // 1. Gender check
+  if (target.gender && target.gender !== 'semua') {
+    if (alumniUser.gender !== target.gender) {
+      return false;
+    }
+  }
+
+  // 2. Region check
+  if (target.regionScope === 'khusus') {
+    if (target.districtName) {
+      const userKec = (alumniUser.kecamatan || '').toLowerCase();
+      const targetKec = target.districtName.toLowerCase();
+      if (!userKec.includes(targetKec) && !targetKec.includes(userKec)) {
+        return false;
+      }
+    } else if (target.regencyName) {
+      const userCity = (alumniUser.city || '').toLowerCase();
+      const targetReg = target.regencyName.toLowerCase();
+      if (!userCity.includes(targetReg) && !targetReg.includes(userCity)) {
+        return false;
+      }
+    } else if (target.provinceName) {
+      const userProv = (alumniUser.province || '').toLowerCase();
+      const targetProv = target.provinceName.toLowerCase();
+      if (!userProv.includes(targetProv) && !targetProv.includes(userProv)) {
+        return false;
+      }
+    }
+  }
+
+  return true;
+};
 
 const calculateAge = (birthDateStr?: string): number | null => {
   if (!birthDateStr) return null;
@@ -1507,31 +1545,47 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
 
             {/* List Event Feed */}
             <div className="space-y-4">
-              {events.map((ev) => (
+              {events
+                .filter((ev) => matchesAudienceTarget(ev.targetAudience, alumni))
+                .map((ev) => (
                   <div
                     key={ev.id}
                     className="bg-white rounded-3xl border border-slate-200/90 shadow-2xs overflow-hidden"
                   >
-                    {/* 1. POST HEADER (FOTO PROFIL & NAMA AKUN ADMIN) */}
+                    {/* 1. POST HEADER (FOTO PROFIL, NAMA AKUN & USERNAME ADMIN) */}
                     <div className="px-4 py-3 flex items-center justify-between border-b border-slate-100 bg-white">
                       <div className="flex items-center gap-3 min-w-0">
                         {/* Avatar Admin / Logo Pondok */}
                         <div className="relative shrink-0">
                           <img
-                            src={logoPonpesImg}
-                            alt="Logo Ponpes At-taroqqy"
+                            src={ev.authorAvatar || logoPonpesImg}
+                            alt={ev.authorName || 'Admin Humas'}
                             className="w-10 h-10 rounded-full object-cover border border-slate-200 ring-2 ring-slate-100 shadow-2xs"
                           />
                         </div>
                         <div className="min-w-0">
-                          {/* Nama Akun Admin (Tanpa Lingkaran Biru di Kanan Nama) */}
+                          {/* Nama Akun Admin */}
                           <h4 className="font-display font-bold text-xs sm:text-sm text-slate-900 truncate leading-tight">
-                            {ev.authorName || 'Admin Humas & Alumni Pondok'}
+                            {ev.authorName || 'Ust. H. Abdurrahman, M.Pd.'}
                           </h4>
-                          {/* Hanya Waktu Posting (Tanpa Username) */}
-                          <p className="text-[11px] text-slate-400 truncate mt-0.5">
-                            {ev.postedAt || '2 jam yang lalu'}
-                          </p>
+                          {/* Username, Waktu Posting & Target Pemirsa */}
+                          <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                            {ev.authorHandle && (
+                              <span className="text-[11px] text-slate-500 font-medium">
+                                {ev.authorHandle.startsWith('@') ? ev.authorHandle : `@${ev.authorHandle}`}
+                              </span>
+                            )}
+                            <span className="text-[10px] text-slate-300">•</span>
+                            <span className="text-[11px] text-slate-400">
+                              {ev.postedAt || '2 jam yang lalu'}
+                            </span>
+                            {ev.targetAudience && (
+                              <span className="text-[10px] font-bold text-sky-700 bg-sky-50 border border-sky-200 px-2 py-0.5 rounded-full flex items-center gap-1">
+                                <Users className="w-2.5 h-2.5 text-sky-600" />
+                                <span>{formatAudienceSummary(ev.targetAudience)}</span>
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </div>
 
@@ -1557,18 +1611,13 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
                       </div>
                     </div>
 
-                    {/* 2. POSTER MEDIA (BERSIH TANPA LABEL POSTER RESMI ATAU TEKS LIHAT POSTER PENUH) */}
-                    <div
-                      onClick={() => setFullscreenPosterUrl(ev.posterUrl || posterReuniImg)}
-                      className="relative w-full aspect-[4/3] sm:aspect-[16/9] bg-slate-950 overflow-hidden cursor-pointer select-none"
-                      title="Ketuk untuk melihat poster layar penuh"
-                    >
-                      <img
-                        src={ev.posterUrl || posterReuniImg}
-                        alt={ev.title}
-                        className="w-full h-full object-cover hover:scale-[1.01] transition-transform duration-200"
-                      />
-                    </div>
+                    {/* 2. POSTER MEDIA (MULTI-IMAGE SLIDER DENGAN COUNTER DAN TITIK GESER) */}
+                    <PostMediaCarousel
+                      images={ev.images}
+                      fallbackImage={ev.posterUrl || posterReuniImg}
+                      title={ev.title}
+                      onPreview={(url) => setFullscreenPosterUrl(url)}
+                    />
 
                     {/* 3. BARIS KONFIRMASI KEHADIRAN */}
                     {!ev.userRsvp || ev.userRsvp === 'belum_pasti' ? (
@@ -3555,9 +3604,10 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
             {/* Category Filter Pills */}
             <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1">
               {(['semua', 'maklumat', 'umum', 'kegiatan'] as const).map((cat) => {
+                const visibleAnnouncements = announcements.filter((a) => matchesAudienceTarget(a.targetAudience, alumni));
                 const count = cat === 'semua' 
-                  ? announcements.length 
-                  : announcements.filter(a => a.category === cat).length;
+                  ? visibleAnnouncements.length 
+                  : visibleAnnouncements.filter(a => a.category === cat).length;
                 const isActive = selectedAnnouncementCategory === cat;
 
                 return (
@@ -3585,6 +3635,7 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
             {/* Daftar Pengumuman Resmi (Tampilan Ala Agenda) */}
             <div className="space-y-5">
               {announcements
+                .filter((a) => matchesAudienceTarget(a.targetAudience, alumni))
                 .filter(a => selectedAnnouncementCategory === 'semua' || a.category === selectedAnnouncementCategory)
                 .map((ann) => (
                 <div
@@ -3603,9 +3654,14 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
                       </div>
                       <div className="min-w-0">
                         <h4 className="font-display font-bold text-xs sm:text-sm text-slate-900 truncate leading-tight">
-                          {ann.authorName || 'Pondok Pesantren At-taroqqy'}
+                          {ann.authorName || 'Ust. H. Abdurrahman, M.Pd.'}
                         </h4>
-                        <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                        <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                          {ann.authorHandle && (
+                            <span className="text-[11px] text-slate-500 font-medium">
+                              {ann.authorHandle.startsWith('@') ? ann.authorHandle : `@${ann.authorHandle}`}
+                            </span>
+                          )}
                           <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md capitalize border leading-none ${
                             ann.category === 'maklumat'
                               ? 'text-amber-800 bg-amber-50 border-amber-200'
@@ -3624,6 +3680,12 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
                           <span className="text-[11px] text-slate-400">
                             {ann.date}
                           </span>
+                          {ann.targetAudience && (
+                            <span className="text-[10px] font-bold text-sky-700 bg-sky-50 border border-sky-200 px-2 py-0.5 rounded-full flex items-center gap-1">
+                              <Users className="w-2.5 h-2.5 text-sky-600" />
+                              <span>{formatAudienceSummary(ann.targetAudience)}</span>
+                            </span>
+                          )}
                         </div>
                       </div>
                     </div>

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, Calendar, Check, ChevronRight } from 'lucide-react';
 import { EventAgenda } from '../../types';
+import { DateWheelPicker } from '../common/DateWheelPicker';
 
 interface CreateAttendanceModalProps {
   isOpen: boolean;
@@ -26,7 +27,8 @@ export const CreateAttendanceModal: React.FC<CreateAttendanceModalProps> = ({
   const [title, setTitle] = useState('');
   const [date, setDate] = useState('');
   const [isPickerOpen, setIsPickerOpen] = useState(false);
-  const dateInputRef = React.useRef<HTMLInputElement | null>(null);
+  const [isDatePickerModalOpen, setIsDatePickerModalOpen] = useState(false);
+  const [tempDateIso, setTempDateIso] = useState('2026-10-20');
 
   useEffect(() => {
     if (initialEvent) {
@@ -152,11 +154,9 @@ export const CreateAttendanceModal: React.FC<CreateAttendanceModalProps> = ({
             </label>
             <div
               onClick={() => {
-                try {
-                  dateInputRef.current?.showPicker?.();
-                } catch {
-                  dateInputRef.current?.focus?.();
-                }
+                const curIso = parseIndonesianDateToIso(date) || new Date().toISOString().split('T')[0];
+                setTempDateIso(curIso);
+                setIsDatePickerModalOpen(true);
               }}
               className="w-full px-3.5 py-2.5 bg-slate-50 hover:bg-slate-100/70 border border-slate-200 rounded-xl font-semibold text-slate-900 flex items-center justify-between cursor-pointer transition-colors group"
             >
@@ -179,17 +179,6 @@ export const CreateAttendanceModal: React.FC<CreateAttendanceModalProps> = ({
                 )}
                 <Calendar className="w-4 h-4 shrink-0" />
               </div>
-              <input
-                ref={dateInputRef}
-                type="date"
-                className="sr-only"
-                value={parseIndonesianDateToIso(date)}
-                onChange={(e) => {
-                  if (e.target.value) {
-                    setDate(formatToIndonesianDate(e.target.value));
-                  }
-                }}
-              />
             </div>
           </div>
 
@@ -261,6 +250,88 @@ export const CreateAttendanceModal: React.FC<CreateAttendanceModalProps> = ({
                   Belum ada agenda di halaman agenda.
                 </p>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ================= MODAL PEMILIH TANGGAL (WHEEL PICKER) ================= */}
+      {isDatePickerModalOpen && (
+        <div
+          className="fixed inset-0 z-[100035] bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150"
+          onClick={() => setIsDatePickerModalOpen(false)}
+        >
+          <div
+            className="bg-white rounded-3xl p-5 w-full max-w-sm shadow-2xl border border-slate-100 flex flex-col gap-3.5 animate-in zoom-in-95 duration-150"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+              <div className="flex items-center gap-2">
+                <Calendar className="w-4 h-4 text-sky-600" />
+                <h4 className="font-bold text-sm text-slate-900">
+                  Pilih Tanggal Presensi
+                </h4>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsDatePickerModalOpen(false)}
+                className="w-7 h-7 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-500 cursor-pointer transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="py-2.5 px-4 bg-sky-50/90 rounded-2xl border border-sky-100 text-center shadow-2xs">
+              <span className="text-[10px] text-sky-600 font-bold uppercase tracking-wider block mb-0.5">
+                Tanggal Terpilih
+              </span>
+              <span className="font-bold text-base text-sky-900">
+                {formatToIndonesianDate(tempDateIso)}
+              </span>
+            </div>
+
+            <div className="bg-slate-50 rounded-2xl border border-slate-200/90 p-2.5">
+              <DateWheelPicker
+                value={tempDateIso}
+                onChange={(newVal) => setTempDateIso(newVal)}
+                minYear={2020}
+                maxYear={2035}
+              />
+            </div>
+
+            {/* Tombol Pintas Hari Ini */}
+            <div className="flex justify-center">
+              <button
+                type="button"
+                onClick={() => {
+                  const todayIso = new Date().toISOString().split('T')[0];
+                  setTempDateIso(todayIso);
+                }}
+                className="text-xs font-semibold text-sky-600 hover:text-sky-700 hover:underline cursor-pointer"
+              >
+                Atur ke Hari Ini
+              </button>
+            </div>
+
+            <div className="flex gap-2 pt-1 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setIsDatePickerModalOpen(false)}
+                className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs transition-colors cursor-pointer"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setDate(formatToIndonesianDate(tempDateIso));
+                  setIsDatePickerModalOpen(false);
+                }}
+                className="flex-1 py-2.5 bg-sky-600 hover:bg-sky-700 text-white font-bold rounded-xl text-xs transition-colors cursor-pointer shadow-md shadow-sky-600/20 flex items-center justify-center gap-1.5"
+              >
+                <Check className="w-4 h-4" />
+                <span>Terapkan Tanggal</span>
+              </button>
             </div>
           </div>
         </div>

@@ -173,6 +173,10 @@ export default function App() {
     await resetAlumniPasswordInHostinger(id);
   };
 
+  const handleDeleteAlumniByAdmin = async (id: string) => {
+    setAlumniList((prev) => prev.filter((item) => item.id !== id));
+  };
+
   const handleUpdateAdmin = (updated: Partial<AdminUser>) => {
     setAdminAccount((prev) => {
       const next = { ...prev, ...updated };
@@ -290,6 +294,7 @@ export default function App() {
           onLogout={handleLogout}
           onAddAlumni={handleAddAlumniByAdmin}
           onUpdateAlumni={handleUpdateAlumniByAdmin}
+          onDeleteAlumni={handleDeleteAlumniByAdmin}
           onResetPassword={handleResetAlumniPassword}
           onAddEvent={handleAddEvent}
           onUpdateAdmin={handleUpdateAdmin}

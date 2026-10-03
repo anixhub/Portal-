@@ -7,6 +7,7 @@ import {
   Filter, 
   Plus, 
   ChevronRight, 
+  ChevronLeft,
   MapPin, 
   Clock, 
   X, 
@@ -33,7 +34,7 @@ import {
   Check,
   MoreVertical
 } from 'lucide-react';
-import { AlumniRecord, AdminUser, EventAgenda, EventComment, EventCommentReply, AnnouncementItem, AttendanceSession, AttendanceAttendee } from '../types';
+import { AlumniRecord, AdminUser, EventAgenda, EventComment, EventCommentReply, AnnouncementItem, AttendanceSession, AttendanceAttendee, AudienceTarget } from '../types';
 import { AddAlumniModal } from './admin/AddAlumniModal';
 import { AlumniDetailAdminModal } from './admin/AlumniDetailAdminModal';
 import { AdminAnnouncementsTab } from './admin/AdminAnnouncementsTab';
@@ -48,6 +49,8 @@ import { FullAttendanceViewModal } from './admin/FullAttendanceViewModal';
 import { TimeWheelPickerBottomSheet } from './admin/TimeWheelPickerBottomSheet';
 import { DateWheelPicker } from './common/DateWheelPicker';
 import { CreateAnnouncementModal } from './common/CreateAnnouncementModal';
+import { PostMediaCarousel } from './common/PostMediaCarousel';
+import { AudienceTargetModal, formatAudienceSummary } from './common/AudienceTargetModal';
 import { INITIAL_EVENT_COMMENTS, INITIAL_ANNOUNCEMENTS } from '../data/mockData';
 import logoPonpesImg from '../assets/images/logo_ponpes_attaroqqy_1790648746461.jpg';
 import posterReuniImg from '../assets/images/poster_reuni_akbar_1790648045947.jpg';
@@ -108,6 +111,7 @@ interface AdminViewProps {
   onLogout: () => void;
   onAddAlumni: (newAlumni: AlumniRecord) => void;
   onUpdateAlumni: (id: string, updated: Partial<AlumniRecord>) => void;
+  onDeleteAlumni?: (id: string) => void;
   onResetPassword: (id: string) => void;
   onAddEvent: (newEvent: EventAgenda) => void;
   onUpdateAdmin?: (updated: Partial<AdminUser>) => void;
@@ -126,6 +130,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
   onLogout,
   onAddAlumni,
   onUpdateAlumni,
+  onDeleteAlumni,
   onResetPassword,
   onAddEvent,
   onUpdateAdmin,
@@ -512,7 +517,8 @@ export const AdminView: React.FC<AdminViewProps> = ({
   const [isDatePickerSheetOpen, setIsDatePickerSheetOpen] = useState(false);
   const [tempDateIso, setTempDateIso] = useState('2026-10-20');
   const [isAdminCreateAnnouncementOpen, setIsAdminCreateAnnouncementOpen] = useState(false);
-  const [eventTime, setEventTime] = useState('08.00 - 15.00 WIB');
+  const [editingAnnouncement, setEditingAnnouncement] = useState<AnnouncementItem | null>(null);
+  const [eventTime, setEventTime] = useState('');
   const [isTimePickerSheetOpen, setIsTimePickerSheetOpen] = useState(false);
   const [startHour, setStartHour] = useState('08');
   const [startMinute, setStartMinute] = useState('00');
@@ -520,7 +526,13 @@ export const AdminView: React.FC<AdminViewProps> = ({
   const [endMinute, setEndMinute] = useState('00');
   const [eventLocation, setEventLocation] = useState('');
   const [eventDesc, setEventDesc] = useState('');
+  const [eventAudienceTarget, setEventAudienceTarget] = useState<AudienceTarget>({ gender: 'semua', regionScope: 'semua' });
+  const [isEventAudienceModalOpen, setIsEventAudienceModalOpen] = useState(false);
   const [eventPosterUrl, setEventPosterUrl] = useState<string>(posterReuniImg);
+  const [eventImages, setEventImages] = useState<string[]>([]);
+  const [currentEventSlide, setCurrentEventSlide] = useState(0);
+  const eventSliderRef = useRef<HTMLDivElement>(null);
+  const eventFileInputRef = useRef<HTMLInputElement>(null);
   const [showDraftConfirmModal, setShowDraftConfirmModal] = useState(false);
   const [agendaDraft, setAgendaDraft] = useState<{
     title: string;
@@ -529,6 +541,8 @@ export const AdminView: React.FC<AdminViewProps> = ({
     location: string;
     desc: string;
     posterUrl: string;
+    images?: string[];
+    targetAudience?: AudienceTarget;
   } | null>(null);
 
   const posterFileInputRef = useRef<HTMLInputElement | null>(null);
@@ -625,6 +639,62 @@ export const AdminView: React.FC<AdminViewProps> = ({
     );
   });
 
+  const handleEventSliderScroll = () => {
+    if (!eventSliderRef.current) return;
+    const { scrollLeft, clientWidth } = eventSliderRef.current;
+    if (clientWidth > 0) {
+      const idx = Math.round(scrollLeft / clientWidth);
+      setCurrentEventSlide(idx);
+    }
+  };
+
+  const scrollToEventSlide = (idx: number) => {
+    if (!eventSliderRef.current) return;
+    const clamped = Math.max(0, Math.min(eventImages.length - 1, idx));
+    eventSliderRef.current.scrollTo({
+      left: clamped * eventSliderRef.current.clientWidth,
+      behavior: 'smooth',
+    });
+    setCurrentEventSlide(clamped);
+  };
+
+  const handleMultipleEventPhotoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    const fileList = Array.from(files);
+    let loadedCount = 0;
+    const newImages: string[] = [];
+
+    fileList.forEach((file) => {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        if (event.target?.result) {
+          newImages.push(event.target.result as string);
+        }
+        loadedCount++;
+        if (loadedCount === fileList.length) {
+          setEventImages((prev) => [...prev, ...newImages]);
+          triggerToast(`${newImages.length} foto berhasil ditambahkan`);
+        }
+      };
+      reader.readAsDataURL(file);
+    });
+
+    e.target.value = '';
+  };
+
+  const handleRemoveCurrentEventPhoto = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (eventImages.length === 0) return;
+    setEventImages((prev) => {
+      const next = prev.filter((_, idx) => idx !== currentEventSlide);
+      const nextSlide = Math.min(currentEventSlide, Math.max(0, next.length - 1));
+      setTimeout(() => scrollToEventSlide(nextSlide), 50);
+      return next;
+    });
+  };
+
   const handleOpenAddEvent = () => {
     setEditingEvent(null);
     if (agendaDraft) {
@@ -634,25 +704,38 @@ export const AdminView: React.FC<AdminViewProps> = ({
       setEventLocation(agendaDraft.location);
       setEventDesc(agendaDraft.desc);
       setEventPosterUrl(agendaDraft.posterUrl || posterReuniImg);
+      setEventImages(agendaDraft.images || (agendaDraft.posterUrl ? [agendaDraft.posterUrl] : []));
+      setEventAudienceTarget(agendaDraft.targetAudience || { gender: 'semua', regionScope: 'semua' });
     } else {
       setEventTitle('');
-      setEventDate('20 Oktober 2026');
-      setEventTime('08.00 - 15.00 WIB');
-      setEventLocation('Aula Utama Ponpes At-taroqqy');
+      setEventDate('');
+      setEventTime('');
+      setEventLocation('');
       setEventDesc('');
       setEventPosterUrl(posterReuniImg);
+      setEventImages([]);
+      setEventAudienceTarget({ gender: 'semua', regionScope: 'semua' });
     }
+    setCurrentEventSlide(0);
     setIsAddEventOpen(true);
   };
 
   const handleOpenEditEvent = (ev: EventAgenda) => {
     setEditingEvent(ev);
     setEventTitle(ev.title);
-    setEventDate(ev.date);
-    setEventTime(ev.time || '08.00 - 15.00 WIB');
-    setEventLocation(ev.location);
+    setEventDate(ev.date || '');
+    setEventTime(ev.time || '');
+    setEventLocation(ev.location || '');
     setEventDesc(ev.description || '');
     setEventPosterUrl(ev.posterUrl || posterReuniImg);
+    setEventAudienceTarget(ev.targetAudience || { gender: 'semua', regionScope: 'semua' });
+    const existingImages = ev.images && ev.images.length > 0
+      ? ev.images
+      : ev.posterUrl
+      ? [ev.posterUrl]
+      : [];
+    setEventImages(existingImages);
+    setCurrentEventSlide(0);
     setIsAddEventOpen(true);
   };
 
@@ -662,7 +745,9 @@ export const AdminView: React.FC<AdminViewProps> = ({
     const reader = new FileReader();
     reader.onload = (event) => {
       if (event.target?.result) {
-        setEventPosterUrl(event.target.result as string);
+        const res = event.target.result as string;
+        setEventPosterUrl(res);
+        setEventImages((prev) => [...prev, res]);
       }
     };
     reader.readAsDataURL(file);
@@ -672,8 +757,8 @@ export const AdminView: React.FC<AdminViewProps> = ({
     const isDirty = Boolean(
       eventTitle.trim() ||
       eventDesc.trim() ||
-      (eventLocation && eventLocation !== 'Aula Utama Ponpes At-taroqqy') ||
-      (eventPosterUrl && eventPosterUrl !== posterReuniImg)
+      eventImages.length > 0 ||
+      (eventLocation && eventLocation !== 'Aula Utama Ponpes At-taroqqy')
     );
 
     if (isDirty) {
@@ -690,7 +775,9 @@ export const AdminView: React.FC<AdminViewProps> = ({
       time: eventTime,
       location: eventLocation,
       desc: eventDesc,
-      posterUrl: eventPosterUrl,
+      posterUrl: eventImages.length > 0 ? eventImages[0] : eventPosterUrl,
+      images: eventImages,
+      targetAudience: eventAudienceTarget,
     });
     setShowDraftConfirmModal(false);
     setIsAddEventOpen(false);
@@ -710,15 +797,22 @@ export const AdminView: React.FC<AdminViewProps> = ({
       return;
     }
 
+    const finalPoster = eventImages.length > 0 ? eventImages[0] : eventPosterUrl || posterReuniImg;
+    const authorHandleFormatted = adminUser.username
+      ? (adminUser.username.startsWith('@') ? adminUser.username : '@' + adminUser.username)
+      : '@admin_pusat';
+
     if (editingEvent) {
       const updated: EventAgenda = {
         ...editingEvent,
         title: eventTitle.trim(),
-        date: eventDate.trim() || '20 Oktober 2026',
-        time: eventTime.trim() || '08.00 - 15.00 WIB',
-        location: eventLocation.trim() || 'Aula Utama Ponpes At-taroqqy',
+        date: eventDate.trim() || 'Belum ditentukan',
+        time: eventTime.trim() || 'Belum ditentukan',
+        location: eventLocation.trim() || 'Belum ditentukan',
         description: eventDesc.trim(),
-        posterUrl: eventPosterUrl || posterReuniImg,
+        posterUrl: finalPoster,
+        images: eventImages.length > 0 ? eventImages : undefined,
+        targetAudience: eventAudienceTarget,
       };
       setEventList((prev) => prev.map((ev) => (ev.id === editingEvent.id ? updated : ev)));
       triggerToast('Perubahan agenda dibagikan');
@@ -726,18 +820,21 @@ export const AdminView: React.FC<AdminViewProps> = ({
       const created: EventAgenda = {
         id: 'ev-' + Date.now(),
         title: eventTitle.trim(),
-        date: eventDate.trim() || '20 Oktober 2026',
-        time: eventTime.trim() || '08.00 - 15.00 WIB',
-        location: eventLocation.trim() || 'Aula Utama Ponpes At-taroqqy',
+        date: eventDate.trim() || 'Belum ditentukan',
+        time: eventTime.trim() || 'Belum ditentukan',
+        location: eventLocation.trim() || 'Belum ditentukan',
         category: 'reuni',
         description: eventDesc.trim() || 'Agenda pertemuan silaturahmi alumni pondok pesantren.',
         attendeesCount: 0,
         notAttendingCount: 0,
         uncertainCount: 0,
-        authorName: 'Admin Humas & Alumni Pondok',
-        authorHandle: 'attaroqqy_official',
+        authorName: adminUser.name,
+        authorHandle: authorHandleFormatted,
+        authorAvatar: adminUser.avatar || logoPonpesImg,
         postedAt: 'Baru saja',
-        posterUrl: eventPosterUrl || posterReuniImg,
+        posterUrl: finalPoster,
+        images: eventImages.length > 0 ? eventImages : undefined,
+        targetAudience: eventAudienceTarget,
       };
       onAddEvent(created);
       setEventList((prev) => [created, ...prev]);
@@ -829,18 +926,30 @@ export const AdminView: React.FC<AdminViewProps> = ({
                       <div className="flex items-center gap-3 min-w-0">
                         <div className="w-10 h-10 rounded-full bg-slate-100 border border-slate-200 overflow-hidden shrink-0 flex items-center justify-center">
                           <img
-                            src={logoPonpesImg}
-                            alt="Admin Humas"
+                            src={ev.authorAvatar || logoPonpesImg}
+                            alt={ev.authorName || adminUser.name}
                             className="w-full h-full object-cover"
                           />
                         </div>
                         <div className="min-w-0">
                           <h4 className="font-display font-bold text-xs sm:text-sm text-slate-900 truncate leading-tight">
-                            {ev.authorName || 'Admin Humas & Alumni Pondok'}
+                            {ev.authorName || adminUser.name}
                           </h4>
-                          <p className="text-[11px] text-slate-400 truncate mt-0.5">
-                            {ev.postedAt || '2 jam yang lalu'}
-                          </p>
+                          <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                            <span className="text-[11px] text-slate-500 font-medium">
+                              {ev.authorHandle ? (ev.authorHandle.startsWith('@') ? ev.authorHandle : '@' + ev.authorHandle) : (adminUser.username.startsWith('@') ? adminUser.username : '@' + adminUser.username)}
+                            </span>
+                            <span className="text-[10px] text-slate-300">•</span>
+                            <span className="text-[11px] text-slate-400">
+                              {ev.postedAt || '2 jam yang lalu'}
+                            </span>
+                            {ev.targetAudience && (
+                              <span className="text-[10px] font-bold text-sky-700 bg-sky-50 border border-sky-200 px-2 py-0.5 rounded-full flex items-center gap-1">
+                                <Users className="w-2.5 h-2.5 text-sky-600" />
+                                <span>{formatAudienceSummary(ev.targetAudience)}</span>
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </div>
 
@@ -856,18 +965,13 @@ export const AdminView: React.FC<AdminViewProps> = ({
                       </div>
                     </div>
 
-                    {/* 2. POSTER MEDIA */}
-                    <div
-                      onClick={() => setFullscreenPosterUrl(ev.posterUrl || posterReuniImg)}
-                      className="relative w-full aspect-[4/3] sm:aspect-[16/9] bg-slate-950 overflow-hidden cursor-pointer select-none"
-                      title="Ketuk untuk melihat poster layar penuh"
-                    >
-                      <img
-                        src={ev.posterUrl || posterReuniImg}
-                        alt={ev.title}
-                        className="w-full h-full object-cover hover:scale-[1.01] transition-transform duration-200"
-                      />
-                    </div>
+                    {/* 2. POSTER MEDIA (MULTI-IMAGE CAROUSEL DENGAN SLIDER GESER) */}
+                    <PostMediaCarousel
+                      images={ev.images}
+                      fallbackImage={ev.posterUrl || posterReuniImg}
+                      title={ev.title}
+                      onPreview={(url) => setFullscreenPosterUrl(url)}
+                    />
 
                     {/* 3. BARIS KETERANGAN KEHADIRAN (KETERANGAN KEHADIRAN DI KIRI, TOMBOL BUAT PRESENSI DI KANAN) */}
                     <div className="px-4 py-2.5 flex items-center justify-between border-b border-slate-100 bg-white text-xs select-none gap-2">
@@ -1240,7 +1344,14 @@ export const AdminView: React.FC<AdminViewProps> = ({
             onUpdateAnnouncement={handleUpdateAnnouncement}
             onDeleteAnnouncement={handleDeleteAnnouncement}
             triggerToast={triggerToast}
-            onOpenCreateModal={() => setIsAdminCreateAnnouncementOpen(true)}
+            onOpenCreateModal={() => {
+              setEditingAnnouncement(null);
+              setIsAdminCreateAnnouncementOpen(true);
+            }}
+            onOpenEditModal={(ann) => {
+              setEditingAnnouncement(ann);
+              setIsAdminCreateAnnouncementOpen(true);
+            }}
           />
         )}
 
@@ -1347,17 +1458,10 @@ export const AdminView: React.FC<AdminViewProps> = ({
                   <h3 className="font-display font-extrabold text-lg text-slate-900 leading-tight">
                     {adminUser.name}
                   </h3>
-                  {/* USERNAME ADMIN */}
-                  <p className="text-xs text-sky-700 font-semibold mt-0.5 flex items-center justify-center gap-1.5">
-                    <User className="w-3.5 h-3.5 text-sky-600" />
-                    <span>{adminUser.username.startsWith('@') ? adminUser.username : '@' + adminUser.username}</span>
+                  {/* USERNAME ADMIN (TANPA IKON) */}
+                  <p className="text-xs text-slate-500 font-medium mt-0.5">
+                    {adminUser.username.startsWith('@') ? adminUser.username : '@' + adminUser.username}
                   </p>
-                  <p className="text-xs text-slate-500 mt-0.5">
-                    {adminUser.jabatan || 'Pengurus Pondok'}
-                  </p>
-                  <span className="inline-block mt-1 text-[11px] font-bold text-sky-700 bg-sky-50 border border-sky-200 px-3 py-0.5 rounded-full">
-                    Administrator Portal
-                  </span>
                 </div>
               </div>
 
@@ -1588,6 +1692,11 @@ export const AdminView: React.FC<AdminViewProps> = ({
             setDetailAlumni((prev) => (prev ? { ...prev, ...updated } : null));
             triggerToast('Perubahan data alumni berhasil disimpan');
           }}
+          onDeleteAlumni={(id) => {
+            onDeleteAlumni?.(id);
+            setDetailAlumni(null);
+            triggerToast('Data alumni berhasil dihapus');
+          }}
         />
       )}
 
@@ -1791,8 +1900,96 @@ export const AdminView: React.FC<AdminViewProps> = ({
             </button>
           </div>
 
-          {/* Form Body - Halaman Buat Agenda Benar-benar Bersih (Nama Agenda di atas Keterangan) */}
+          {/* Form Body - Halaman Buat Agenda dengan Area Foto Persis Seperti Buat Pengumuman */}
           <div className="flex-1 overflow-y-auto">
+            {/* 1. AREA FOTO / POSTER / MULTI-IMAGE CAROUSEL PERSIS SEPERTI DI BUAT PENGUMUMAN */}
+            <div className="relative w-full aspect-[4/3] sm:aspect-[16/9] bg-slate-950 overflow-hidden select-none shrink-0 group">
+              {eventImages.length > 0 ? (
+                <>
+                  {/* Slider Kontainer Geser Horizontal */}
+                  <div
+                    ref={eventSliderRef}
+                    onScroll={handleEventSliderScroll}
+                    className="w-full h-full flex overflow-x-auto snap-x snap-mandatory scroll-smooth no-scrollbar"
+                  >
+                    {eventImages.map((imgSrc, idx) => (
+                      <div
+                        key={idx}
+                        className="min-w-full w-full h-full flex-shrink-0 snap-center relative bg-slate-950 flex items-center justify-center"
+                      >
+                        <img
+                          src={imgSrc}
+                          alt={`Foto ${idx + 1}`}
+                          className="w-full h-full object-cover"
+                        />
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Dot indicators hanya lingkaran-lingkaran kecil di bawah saja */}
+                  {eventImages.length > 1 && (
+                    <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-1.5 pointer-events-none">
+                      {eventImages.map((_, i) => (
+                        <span
+                          key={i}
+                          className={`rounded-full transition-all duration-300 ${
+                            i === currentEventSlide
+                              ? 'w-2 h-2 bg-white ring-2 ring-white/40'
+                              : 'w-1.5 h-1.5 bg-white/50'
+                          }`}
+                        />
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Tombol Hapus Foto Aktif */}
+                  <button
+                    type="button"
+                    onClick={handleRemoveCurrentEventPhoto}
+                    className="absolute top-3 right-3 w-8 h-8 rounded-full bg-black/60 hover:bg-rose-600 text-white flex items-center justify-center backdrop-blur-md transition-colors cursor-pointer shadow-md"
+                    title="Hapus foto ini"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </>
+              ) : (
+                /* Placeholder jika belum ada foto */
+                <div 
+                  onClick={() => eventFileInputRef.current?.click()}
+                  className="w-full h-full flex flex-col items-center justify-center gap-2 text-slate-400 hover:text-sky-400 bg-slate-900 cursor-pointer transition-colors p-6 text-center"
+                >
+                  <div className="w-12 h-12 rounded-full bg-slate-800 flex items-center justify-center text-slate-300">
+                    <Camera className="w-6 h-6 text-sky-400" />
+                  </div>
+                  <p className="text-xs font-semibold text-slate-200">
+                    Ketuk untuk memilih foto agenda
+                  </p>
+                  <p className="text-[11px] text-slate-500">
+                    Bisa memilih lebih dari satu foto dan digeser
+                  </p>
+                </div>
+              )}
+
+              {/* Tombol Tambah / Ganti Gambar di Pojok Kanan Bawah Foto */}
+              <button
+                type="button"
+                onClick={() => eventFileInputRef.current?.click()}
+                className="absolute bottom-3 right-3 px-3 py-1.5 rounded-full bg-black/60 hover:bg-black/80 backdrop-blur-md text-white text-xs font-semibold flex items-center gap-1.5 cursor-pointer shadow-md active:scale-95 transition-all"
+              >
+                <Camera className="w-3.5 h-3.5 text-white" />
+                <span>{eventImages.length > 0 ? '+ Tambah Foto' : 'Pilih Foto'}</span>
+              </button>
+
+              <input
+                ref={eventFileInputRef}
+                type="file"
+                multiple
+                accept="image/*"
+                onChange={handleMultipleEventPhotoSelect}
+                className="hidden"
+              />
+            </div>
+
             <div className="max-w-lg mx-auto w-full p-4 space-y-4 pb-20">
               {/* 1. Kotak Nama Agenda (DI ATAS KOTAK KETERANGAN) */}
               <div>
@@ -1872,6 +2069,26 @@ export const AdminView: React.FC<AdminViewProps> = ({
                     placeholder="Tulis lokasi atau tempat kegiatan..."
                     className="w-full text-xs font-semibold text-slate-800 placeholder-slate-400 focus:outline-none"
                   />
+                </div>
+
+                {/* Target Pemirsa Agenda */}
+                <div 
+                  onClick={() => setIsEventAudienceModalOpen(true)}
+                  className="py-3 flex items-center justify-between cursor-pointer group hover:bg-slate-50 px-2 rounded-xl transition-colors select-none"
+                >
+                  <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                    <Users className="w-4 h-4 text-slate-400 group-hover:text-sky-600 transition-colors shrink-0" />
+                    <div>
+                      <span className="text-xs font-semibold text-slate-700 block">Target Pemirsa</span>
+                      <span className="text-[10px] text-slate-400">Atur jangkauan gender & wilayah alumni</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1.5 shrink-0 ml-2">
+                    <span className="text-[11px] font-bold text-sky-700 bg-sky-50 border border-sky-200 px-2.5 py-0.5 rounded-full">
+                      {formatAudienceSummary(eventAudienceTarget)}
+                    </span>
+                    <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-slate-600 transition-all" />
+                  </div>
                 </div>
               </div>
             </div>
@@ -2484,19 +2701,38 @@ export const AdminView: React.FC<AdminViewProps> = ({
           onUpdateSessionAttendees={handleUpdateSessionAttendees}
         />
       )}
-      {/* ================= MODAL FULLSCREEN BUAT PENGUMUMAN OLEH ADMIN ================= */}
+      {/* ================= MODAL FULLSCREEN BUAT / EDIT PENGUMUMAN OLEH ADMIN ================= */}
       <CreateAnnouncementModal
         isOpen={isAdminCreateAnnouncementOpen}
-        onClose={() => setIsAdminCreateAnnouncementOpen(false)}
+        onClose={() => {
+          setIsAdminCreateAnnouncementOpen(false);
+          setEditingAnnouncement(null);
+        }}
         onSubmit={handleAddAnnouncement}
+        onUpdate={handleUpdateAnnouncement}
+        initialData={editingAnnouncement}
         triggerToast={triggerToast}
         author={{
-          name: adminUser.name || 'Pondok Pesantren At-taroqqy',
-          username: adminUser.username || 'attaroqqy_official',
-          photoUrl: logoPonpesImg,
-          role: adminUser.jabatan || 'Pengurus Pondok',
+          name: adminUser.name || 'Ust. H. Abdurrahman, M.Pd.',
+          username: adminUser.username || '@admin_pusat',
+          photoUrl: adminUser.avatar || logoPonpesImg,
+          role: adminUser.jabatan || 'Kepala Bidang Kesantrian & Alumni Ponpes At-taroqqy',
         }}
       />
+
+      {/* ================= MODAL TARGET PEMIRSA UNTUK AGENDA ================= */}
+      {isEventAudienceModalOpen && (
+        <AudienceTargetModal
+          isOpen={isEventAudienceModalOpen}
+          onClose={() => setIsEventAudienceModalOpen(false)}
+          initialTarget={eventAudienceTarget}
+          onSave={(target) => {
+            setEventAudienceTarget(target);
+            triggerToast('Target pemirsa agenda diperbarui');
+          }}
+          title="Target Pemirsa Agenda"
+        />
+      )}
     </div>
   );
 };
