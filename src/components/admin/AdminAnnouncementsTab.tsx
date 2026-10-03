@@ -68,7 +68,7 @@ Diterbitkan oleh: ${ann.authorName || 'Pondok Pesantren At-taroqqy'}`;
 
   return (
     <div className="bg-white rounded-3xl border border-slate-200/80 shadow-xs overflow-hidden">
-      {/* 1. HEADER KARTU PENGUMUMAN: USERNAME PENULIS + JANGKAUAN + TITIK TIGA KANAN ATAS */}
+      {/* 1. HEADER KARTU PENGUMUMAN: USERNAME PENULIS SAJA + TITIK TIGA KANAN ATAS */}
       <div className="p-4 flex items-center justify-between gap-3">
         <div 
           onClick={() => onOpenAuthorProfile(ann)}
@@ -86,13 +86,14 @@ Diterbitkan oleh: ${ann.authorName || 'Pondok Pesantren At-taroqqy'}`;
             <h4 className="font-display font-bold text-xs sm:text-sm text-slate-900 truncate leading-tight group-hover:text-sky-600 transition-colors">
               {formatAuthorUsername(ann.authorHandle || ann.authorName)}
             </h4>
+            {/* Keterangan Jangkauan & Waktu Upload */}
             <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
-              <span className="text-[11px] text-slate-400">
-                {ann.date}
-              </span>
-              <span className="text-[10px] font-bold text-sky-700 bg-sky-50 border border-sky-200 px-2 py-0.5 rounded-full flex items-center gap-1">
+              <span className="text-[10px] font-bold text-sky-700 bg-sky-50 border border-sky-200/90 px-2 py-0.5 rounded-full flex items-center gap-1">
                 <Globe className="w-2.5 h-2.5 text-sky-600" />
                 <span>{formatAudienceSummary(ann.targetAudience)}</span>
+              </span>
+              <span className="text-[11px] text-slate-400">
+                {ann.postedAt || ann.date || 'Baru saja'}
               </span>
             </div>
           </div>
@@ -452,27 +453,7 @@ export const AdminAnnouncementsTab: React.FC<AdminAnnouncementsTabProps> = ({
                 <span>Edit</span>
               </button>
 
-              {/* 2. Bagikan */}
-              <button
-                type="button"
-                onClick={async () => {
-                  const annToShare = activeMenuAnnouncement;
-                  setActiveMenuAnnouncement(null);
-                  const imageToShare = annToShare.images && annToShare.images.length > 0 ? annToShare.images[0] : null;
-                  await shareMediaWithCaption({
-                    imageUrl: imageToShare,
-                    title: annToShare.title,
-                    text: `*${annToShare.title}*\n\n${annToShare.content}\n\n📅 Tanggal: ${annToShare.date}\nDiterbitkan oleh: ${annToShare.authorName || 'Pondok Pesantren At-taroqqy'}`,
-                    onToast: triggerToast,
-                  });
-                }}
-                className="w-full flex items-center gap-3.5 px-4 py-3 rounded-2xl hover:bg-slate-50 text-slate-800 font-semibold text-sm transition-colors cursor-pointer text-left"
-              >
-                <Share2 className="w-5 h-5 text-slate-700 shrink-0" />
-                <span>Bagikan</span>
-              </button>
-
-              {/* 3. Hapus */}
+              {/* 2. Hapus */}
               <button
                 type="button"
                 onClick={() => {

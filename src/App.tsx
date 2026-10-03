@@ -225,36 +225,36 @@ export default function App() {
   const handleUpdateAdmin = (updated: Partial<AdminUser>) => {
     const prevName = adminAccount.name;
     const prevUsername = adminAccount.username;
+    const prevH = prevUsername ? prevUsername.replace(/^@/, '').toLowerCase() : '';
 
-    setAdminAccount((prev) => {
-      const next = { ...prev, ...updated };
-      if (currentSession?.role === 'admin' && currentSession.adminData) {
-        setCurrentSession({
-          ...currentSession,
-          adminData: next,
-        });
-      }
-      return next;
-    });
+    const nextAdmin: AdminUser = { ...adminAccount, ...updated };
+    setAdminAccount(nextAdmin);
+
+    if (currentSession?.role === 'admin' && currentSession.adminData) {
+      setCurrentSession({
+        ...currentSession,
+        adminData: nextAdmin,
+      });
+    }
 
     // Sync all existing events authored by admin
     setEvents((prevEvents) =>
       prevEvents.map((ev) => {
         const evHandle = ev.authorHandle ? ev.authorHandle.replace(/^@/, '').toLowerCase() : '';
-        const prevH = prevUsername ? prevUsername.replace(/^@/, '').toLowerCase() : '';
         const isAuthor =
           !ev.authorHandle ||
           evHandle === prevH ||
           evHandle === 'admin_pusat' ||
           ev.authorName === prevName ||
-          ev.authorName === 'Ust. H. Abdurrahman, M.Pd.';
+          ev.authorName === 'Ust. H. Abdurrahman, M.Pd.' ||
+          ev.authorName === 'Pondok Pesantren At-taroqqy';
 
         if (isAuthor) {
           return {
             ...ev,
-            authorName: updated.name ?? ev.authorName,
-            authorHandle: updated.username ?? ev.authorHandle,
-            authorAvatar: updated.avatar !== undefined ? updated.avatar : ev.authorAvatar,
+            authorName: nextAdmin.name,
+            authorHandle: nextAdmin.username,
+            authorAvatar: nextAdmin.avatar !== undefined ? nextAdmin.avatar : ev.authorAvatar,
           };
         }
         return ev;
@@ -265,7 +265,6 @@ export default function App() {
     setAnnouncements((prevAnn) =>
       prevAnn.map((ann) => {
         const annHandle = ann.authorHandle ? ann.authorHandle.replace(/^@/, '').toLowerCase() : '';
-        const prevH = prevUsername ? prevUsername.replace(/^@/, '').toLowerCase() : '';
         const isAuthor =
           !ann.authorHandle ||
           annHandle === prevH ||
@@ -277,9 +276,9 @@ export default function App() {
         if (isAuthor) {
           return {
             ...ann,
-            authorName: updated.name ?? ann.authorName,
-            authorHandle: updated.username ?? ann.authorHandle,
-            authorAvatar: updated.avatar !== undefined ? updated.avatar : ann.authorAvatar,
+            authorName: nextAdmin.name,
+            authorHandle: nextAdmin.username,
+            authorAvatar: nextAdmin.avatar !== undefined ? nextAdmin.avatar : ann.authorAvatar,
           };
         }
         return ann;
@@ -374,6 +373,7 @@ export default function App() {
           allAlumni={alumniList}
           events={events}
           announcements={announcements}
+          adminAccount={adminAccount}
           onLogout={handleLogout}
           onUpdateProfile={handleUpdateAlumniProfile}
           onRsvpEvent={handleRsvpEvent}

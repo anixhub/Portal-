@@ -33,7 +33,11 @@ import {
   Megaphone,
   Check,
   MoreVertical,
-  Globe
+  Globe,
+  Phone,
+  Briefcase,
+  FileText,
+  AtSign
 } from 'lucide-react';
 import { AlumniRecord, AdminUser, EventAgenda, EventComment, EventCommentReply, AnnouncementItem, AttendanceSession, AttendanceAttendee, AudienceTarget } from '../types';
 import { AddAlumniModal } from './admin/AddAlumniModal';
@@ -55,6 +59,7 @@ import { PostMediaCarousel } from './common/PostMediaCarousel';
 import { AudienceTargetModal, formatAudienceSummary } from './common/AudienceTargetModal';
 import { INITIAL_EVENT_COMMENTS, INITIAL_ANNOUNCEMENTS } from '../data/mockData';
 import { formatAuthorUsername, resolveAuthorAlumniRecord } from '../utils/authorUtils';
+import { shareMediaWithCaption } from '../utils/shareUtils';
 import logoPonpesImg from '../assets/images/logo_ponpes_attaroqqy_1790648746461.jpg';
 import posterReuniImg from '../assets/images/poster_reuni_akbar_1790648045947.jpg';
 
@@ -91,19 +96,6 @@ const parseIndonesianDateToIso = (str: string): string => {
     }
   }
   return '';
-};
-
-const calculateAge = (birthDateStr?: string): number | null => {
-  if (!birthDateStr) return null;
-  const birth = new Date(birthDateStr);
-  if (isNaN(birth.getTime())) return null;
-  const today = new Date();
-  let age = today.getFullYear() - birth.getFullYear();
-  const m = today.getMonth() - birth.getMonth();
-  if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) {
-    age--;
-  }
-  return age >= 0 && age < 130 ? age : null;
 };
 
 interface AdminViewProps {
@@ -155,10 +147,38 @@ export const AdminView: React.FC<AdminViewProps> = ({
   const [editAdminUsername, setEditAdminUsername] = useState(admin.username || '@admin_pusat');
   const [isEditUsernameModalOpen, setIsEditUsernameModalOpen] = useState(false);
 
+  // Field pengaturan profil admin: kontak, bio, pekerjaan/instansi, alamat domisili
+  const [editAdminPhone, setEditAdminPhone] = useState(admin.phone || '081234567890');
+  const [editAdminEmail, setEditAdminEmail] = useState(admin.email || 'admin_pusat@attaroqqy.com');
+  const [editAdminOccupation, setEditAdminOccupation] = useState(admin.occupation || admin.jabatan || 'Kepala Bidang Kesantrian & Alumni');
+  const [editAdminInstitution, setEditAdminInstitution] = useState(admin.institution || 'Pondok Pesantren At-taroqqy');
+  const [editAdminBio, setEditAdminBio] = useState(admin.bio || 'Pengasuh & Dewan Pembina Ikatan Alumni Pondok Pesantren At-taroqqy.');
+  const [editAdminProvince, setEditAdminProvince] = useState(admin.province || 'Jawa Timur');
+  const [editAdminCity, setEditAdminCity] = useState(admin.city || 'Malang');
+  const [editAdminKecamatan, setEditAdminKecamatan] = useState(admin.kecamatan || 'Klojen');
+  const [editAdminDesa, setEditAdminDesa] = useState(admin.desa || 'Kauman');
+  const [editAdminAlamatLengkap, setEditAdminAlamatLengkap] = useState(admin.alamatLengkap || 'Jl. Pesantren No. 01, Komplek Ponpes At-taroqqy, Malang');
+  const [editAdminCoordinates, setEditAdminCoordinates] = useState<{ lat: number; lng: number } | null>(
+    admin.coordinates || { lat: -7.9839, lng: 112.6214 }
+  );
+
+  const [activeAdminEditModal, setActiveAdminEditModal] = useState<'nama' | 'username' | 'alamat' | 'kontak' | 'pekerjaan' | 'bio' | null>(null);
+
   useEffect(() => {
     setAdminUser(admin);
     setEditAdminName(admin.name);
     setEditAdminUsername(admin.username || '@admin_pusat');
+    setEditAdminPhone(admin.phone || '081234567890');
+    setEditAdminEmail(admin.email || 'admin_pusat@attaroqqy.com');
+    setEditAdminOccupation(admin.occupation || admin.jabatan || 'Kepala Bidang Kesantrian & Alumni');
+    setEditAdminInstitution(admin.institution || 'Pondok Pesantren At-taroqqy');
+    setEditAdminBio(admin.bio || 'Pengasuh & Dewan Pembina Ikatan Alumni Pondok Pesantren At-taroqqy.');
+    setEditAdminProvince(admin.province || 'Jawa Timur');
+    setEditAdminCity(admin.city || 'Malang');
+    setEditAdminKecamatan(admin.kecamatan || 'Klojen');
+    setEditAdminDesa(admin.desa || 'Kauman');
+    setEditAdminAlamatLengkap(admin.alamatLengkap || 'Jl. Pesantren No. 01, Komplek Ponpes At-taroqqy, Malang');
+    setEditAdminCoordinates(admin.coordinates || { lat: -7.9839, lng: 112.6214 });
   }, [admin]);
 
   useEffect(() => {
@@ -208,21 +228,22 @@ export const AdminView: React.FC<AdminViewProps> = ({
     const updated: Partial<AdminUser> = {
       username: formatted,
     };
-    setAdminUser((prev) => ({ ...prev, ...updated }));
+    const nextAdminUser: AdminUser = { ...adminUser, ...updated };
+    setAdminUser(nextAdminUser);
     onUpdateAdmin?.(updated);
 
     // Sync all existing admin events & announcements locally immediately
     setEventList((prev) =>
       prev.map((ev) =>
-        !ev.authorHandle || ev.authorHandle === prevUsername || ev.authorName === adminUser.name || ev.authorHandle === '@admin_pusat'
-          ? { ...ev, authorHandle: formatted }
+        !ev.authorHandle || ev.authorHandle === prevUsername || ev.authorName === adminUser.name || ev.authorHandle === '@admin_pusat' || ev.authorName === 'Ust. H. Abdurrahman, M.Pd.'
+          ? { ...ev, authorHandle: formatted, authorName: nextAdminUser.name }
           : ev
       )
     );
     setAnnouncementList((prev) =>
       prev.map((ann) =>
-        !ann.authorHandle || ann.authorHandle === prevUsername || ann.authorName === adminUser.name || ann.authorHandle === '@admin_pusat'
-          ? { ...ann, authorHandle: formatted }
+        !ann.authorHandle || ann.authorHandle === prevUsername || ann.authorName === adminUser.name || ann.authorHandle === '@admin_pusat' || ann.authorName === 'Ust. H. Abdurrahman, M.Pd.'
+          ? { ...ann, authorHandle: formatted, authorName: nextAdminUser.name }
           : ann
       )
     );
@@ -243,28 +264,84 @@ export const AdminView: React.FC<AdminViewProps> = ({
     const updated: Partial<AdminUser> = {
       name: newName,
     };
-
-    setAdminUser((prev) => ({ ...prev, ...updated }));
+    const nextAdminUser: AdminUser = { ...adminUser, ...updated };
+    setAdminUser(nextAdminUser);
     onUpdateAdmin?.(updated);
 
     // Sync all existing admin events & announcements locally immediately
     setEventList((prev) =>
       prev.map((ev) =>
-        ev.authorName === prevName || ev.authorHandle === adminUser.username || ev.authorName === 'Ust. H. Abdurrahman, M.Pd.'
-          ? { ...ev, authorName: newName }
+        ev.authorName === prevName || ev.authorHandle === adminUser.username || ev.authorName === 'Ust. H. Abdurrahman, M.Pd.' || ev.authorHandle === '@admin_pusat'
+          ? { ...ev, authorName: newName, authorHandle: nextAdminUser.username }
           : ev
       )
     );
     setAnnouncementList((prev) =>
       prev.map((ann) =>
-        ann.authorName === prevName || ann.authorHandle === adminUser.username || ann.authorName === 'Ust. H. Abdurrahman, M.Pd.'
-          ? { ...ann, authorName: newName }
+        ann.authorName === prevName || ann.authorHandle === adminUser.username || ann.authorName === 'Ust. H. Abdurrahman, M.Pd.' || ann.authorHandle === '@admin_pusat'
+          ? { ...ann, authorName: newName, authorHandle: nextAdminUser.username }
           : ann
       )
     );
 
     setIsEditNameModalOpen(false);
+    setActiveAdminEditModal(null);
     triggerToast('Nama lengkap berhasil diperbarui');
+  };
+
+  const handleSaveAdminKontak = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    const updated: Partial<AdminUser> = {
+      phone: editAdminPhone.trim(),
+      email: editAdminEmail.trim(),
+    };
+    const nextAdminUser: AdminUser = { ...adminUser, ...updated };
+    setAdminUser(nextAdminUser);
+    onUpdateAdmin?.(updated);
+    setActiveAdminEditModal(null);
+    triggerToast('Kontak WhatsApp & Email berhasil diperbarui');
+  };
+
+  const handleSaveAdminPekerjaan = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    const updated: Partial<AdminUser> = {
+      occupation: editAdminOccupation.trim(),
+      jabatan: editAdminOccupation.trim(),
+      institution: editAdminInstitution.trim(),
+    };
+    const nextAdminUser: AdminUser = { ...adminUser, ...updated };
+    setAdminUser(nextAdminUser);
+    onUpdateAdmin?.(updated);
+    setActiveAdminEditModal(null);
+    triggerToast('Jabatan & instansi berhasil diperbarui');
+  };
+
+  const handleSaveAdminBio = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    const updated: Partial<AdminUser> = {
+      bio: editAdminBio.trim(),
+    };
+    const nextAdminUser: AdminUser = { ...adminUser, ...updated };
+    setAdminUser(nextAdminUser);
+    onUpdateAdmin?.(updated);
+    setActiveAdminEditModal(null);
+    triggerToast('Bio admin berhasil diperbarui');
+  };
+
+  const handleSaveAdminAlamat = () => {
+    const updated: Partial<AdminUser> = {
+      province: editAdminProvince,
+      city: editAdminCity,
+      kecamatan: editAdminKecamatan,
+      desa: editAdminDesa,
+      alamatLengkap: editAdminAlamatLengkap,
+      coordinates: editAdminCoordinates || undefined,
+    };
+    const nextAdminUser: AdminUser = { ...adminUser, ...updated };
+    setAdminUser(nextAdminUser);
+    onUpdateAdmin?.(updated);
+    setActiveAdminEditModal(null);
+    triggerToast('Alamat domisili berhasil diperbarui');
   };
 
   // Photo & Cover States (sama persis dengan akun alumni/user biasa)
@@ -958,6 +1035,18 @@ export const AdminView: React.FC<AdminViewProps> = ({
     triggerToast('Kata sandi admin berhasil diperbarui');
   };
 
+  const handleShareEvent = async (ev: EventAgenda) => {
+    const posterSrc = (ev.images && ev.images.length > 0) ? ev.images[0] : (ev.posterUrl || posterReuniImg);
+    const shareText = `*AGENDA RESMI AT-TAROQQY*\n*${ev.title}*\n\n🗓️ Tanggal: ${ev.date}\n⏰ Waktu: ${ev.time}\n📍 Tempat: ${ev.location}\n\n${ev.description}\n\nInfo selengkapnya di Portal Alumni At-taroqqy:\n${window.location.origin}`;
+
+    await shareMediaWithCaption({
+      imageUrl: posterSrc,
+      title: ev.title,
+      text: shareText,
+      onToast: triggerToast,
+    });
+  };
+
   return (
     <div className="w-full h-full flex flex-col bg-[#f0f2fb] overflow-hidden select-none relative font-sans">
       {/* Toast Notification */}
@@ -1055,7 +1144,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
                     key={ev.id}
                     className="bg-white rounded-3xl border border-slate-200/80 shadow-xs overflow-hidden"
                   >
-                    {/* 1. HEADER KARTU EVENT: USERNAME ADMIN PONDOK + AKSI */}
+                    {/* 1. HEADER KARTU EVENT: USERNAME SAJA */}
                     <div className="p-4 flex items-center justify-between gap-3">
                       <div 
                         onClick={() => handleAuthorClick(ev.authorName, ev.authorHandle, ev.authorAvatar)}
@@ -1073,13 +1162,14 @@ export const AdminView: React.FC<AdminViewProps> = ({
                           <h4 className="font-display font-bold text-xs sm:text-sm text-slate-900 truncate leading-tight group-hover:text-sky-600 transition-colors">
                             {formatAuthorUsername(ev.authorHandle || adminUser.username || ev.authorName)}
                           </h4>
+                          {/* Keterangan Jangkauan & Waktu Upload */}
                           <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
-                            <span className="text-[11px] text-slate-400">
-                              {ev.postedAt || '2 jam yang lalu'}
-                            </span>
-                            <span className="text-[10px] font-bold text-sky-700 bg-sky-50 border border-sky-200 px-2 py-0.5 rounded-full flex items-center gap-1">
+                            <span className="text-[10px] font-bold text-sky-700 bg-sky-50 border border-sky-200/90 px-2 py-0.5 rounded-full flex items-center gap-1">
                               <Globe className="w-2.5 h-2.5 text-sky-600" />
                               <span>{formatAudienceSummary(ev.targetAudience)}</span>
+                            </span>
+                            <span className="text-[11px] text-slate-400">
+                              {ev.postedAt || '2 jam yang lalu'}
                             </span>
                           </div>
                         </div>
@@ -1586,87 +1676,199 @@ export const AdminView: React.FC<AdminViewProps> = ({
                 </div>
               </div>
 
-              {/* CARD LEBIH RINGKAS: KOLOM NAMA LENGKAP, USERNAME, GANTI KATA SANDI, LOGOUT */}
-              <div className="space-y-4">
-                <div className="bg-white rounded-2xl border border-slate-200/90 divide-y divide-slate-100 shadow-2xs overflow-hidden">
-                  {/* 1. Kolom Nama Lengkap (Saat diklik munculkan modal edit nama lengkap) */}
-                  <div
-                    onClick={() => {
-                      setEditAdminName(adminUser.name);
-                      setIsEditNameModalOpen(true);
-                    }}
-                    className="flex items-center justify-between p-3.5 cursor-pointer hover:bg-slate-50 transition-colors group"
-                  >
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className="w-9 h-9 rounded-xl bg-sky-50 text-sky-600 flex items-center justify-center shrink-0">
-                        <User className="w-4 h-4" />
-                      </div>
-                      <div className="min-w-0">
-                        <p className="text-[11px] font-medium text-slate-400">Nama Lengkap</p>
-                        <p className="text-xs font-bold text-slate-800 truncate">{adminUser.name}</p>
-                      </div>
-                    </div>
-                    <ChevronRight className="w-4 h-4 text-slate-400 group-hover:translate-x-0.5 transition-transform shrink-0 ml-2" />
-                  </div>
+              {/* PENGATURAN INFORMASI PROFIL ADMIN (SUSUNAN SAMA DENGAN AKUN BIASA) */}
+              <div className="space-y-6">
+                {/* SEGMEN 1: INFORMASI PROFIL & BIODATA PENGURUS */}
+                <div>
+                  <p className="text-xs font-semibold text-slate-400 text-center tracking-wide mb-3">
+                    Informasi Profil Admin
+                  </p>
 
-                  {/* 2. Kolom Username */}
-                  <div
-                    onClick={() => {
-                      setEditAdminUsername(adminUser.username || '@admin_pusat');
-                      setIsEditUsernameModalOpen(true);
-                    }}
-                    className="flex items-center justify-between p-3.5 cursor-pointer hover:bg-slate-50 transition-colors group"
-                  >
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className="w-9 h-9 rounded-xl bg-sky-50 text-sky-600 flex items-center justify-center shrink-0">
-                        <User className="w-4 h-4" />
+                  <div className="bg-white rounded-2xl border border-slate-200/90 divide-y divide-slate-100 shadow-2xs overflow-hidden">
+                    {/* 1. Nama Lengkap */}
+                    <div
+                      onClick={() => {
+                        setEditAdminName(adminUser.name);
+                        setIsEditNameModalOpen(true);
+                      }}
+                      className="flex items-center justify-between p-3.5 cursor-pointer hover:bg-slate-50 transition-colors group"
+                    >
+                      <div className="flex items-center gap-4 min-w-0 pr-2">
+                        <div className="w-6 flex items-center justify-center shrink-0">
+                          <User className="w-5 h-5 text-slate-700" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-[11px] text-slate-400 font-medium leading-tight">Nama Lengkap</p>
+                          <p className="text-sm font-semibold text-slate-800 truncate mt-0.5">{adminUser.name}</p>
+                        </div>
                       </div>
-                      <div className="min-w-0">
-                        <p className="text-[11px] font-medium text-slate-400">Username</p>
-                        <p className="text-xs font-bold text-slate-800 truncate">
-                          {adminUser.username.startsWith('@') ? adminUser.username : '@' + adminUser.username}
-                        </p>
-                      </div>
+                      <ChevronRight className="w-4 h-4 text-slate-400 shrink-0 group-hover:translate-x-0.5 transition-transform" />
                     </div>
-                    <ChevronRight className="w-4 h-4 text-slate-400 group-hover:translate-x-0.5 transition-transform shrink-0 ml-2" />
-                  </div>
 
-                  {/* 3. Kolom Ganti Kata Sandi (Saat diklik munculkan modal dengan 2 kolom input) */}
-                  <div
-                    onClick={() => {
-                      setNewAdminPassword('');
-                      setConfirmAdminPassword('');
-                      setPasswordError(null);
-                      setIsPasswordModalOpen(true);
-                    }}
-                    className="flex items-center justify-between p-3.5 cursor-pointer hover:bg-slate-50 transition-colors group"
-                  >
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className="w-9 h-9 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
-                        <KeyRound className="w-4 h-4" />
+                    {/* 2. Username */}
+                    <div
+                      onClick={() => {
+                        setEditAdminUsername(adminUser.username || '@admin_pusat');
+                        setIsEditUsernameModalOpen(true);
+                      }}
+                      className="flex items-center justify-between p-3.5 cursor-pointer hover:bg-slate-50 transition-colors group"
+                    >
+                      <div className="flex items-center gap-4 min-w-0 pr-2">
+                        <div className="w-6 flex items-center justify-center shrink-0">
+                          <AtSign className="w-5 h-5 text-slate-700" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-[11px] text-slate-400 font-medium leading-tight">Username</p>
+                          <p className="text-sm font-semibold text-slate-800 truncate mt-0.5">
+                            {adminUser.username.startsWith('@') ? adminUser.username : '@' + adminUser.username}
+                          </p>
+                        </div>
                       </div>
-                      <div className="min-w-0">
-                        <p className="text-xs font-bold text-slate-800">Ganti Kata Sandi</p>
-                        <p className="text-[11px] text-slate-400">Perbarui kata sandi akun admin</p>
-                      </div>
+                      <ChevronRight className="w-4 h-4 text-slate-400 shrink-0 group-hover:translate-x-0.5 transition-transform" />
                     </div>
-                    <ChevronRight className="w-4 h-4 text-slate-400 group-hover:translate-x-0.5 transition-transform shrink-0 ml-2" />
-                  </div>
 
-                  {/* 4. Keluar dari Akun */}
-                  <div
-                    onClick={onLogout}
-                    className="flex items-center justify-between p-3.5 cursor-pointer hover:bg-rose-50/70 transition-colors group"
-                  >
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className="w-9 h-9 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center shrink-0">
-                        <LogOut className="w-4 h-4" />
+                    {/* 3. Alamat & Titik Domisili */}
+                    <div
+                      onClick={() => {
+                        setEditAdminProvince(adminUser.province || 'Jawa Timur');
+                        setEditAdminCity(adminUser.city || 'Malang');
+                        setEditAdminKecamatan(adminUser.kecamatan || 'Klojen');
+                        setEditAdminDesa(adminUser.desa || 'Kauman');
+                        setEditAdminAlamatLengkap(adminUser.alamatLengkap || 'Jl. Pesantren No. 01, Komplek Ponpes At-taroqqy, Malang');
+                        setEditAdminCoordinates(adminUser.coordinates || { lat: -7.9839, lng: 112.6214 });
+                        setActiveAdminEditModal('alamat');
+                      }}
+                      className="flex items-center justify-between p-3.5 cursor-pointer hover:bg-slate-50 transition-colors group"
+                    >
+                      <div className="flex items-center gap-4 min-w-0 pr-2">
+                        <div className="w-6 flex items-center justify-center shrink-0">
+                          <MapPin className="w-5 h-5 text-slate-700" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-[11px] text-slate-400 font-medium leading-tight">Alamat & Domisili</p>
+                          <p className="text-sm font-semibold text-slate-800 truncate mt-0.5">
+                            {[adminUser.alamatLengkap, adminUser.desa, adminUser.kecamatan, adminUser.city, adminUser.province].filter(Boolean).join(', ') || 'Atur alamat domisili admin'}
+                          </p>
+                        </div>
                       </div>
-                      <div className="min-w-0">
-                        <p className="text-xs font-bold text-rose-600">Keluar dari Akun</p>
-                      </div>
+                      <ChevronRight className="w-4 h-4 text-slate-400 shrink-0 group-hover:translate-x-0.5 transition-transform" />
                     </div>
-                    <ChevronRight className="w-4 h-4 text-slate-400 group-hover:translate-x-0.5 transition-transform shrink-0 ml-2" />
+
+                    {/* 4. Kontak WhatsApp & Email */}
+                    <div
+                      onClick={() => {
+                        setEditAdminPhone(adminUser.phone || '081234567890');
+                        setEditAdminEmail(adminUser.email || 'admin_pusat@attaroqqy.com');
+                        setActiveAdminEditModal('kontak');
+                      }}
+                      className="flex items-center justify-between p-3.5 cursor-pointer hover:bg-slate-50 transition-colors group"
+                    >
+                      <div className="flex items-center gap-4 min-w-0 pr-2">
+                        <div className="w-6 flex items-center justify-center shrink-0">
+                          <Phone className="w-5 h-5 text-slate-700" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-[11px] text-slate-400 font-medium leading-tight">Kontak WhatsApp & Email</p>
+                          <p className="text-sm font-semibold text-slate-800 truncate mt-0.5">
+                            {adminUser.phone || '081234567890'} · {adminUser.email || 'admin_pusat@attaroqqy.com'}
+                          </p>
+                        </div>
+                      </div>
+                      <ChevronRight className="w-4 h-4 text-slate-400 shrink-0 group-hover:translate-x-0.5 transition-transform" />
+                    </div>
+
+                    {/* 5. Jabatan / Pekerjaan & Instansi */}
+                    <div
+                      onClick={() => {
+                        setEditAdminOccupation(adminUser.occupation || adminUser.jabatan || 'Kepala Bidang Kesantrian & Alumni');
+                        setEditAdminInstitution(adminUser.institution || 'Pondok Pesantren At-taroqqy');
+                        setActiveAdminEditModal('pekerjaan');
+                      }}
+                      className="flex items-center justify-between p-3.5 cursor-pointer hover:bg-slate-50 transition-colors group"
+                    >
+                      <div className="flex items-center gap-4 min-w-0 pr-2">
+                        <div className="w-6 flex items-center justify-center shrink-0">
+                          <Briefcase className="w-5 h-5 text-slate-700" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-[11px] text-slate-400 font-medium leading-tight">Pekerjaan & Instansi</p>
+                          <p className="text-sm font-semibold text-slate-800 truncate mt-0.5">
+                            {adminUser.occupation || adminUser.jabatan || 'Kepala Bidang Kesantrian & Alumni'}
+                            {adminUser.institution ? ` · ${adminUser.institution}` : ' · Pondok Pesantren At-taroqqy'}
+                          </p>
+                        </div>
+                      </div>
+                      <ChevronRight className="w-4 h-4 text-slate-400 shrink-0 group-hover:translate-x-0.5 transition-transform" />
+                    </div>
+
+                    {/* 6. Bio */}
+                    <div
+                      onClick={() => {
+                        setEditAdminBio(adminUser.bio || 'Pengasuh & Dewan Pembina Ikatan Alumni Pondok Pesantren At-taroqqy.');
+                        setActiveAdminEditModal('bio');
+                      }}
+                      className="flex items-center justify-between p-3.5 cursor-pointer hover:bg-slate-50 transition-colors group"
+                    >
+                      <div className="flex items-center gap-4 min-w-0 pr-2">
+                        <div className="w-6 flex items-center justify-center shrink-0">
+                          <FileText className="w-5 h-5 text-slate-700" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-[11px] text-slate-400 font-medium leading-tight">Bio</p>
+                          <p className="text-sm font-semibold text-slate-800 truncate mt-0.5">
+                            {adminUser.bio || 'Pengasuh & Dewan Pembina Ikatan Alumni Pondok Pesantren At-taroqqy.'}
+                          </p>
+                        </div>
+                      </div>
+                      <ChevronRight className="w-4 h-4 text-slate-400 shrink-0 group-hover:translate-x-0.5 transition-transform" />
+                    </div>
+                  </div>
+                </div>
+
+                {/* SEGMEN 2: KEAMANAN & AKUN */}
+                <div>
+                  <p className="text-xs font-semibold text-slate-400 text-center tracking-wide mb-3">
+                    Keamanan & Akun
+                  </p>
+
+                  <div className="bg-white rounded-2xl border border-slate-200/90 divide-y divide-slate-100 shadow-2xs overflow-hidden">
+                    {/* Ganti Kata Sandi */}
+                    <div
+                      onClick={() => {
+                        setNewAdminPassword('');
+                        setConfirmAdminPassword('');
+                        setPasswordError(null);
+                        setIsPasswordModalOpen(true);
+                      }}
+                      className="flex items-center justify-between p-3.5 cursor-pointer hover:bg-slate-50 transition-colors group"
+                    >
+                      <div className="flex items-center gap-4 min-w-0 pr-2">
+                        <div className="w-6 flex items-center justify-center shrink-0">
+                          <KeyRound className="w-5 h-5 text-amber-600" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-[11px] text-slate-400 font-medium leading-tight">Kata Sandi</p>
+                          <p className="text-sm font-semibold text-slate-800 truncate mt-0.5">Ganti Kata Sandi</p>
+                        </div>
+                      </div>
+                      <ChevronRight className="w-4 h-4 text-slate-400 shrink-0 group-hover:translate-x-0.5 transition-transform" />
+                    </div>
+
+                    {/* Keluar dari Akun */}
+                    <div
+                      onClick={onLogout}
+                      className="flex items-center justify-between p-3.5 cursor-pointer hover:bg-rose-50/70 transition-colors group"
+                    >
+                      <div className="flex items-center gap-4 min-w-0 pr-2">
+                        <div className="w-6 flex items-center justify-center shrink-0">
+                          <LogOut className="w-5 h-5 text-rose-600" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-sm font-bold text-rose-600">Keluar dari Akun</p>
+                        </div>
+                      </div>
+                      <ChevronRight className="w-4 h-4 text-slate-400 shrink-0 group-hover:translate-x-0.5 transition-transform" />
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1992,6 +2194,186 @@ export const AdminView: React.FC<AdminViewProps> = ({
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ================= MODAL EDIT KONTAK WHATSAPP & EMAIL ADMIN ================= */}
+      {activeAdminEditModal === 'kontak' && (
+        <div className="fixed inset-0 z-[100010] bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in" onClick={() => setActiveAdminEditModal(null)}>
+          <div className="bg-white rounded-3xl p-5 w-full max-w-sm space-y-4 shadow-2xl border border-slate-100" onClick={(e) => e.stopPropagation()}>
+            <div className="flex justify-between items-center border-b border-slate-100 pb-2.5">
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-lg bg-sky-50 text-sky-600 flex items-center justify-center">
+                  <Phone className="w-4 h-4" />
+                </div>
+                <h3 className="font-display font-bold text-sm text-slate-900">Ubah Kontak WhatsApp & Email</h3>
+              </div>
+              <button type="button" onClick={() => setActiveAdminEditModal(null)} className="text-slate-400 hover:text-slate-600 cursor-pointer">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <form onSubmit={handleSaveAdminKontak} className="space-y-3 text-xs">
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">Nomor WhatsApp / HP</label>
+                <input
+                  type="tel"
+                  value={editAdminPhone}
+                  onChange={(e) => setEditAdminPhone(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-mono text-xs focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500"
+                  placeholder="08xxxxxxxxxx"
+                />
+              </div>
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">Alamat Email</label>
+                <input
+                  type="email"
+                  value={editAdminEmail}
+                  onChange={(e) => setEditAdminEmail(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-medium focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500 text-xs"
+                  placeholder="nama@email.com"
+                />
+              </div>
+              <div className="flex gap-2 pt-2 border-t border-slate-100">
+                <button type="button" onClick={() => setActiveAdminEditModal(null)} className="flex-1 py-2 rounded-xl border border-slate-200 text-slate-600 font-semibold text-xs cursor-pointer">Batal</button>
+                <button type="submit" className="flex-1 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs cursor-pointer shadow-md shadow-sky-600/20">Simpan</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ================= MODAL EDIT PEKERJAAN & INSTANSI ADMIN ================= */}
+      {activeAdminEditModal === 'pekerjaan' && (
+        <div className="fixed inset-0 z-[100010] bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in" onClick={() => setActiveAdminEditModal(null)}>
+          <div className="bg-white rounded-3xl p-5 w-full max-w-sm space-y-4 shadow-2xl border border-slate-100" onClick={(e) => e.stopPropagation()}>
+            <div className="flex justify-between items-center border-b border-slate-100 pb-2.5">
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-lg bg-sky-50 text-sky-600 flex items-center justify-center">
+                  <Briefcase className="w-4 h-4" />
+                </div>
+                <h3 className="font-display font-bold text-sm text-slate-900">Ubah Pekerjaan & Instansi</h3>
+              </div>
+              <button type="button" onClick={() => setActiveAdminEditModal(null)} className="text-slate-400 hover:text-slate-600 cursor-pointer">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <form onSubmit={handleSaveAdminPekerjaan} className="space-y-3 text-xs">
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">Jabatan / Profesi</label>
+                <input
+                  type="text"
+                  value={editAdminOccupation}
+                  onChange={(e) => setEditAdminOccupation(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-medium focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500 text-xs"
+                  placeholder="Kepala Bidang Kesantrian / Pengasuh"
+                />
+              </div>
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">Instansi / Lembaga</label>
+                <input
+                  type="text"
+                  value={editAdminInstitution}
+                  onChange={(e) => setEditAdminInstitution(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-medium focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500 text-xs"
+                  placeholder="Pondok Pesantren At-taroqqy"
+                />
+              </div>
+              <div className="flex gap-2 pt-2 border-t border-slate-100">
+                <button type="button" onClick={() => setActiveAdminEditModal(null)} className="flex-1 py-2 rounded-xl border border-slate-200 text-slate-600 font-semibold text-xs cursor-pointer">Batal</button>
+                <button type="submit" className="flex-1 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs cursor-pointer shadow-md shadow-sky-600/20">Simpan</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ================= MODAL EDIT BIO ADMIN ================= */}
+      {activeAdminEditModal === 'bio' && (
+        <div className="fixed inset-0 z-[100010] bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in" onClick={() => setActiveAdminEditModal(null)}>
+          <div className="bg-white rounded-3xl p-5 w-full max-w-sm space-y-4 shadow-2xl border border-slate-100" onClick={(e) => e.stopPropagation()}>
+            <div className="flex justify-between items-center border-b border-slate-100 pb-2.5">
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-lg bg-sky-50 text-sky-600 flex items-center justify-center">
+                  <FileText className="w-4 h-4" />
+                </div>
+                <h3 className="font-display font-bold text-sm text-slate-900">Ubah Bio Admin</h3>
+              </div>
+              <button type="button" onClick={() => setActiveAdminEditModal(null)} className="text-slate-400 hover:text-slate-600 cursor-pointer">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <form onSubmit={handleSaveAdminBio} className="space-y-3 text-xs">
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">Bio / Catatan Singkat</label>
+                <div className="relative">
+                  <textarea
+                    rows={3}
+                    maxLength={150}
+                    value={editAdminBio}
+                    onChange={(e) => setEditAdminBio(e.target.value.slice(0, 150))}
+                    className="w-full px-3 py-2 pb-6 bg-slate-50 border border-slate-200 rounded-xl font-medium focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500 text-xs resize-none"
+                    placeholder="Tulis bio atau catatan singkat profil admin (maks. 150 karakter)..."
+                  />
+                  <div className="absolute bottom-2 right-3 text-[11px] font-mono text-slate-400 pointer-events-none select-none">
+                    {editAdminBio.length}/150
+                  </div>
+                </div>
+              </div>
+              <div className="flex gap-2 pt-2 border-t border-slate-100">
+                <button type="button" onClick={() => setActiveAdminEditModal(null)} className="flex-1 py-2 rounded-xl border border-slate-200 text-slate-600 font-semibold text-xs cursor-pointer hover:bg-slate-50">Batal</button>
+                <button type="submit" className="flex-1 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs cursor-pointer shadow-md shadow-sky-600/20">Simpan</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ================= MODAL EDIT ALAMAT & DOMISILI ADMIN ================= */}
+      {activeAdminEditModal === 'alamat' && (
+        <div className="fixed inset-0 z-[100010] bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-5 animate-in fade-in" onClick={() => setActiveAdminEditModal(null)}>
+          <div className="bg-white rounded-3xl p-5 w-full max-w-lg max-h-[88vh] overflow-y-auto space-y-4 shadow-2xl border border-slate-100" onClick={(e) => e.stopPropagation()}>
+            <div className="flex justify-between items-center border-b border-slate-100 pb-2.5">
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-lg bg-sky-50 text-sky-600 flex items-center justify-center">
+                  <MapPin className="w-4 h-4" />
+                </div>
+                <h3 className="font-display font-bold text-sm text-slate-900">Alamat & Domisili Admin</h3>
+              </div>
+              <button type="button" onClick={() => setActiveAdminEditModal(null)} className="text-slate-400 hover:text-slate-600 cursor-pointer">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="text-xs">
+              <WilayahAddressFilter
+                province={editAdminProvince}
+                city={editAdminCity}
+                kecamatan={editAdminKecamatan}
+                desa={editAdminDesa}
+                alamatLengkap={editAdminAlamatLengkap}
+                coordinates={editAdminCoordinates}
+                showAlamatLengkap={true}
+                showLocationTag={true}
+                onChange={(vals) => {
+                  setEditAdminProvince(vals.province);
+                  setEditAdminCity(vals.city);
+                  setEditAdminKecamatan(vals.kecamatan);
+                  setEditAdminDesa(vals.desa);
+                  if (vals.alamatLengkap !== undefined) setEditAdminAlamatLengkap(vals.alamatLengkap);
+                  setEditAdminCoordinates(vals.coordinates || null);
+                }}
+              />
+            </div>
+            <div className="flex gap-2 pt-2 border-t border-slate-100">
+              <button type="button" onClick={() => setActiveAdminEditModal(null)} className="flex-1 py-2.5 rounded-xl border border-slate-200 text-slate-600 font-semibold text-xs cursor-pointer">Batal</button>
+              <button 
+                type="button" 
+                onClick={handleSaveAdminAlamat}
+                className="flex-1 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs cursor-pointer shadow-md shadow-sky-600/20"
+              >
+                Simpan Alamat
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -2709,12 +3091,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
                 onClick={() => {
                   const evToShare = activeMenuEvent;
                   setActiveMenuEvent(null);
-                  if (navigator.clipboard) {
-                    navigator.clipboard.writeText(
-                      `*${evToShare.title}*\nTanggal: ${evToShare.date}\nWaktu: ${evToShare.time}\nTempat: ${evToShare.location}\n\nInfo selengkapnya di Portal Alumni Ponpes At-Taroqqy: https://attaroqqy.com`
-                    );
-                  }
-                  triggerToast('Tautan agenda disalin');
+                  handleShareEvent(evToShare);
                 }}
                 className="w-full flex items-center gap-3.5 px-4 py-3 rounded-2xl hover:bg-slate-50 text-slate-800 font-semibold text-sm transition-colors cursor-pointer text-left"
               >

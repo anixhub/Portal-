@@ -72,7 +72,7 @@ import {
   MoreVertical,
   Copy
 } from 'lucide-react';
-import { AlumniRecord, EventAgenda, AnnouncementItem, EventComment, EventCommentReply, NotificationItem, AudienceTarget } from '../types';
+import { AlumniRecord, AdminUser, EventAgenda, AnnouncementItem, EventComment, EventCommentReply, NotificationItem, AudienceTarget } from '../types';
 import { INITIAL_ANNOUNCEMENTS, INITIAL_EVENT_COMMENTS } from '../data/mockData';
 import { WilayahAddressFilter } from './common/WilayahAddressFilter';
 import { DateWheelPicker } from './common/DateWheelPicker';
@@ -86,6 +86,7 @@ import { PostMediaCarousel } from './common/PostMediaCarousel';
 import { formatAudienceSummary } from './common/AudienceTargetModal';
 import { AlumniFinanceView } from './AlumniFinanceView';
 import { formatAuthorUsername, resolveAuthorAlumniRecord } from '../utils/authorUtils';
+import { shareMediaWithCaption } from '../utils/shareUtils';
 import posterReuniImg from '../assets/images/poster_reuni_akbar_1790648045947.jpg';
 import logoPonpesImg from '../assets/images/logo_ponpes_attaroqqy_1790648746461.jpg';
 import bgMenuQuranImg from '../assets/images/bg_menu_alquran_1790822566925.jpg';
@@ -135,24 +136,12 @@ const matchesAudienceTarget = (target?: AudienceTarget, alumniUser?: AlumniRecor
   return true;
 };
 
-const calculateAge = (birthDateStr?: string): number | null => {
-  if (!birthDateStr) return null;
-  const birth = new Date(birthDateStr);
-  if (isNaN(birth.getTime())) return null;
-  const today = new Date();
-  let age = today.getFullYear() - birth.getFullYear();
-  const m = today.getMonth() - birth.getMonth();
-  if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) {
-    age--;
-  }
-  return age >= 0 && age < 130 ? age : null;
-};
-
 interface AlumniViewProps {
   alumni: AlumniRecord;
   allAlumni: AlumniRecord[];
   events: EventAgenda[];
   announcements?: AnnouncementItem[];
+  adminAccount?: AdminUser;
   onLogout: () => void;
   onUpdateProfile: (updated: Partial<AlumniRecord>) => void;
   onRsvpEvent: (eventId: string, rsvp: 'hadir' | 'belum_pasti' | 'tidak_hadir', note?: string) => void;
@@ -375,6 +364,7 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
   allAlumni,
   events,
   announcements: propAnnouncements,
+  adminAccount,
   onLogout,
   onUpdateProfile,
   onRsvpEvent,
@@ -809,7 +799,7 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
   const [selectedAlumniDetail, setSelectedAlumniDetail] = useState<AlumniRecord | null>(null);
 
   const handleOpenAuthorProfile = (authorName?: string, authorHandle?: string, authorAvatar?: string) => {
-    const record = resolveAuthorAlumniRecord(authorName, authorHandle, authorAvatar, allAlumni);
+    const record = resolveAuthorAlumniRecord(authorName, authorHandle, authorAvatar, allAlumni, adminAccount);
     setSelectedAlumniDetail(record);
   };
   const [isFilterSheetOpen, setIsFilterSheetOpen] = useState(false);
@@ -1131,92 +1121,27 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
   };
 
   const handleShareEvent = async (ev: EventAgenda) => {
-    const posterSrc = ev.posterUrl || posterReuniImg;
-    const shareText = `*${ev.title}*\n\n🗓️ Tanggal: ${ev.date}\n⏰ Waktu: ${ev.time}\n📍 Tempat: ${ev.location}\n\n${ev.description}\n\nKonfirmasi kehadiran Anda di Portal Alumni At-taroqqy:\n${window.location.href}`;
+    const posterSrc = (ev.images && ev.images.length > 0) ? ev.images[0] : (ev.posterUrl || posterReuniImg);
+    const shareText = `*AGENDA RESMI AT-TAROQQY*\n*${ev.title}*\n\n🗓️ Tanggal: ${ev.date}\n⏰ Waktu: ${ev.time}\n📍 Tempat: ${ev.location}\n\n${ev.description}\n\nInfo selengkapnya di Portal Alumni At-taroqqy:\n${window.location.origin}`;
 
-    try {
-      // 1. Ambil file gambar poster sebagai Blob & File
-      const response = await fetch(posterSrc);
-      const blob = await response.blob();
-      const imageType = blob.type || 'image/jpeg';
-      const file = new File(
-        [blob],
-        `poster_${ev.title.slice(0, 25).replace(/[^a-zA-Z0-9]/g, '_')}.jpg`,
-        { type: imageType }
-      );
-
-      // 2. Berbagi gambar + teks caption sekaligus (Web Share API - Standar WhatsApp Mobile)
-      if (navigator.canShare && navigator.canShare({ files: [file] })) {
-        await navigator.share({
-          files: [file],
-          title: ev.title,
-          text: shareText,
-        });
-        return;
-      }
-
-      // 3. Jika Web Share didukung tanpa file
-      if (navigator.share) {
-        try {
-          if (navigator.clipboard && window.ClipboardItem && imageType.includes('png')) {
-            await navigator.clipboard.write([
-              new ClipboardItem({ [imageType]: blob }),
-            ]);
-          }
-        } catch {
-          // ignore
-        }
-
-        await navigator.share({
-          title: ev.title,
-          text: shareText,
-          url: window.location.href,
-        });
-        return;
-      }
-
-      // 4. Fallback jika share API tidak aktif: salin teks dan unduh gambar otomatis
-      try {
-        await navigator.clipboard.writeText(shareText);
-      } catch {
-        // ignore
-      }
-
-      const a = document.createElement('a');
-      a.href = posterSrc;
-      a.download = `poster-${ev.title.slice(0, 30).replace(/[^a-zA-Z0-9]/g, '_')}.jpg`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-
-      triggerToast('Poster tersimpan & caption teks disalin! Siap dipaste ke WhatsApp.');
-    } catch (err) {
-      console.warn('Share event error:', err);
-      if (navigator.share) {
-        navigator.share({
-          title: ev.title,
-          text: shareText,
-          url: window.location.href,
-        }).catch(() => {});
-      } else {
-        navigator.clipboard.writeText(shareText);
-        triggerToast('Teks caption acara berhasil disalin!');
-      }
-    }
+    await shareMediaWithCaption({
+      imageUrl: posterSrc,
+      title: ev.title,
+      text: shareText,
+      onToast: triggerToast,
+    });
   };
 
-  const handleShareAnnouncement = (ann: AnnouncementItem) => {
-    const text = `*PENGUMUMAN RESMI AT-TAROQQY*\n*${ann.title}*\n🗓️ ${ann.date}\n\n${ann.content}\n\n— ${ann.authorName} (${ann.authorRole})`;
-    if (navigator.share) {
-      navigator.share({
-        title: ann.title,
-        text,
-        url: window.location.href,
-      }).catch(() => {});
-    } else {
-      navigator.clipboard.writeText(text);
-      triggerToast('Pengumuman berhasil disalin!');
-    }
+  const handleShareAnnouncement = async (ann: AnnouncementItem) => {
+    const imageSrc = (ann.images && ann.images.length > 0) ? ann.images[0] : null;
+    const shareText = `*PENGUMUMAN RESMI AT-TAROQQY*\n*${ann.title}*\n🗓️ ${ann.date}\n\n${ann.content}\n\n— ${ann.authorName || 'Pondok Pesantren At-taroqqy'}${ann.authorRole ? ` (${ann.authorRole})` : ''}\n\nPortal Alumni At-taroqqy:\n${window.location.origin}`;
+
+    await shareMediaWithCaption({
+      imageUrl: imageSrc,
+      title: ann.title,
+      text: shareText,
+      onToast: triggerToast,
+    });
   };
 
   const handleDownloadPoster = (ev: EventAgenda) => {
@@ -1685,14 +1610,14 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
                     key={ev.id}
                     className="bg-white rounded-3xl border border-slate-200/90 shadow-2xs overflow-hidden"
                   >
-                    {/* 1. POST HEADER (FOTO PROFIL, USERNAME & JANGKAUAN) */}
+                    {/* 1. POST HEADER (FOTO PROFIL & USERNAME SAJA) */}
                     <div className="px-4 py-3 flex items-center justify-between border-b border-slate-100 bg-white">
                       <div 
                         onClick={() => handleOpenAuthorProfile(ev.authorName, ev.authorHandle, ev.authorAvatar)}
                         className="flex items-center gap-3 min-w-0 cursor-pointer group select-none"
                         title="Lihat profil"
                       >
-                        {/* Avatar Admin / Logo Pondok */}
+                        {/* Avatar */}
                         <div className="relative shrink-0">
                           <img
                             src={ev.authorAvatar || logoPonpesImg}
@@ -1705,14 +1630,14 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
                           <h4 className="font-display font-bold text-xs sm:text-sm text-slate-900 truncate leading-tight group-hover:text-sky-600 transition-colors">
                             {formatAuthorUsername(ev.authorHandle || ev.authorName)}
                           </h4>
-                          {/* Waktu Posting & Jangkauan */}
+                          {/* Keterangan Jangkauan & Waktu Upload */}
                           <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
-                            <span className="text-[11px] text-slate-400">
-                              {ev.postedAt || '2 jam yang lalu'}
-                            </span>
-                            <span className="text-[10px] font-bold text-sky-700 bg-sky-50 border border-sky-200 px-2 py-0.5 rounded-full flex items-center gap-1">
+                            <span className="text-[10px] font-bold text-sky-700 bg-sky-50 border border-sky-200/90 px-2 py-0.5 rounded-full flex items-center gap-1">
                               <Globe className="w-2.5 h-2.5 text-sky-600" />
                               <span>{formatAudienceSummary(ev.targetAudience)}</span>
+                            </span>
+                            <span className="text-[11px] text-slate-400">
+                              {ev.postedAt || '2 jam yang lalu'}
                             </span>
                           </div>
                         </div>
@@ -3770,7 +3695,7 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
                   key={ann.id}
                   className="bg-white rounded-3xl border border-slate-200/80 shadow-xs overflow-hidden"
                 >
-                  {/* 1. Header Kartu: Username Penulis + Jangkauan + Titik 3 Kanan Atas */}
+                  {/* 1. Header Kartu: Username Penulis Saja + Titik 3 Kanan Atas */}
                   <div className="p-4 flex items-center justify-between gap-3">
                     <div 
                       onClick={() => handleOpenAuthorProfile(ann.authorName, ann.authorHandle, ann.authorAvatar)}
@@ -3788,13 +3713,14 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
                         <h4 className="font-display font-bold text-xs sm:text-sm text-slate-900 truncate leading-tight group-hover:text-sky-600 transition-colors">
                           {formatAuthorUsername(ann.authorHandle || ann.authorName)}
                         </h4>
+                        {/* Keterangan Jangkauan & Waktu Upload */}
                         <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
-                          <span className="text-[11px] text-slate-400">
-                            {ann.date}
-                          </span>
-                          <span className="text-[10px] font-bold text-sky-700 bg-sky-50 border border-sky-200 px-2 py-0.5 rounded-full flex items-center gap-1">
+                          <span className="text-[10px] font-bold text-sky-700 bg-sky-50 border border-sky-200/90 px-2 py-0.5 rounded-full flex items-center gap-1">
                             <Globe className="w-2.5 h-2.5 text-sky-600" />
                             <span>{formatAudienceSummary(ann.targetAudience)}</span>
+                          </span>
+                          <span className="text-[11px] text-slate-400">
+                            {ann.postedAt || ann.date || 'Baru saja'}
                           </span>
                         </div>
                       </div>
@@ -4708,21 +4634,7 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
             <div className="w-10 h-1 bg-slate-300 rounded-full mx-auto mb-2" />
 
             <div className="space-y-1">
-              {/* 1. Bagikan */}
-              <button
-                type="button"
-                onClick={() => {
-                  const ann = activeMenuAnnouncement;
-                  setActiveMenuAnnouncement(null);
-                  handleShareAnnouncement(ann);
-                }}
-                className="w-full flex items-center gap-3.5 px-4 py-3 rounded-2xl hover:bg-slate-50 text-slate-800 font-semibold text-sm transition-colors cursor-pointer text-left"
-              >
-                <Share2 className="w-5 h-5 text-slate-700 shrink-0" />
-                <span>Bagikan Pengumuman</span>
-              </button>
-
-              {/* 2. Salin Teks */}
+              {/* 1. Salin Teks */}
               <button
                 type="button"
                 onClick={() => {

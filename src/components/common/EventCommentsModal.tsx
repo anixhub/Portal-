@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { Heart, Send } from 'lucide-react';
 import { EventAgenda, EventComment } from '../../types';
+import { formatAuthorUsername } from '../../utils/authorUtils';
 
 interface EventCommentsModalProps {
   event?: EventAgenda | { id: string; title?: string; attendeesCount?: number; absentCount?: number };
@@ -190,7 +191,7 @@ export const EventCommentsModal: React.FC<EventCommentsModalProps> = ({
                     <div className="flex-1 min-w-0 pr-1">
                       <div className="flex items-center gap-1.5 flex-wrap">
                         <span className="font-bold text-slate-900 text-xs">
-                          {c.authorName}
+                          {formatAuthorUsername(c.authorHandle || c.authorName)}
                         </span>
                         <span className="text-[11px] text-slate-400">{c.timeAgo}</span>
                         {c.status && (
@@ -277,7 +278,7 @@ export const EventCommentsModal: React.FC<EventCommentsModalProps> = ({
                           <div className="flex-1 min-w-0 pr-1">
                             <div className="flex items-center gap-1.5 flex-wrap">
                               <span className="font-bold text-slate-900 text-xs">
-                                {rep.authorName}
+                                {formatAuthorUsername(rep.authorHandle || rep.authorName)}
                               </span>
                               <span className="text-[10px] text-slate-400">{rep.timeAgo}</span>
                             </div>
@@ -289,7 +290,7 @@ export const EventCommentsModal: React.FC<EventCommentsModalProps> = ({
                             <div className="mt-0.5 flex items-center gap-3">
                               <button
                                 type="button"
-                                onClick={() => handleReplyClick(c.id, rep.authorName)}
+                                onClick={() => handleReplyClick(c.id, rep.authorHandle || rep.authorName)}
                                 className="text-[10px] font-semibold text-slate-500 hover:text-slate-800 cursor-pointer"
                               >
                                 Balas
