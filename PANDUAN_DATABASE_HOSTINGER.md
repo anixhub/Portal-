@@ -77,13 +77,20 @@ Kolom-kolom di tabel `santri` MySQL:
 
 ---
 
-### 4. API Endpoints di `api_alumni.php`
-* **GET `?action=get_alumni`**
-  Mengambil seluruh data santri yang berstatus `'Alumni'`.
-* **POST `?action=update_alumni`**
-  Menerima payload JSON untuk memperbarui biodata alumni, lokasi GPS, foto, password, dan otomatis menyetel `status_keanggotaan = 'Alumni'`.
-* **POST `?action=add_alumni`**
-  Menerima payload JSON untuk menambahkan alumni baru langsung ke tabel `santri` dengan status `'Alumni'`.
+### 4. API Endpoints Sinkronisasi
+Sistem menggunakan sinkronisasi ganda (dual-sync) agar perubahan data di Portal Alumni seketika langsung terbaca di aplikasi manajemen pesantren lama (SmartSantri):
+
+1. **Express Backend API (Digunakan SmartSantri / Aplikasi Lama)**:
+   * **`GET https://attaroqqy.com/api/db/santri`**: Membaca seluruh data santri dan cache memory Express.
+   * **`PUT https://attaroqqy.com/api/db/santri/:id`**: Memperbarui santri di database dan cache Express secara realtime. Gender dikirim dalam format `'putra'` atau `'putri'`.
+   * **`POST https://attaroqqy.com/api/db/santri`**: Menambahkan santri baru.
+   * **`DELETE https://attaroqqy.com/api/db/santri/:id`**: Menghapus santri.
+
+2. **PHP Hostinger API (`api_alumni.php`)**:
+   * **GET `?action=get_alumni`**: Mengambil seluruh data santri yang berstatus `'Alumni'`.
+   * **POST `?action=update_alumni`**: Memperbarui biodata alumni.
+   * **POST `?action=add_alumni`**: Menambahkan alumni baru.
+   * **POST `?action=delete_alumni`**: Menghapus alumni.
 
 ---
 

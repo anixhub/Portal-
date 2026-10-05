@@ -34,7 +34,7 @@ export interface AlumniRecord {
   shareEmail?: boolean;
   shareFullAddress?: boolean;
   shareLocationTag?: boolean;
-  status: 'alumni' | 'santri_aktif' | 'admin';
+  status: 'alumni' | 'santri_aktif';
   // Informasi Tambahan
   tempatLahir?: string;
   tanggalLahir?: string;
@@ -59,17 +59,6 @@ export interface AdminUser {
   name: string;
   username: string;
   email?: string;
-  phone?: string;
-  bio?: string;
-  occupation?: string;
-  institution?: string;
-  province?: string;
-  city?: string;
-  kecamatan?: string;
-  desa?: string;
-  alamatLengkap?: string;
-  coordinates?: { lat: number; lng: number };
-  shareFullAddress?: boolean;
   role: 'super_admin' | 'pengurus_pondok';
   jabatan: string;
   avatar?: string;
@@ -117,7 +106,6 @@ export interface AnnouncementItem {
   id: string;
   title: string;
   date: string;
-  postedAt?: string;
   category?: 'maklumat' | 'kegiatan' | 'beasiswa' | 'umum';
   content: string;
   authorName: string;

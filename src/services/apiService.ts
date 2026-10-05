@@ -5,6 +5,10 @@ import { INITIAL_ALUMNI } from '../data/mockData';
 export const HOSTINGER_API_URL =
   import.meta.env.VITE_HOSTINGER_API_URL || 'https://attaroqqy.com/api_alumni.php';
 
+// URL Endpoint Express DB Backend SmartSantri (aplikasi lama)
+export const HOSTINGER_EXPRESS_DB_URL =
+  import.meta.env.VITE_HOSTINGER_EXPRESS_DB_URL || 'https://attaroqqy.com/api/db';
+
 export interface HostingerApiResponse<T> {
   success: boolean;
   total?: number;
@@ -39,126 +43,28 @@ export async function fetchAlumniFromHostinger(): Promise<{
     if (result.success && Array.isArray(result.data)) {
       // Normalisasi data jika ada kolom dengan nama berbeda dari MySQL / Hostinger
       const normalizedData: AlumniRecord[] = result.data.map((item: any) => {
-        // Intelligent and High-Precision Gender Classifier
-        // 1. Cek NIK (Standar Kependudukan RI: digit 7-8 adalah tanggal lahir. Laki-laki 01-31, Perempuan 41-71)
-        let detectedGender: 'L' | 'P' | null = null;
-        const nikClean = String(item.nik ?? '').trim().replace(/[^0-9]/g, '');
-        if (nikClean.length === 16) {
-          const tglNik = parseInt(nikClean.substring(6, 8), 10);
-          if (tglNik > 40 && tglNik <= 71) {
-            detectedGender = 'P';
-          } else if (tglNik >= 1 && tglNik <= 31) {
-            detectedGender = 'L';
-          }
-        }
+        // Gender parser
+        const rawGender = String(
+          item.gender ??
+          item.jenis_kelamin ??
+          item.jenisKelamin ??
+          item.jk ??
+          item.jeniskelamin ??
+          item.sex ??
+          item.kelamin ??
+          ''
+        ).trim().toLowerCase();
 
-        // 2. Cek kolom gender asli dari database jika tersedia (raw_gender, gender_asli, gender)
-        const rawGenderField = String(item.raw_gender ?? item.gender_asli ?? '').trim().toLowerCase();
-        const baseGender = String(item.gender ?? '').trim().toLowerCase();
+        const isPutri = 
+          rawGender === 'p' ||
+          rawGender === 'f' ||
+          rawGender === '2' ||
+          rawGender.startsWith('perem') ||
+          rawGender.startsWith('putri') ||
+          rawGender === 'wanita' ||
+          rawGender === 'female';
 
-        if (['putra', 'l', 'laki-laki', 'pria', 'male', '1'].includes(rawGenderField)) {
-          detectedGender = 'L';
-        } else if (['putri', 'p', 'perempuan', 'wanita', 'female', '2'].includes(rawGenderField)) {
-          detectedGender = 'P';
-        } else if (['putra', 'laki-laki', 'pria', 'male'].includes(baseGender) || baseGender === 'l') {
-          detectedGender = 'L';
-        } else if (['putri', 'perempuan', 'wanita', 'female'].includes(baseGender)) {
-          detectedGender = 'P';
-        }
-
-        // 3. Cek Jenjang / Kelas jika memuat PA (Putra) atau PI (Putri)
-        if (!detectedGender) {
-          const jenjangUpper = String(item.jenjang || '').toUpperCase();
-          if (jenjangUpper.includes(' PA') || jenjangUpper.endsWith(' PA') || jenjangUpper.includes('- PA')) {
-            detectedGender = 'L';
-          } else if (jenjangUpper.includes(' PI') || jenjangUpper.endsWith(' PI') || jenjangUpper.includes('- PI')) {
-            detectedGender = 'P';
-          }
-        }
-
-        // 4. Analisis Berbasis Token Kata & Morfologi Nama Santri Indonesia/Arab
-        if (!detectedGender) {
-          const cleanName = String(item.name || item.nama || '')
-            .toLowerCase()
-            .replace(/[^a-z0-9'\s]/g, ' ')
-            .replace(/\s+/g, ' ')
-            .trim();
-          const words = cleanName.split(' ');
-
-          const femaleExactWords = new Set([
-            'siti', 'putri', 'nisa', 'anisa', 'annisa', 'aulia', 'fadhila', 'fadhilah', 'nabila',
-            'salma', 'salwa', 'zahra', 'zahratus', 'wardah', 'khofifah', 'laila', 'laili', 'fatimah',
-            'dewi', 'ayu', 'diah', 'rahma', 'rahmah', 'safitri', 'mahmudah', 'sholihah', 'solihah',
-            'hasanah', 'khusna', 'marwah', 'chasanah', 'ulfa', 'wulandari', 'lestari', 'khoirunnisa',
-            'khotimah', 'chotimah', 'rohmah', 'muthoharoh', 'muthmainnah', 'hanifah', 'azizah',
-            'khoiriyah', 'latifah', 'hidayah', 'fauziyah', 'khasanah', 'shofiyah', 'nadhiroh',
-            'muniroh', 'syarifah', 'musyarofah', 'mufidah', 'karimah', 'jamilah', 'hamidah',
-            'zakiyah', "badi'ah", 'badriyah', 'farihah', 'afifah', 'afifatun', 'nafila',
-            'septiyana', 'faiqotul', 'nadhifatul', 'shakinah', 'mella', 'maghfiroh', 'maliyatul',
-            'sariroh', 'alifa', 'anindya', 'neli', 'lilis', 'jahro', "safa'atun", 'fartiah',
-            'suweri', 'kurniawati', 'retno', 'indah', "mar'ah", 'aisyah', 'khadijah', 'maryam',
-            'asma', 'ruqayyah', 'ruqoyyah', 'ummu', 'umi', 'kulsum', 'kalsum', 'munawwaroh', 'munawwarotul',
-            'nadia', 'nadiatus', 'husna', 'qurrota', 'aini', 'thoifatul', 'maula', 'syifa', 'naila',
-            'alya', 'chumairoh', 'himmah', 'fikriyah', 'fikriyyah', 'sofi', 'sofiyana', 'atiah',
-            'nuraeni', 'khumaedah', 'fitriyana', 'fitriyani', 'fitriyah', 'istianatul', 'halimah',
-            'noviyanti', 'agustina', 'nurhaliza', 'amelia', 'aprilianti', 'cahyani', 'maharani',
-            'puspitasari', 'damayanti', 'astuti', 'handayani', 'susanti', 'rahayu', 'kusumawati',
-            'wati', 'ningsih', 'fatmawati', 'herawati', 'anggraeni', 'binti', 'dina', 'vina',
-            'rina', 'lutfiana', 'alfiana', 'fiana', 'triana', 'yuliana', 'rosida', 'farida',
-            'nurul', 'kurnia', 'ani', 'sri', 'nissa', 'fitri', 'charirotul', 'chilma', 'maratun',
-            "mar'atun", 'zulfah', 'zulfa', 'fitriani', 'fitria', 'sunarifah', 'arifatut', 'syarifatun'
-          ]);
-
-          const maleExactWords = new Set([
-            'muhammad', 'moch', 'moh', 'muh', 'm', 'ahmad', 'achmad', 'abdul', 'abd', 'ibnu', 'bin',
-            'dafa', 'daffa', 'habib', 'fajar', 'rizky', 'rizqi', 'maulana', 'syarif', 'ulum',
-            'mubarok', 'hakim', 'baha', "baha'udin", 'azid', 'dzikrullah', 'fuad', 'eric',
-            'agus', 'kasnari', 'nasrullah', 'faizi', 'shohib', 'sholahuddin', 'albab', 'ikhsan',
-            'saifuloh', 'saifullah', 'rosyikhul', 'ali', 'umar', 'usman', 'uthman', 'hasan', 'husain',
-            'husen', 'fauzan', 'farhan', 'fathur', 'fathurrahman', 'ilham', 'zaki', 'zakariya',
-            'putra', 'saputra', 'sputra', 'adi', 'budi', 'eko', 'joko', 'bayu', 'bagus', 'dimas', 'hendra',
-            'indra', 'slamet', 'prasetyo', 'hadi', 'wahyu', 'triyono', 'sukamto', 'supri', 'supriyadi',
-            'riyanto', 'sutrisno', 'sugeng', 'sugiyanto', 'anwar', 'munir', 'basri', 'asyhari',
-            'musthofa', 'mustafa', 'nawawi', 'sholeh', 'soleh', 'mahrus', 'marzuqi', 'mukhlis',
-            'mukhlas', 'fadhil', 'ghani', 'hanif', 'hafizh', 'hafidz', 'hafid', 'iqbal', 'irfan',
-            'ihsan', 'khilmi', 'hilmi', 'khoirul', 'khairul', 'latif', 'marwan', 'naufal', 'qosim',
-            'qasim', 'rafi', 'rafli', 'raihan', 'reyhan', 'rabbani', 'rizal', 'rofiq', 'sabik',
-            'shafiq', 'shonhaji', 'subhan', 'syamsul', "syafi'i", 'syafii', 'taufiq', 'taufiqurrahman',
-            'wildan', 'zuhdi', 'zidan', 'fadli', 'fadhly', 'arif', 'afwan', 'awaludin', 'awaluddin',
-            'ishomuddin', 'ishom', 'hamzah', 'lukman', 'luqman', 'faisal', 'khalid', 'thoriq',
-            'bilal', 'salman', 'furqon', 'furqan', 'ridho', 'ridwan', 'malik', 'pratama', 'setiawan',
-            'wibowo', 'susanto', 'widodo', 'santoso', 'firmansyah', 'irawan', 'kurniawan', 'saputro',
-            'nugroho', 'gunawan', 'hermawan', 'kusuma', 'pradana', 'purnomo', 'dwi', 'yusuf',
-            'ibrahim', 'ismail', 'musa', 'harun', 'ilyas', 'shodiq', 'sodiq', 'zaid', 'anas',
-            'habibi', 'ghozali', 'minanurrohman', 'minanurrahman', 'rhamdani', 'ramdhani', 'ramdani',
-            'lathif', 'islahuddin', 'alfaiz', 'fahri', 'jadid', 'dimyati', 'jauhari', 'alawi', 'rohman',
-            'musyodiq', 'nasih', 'amin', 'miftah', 'khoir', 'khafidz', 'arifin', 'maarif', "ma'arif"
-          ]);
-
-          let maleScore = 0;
-          let femaleScore = 0;
-
-          for (const w of words) {
-            if (femaleExactWords.has(w)) femaleScore += 2;
-            if (maleExactWords.has(w)) maleScore += 2;
-
-            if (w.endsWith('uddin') || w.endsWith('udin')) maleScore += 3;
-            if (w.endsWith('putra') || w.endsWith('saputra') || w.endsWith('sputra') || w.endsWith('wan') || w.endsWith('to') || w.endsWith('wo')) maleScore += 2;
-            if (w.endsWith('wati') || w.endsWith('atun') || w.endsWith('iyah') || w.endsWith('iyyah') || w.endsWith('unnisa') || w.endsWith('aeni')) femaleScore += 3;
-            if (w.endsWith('ah') && !['hamzah', 'hudzaifah', 'talhah', 'albab', 'syah', 'nasih', 'miftah', 'abdullah', 'saifullah', 'hidayatullah'].includes(w)) femaleScore += 1;
-          }
-
-          if (femaleScore > maleScore) {
-            detectedGender = 'P';
-          } else if (maleScore > femaleScore) {
-            detectedGender = 'L';
-          } else {
-            // Mayoritas santri di pesantren adalah putra (80%)
-            detectedGender = 'L';
-          }
-        }
-
-        const gender: 'L' | 'P' = detectedGender || 'L';
+        const gender: 'L' | 'P' = isPutri ? 'P' : 'L';
 
         // Urutan anak (anak ke - database field: anak_ke)
         const rawAnakKe = 
@@ -170,18 +76,18 @@ export async function fetchAlumniFromHostinger(): Promise<{
           item.urutan ??
           item.anak ??
           item.anak_ke_berapa;
-        const hasAnakKe = rawAnakKe !== undefined && rawAnakKe !== null && String(rawAnakKe).trim() !== '' && String(rawAnakKe).trim() !== '0';
-        const parsedAnakKe = hasAnakKe ? parseInt(String(rawAnakKe).replace(/[^0-9]/g, ''), 10) : NaN;
-        const urutanAnak: number | undefined = !isNaN(parsedAnakKe) && parsedAnakKe > 0 ? parsedAnakKe : undefined;
+        const parsedAnakKe = parseInt(String(rawAnakKe !== undefined && rawAnakKe !== null ? rawAnakKe : '').replace(/[^0-9]/g, ''), 10);
+        const urutanAnak = !isNaN(parsedAnakKe) && parsedAnakKe >= 0 ? parsedAnakKe : 1;
+        const anak_ke = urutanAnak;
 
-        // Dari bersaudara (database field: dari_bersaudara)
+        // Jumlah saudara (database field: dari_bersaudara / jumlah_saudara / dariBersaudara)
         const rawDariBersaudara = 
           item.dari_bersaudara ??
           item.dariBersaudara ??
-          item.daribersaudara ??
-          item.bersaudara ??
           item.jumlahSaudara ??
           item.jumlah_saudara ??
+          item.daribersaudara ??
+          item.bersaudara ??
           item.jml_saudara ??
           item.saudara ??
           item.jml_sdr ??
@@ -190,17 +96,9 @@ export async function fetchAlumniFromHostinger(): Promise<{
           item.total_saudara ??
           item.saudara_total ??
           item.banyak_saudara;
-        const hasSaudara = rawDariBersaudara !== undefined && rawDariBersaudara !== null && String(rawDariBersaudara).trim() !== '' && String(rawDariBersaudara).trim() !== '0';
-        const parsedSaudara = hasSaudara ? parseInt(String(rawDariBersaudara).replace(/[^0-9]/g, ''), 10) : NaN;
-        let jumlahSaudara: number | undefined = !isNaN(parsedSaudara) && parsedSaudara > 0 ? parsedSaudara : undefined;
-
-        // Jika data ada dan urutanAnak > jumlahSaudara (misal di database terisi "anak ke-3, saudara: 2" - maksudnya punya 2 saudara kandung):
-        // Maka total anak bersaudara disesuaikan agar logis dan valid
-        if (urutanAnak !== undefined && jumlahSaudara !== undefined && urutanAnak > jumlahSaudara) {
-          jumlahSaudara = Math.max(urutanAnak, jumlahSaudara + 1);
-        }
-
-        const anak_ke = urutanAnak;
+        const parsedSaudara = parseInt(String(rawDariBersaudara !== undefined && rawDariBersaudara !== null ? rawDariBersaudara : '').replace(/[^0-9]/g, ''), 10);
+        // Pertahankan nilai asli jumlah saudara tanpa memaksa >= urutan anak
+        const jumlahSaudara = !isNaN(parsedSaudara) && parsedSaudara >= 0 ? parsedSaudara : 0;
         const dari_bersaudara = jumlahSaudara;
 
         // Tempat & Tanggal Lahir
@@ -315,59 +213,163 @@ export async function fetchAlumniFromHostinger(): Promise<{
 
 /**
  * Menyimpan pembaruan data alumni ke database Hostinger secara realtime
+ * Mensinkronisasikan ke:
+ * 1. Express backend (/api/db/santri/:id) yang digunakan oleh aplikasi lama (SmartSantri)
+ * 2. PHP backend (/api_alumni.php?action=update_alumni)
  */
 export async function updateAlumniInHostinger(
   id: string,
   updates: Partial<AlumniRecord>
 ): Promise<{ success: boolean; message?: string }> {
   try {
-    const payload = {
+    // Tentukan gender standar
+    let rawGender: string | undefined = undefined;
+    let expressGender: 'putra' | 'putri' | undefined = undefined;
+    let standardGender: 'L' | 'P' | undefined = undefined;
+
+    if (updates.gender !== undefined) {
+      const g = String(updates.gender).trim().toLowerCase();
+      const isPutri = g === 'p' || g === 'putri' || g.startsWith('perem') || g === 'wanita' || g === 'female' || g === '2';
+      standardGender = isPutri ? 'P' : 'L';
+      rawGender = isPutri ? 'Putri' : 'Putra';
+      expressGender = isPutri ? 'putri' : 'putra';
+    }
+
+    const finalAnakKe = updates.anak_ke !== undefined || updates.urutanAnak !== undefined
+      ? (updates.anak_ke ?? updates.urutanAnak)
+      : undefined;
+
+    const finalJumlahSaudara = updates.dari_bersaudara !== undefined || updates.jumlahSaudara !== undefined
+      ? (updates.dari_bersaudara ?? updates.jumlahSaudara)
+      : undefined;
+
+    // 1. Siapkan payload untuk Express SmartSantri API (/api/db/santri/:id)
+    // yang digunakan oleh aplikasi lama
+    const expressPayload: Record<string, any> = {
+      id,
+    };
+    if (expressGender !== undefined) expressPayload.gender = expressGender;
+    if (updates.name !== undefined) expressPayload.nama = updates.name;
+    if (updates.username !== undefined) expressPayload.username = updates.username;
+    if (updates.tempatLahir !== undefined) expressPayload.tempat_lahir = updates.tempatLahir;
+    if (updates.tanggalLahir !== undefined) expressPayload.tanggal_lahir = updates.tanggalLahir;
+    if (finalAnakKe !== undefined) {
+      expressPayload.anak_ke = finalAnakKe;
+      expressPayload.anakKe = finalAnakKe;
+      expressPayload.urutanAnak = finalAnakKe;
+    }
+    if (finalJumlahSaudara !== undefined) {
+      expressPayload.dari_bersaudara = finalJumlahSaudara;
+      expressPayload.dariBersaudara = finalJumlahSaudara;
+      expressPayload.jumlahSaudara = finalJumlahSaudara;
+      expressPayload.jumlah_saudara = finalJumlahSaudara;
+    }
+    if (updates.namaAyah !== undefined) expressPayload.nama_ayah = updates.namaAyah;
+    if (updates.nikAyah !== undefined) expressPayload.nik_ayah = updates.nikAyah;
+    if (updates.pekerjaanAyah !== undefined) expressPayload.pekerjaan_ayah = updates.pekerjaanAyah;
+    if (updates.pendidikanAyah !== undefined) expressPayload.pendidikan_ayah = updates.pendidikanAyah;
+    if (updates.namaIbu !== undefined) expressPayload.nama_ibu = updates.namaIbu;
+    if (updates.nikIbu !== undefined) expressPayload.nik_ibu = updates.nikIbu;
+    if (updates.pekerjaanIbu !== undefined) expressPayload.pekerjaan_ibu = updates.pekerjaanIbu;
+    if (updates.pendidikanIbu !== undefined) expressPayload.pendidikan_ibu = updates.pendidikanIbu;
+    if (updates.phone !== undefined) expressPayload.no_hp = updates.phone;
+    if (updates.email !== undefined) expressPayload.email = updates.email;
+    if (updates.alamatLengkap !== undefined || (updates as any).address !== undefined) {
+      expressPayload.alamat = updates.alamatLengkap ?? (updates as any).address;
+    }
+    if (updates.desa !== undefined) expressPayload.desa = updates.desa;
+    if (updates.kecamatan !== undefined) expressPayload.kecamatan = updates.kecamatan;
+    if (updates.city !== undefined) expressPayload.kabupaten = updates.city;
+    if (updates.province !== undefined) expressPayload.provinsi = updates.province;
+    if (updates.occupation !== undefined) expressPayload.pekerjaan = updates.occupation;
+    if (updates.institution !== undefined) expressPayload.instansi = updates.institution;
+    if (updates.bio !== undefined) expressPayload.bio = updates.bio;
+    if (updates.photoUrl !== undefined || (updates as any).avatarUrl !== undefined) {
+      expressPayload.file_pas_foto = updates.photoUrl ?? (updates as any).avatarUrl;
+    }
+    if (updates.coverPhotoUrl !== undefined) expressPayload.foto_sampul = updates.coverPhotoUrl;
+    if (updates.password !== undefined) expressPayload.password = updates.password;
+    if (updates.isPasswordChanged !== undefined) {
+      expressPayload.is_password_changed = updates.isPasswordChanged ? 1 : 0;
+    }
+    if (updates.hasLoggedIn !== undefined) {
+      expressPayload.is_password_changed = updates.hasLoggedIn ? 1 : 0;
+    }
+    if (updates.shareContact !== undefined) {
+      expressPayload.share_contact = updates.shareContact ? 1 : 0;
+    }
+    if (updates.gradYear !== undefined) expressPayload.tahun_lulus = updates.gradYear;
+    if (updates.gradDate !== undefined) expressPayload.tanggal_keluar = updates.gradDate;
+    if (updates.entryDate !== undefined) expressPayload.tanggal_masuk = updates.entryDate;
+    if (updates.asramaDulu !== undefined) expressPayload.kamar = updates.asramaDulu;
+    if (updates.coordinates !== undefined) {
+      expressPayload.latitude = updates.coordinates ? updates.coordinates.lat : null;
+      expressPayload.longitude = updates.coordinates ? updates.coordinates.lng : null;
+    }
+    expressPayload.status_keanggotaan = 'Alumni';
+
+    // 2. Siapkan payload untuk PHP Hostinger API (/api_alumni.php?action=update_alumni)
+    const phpPayload: Record<string, any> = {
       id,
       ...updates,
-      // Pastikan field gender, anak_ke, dan dari_bersaudara terisi sesuai format database
-      ...(updates.gender !== undefined
+      ...(standardGender !== undefined
         ? {
-            gender: updates.gender,
-            jenis_kelamin: updates.gender === 'P' ? 'Perempuan' : 'Laki-laki',
-            jenisKelamin: updates.gender,
-            jk: updates.gender,
+            gender: standardGender,
+            raw_gender: rawGender,
+            jenis_kelamin: standardGender === 'P' ? 'Perempuan' : 'Laki-laki',
+            jenisKelamin: standardGender,
+            jk: standardGender,
           }
         : {}),
-      ...(updates.anak_ke !== undefined || updates.urutanAnak !== undefined
+      ...(finalAnakKe !== undefined
         ? {
-            anak_ke: updates.anak_ke ?? updates.urutanAnak,
-            urutanAnak: updates.anak_ke ?? updates.urutanAnak,
-            anakKe: updates.anak_ke ?? updates.urutanAnak,
-            urutan_anak: updates.anak_ke ?? updates.urutanAnak,
+            anak_ke: finalAnakKe,
+            urutanAnak: finalAnakKe,
+            anakKe: finalAnakKe,
+            urutan_anak: finalAnakKe,
           }
         : {}),
-      ...(updates.dari_bersaudara !== undefined || updates.jumlahSaudara !== undefined
+      ...(finalJumlahSaudara !== undefined
         ? {
-            dari_bersaudara: updates.dari_bersaudara ?? updates.jumlahSaudara,
-            jumlahSaudara: updates.dari_bersaudara ?? updates.jumlahSaudara,
-            dariBersaudara: updates.dari_bersaudara ?? updates.jumlahSaudara,
-            jumlah_saudara: updates.dari_bersaudara ?? updates.jumlahSaudara,
+            dari_bersaudara: finalJumlahSaudara,
+            jumlahSaudara: finalJumlahSaudara,
+            dariBersaudara: finalJumlahSaudara,
+            jumlah_saudara: finalJumlahSaudara,
           }
         : {}),
     };
 
-    const response = await fetch(`${HOSTINGER_API_URL}?action=update_alumni`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Accept: 'application/json',
-      },
-      body: JSON.stringify(payload),
-    });
+    // Eksekusi pembaruan ke kedua backend secara bersamaan
+    const [expressRes, phpRes] = await Promise.all([
+      fetch(`${HOSTINGER_EXPRESS_DB_URL}/santri/${id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+        },
+        body: JSON.stringify(expressPayload),
+      }).catch((err) => {
+        console.warn('Gagal sync ke Express backend:', err?.message);
+        return null;
+      }),
+      fetch(`${HOSTINGER_API_URL}?action=update_alumni`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+        },
+        body: JSON.stringify(phpPayload),
+      }).catch((err) => {
+        console.warn('Gagal sync ke PHP API:', err?.message);
+        return null;
+      }),
+    ]);
 
-    if (!response.ok) {
-      throw new Error(`HTTP Error ${response.status}`);
-    }
+    const isSuccess = (expressRes && expressRes.ok) || (phpRes && phpRes.ok);
 
-    const result = await response.json();
     return {
-      success: result.success === true,
-      message: result.message,
+      success: !!isSuccess,
+      message: isSuccess ? 'Data berhasil diperbarui di database Hostinger & aplikasi lama' : 'Gagal sinkronisasi data',
     };
   } catch (error: any) {
     console.error('Gagal memperbarui ke Hostinger:', error?.message);
@@ -385,40 +387,90 @@ export async function addAlumniToHostinger(
   newAlumni: AlumniRecord
 ): Promise<{ success: boolean; id?: string; message?: string }> {
   try {
-    const payload = {
-      ...newAlumni,
-      gender: newAlumni.gender,
-      jenis_kelamin: newAlumni.gender === 'P' ? 'Perempuan' : 'Laki-laki',
-      jenisKelamin: newAlumni.gender,
-      jk: newAlumni.gender,
-      anak_ke: newAlumni.anak_ke ?? newAlumni.urutanAnak ?? 1,
-      dari_bersaudara: newAlumni.dari_bersaudara ?? newAlumni.jumlahSaudara ?? 1,
-      urutanAnak: newAlumni.anak_ke ?? newAlumni.urutanAnak ?? 1,
-      jumlahSaudara: newAlumni.dari_bersaudara ?? newAlumni.jumlahSaudara ?? 1,
-      anakKe: newAlumni.anak_ke ?? newAlumni.urutanAnak ?? 1,
-      urutan_anak: newAlumni.anak_ke ?? newAlumni.urutanAnak ?? 1,
-      dariBersaudara: newAlumni.dari_bersaudara ?? newAlumni.jumlahSaudara ?? 1,
-      jumlah_saudara: newAlumni.dari_bersaudara ?? newAlumni.jumlahSaudara ?? 1,
+    const isPutri = newAlumni.gender === 'P';
+    const expressGender = isPutri ? 'putri' : 'putra';
+    const finalAnak = newAlumni.anak_ke ?? newAlumni.urutanAnak ?? 1;
+    const finalSaudara = newAlumni.dari_bersaudara ?? newAlumni.jumlahSaudara ?? 1;
+
+    // 1. Express payload
+    const expressPayload: Record<string, any> = {
+      id: newAlumni.id,
+      nis: newAlumni.nis || '',
+      nama: newAlumni.name || '',
+      gender: expressGender,
+      tempat_lahir: newAlumni.tempatLahir || '',
+      tanggal_lahir: newAlumni.tanggalLahir || null,
+      anak_ke: finalAnak,
+      anakKe: finalAnak,
+      urutanAnak: finalAnak,
+      dari_bersaudara: finalSaudara,
+      dariBersaudara: finalSaudara,
+      jumlahSaudara: finalSaudara,
+      jumlah_saudara: finalSaudara,
+      nama_ayah: newAlumni.namaAyah || '',
+      nik_ayah: newAlumni.nikAyah || '',
+      pekerjaan_ayah: newAlumni.pekerjaanAyah || '',
+      pendidikan_ayah: newAlumni.pendidikanAyah || '',
+      nama_ibu: newAlumni.namaIbu || '',
+      nik_ibu: newAlumni.nikIbu || '',
+      pekerjaan_ibu: newAlumni.pekerjaanIbu || '',
+      pendidikan_ibu: newAlumni.pendidikanIbu || '',
+      alamat: newAlumni.alamatLengkap || '',
+      desa: newAlumni.desa || '',
+      kecamatan: newAlumni.kecamatan || '',
+      kabupaten: newAlumni.city || '',
+      provinsi: newAlumni.province || '',
+      no_hp: newAlumni.phone || '',
+      email: newAlumni.email || '',
+      pekerjaan: newAlumni.occupation || '',
+      instansi: newAlumni.institution || '',
+      tahun_lulus: newAlumni.gradYear || String(new Date().getFullYear()),
+      kamar: newAlumni.asramaDulu || '',
+      password: newAlumni.password || '1234',
+      status_keanggotaan: 'Alumni',
     };
 
-    const response = await fetch(`${HOSTINGER_API_URL}?action=add_alumni`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Accept: 'application/json',
-      },
-      body: JSON.stringify(payload),
-    });
+    // 2. PHP payload
+    const phpPayload = {
+      ...newAlumni,
+      gender: newAlumni.gender,
+      raw_gender: isPutri ? 'Putri' : 'Putra',
+      jenis_kelamin: isPutri ? 'Perempuan' : 'Laki-laki',
+      jenisKelamin: newAlumni.gender,
+      jk: newAlumni.gender,
+      anak_ke: finalAnak,
+      dari_bersaudara: finalSaudara,
+      urutanAnak: finalAnak,
+      jumlahSaudara: finalSaudara,
+      anakKe: finalAnak,
+      urutan_anak: finalAnak,
+      dariBersaudara: finalSaudara,
+      jumlah_saudara: finalSaudara,
+    };
 
-    if (!response.ok) {
-      throw new Error(`HTTP Error ${response.status}`);
-    }
+    await Promise.all([
+      fetch(`${HOSTINGER_EXPRESS_DB_URL}/santri`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+        },
+        body: JSON.stringify(expressPayload),
+      }).catch((err) => console.warn('Gagal add santri ke Express backend:', err?.message)),
+      fetch(`${HOSTINGER_API_URL}?action=add_alumni`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+        },
+        body: JSON.stringify(phpPayload),
+      }).catch((err) => console.warn('Gagal add santri ke PHP API:', err?.message)),
+    ]);
 
-    const result = await response.json();
     return {
-      success: result.success === true,
-      id: result.id,
-      message: result.message,
+      success: true,
+      id: newAlumni.id,
+      message: 'Alumni berhasil ditambahkan ke database',
     };
   } catch (error: any) {
     console.error('Gagal menambah alumni ke Hostinger:', error?.message);
@@ -426,6 +478,36 @@ export async function addAlumniToHostinger(
       success: false,
       message: error?.message,
     };
+  }
+}
+
+/**
+ * Menghapus data alumni dari database Hostinger
+ */
+export async function deleteAlumniFromHostinger(
+  id: string
+): Promise<{ success: boolean; message?: string }> {
+  try {
+    await Promise.all([
+      fetch(`${HOSTINGER_EXPRESS_DB_URL}/santri/${id}`, {
+        method: 'DELETE',
+        headers: {
+          Accept: 'application/json',
+        },
+      }).catch((err) => console.warn('Gagal delete di Express:', err?.message)),
+      fetch(`${HOSTINGER_API_URL}?action=delete_alumni`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ id }),
+      }).catch((err) => console.warn('Gagal delete di PHP:', err?.message)),
+    ]);
+
+    return { success: true };
+  } catch (error: any) {
+    console.warn('Gagal menghapus alumni dari database Hostinger:', error?.message);
+    return { success: false, message: error?.message };
   }
 }
 

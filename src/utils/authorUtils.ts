@@ -48,38 +48,31 @@ export const resolveAuthorAlumniRecord = (
   }
 
   // 3. Fallback: Admin / Pengasuh profile
-  const adminDisplayName = fallbackAdmin?.name || authorName || 'Ust. H. Abdurrahman, M.Pd.';
-  const adminDisplayUsername = (fallbackAdmin?.username ? fallbackAdmin.username.replace(/^@/, '') : cleanHandle) || 'admin_pusat';
-
   return {
-    id: fallbackAdmin?.id || 'author-admin',
+    id: 'author-admin',
     nik: '3507000000000000',
     nis: 'TRQ-ADMIN',
-    name: adminDisplayName,
-    username: adminDisplayUsername,
+    name: authorName || fallbackAdmin?.name || 'Ust. H. Abdurrahman, M.Pd.',
+    username: cleanHandle || (fallbackAdmin?.username ? fallbackAdmin.username.replace(/^@/, '') : 'admin_pusat'),
     gender: 'L',
     gradYear: 'Kehormatan',
-    entryYear: '2010',
+    entryYear: '2016',
     jenjang: 'Pondok Pesantren At-taroqqy',
     asramaDulu: 'Pusat Santri',
-    email: fallbackAdmin?.email || 'ponpes@attaroqqy.com',
-    phone: fallbackAdmin?.phone || '081234567890',
-    city: fallbackAdmin?.city || 'Malang',
-    province: fallbackAdmin?.province || 'Jawa Timur',
-    kecamatan: fallbackAdmin?.kecamatan,
-    desa: fallbackAdmin?.desa,
-    alamatLengkap: fallbackAdmin?.alamatLengkap,
-    coordinates: fallbackAdmin?.coordinates,
-    occupation: fallbackAdmin?.occupation || fallbackAdmin?.jabatan || 'Pengasuh & Pengurus Alumni',
-    institution: fallbackAdmin?.institution || 'Pondok Pesantren At-taroqqy',
-    bio: fallbackAdmin?.bio || 'Pengasuh & Dewan Pembina Ikatan Alumni Pondok Pesantren At-taroqqy.',
-    photoUrl: fallbackAdmin?.avatar || authorAvatar || logoPonpesImg,
+    email: 'ponpes@attaroqqy.com',
+    phone: '081234567890',
+    city: 'Malang',
+    province: 'Jawa Timur',
+    occupation: 'Pengasuh & Pengurus Alumni',
+    institution: 'Pondok Pesantren At-taroqqy',
+    bio: 'Pengasuh & Dewan Pembina Ikatan Alumni Pondok Pesantren At-taroqqy.',
+    photoUrl: authorAvatar || fallbackAdmin?.avatar || logoPonpesImg,
     coverPhotoUrl: fallbackAdmin?.coverPhotoUrl,
     password: '',
     isPasswordChanged: true,
     source: 'manual_admin',
     syncTime: new Date().toISOString(),
     shareContact: true,
-    status: 'admin',
+    status: 'alumni',
   };
 };

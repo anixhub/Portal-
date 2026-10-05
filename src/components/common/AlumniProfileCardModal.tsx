@@ -233,12 +233,10 @@ export const AlumniProfileCardModal: React.FC<AlumniProfileCardModalProps> = ({
             )}
           </div>
 
-          {/* Pengganti exp: Boyong 2024 & Colorful Dashes (Untuk Admin: Tanpa Keterangan Boyong) */}
+          {/* Pengganti exp: Boyong 2024 & Colorful Dashes */}
           <div className="flex items-center gap-1.5 pb-2.5">
             <span className="text-xs font-bold text-slate-700 font-display">
-              {displayAlumni.id.includes('admin') || displayAlumni.nis === 'TRQ-ADMIN' || displayAlumni.status === 'admin' || displayAlumni.gradYear === 'Kehormatan'
-                ? 'Pengurus Pesantren'
-                : `Boyong ${displayAlumni.gradYear || '2024'}`}
+              Boyong {displayAlumni.gradYear || '2024'}
             </span>
             <div className="flex items-center gap-0.5">
               {['#8b5cf6', '#ec4899', '#f43f5e', '#f97316', '#eab308', '#22c55e', '#06b6d4', '#3b82f6'].map(

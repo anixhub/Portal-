@@ -53,7 +53,6 @@ import {
   AtSign,
   FileCheck,
   Filter,
-  ArrowUpDown,
   Loader2,
   UserX,
   MoreHorizontal,
@@ -73,7 +72,7 @@ import {
   MoreVertical,
   Copy
 } from 'lucide-react';
-import { AlumniRecord, AdminUser, EventAgenda, AnnouncementItem, EventComment, EventCommentReply, NotificationItem, AudienceTarget } from '../types';
+import { AlumniRecord, EventAgenda, AnnouncementItem, EventComment, EventCommentReply, NotificationItem, AudienceTarget } from '../types';
 import { INITIAL_ANNOUNCEMENTS, INITIAL_EVENT_COMMENTS } from '../data/mockData';
 import { WilayahAddressFilter } from './common/WilayahAddressFilter';
 import { DateWheelPicker } from './common/DateWheelPicker';
@@ -87,7 +86,6 @@ import { PostMediaCarousel } from './common/PostMediaCarousel';
 import { formatAudienceSummary } from './common/AudienceTargetModal';
 import { AlumniFinanceView } from './AlumniFinanceView';
 import { formatAuthorUsername, resolveAuthorAlumniRecord } from '../utils/authorUtils';
-import { shareMediaWithCaption } from '../utils/shareUtils';
 import posterReuniImg from '../assets/images/poster_reuni_akbar_1790648045947.jpg';
 import logoPonpesImg from '../assets/images/logo_ponpes_attaroqqy_1790648746461.jpg';
 import bgMenuQuranImg from '../assets/images/bg_menu_alquran_1790822566925.jpg';
@@ -137,12 +135,24 @@ const matchesAudienceTarget = (target?: AudienceTarget, alumniUser?: AlumniRecor
   return true;
 };
 
+const calculateAge = (birthDateStr?: string): number | null => {
+  if (!birthDateStr) return null;
+  const birth = new Date(birthDateStr);
+  if (isNaN(birth.getTime())) return null;
+  const today = new Date();
+  let age = today.getFullYear() - birth.getFullYear();
+  const m = today.getMonth() - birth.getMonth();
+  if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) {
+    age--;
+  }
+  return age >= 0 && age < 130 ? age : null;
+};
+
 interface AlumniViewProps {
   alumni: AlumniRecord;
   allAlumni: AlumniRecord[];
   events: EventAgenda[];
   announcements?: AnnouncementItem[];
-  adminAccount?: AdminUser;
   onLogout: () => void;
   onUpdateProfile: (updated: Partial<AlumniRecord>) => void;
   onRsvpEvent: (eventId: string, rsvp: 'hadir' | 'belum_pasti' | 'tidak_hadir', note?: string) => void;
@@ -365,7 +375,6 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
   allAlumni,
   events,
   announcements: propAnnouncements,
-  adminAccount,
   onLogout,
   onUpdateProfile,
   onRsvpEvent,
@@ -457,17 +466,15 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
   const [editTempatLahir, setEditTempatLahir] = useState(alumni.tempatLahir || '');
   const [editTanggalLahir, setEditTanggalLahir] = useState(alumni.tanggalLahir || '');
   const [editGender, setEditGender] = useState<'L' | 'P'>((alumni.gender as 'L' | 'P') || 'L');
-  const rawInitAnak = alumni.anak_ke ?? alumni.urutanAnak;
-  const rawInitSaudara = alumni.dari_bersaudara ?? alumni.jumlahSaudara;
-  const [editUrutanAnak, setEditUrutanAnak] = useState<number | ''>(
-    rawInitAnak !== undefined && rawInitAnak !== null && rawInitAnak !== '' && Number(rawInitAnak) > 0
-      ? Number(rawInitAnak)
-      : ''
+  const [editUrutanAnak, setEditUrutanAnak] = useState<number | string>(
+    alumni.anak_ke !== undefined && alumni.anak_ke !== null
+      ? Number(alumni.anak_ke)
+      : (alumni.urutanAnak !== undefined && alumni.urutanAnak !== null ? Number(alumni.urutanAnak) : 1)
   );
-  const [editJumlahSaudara, setEditJumlahSaudara] = useState<number | ''>(
-    rawInitSaudara !== undefined && rawInitSaudara !== null && rawInitSaudara !== '' && Number(rawInitSaudara) > 0
-      ? Number(rawInitSaudara)
-      : ''
+  const [editJumlahSaudara, setEditJumlahSaudara] = useState<number | string>(
+    alumni.dari_bersaudara !== undefined && alumni.dari_bersaudara !== null
+      ? Number(alumni.dari_bersaudara)
+      : (alumni.jumlahSaudara !== undefined && alumni.jumlahSaudara !== null ? Number(alumni.jumlahSaudara) : 0)
   );
   const [editUsername, setEditUsername] = useState(alumni.username || '');
   const [editPhone, setEditPhone] = useState(alumni.phone);
@@ -715,17 +722,15 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
     setEditTempatLahir(alumni.tempatLahir || '');
     setEditTanggalLahir(alumni.tanggalLahir || '');
     setEditGender((alumni.gender as 'L' | 'P') || 'L');
-    const syncAnak = alumni.anak_ke ?? alumni.urutanAnak;
-    const syncSaudara = alumni.dari_bersaudara ?? alumni.jumlahSaudara;
     setEditUrutanAnak(
-      syncAnak !== undefined && syncAnak !== null && syncAnak !== '' && Number(syncAnak) > 0
-        ? Number(syncAnak)
-        : ''
+      alumni.anak_ke !== undefined && alumni.anak_ke !== null
+        ? Number(alumni.anak_ke)
+        : (alumni.urutanAnak !== undefined && alumni.urutanAnak !== null ? Number(alumni.urutanAnak) : 1)
     );
     setEditJumlahSaudara(
-      syncSaudara !== undefined && syncSaudara !== null && syncSaudara !== '' && Number(syncSaudara) > 0
-        ? Number(syncSaudara)
-        : ''
+      alumni.dari_bersaudara !== undefined && alumni.dari_bersaudara !== null
+        ? Number(alumni.dari_bersaudara)
+        : (alumni.jumlahSaudara !== undefined && alumni.jumlahSaudara !== null ? Number(alumni.jumlahSaudara) : 0)
     );
     setEditUsername(alumni.username || '');
     setEditPhone(alumni.phone);
@@ -820,15 +825,10 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
   const [selectedAlumniDetail, setSelectedAlumniDetail] = useState<AlumniRecord | null>(null);
 
   const handleOpenAuthorProfile = (authorName?: string, authorHandle?: string, authorAvatar?: string) => {
-    const record = resolveAuthorAlumniRecord(authorName, authorHandle, authorAvatar, allAlumni, adminAccount);
+    const record = resolveAuthorAlumniRecord(authorName, authorHandle, authorAvatar, allAlumni);
     setSelectedAlumniDetail(record);
   };
   const [isFilterSheetOpen, setIsFilterSheetOpen] = useState(false);
-  const [filterGender, setFilterGender] = useState<'semua' | 'L' | 'P'>('semua');
-  const [sortBy, setSortBy] = useState<
-    'default' | 'name_asc' | 'name_desc' | 'grad_desc' | 'grad_asc' | 'entry_desc' | 'entry_asc' | 'distance' | 'city_asc'
-  >('default');
-  const [isSortSheetOpen, setIsSortSheetOpen] = useState(false);
   const [filterEntryFrom, setFilterEntryFrom] = useState('');
   const [filterEntryTo, setFilterEntryTo] = useState('');
   const [filterGradFrom, setFilterGradFrom] = useState('');
@@ -903,7 +903,6 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
   };
 
   const hasAdvancedFilters = Boolean(
-    filterGender !== 'semua' ||
     filterEntryFrom ||
     filterEntryTo ||
     filterGradFrom ||
@@ -921,7 +920,6 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
 
   const handleResetFilters = () => {
     setActiveQuickTag(null);
-    setFilterGender('semua');
     setFilterEntryFrom('');
     setFilterEntryTo('');
     setFilterGradFrom('');
@@ -1149,27 +1147,92 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
   };
 
   const handleShareEvent = async (ev: EventAgenda) => {
-    const posterSrc = (ev.images && ev.images.length > 0) ? ev.images[0] : (ev.posterUrl || posterReuniImg);
-    const shareText = `*AGENDA RESMI AT-TAROQQY*\n*${ev.title}*\n\n🗓️ Tanggal: ${ev.date}\n⏰ Waktu: ${ev.time}\n📍 Tempat: ${ev.location}\n\n${ev.description}\n\nInfo selengkapnya di Portal Alumni At-taroqqy:\n${window.location.origin}`;
+    const posterSrc = ev.posterUrl || posterReuniImg;
+    const shareText = `*${ev.title}*\n\n🗓️ Tanggal: ${ev.date}\n⏰ Waktu: ${ev.time}\n📍 Tempat: ${ev.location}\n\n${ev.description}\n\nKonfirmasi kehadiran Anda di Portal Alumni At-taroqqy:\n${window.location.href}`;
 
-    await shareMediaWithCaption({
-      imageUrl: posterSrc,
-      title: ev.title,
-      text: shareText,
-      onToast: triggerToast,
-    });
+    try {
+      // 1. Ambil file gambar poster sebagai Blob & File
+      const response = await fetch(posterSrc);
+      const blob = await response.blob();
+      const imageType = blob.type || 'image/jpeg';
+      const file = new File(
+        [blob],
+        `poster_${ev.title.slice(0, 25).replace(/[^a-zA-Z0-9]/g, '_')}.jpg`,
+        { type: imageType }
+      );
+
+      // 2. Berbagi gambar + teks caption sekaligus (Web Share API - Standar WhatsApp Mobile)
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({
+          files: [file],
+          title: ev.title,
+          text: shareText,
+        });
+        return;
+      }
+
+      // 3. Jika Web Share didukung tanpa file
+      if (navigator.share) {
+        try {
+          if (navigator.clipboard && window.ClipboardItem && imageType.includes('png')) {
+            await navigator.clipboard.write([
+              new ClipboardItem({ [imageType]: blob }),
+            ]);
+          }
+        } catch {
+          // ignore
+        }
+
+        await navigator.share({
+          title: ev.title,
+          text: shareText,
+          url: window.location.href,
+        });
+        return;
+      }
+
+      // 4. Fallback jika share API tidak aktif: salin teks dan unduh gambar otomatis
+      try {
+        await navigator.clipboard.writeText(shareText);
+      } catch {
+        // ignore
+      }
+
+      const a = document.createElement('a');
+      a.href = posterSrc;
+      a.download = `poster-${ev.title.slice(0, 30).replace(/[^a-zA-Z0-9]/g, '_')}.jpg`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+
+      triggerToast('Poster tersimpan & caption teks disalin! Siap dipaste ke WhatsApp.');
+    } catch (err) {
+      console.warn('Share event error:', err);
+      if (navigator.share) {
+        navigator.share({
+          title: ev.title,
+          text: shareText,
+          url: window.location.href,
+        }).catch(() => {});
+      } else {
+        navigator.clipboard.writeText(shareText);
+        triggerToast('Teks caption acara berhasil disalin!');
+      }
+    }
   };
 
-  const handleShareAnnouncement = async (ann: AnnouncementItem) => {
-    const imageSrc = (ann.images && ann.images.length > 0) ? ann.images[0] : null;
-    const shareText = `*PENGUMUMAN RESMI AT-TAROQQY*\n*${ann.title}*\n🗓️ ${ann.date}\n\n${ann.content}\n\n— ${ann.authorName || 'Pondok Pesantren At-taroqqy'}${ann.authorRole ? ` (${ann.authorRole})` : ''}\n\nPortal Alumni At-taroqqy:\n${window.location.origin}`;
-
-    await shareMediaWithCaption({
-      imageUrl: imageSrc,
-      title: ann.title,
-      text: shareText,
-      onToast: triggerToast,
-    });
+  const handleShareAnnouncement = (ann: AnnouncementItem) => {
+    const text = `*PENGUMUMAN RESMI AT-TAROQQY*\n*${ann.title}*\n🗓️ ${ann.date}\n\n${ann.content}\n\n— ${ann.authorName} (${ann.authorRole})`;
+    if (navigator.share) {
+      navigator.share({
+        title: ann.title,
+        text,
+        url: window.location.href,
+      }).catch(() => {});
+    } else {
+      navigator.clipboard.writeText(text);
+      triggerToast('Pengumuman berhasil disalin!');
+    }
   };
 
   const handleDownloadPoster = (ev: EventAgenda) => {
@@ -1260,11 +1323,8 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
       matchQuickTag = dist <= 60;
     }
 
-    const matchGender = filterGender === 'semua' || item.gender === filterGender;
-
     return (
       matchSearch &&
-      matchGender &&
       matchEntryFrom &&
       matchEntryTo &&
       matchGradFrom &&
@@ -1277,42 +1337,10 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
     );
   });
 
-  // Urutkan data berdasarkan opsi sortBy atau tag 'Sekitarmu'
-  const sortedFilteredAlumni = [...filteredAlumni].sort((a, b) => {
-    if (sortBy === 'name_asc') {
-      return (a.name || '').localeCompare(b.name || '', 'id');
-    }
-    if (sortBy === 'name_desc') {
-      return (b.name || '').localeCompare(a.name || '', 'id');
-    }
-    if (sortBy === 'grad_desc') {
-      const bG = parseInt(b.gradYear || '0', 10) || 0;
-      const aG = parseInt(a.gradYear || '0', 10) || 0;
-      return bG - aG;
-    }
-    if (sortBy === 'grad_asc') {
-      const aG = parseInt(a.gradYear || '9999', 10) || 9999;
-      const bG = parseInt(b.gradYear || '9999', 10) || 9999;
-      return aG - bG;
-    }
-    if (sortBy === 'entry_desc') {
-      const bE = parseInt(b.entryYear || '0', 10) || 0;
-      const aE = parseInt(a.entryYear || '0', 10) || 0;
-      return bE - aE;
-    }
-    if (sortBy === 'entry_asc') {
-      const aE = parseInt(a.entryYear || '9999', 10) || 9999;
-      const bE = parseInt(b.entryYear || '9999', 10) || 9999;
-      return aE - bE;
-    }
-    if (sortBy === 'distance' || activeQuickTag === 'nearby') {
-      return getAlumniDistance(a) - getAlumniDistance(b);
-    }
-    if (sortBy === 'city_asc') {
-      return (a.city || '').localeCompare(b.city || '', 'id');
-    }
-    return 0;
-  });
+  // Urutkan berdasarkan jarak jika tag 'Sekitarmu' aktif
+  const sortedFilteredAlumni = activeQuickTag === 'nearby'
+    ? [...filteredAlumni].sort((a, b) => getAlumniDistance(a) - getAlumniDistance(b))
+    : filteredAlumni;
 
   return (
     <div className="w-full h-full flex flex-col bg-slate-100 overflow-hidden relative">
@@ -1325,7 +1353,7 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
       )}
 
       {/* BODY SCROLLABLE CONTENT (HEADER BIRU TELAH DIHAPUS DI SEMUA HALAMAN) */}
-      <div className={`flex-1 ${activeTab === 'directory' ? 'overflow-hidden flex flex-col p-0 bg-slate-50' : activeTab === 'profile' ? 'overflow-y-auto p-0 bg-slate-50' : 'overflow-y-auto px-4 py-4 space-y-4'}`}>
+      <div className={`flex-1 overflow-y-auto ${activeTab === 'profile' || activeTab === 'directory' ? 'p-0 bg-slate-50' : 'px-4 py-4 space-y-4'}`}>
         {/* ================= TAB 1: HOME (PERSIS LAYOUT SCREENSHOT) ================= */}
         {activeTab === 'home' && (
           <div className="space-y-4 max-w-md mx-auto w-full pb-4">
@@ -1673,14 +1701,14 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
                     key={ev.id}
                     className="bg-white rounded-3xl border border-slate-200/90 shadow-2xs overflow-hidden"
                   >
-                    {/* 1. POST HEADER (FOTO PROFIL & USERNAME SAJA) */}
+                    {/* 1. POST HEADER (FOTO PROFIL, USERNAME & JANGKAUAN) */}
                     <div className="px-4 py-3 flex items-center justify-between border-b border-slate-100 bg-white">
                       <div 
                         onClick={() => handleOpenAuthorProfile(ev.authorName, ev.authorHandle, ev.authorAvatar)}
                         className="flex items-center gap-3 min-w-0 cursor-pointer group select-none"
                         title="Lihat profil"
                       >
-                        {/* Avatar */}
+                        {/* Avatar Admin / Logo Pondok */}
                         <div className="relative shrink-0">
                           <img
                             src={ev.authorAvatar || logoPonpesImg}
@@ -1693,14 +1721,14 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
                           <h4 className="font-display font-bold text-xs sm:text-sm text-slate-900 truncate leading-tight group-hover:text-sky-600 transition-colors">
                             {formatAuthorUsername(ev.authorHandle || ev.authorName)}
                           </h4>
-                          {/* Keterangan Jangkauan & Waktu Upload */}
+                          {/* Waktu Posting & Jangkauan */}
                           <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
-                            <span className="text-[10px] font-bold text-sky-700 bg-sky-50 border border-sky-200/90 px-2 py-0.5 rounded-full flex items-center gap-1">
-                              <Globe className="w-2.5 h-2.5 text-sky-600" />
-                              <span>{formatAudienceSummary(ev.targetAudience)}</span>
-                            </span>
                             <span className="text-[11px] text-slate-400">
                               {ev.postedAt || '2 jam yang lalu'}
+                            </span>
+                            <span className="text-[10px] font-bold text-sky-700 bg-sky-50 border border-sky-200 px-2 py-0.5 rounded-full flex items-center gap-1">
+                              <Globe className="w-2.5 h-2.5 text-sky-600" />
+                              <span>{formatAudienceSummary(ev.targetAudience)}</span>
                             </span>
                           </div>
                         </div>
@@ -1857,177 +1885,122 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
 
         {/* ================= TAB 3: CARI ALUMNI (SAMA PERSIS KELOLA DATA ALUMNI ADMIN) ================= */}
         {activeTab === 'directory' && (
-          <div className="flex-1 flex flex-col h-full overflow-hidden max-w-3xl mx-auto w-full">
-            {/* STICKY TOP BAR: Kotak cari, Tombol Urutkan, Tombol Filter, Quick Location Tags & Active Filters (Selalu diatas unscroll) */}
-            <div className="shrink-0 z-20 bg-slate-50/95 backdrop-blur-md px-4 pt-3.5 pb-2.5 space-y-2 border-b border-slate-200/80 shadow-2xs">
-              {/* Row 1: Search Box + Tombol Urutkan (di sebelah kiri filter hanya icon) + Tombol Filter */}
-              <div className="flex items-center gap-2">
-                <div className="relative flex-1">
-                  <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-                  <input
-                    type="text"
-                    placeholder="Cari NIK, NIS, nama, atau domisili..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full pl-9 pr-9 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-medium focus:ring-2 focus:ring-sky-600 focus:outline-none shadow-2xs"
-                  />
-                  {searchQuery && (
-                    <button
-                      type="button"
-                      onClick={() => setSearchQuery('')}
-                      className="absolute right-2.5 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 cursor-pointer transition-colors"
-                      title="Hapus pencarian"
-                    >
-                      <X className="w-3.5 h-3.5" />
-                    </button>
-                  )}
-                </div>
-
-                {/* Tombol Urutkan di sebelah kiri filter hanya icon */}
-                <button
-                  type="button"
-                  onClick={() => setIsSortSheetOpen(true)}
-                  className={`p-2.5 rounded-xl border transition-all cursor-pointer flex items-center justify-center shrink-0 ${
-                    sortBy !== 'default'
-                      ? 'bg-sky-600 text-white border-sky-600 shadow-xs ring-2 ring-sky-500/20'
-                      : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
-                  }`}
-                  title="Urutkan Data Alumni"
-                >
-                  <ArrowUpDown className="w-4 h-4" />
-                </button>
-
-                {/* Tombol Filter */}
-                <button
-                  type="button"
-                  onClick={() => setIsFilterSheetOpen(true)}
-                  className={`p-2.5 rounded-xl border transition-all cursor-pointer flex items-center justify-center shrink-0 ${
-                    hasAdvancedFilters
-                      ? 'bg-sky-600 text-white border-sky-600 shadow-xs ring-2 ring-sky-500/20'
-                      : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
-                  }`}
-                  title="Buka Filter Data Alumni"
-                >
-                  <Filter className="w-4 h-4" />
-                </button>
-              </div>
-
-              {/* Row 2: QUICK LOCATION TAGS: SEKITARMU, KECAMATAN USER, KABUPATEN USER, PROVINSI USER */}
-              <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
-                {/* 1. Tag Sekitarmu */}
-                <button
-                  type="button"
-                  onClick={() => setActiveQuickTag(activeQuickTag === 'nearby' ? null : 'nearby')}
-                  className={`px-3 py-1.5 rounded-full text-xs font-semibold shrink-0 flex items-center gap-1.5 transition-all cursor-pointer select-none ${
-                    activeQuickTag === 'nearby'
-                      ? 'bg-sky-600 text-white shadow-xs'
-                      : 'bg-white text-slate-700 border border-slate-200/90 hover:border-sky-300 hover:bg-sky-50/50 shadow-2xs'
-                  }`}
-                >
-                  <Navigation className="w-3.5 h-3.5" />
-                  <span>Sekitarmu</span>
-                </button>
-
-                {/* 2. Tag Kecamatan User */}
-                <button
-                  type="button"
-                  onClick={() => setActiveQuickTag(activeQuickTag === 'kecamatan' ? null : 'kecamatan')}
-                  className={`px-3 py-1.5 rounded-full text-xs font-semibold shrink-0 flex items-center gap-1.5 transition-all cursor-pointer select-none ${
-                    activeQuickTag === 'kecamatan'
-                      ? 'bg-sky-600 text-white shadow-xs'
-                      : 'bg-white text-slate-700 border border-slate-200/90 hover:border-sky-300 hover:bg-sky-50/50 shadow-2xs'
-                  }`}
-                >
-                  <MapPin className="w-3.5 h-3.5" />
-                  <span>{userKecamatan} ({countKecamatan})</span>
-                </button>
-
-                {/* 3. Tag Kabupaten User */}
-                <button
-                  type="button"
-                  onClick={() => setActiveQuickTag(activeQuickTag === 'city' ? null : 'city')}
-                  className={`px-3 py-1.5 rounded-full text-xs font-semibold shrink-0 flex items-center gap-1.5 transition-all cursor-pointer select-none ${
-                    activeQuickTag === 'city'
-                      ? 'bg-sky-600 text-white shadow-xs'
-                      : 'bg-white text-slate-700 border border-slate-200/90 hover:border-sky-300 hover:bg-sky-50/50 shadow-2xs'
-                  }`}
-                >
-                  <MapPin className="w-3.5 h-3.5" />
-                  <span>{userCity} ({countCity})</span>
-                </button>
-
-                {/* 4. Tag Provinsi User */}
-                <button
-                  type="button"
-                  onClick={() => setActiveQuickTag(activeQuickTag === 'province' ? null : 'province')}
-                  className={`px-3 py-1.5 rounded-full text-xs font-semibold shrink-0 flex items-center gap-1.5 transition-all cursor-pointer select-none ${
-                    activeQuickTag === 'province'
-                      ? 'bg-sky-600 text-white shadow-xs'
-                      : 'bg-white text-slate-700 border border-slate-200/90 hover:border-sky-300 hover:bg-sky-50/50 shadow-2xs'
-                  }`}
-                >
-                  <MapPin className="w-3.5 h-3.5" />
-                  <span>{userProvince} ({countProvince})</span>
-                </button>
-              </div>
-
-              {/* Row 3: Filter & Sort Active Indicator & Quick Reset (Selalu diatas unscroll) */}
-              {(hasActiveFilters || sortBy !== 'default') && (
-                <div className="flex items-center justify-between text-[11px] text-sky-800 bg-sky-50 px-3 py-1.5 rounded-xl border border-sky-100 animate-in fade-in">
-                  <span className="truncate pr-2">
-                    {[
-                      filterGender !== 'semua' ? (filterGender === 'L' ? 'Putra (L)' : 'Putri (P)') : null,
-                      sortBy !== 'default' ? `Urut: ${
-                        sortBy === 'name_asc' ? 'A-Z' :
-                        sortBy === 'name_desc' ? 'Z-A' :
-                        sortBy === 'grad_desc' ? 'Lulus Baru' :
-                        sortBy === 'grad_asc' ? 'Lulus Lama' :
-                        sortBy === 'entry_desc' ? 'Masuk Baru' :
-                        sortBy === 'entry_asc' ? 'Masuk Lama' :
-                        sortBy === 'distance' ? 'Terdekat' : 'Kota A-Z'
-                      }` : null,
-                      filterEntryFrom || filterEntryTo ? `Masuk ${filterEntryFrom || '...'}-${filterEntryTo || '...'}` : null,
-                      filterGradFrom || filterGradTo ? `Lulus ${filterGradFrom || '...'}-${filterGradTo || '...'}` : null,
-                      filterProvince || filterCity || filterKecamatan || filterDesa ? [filterDesa, filterKecamatan, filterCity, filterProvince].filter(Boolean).join(', ') : null,
-                      activeQuickTag ? `Lokasi: ${activeQuickTag === 'nearby' ? 'Sekitarmu' : activeQuickTag === 'kecamatan' ? userKecamatan : activeQuickTag === 'city' ? userCity : userProvince}` : null,
-                    ].filter(Boolean).join(' · ')} ({sortedFilteredAlumni.length} alumni)
-                  </span>
-                  <div className="flex items-center gap-2 shrink-0">
-                    {hasActiveFilters && (
-                      <button
-                        type="button"
-                        onClick={handleResetFilters}
-                        className="font-bold underline text-sky-700 hover:text-sky-900 cursor-pointer"
-                      >
-                        Reset Filter
-                      </button>
-                    )}
-                    {sortBy !== 'default' && (
-                      <button
-                        type="button"
-                        onClick={() => setSortBy('default')}
-                        className="font-bold underline text-slate-500 hover:text-slate-800 cursor-pointer"
-                      >
-                        Reset Urutan
-                      </button>
-                    )}
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* SCROLLABLE ALUMNI CARDS (Terpisah dari baris search & tag yang unscroll diatas) */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-3 pb-28">
-              {/* Total hitungan alumni */}
-              <div className="flex items-center justify-between text-xs text-slate-500 px-0.5">
-                <span>Menampilkan <strong>{sortedFilteredAlumni.length}</strong> alumni</span>
-                {allAlumni.length > sortedFilteredAlumni.length && (
-                  <span className="text-[11px] text-slate-400">dari total {allAlumni.length}</span>
+          <div className="p-4 space-y-3 flex-1 overflow-y-auto pb-24">
+            {/* Search & Filter Button - NOT inside a container */}
+            <div className="flex items-center gap-2">
+              <div className="relative flex-1">
+                <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                <input
+                  type="text"
+                  placeholder="Cari NIK, NIS, nama, atau domisili..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full pl-9 pr-9 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-medium focus:ring-2 focus:ring-sky-600 focus:outline-none shadow-2xs"
+                />
+                {searchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => setSearchQuery('')}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 cursor-pointer transition-colors"
+                    title="Hapus pencarian"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
                 )}
               </div>
 
-              {/* Daftar Kartu Alumni (Card View) */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+              {/* Tombol filter sejajar di samping kanan (dinonaktifkan jika tag lokasi aktif) */}
+              <button
+                type="button"
+                disabled={Boolean(activeQuickTag)}
+                onClick={() => !activeQuickTag && setIsFilterSheetOpen(true)}
+                className={`p-2.5 rounded-xl border transition-all flex items-center justify-center shrink-0 ${
+                  activeQuickTag
+                    ? 'bg-slate-100 text-slate-300 border-slate-200 cursor-not-allowed opacity-50'
+                    : hasAdvancedFilters
+                    ? 'bg-sky-600 text-white border-sky-600 shadow-xs cursor-pointer'
+                    : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50 cursor-pointer'
+                }`}
+                title={activeQuickTag ? 'Filter dinonaktifkan saat tag lokasi aktif' : 'Buka Filter Data'}
+              >
+                <Filter className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* QUICK LOCATION TAGS: SEKITARMU, KECAMATAN USER, KABUPATEN USER, PROVINSI USER */}
+            <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
+              {/* 1. Tag Sekitarmu (tanpa kurung jumlah alumni) */}
+              <button
+                type="button"
+                onClick={() => setActiveQuickTag(activeQuickTag === 'nearby' ? null : 'nearby')}
+                className={`px-3 py-1.5 rounded-full text-xs font-semibold shrink-0 flex items-center gap-1.5 transition-all cursor-pointer select-none ${
+                  activeQuickTag === 'nearby'
+                    ? 'bg-sky-600 text-white shadow-xs'
+                    : 'bg-white text-slate-700 border border-slate-200/90 hover:border-sky-300 hover:bg-sky-50/50 shadow-2xs'
+                }`}
+              >
+                <Navigation className="w-3.5 h-3.5" />
+                <span>Sekitarmu</span>
+              </button>
+
+              {/* 2. Tag Kecamatan User (misal Sedan (2)) */}
+              <button
+                type="button"
+                onClick={() => setActiveQuickTag(activeQuickTag === 'kecamatan' ? null : 'kecamatan')}
+                className={`px-3 py-1.5 rounded-full text-xs font-semibold shrink-0 flex items-center gap-1.5 transition-all cursor-pointer select-none ${
+                  activeQuickTag === 'kecamatan'
+                    ? 'bg-sky-600 text-white shadow-xs'
+                    : 'bg-white text-slate-700 border border-slate-200/90 hover:border-sky-300 hover:bg-sky-50/50 shadow-2xs'
+                }`}
+              >
+                <MapPin className="w-3.5 h-3.5" />
+                <span>{userKecamatan} ({countKecamatan})</span>
+              </button>
+
+              {/* 3. Tag Kabupaten User (misal Rembang (4)) */}
+              <button
+                type="button"
+                onClick={() => setActiveQuickTag(activeQuickTag === 'city' ? null : 'city')}
+                className={`px-3 py-1.5 rounded-full text-xs font-semibold shrink-0 flex items-center gap-1.5 transition-all cursor-pointer select-none ${
+                  activeQuickTag === 'city'
+                    ? 'bg-sky-600 text-white shadow-xs'
+                    : 'bg-white text-slate-700 border border-slate-200/90 hover:border-sky-300 hover:bg-sky-50/50 shadow-2xs'
+                }`}
+              >
+                <MapPin className="w-3.5 h-3.5" />
+                <span>{userCity} ({countCity})</span>
+              </button>
+
+              {/* 4. Tag Provinsi User (misal Jawa Tengah (5)) */}
+              <button
+                type="button"
+                onClick={() => setActiveQuickTag(activeQuickTag === 'province' ? null : 'province')}
+                className={`px-3 py-1.5 rounded-full text-xs font-semibold shrink-0 flex items-center gap-1.5 transition-all cursor-pointer select-none ${
+                  activeQuickTag === 'province'
+                    ? 'bg-sky-600 text-white shadow-xs'
+                    : 'bg-white text-slate-700 border border-slate-200/90 hover:border-sky-300 hover:bg-sky-50/50 shadow-2xs'
+                }`}
+              >
+                <MapPin className="w-3.5 h-3.5" />
+                <span>{userProvince} ({countProvince})</span>
+              </button>
+            </div>
+
+            {/* Filter Active Indicator & Quick Reset (Hanya saat filter lembar aktif & tanpa tag lokasi) */}
+            {!activeQuickTag && hasAdvancedFilters && (
+              <div className="flex items-center justify-between text-[11px] text-sky-800 bg-sky-50 px-3 py-1.5 rounded-xl border border-sky-100">
+                <span>Filter aktif diterapkan ({filteredAlumni.length} alumni)</span>
+                <button
+                  onClick={handleResetFilters}
+                  className="font-bold underline text-sky-700 hover:text-sky-900 cursor-pointer"
+                >
+                  Reset Filter
+                </button>
+              </div>
+            )}
+
+            {/* Daftar Kartu Alumni (Card View) */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
               {sortedFilteredAlumni.map((item) => {
                 const addressText = item.shareFullAddress === false
                   ? [item.kecamatan, item.city].filter(Boolean).join(', ') || item.city || item.province || 'Alamat disembunyikan'
@@ -2109,7 +2082,6 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
                 Tidak ditemukan data alumni dengan filter atau pencarian yang dipilih.
               </div>
             )}
-            </div>
           </div>
         )}
 
@@ -2281,13 +2253,12 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
                         <Users className="w-5 h-5 text-slate-700" />
                       </div>
                       <div className="min-w-0">
-                        <p className="text-[11px] text-slate-400 font-medium leading-tight">Gender & Saudara</p>
+                        <p className="text-[11px] text-slate-400 font-medium leading-tight">Gender & Jumlah Saudara</p>
                         <p className="text-sm font-semibold text-slate-800 truncate mt-0.5">
                           {editGender === 'P' ? 'Perempuan' : 'Laki-laki'}
-                          {editUrutanAnak && editJumlahSaudara && editJumlahSaudara > 0
-                            ? `, anak ke-${editUrutanAnak} dari ${editJumlahSaudara} bersaudara`
-                            : editUrutanAnak
-                            ? `, anak ke-${editUrutanAnak}`
+                          {editUrutanAnak ? `, Anak ke-${editUrutanAnak}` : ''}
+                          {editJumlahSaudara !== undefined && editJumlahSaudara !== null
+                            ? `, Jumlah saudara: ${editJumlahSaudara}`
                             : ''}
                         </p>
                       </div>
@@ -2840,7 +2811,7 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
                   </div>
                   <div className="space-y-3 text-xs">
                     <div>
-                      <label className="block font-semibold text-slate-700 mb-1">Jenis Kelamin</label>
+                      <label className="block font-semibold text-slate-700 mb-1">Jenis Kelamin (gender)</label>
                       <div className="grid grid-cols-2 gap-2">
                         <button
                           type="button"
@@ -2864,56 +2835,70 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
                     </div>
                     <div className="grid grid-cols-2 gap-2">
                       <div>
-                        <label className="block font-semibold text-slate-700 mb-1">Anak Ke-</label>
+                        <label className="block font-semibold text-slate-700 mb-1">Anak Ke</label>
                         <input
                           type="number"
                           min={1}
                           max={25}
-                          placeholder="Contoh: 1"
                           value={editUrutanAnak}
+                          onFocus={(e) => e.target.select()}
                           onChange={(e) => {
-                            const val = e.target.value === '' ? '' : Math.max(1, parseInt(e.target.value));
-                            setEditUrutanAnak(val);
-                            if (typeof val === 'number' && typeof editJumlahSaudara === 'number' && val > editJumlahSaudara) {
-                              setEditJumlahSaudara(val);
+                            const raw = e.target.value;
+                            if (raw === '') {
+                              setEditUrutanAnak('');
+                              return;
+                            }
+                            const val = parseInt(raw, 10);
+                            setEditUrutanAnak(isNaN(val) ? '' : val);
+                          }}
+                          onBlur={() => {
+                            if (editUrutanAnak === '' || Number(editUrutanAnak) < 1) {
+                              setEditUrutanAnak(1);
                             }
                           }}
                           className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-medium focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500 text-xs"
                         />
                       </div>
                       <div>
-                        <label className="block font-semibold text-slate-700 mb-1">Dari Bersaudara</label>
+                        <label className="block font-semibold text-slate-700 mb-1">Jumlah Saudara</label>
                         <input
                           type="number"
-                          min={typeof editUrutanAnak === 'number' ? editUrutanAnak : 1}
+                          min={0}
                           max={25}
-                          placeholder="Contoh: 3"
                           value={editJumlahSaudara}
+                          onFocus={(e) => e.target.select()}
                           onChange={(e) => {
-                            const val = e.target.value === '' ? '' : Math.max(1, parseInt(e.target.value));
-                            setEditJumlahSaudara(val);
+                            const raw = e.target.value;
+                            if (raw === '') {
+                              setEditJumlahSaudara('');
+                              return;
+                            }
+                            const val = parseInt(raw, 10);
+                            setEditJumlahSaudara(isNaN(val) ? '' : Math.max(0, val));
+                          }}
+                          onBlur={() => {
+                            if (editJumlahSaudara === '' || Number(editJumlahSaudara) < 0) {
+                              setEditJumlahSaudara(0);
+                            }
                           }}
                           className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-medium focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500 text-xs"
                         />
                       </div>
                     </div>
-                    {typeof editUrutanAnak === 'number' && typeof editJumlahSaudara === 'number' && editUrutanAnak > editJumlahSaudara && (
-                      <p className="text-[11px] text-rose-500 font-medium">
-                        * Jumlah bersaudara tidak boleh lebih kecil dari anak ke-{editUrutanAnak}
-                      </p>
-                    )}
                   </div>
                   <div className="flex gap-2 pt-2">
                     <button type="button" onClick={() => setActiveEditModal(null)} className="flex-1 py-2 rounded-xl border border-slate-200 text-slate-600 font-semibold text-xs cursor-pointer">Batal</button>
                     <button 
                       type="button" 
                       onClick={() => { 
-                        const finalAnak = typeof editUrutanAnak === 'number' && editUrutanAnak > 0 ? editUrutanAnak : undefined;
-                        const finalSaudara = typeof editJumlahSaudara === 'number' && editJumlahSaudara > 0 
-                          ? (finalAnak ? Math.max(finalAnak, editJumlahSaudara) : editJumlahSaudara)
-                          : (finalAnak ? finalAnak : undefined);
-                        setEditUrutanAnak(finalAnak ?? '');
-                        setEditJumlahSaudara(finalSaudara ?? '');
+                        const finalAnak = typeof editUrutanAnak === 'number'
+                          ? Math.max(1, editUrutanAnak)
+                          : (parseInt(String(editUrutanAnak), 10) || 1);
+                        const finalSaudara = typeof editJumlahSaudara === 'number'
+                          ? Math.max(0, editJumlahSaudara)
+                          : (parseInt(String(editJumlahSaudara), 10) || 0);
+                        setEditUrutanAnak(finalAnak);
+                        setEditJumlahSaudara(finalSaudara);
                         onUpdateProfile({ 
                           gender: editGender, 
                           anak_ke: finalAnak, 
@@ -3818,7 +3803,7 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
                   key={ann.id}
                   className="bg-white rounded-3xl border border-slate-200/80 shadow-xs overflow-hidden"
                 >
-                  {/* 1. Header Kartu: Username Penulis Saja + Titik 3 Kanan Atas */}
+                  {/* 1. Header Kartu: Username Penulis + Jangkauan + Titik 3 Kanan Atas */}
                   <div className="p-4 flex items-center justify-between gap-3">
                     <div 
                       onClick={() => handleOpenAuthorProfile(ann.authorName, ann.authorHandle, ann.authorAvatar)}
@@ -3836,14 +3821,13 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
                         <h4 className="font-display font-bold text-xs sm:text-sm text-slate-900 truncate leading-tight group-hover:text-sky-600 transition-colors">
                           {formatAuthorUsername(ann.authorHandle || ann.authorName)}
                         </h4>
-                        {/* Keterangan Jangkauan & Waktu Upload */}
                         <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
-                          <span className="text-[10px] font-bold text-sky-700 bg-sky-50 border border-sky-200/90 px-2 py-0.5 rounded-full flex items-center gap-1">
+                          <span className="text-[11px] text-slate-400">
+                            {ann.date}
+                          </span>
+                          <span className="text-[10px] font-bold text-sky-700 bg-sky-50 border border-sky-200 px-2 py-0.5 rounded-full flex items-center gap-1">
                             <Globe className="w-2.5 h-2.5 text-sky-600" />
                             <span>{formatAudienceSummary(ann.targetAudience)}</span>
-                          </span>
-                          <span className="text-[11px] text-slate-400">
-                            {ann.postedAt || ann.date || 'Baru saja'}
                           </span>
                         </div>
                       </div>
@@ -4459,48 +4443,6 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
 
             {/* Form Fields */}
             <div className="p-5 space-y-4 text-xs relative z-30 overflow-visible">
-              {/* Filter Jenis Kelamin (Gender) */}
-              <div>
-                <label className="block font-bold text-slate-700 mb-1.5">
-                  Jenis Kelamin
-                </label>
-                <div className="grid grid-cols-3 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setFilterGender('semua')}
-                    className={`py-2 px-2.5 rounded-xl border text-xs font-bold transition-all cursor-pointer text-center ${
-                      filterGender === 'semua'
-                        ? 'bg-sky-600 text-white border-sky-600 shadow-2xs'
-                        : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
-                    }`}
-                  >
-                    Semua
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setFilterGender('L')}
-                    className={`py-2 px-2.5 rounded-xl border text-xs font-bold transition-all cursor-pointer text-center ${
-                      filterGender === 'L'
-                        ? 'bg-sky-600 text-white border-sky-600 shadow-2xs'
-                        : 'bg-sky-50/60 text-sky-700 border-sky-200 hover:bg-sky-100'
-                    }`}
-                  >
-                    Laki-laki
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setFilterGender('P')}
-                    className={`py-2 px-2.5 rounded-xl border text-xs font-bold transition-all cursor-pointer text-center ${
-                      filterGender === 'P'
-                        ? 'bg-rose-600 text-white border-rose-600 shadow-2xs'
-                        : 'bg-rose-50/60 text-rose-700 border-rose-200 hover:bg-rose-100'
-                    }`}
-                  >
-                    Perempuan
-                  </button>
-                </div>
-              </div>
-
               {/* Rentang Tanggal Masuk */}
               <div>
                 <label className="block font-bold text-slate-700 mb-1.5">
@@ -4584,101 +4526,6 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
                 className="flex-1 py-2.5 bg-sky-600 hover:bg-sky-700 text-white font-bold rounded-xl text-xs transition-colors cursor-pointer text-center shadow-xs"
               >
                 Terapkan Filter
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ================= BOTTOM SHEET URUTKAN DATA ALUMNI (UI BERSIH) ================= */}
-      {isSortSheetOpen && (
-        <div 
-          className="fixed inset-0 z-50 bg-black/50 backdrop-blur-2xs flex flex-col justify-end animate-in fade-in"
-          onClick={() => setIsSortSheetOpen(false)}
-        >
-          <div 
-            className="w-full max-w-lg mx-auto bg-white rounded-t-3xl shadow-2xl border-t border-slate-200 flex flex-col max-h-[85vh] animate-in slide-in-from-bottom duration-200"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="w-10 h-1 bg-slate-300 rounded-full mx-auto mt-3 mb-1" />
-
-            <div className="px-5 py-3 flex items-center justify-between border-b border-slate-100 bg-white">
-              <h3 className="font-bold text-sm text-slate-900 flex items-center gap-2">
-                <ArrowUpDown className="w-4 h-4 text-sky-600" />
-                <span>Urutkan Data Alumni</span>
-              </h3>
-              <button
-                type="button"
-                onClick={() => setIsSortSheetOpen(false)}
-                className="w-7 h-7 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-500 cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <div className="p-4 space-y-1.5 overflow-y-auto text-xs">
-              {[
-                { id: 'default', label: 'Default (Terdaftar / ID Terbaru)', desc: 'Urutan standar data sistem' },
-                { id: 'name_asc', label: 'Nama Santri (A - Z)', desc: 'Abjad nama depan menaik' },
-                { id: 'name_desc', label: 'Nama Santri (Z - A)', desc: 'Abjad nama depan menurun' },
-                { id: 'grad_desc', label: 'Tahun Keluar / Lulus (Terbaru ke Terlama)', desc: 'Alumni lulusan paling baru di atas' },
-                { id: 'grad_asc', label: 'Tahun Keluar / Lulus (Terlama ke Terbaru)', desc: 'Alumni sepuh / angkatan lama di atas' },
-                { id: 'entry_desc', label: 'Tahun Masuk (Terbaru ke Terlama)', desc: 'Santri masuk paling baru' },
-                { id: 'entry_asc', label: 'Tahun Masuk (Terlama ke Terbaru)', desc: 'Santri masuk paling awal' },
-                { id: 'distance', label: 'Jarak Terdekat (Radius GPS)', desc: 'Berdasarkan koordinat lokasi domisili' },
-                { id: 'city_asc', label: 'Kota / Domisili (A - Z)', desc: 'Urut abjad berdasarkan kabupaten/kota' },
-              ].map((opt) => {
-                const isSelected = sortBy === opt.id;
-                return (
-                  <button
-                    key={opt.id}
-                    type="button"
-                    onClick={() => {
-                      setSortBy(opt.id as any);
-                      setIsSortSheetOpen(false);
-                      triggerToast(`Urutan diubah: ${opt.label.split('(')[0].trim()}`);
-                    }}
-                    className={`w-full p-3 rounded-2xl border text-left transition-all cursor-pointer flex items-center justify-between ${
-                      isSelected
-                        ? 'bg-sky-50 border-sky-400 text-sky-950 font-bold shadow-2xs'
-                        : 'bg-white border-slate-100 text-slate-700 hover:bg-slate-50'
-                    }`}
-                  >
-                    <div>
-                      <p className={`text-xs ${isSelected ? 'font-bold text-sky-900' : 'font-semibold text-slate-800'}`}>
-                        {opt.label}
-                      </p>
-                      <p className="text-[11px] text-slate-400 mt-0.5">
-                        {opt.desc}
-                      </p>
-                    </div>
-                    {isSelected && (
-                      <div className="w-5 h-5 rounded-full bg-sky-600 text-white flex items-center justify-center shrink-0">
-                        <Check className="w-3 h-3" />
-                      </div>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-
-            <div className="p-4 border-t border-slate-100 flex items-center justify-between gap-3 bg-slate-50">
-              <button
-                type="button"
-                onClick={() => {
-                  setSortBy('default');
-                  setIsSortSheetOpen(false);
-                }}
-                className="px-4 py-2.5 rounded-xl border border-slate-200 text-slate-700 font-bold text-xs hover:bg-slate-100 transition-colors cursor-pointer"
-              >
-                Reset Urutan
-              </button>
-              <button
-                type="button"
-                onClick={() => setIsSortSheetOpen(false)}
-                className="flex-1 py-2.5 bg-sky-600 hover:bg-sky-700 text-white font-bold rounded-xl text-xs transition-colors cursor-pointer text-center shadow-xs"
-              >
-                Selesai
               </button>
             </div>
           </div>
@@ -4894,7 +4741,21 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
             <div className="w-10 h-1 bg-slate-300 rounded-full mx-auto mb-2" />
 
             <div className="space-y-1">
-              {/* 1. Salin Teks */}
+              {/* 1. Bagikan */}
+              <button
+                type="button"
+                onClick={() => {
+                  const ann = activeMenuAnnouncement;
+                  setActiveMenuAnnouncement(null);
+                  handleShareAnnouncement(ann);
+                }}
+                className="w-full flex items-center gap-3.5 px-4 py-3 rounded-2xl hover:bg-slate-50 text-slate-800 font-semibold text-sm transition-colors cursor-pointer text-left"
+              >
+                <Share2 className="w-5 h-5 text-slate-700 shrink-0" />
+                <span>Bagikan Pengumuman</span>
+              </button>
+
+              {/* 2. Salin Teks */}
               <button
                 type="button"
                 onClick={() => {

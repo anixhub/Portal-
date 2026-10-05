@@ -59,60 +59,8 @@ if ($action === 'get_alumni') {
 
         $alumni = [];
         foreach ($rows as $row) {
-            $rawGender = strtolower(trim($row['gender'] ?? ''));
-            
-            // Kolom gender di database pesantren At-Taroqqy bernilai 'Putra' atau 'Putri'
-            // Perhatian: 'Putra' dan 'Putri' KEDUANYA berawalan 'P', sehingga jangan gunakan stripos 'p' === 0!
-            $isPutri = (
-                $rawGender === 'putri' || 
-                $rawGender === 'p' || 
-                $rawGender === 'perempuan' || 
-                $rawGender === 'wanita' || 
-                $rawGender === 'female' || 
-                $rawGender === '2'
-            );
-            $isPutra = (
-                $rawGender === 'putra' || 
-                $rawGender === 'l' || 
-                $rawGender === 'laki-laki' || 
-                $rawGender === 'laki' || 
-                $rawGender === 'pria' || 
-                $rawGender === 'male' || 
-                $rawGender === '1'
-            );
-
-            // Jika belum terdeteksi pasti dari kolom gender, deteksi dari NIK (karakter 7-8: wanita > 40)
-            if (!$isPutri && !$isPutra && !empty($row['nik']) && strlen($row['nik']) >= 8) {
-                $tglLahirNik = (int)substr($row['nik'], 6, 2);
-                if ($tglLahirNik > 40 && $tglLahirNik <= 71) {
-                    $isPutri = true;
-                } else if ($tglLahirNik >= 1 && $tglLahirNik <= 31) {
-                    $isPutra = true;
-                }
-            }
-
-            // Fallback nama santri jika kolom gender kosong
-            if (!$isPutri && !$isPutra && !empty($row['nama'])) {
-                $namaLower = strtolower($row['nama']);
-                $maleTokens = ['muhammad', 'ahmad', 'abdul', 'ibnu', 'dafa', 'daffa', 'habib', 'fajar', 'mubarok', 'hakim', 'azid', 'fuad', 'shohib', 'albab'];
-                foreach ($maleTokens as $token) {
-                    if (strpos($namaLower, $token) !== false) {
-                        $isPutra = true;
-                        break;
-                    }
-                }
-            }
-
-            $finalGender = $isPutri ? 'P' : 'L';
-
-            $rawAnakKe = (!empty($row['anak_ke']) && is_numeric($row['anak_ke'])) ? (int)$row['anak_ke'] : null;
-            $rawSaudara = (!empty($row['dari_bersaudara']) && is_numeric($row['dari_bersaudara'])) ? (int)$row['dari_bersaudara'] : null;
-
-            // Jika ada kasus anak_ke > dari_bersaudara (misal "anak ke-3, saudara: 2" yang berarti punya 2 adik/kakak):
-            // Maka total bersaudara disesuaikan agar tidak menghasilkan data tidak valid
-            if ($rawAnakKe !== null && $rawSaudara !== null && $rawAnakKe > $rawSaudara) {
-                $rawSaudara = max($rawAnakKe, $rawSaudara + 1);
-            }
+            $rawGender = trim($row['gender'] ?? '');
+            $isPutri = (stripos($rawGender, 'putri') !== false || stripos($rawGender, 'p') === 0 || stripos($rawGender, 'perempuan') !== false);
 
             $alumni[] = [
                 'id' => (string)($row['id'] ?? ''),
@@ -123,14 +71,11 @@ if ($action === 'get_alumni') {
                 'nisn' => $row['nisn'] ?? '',
                 'name' => $row['nama'] ?? '',
                 'username' => !empty($row['username']) ? $row['username'] : (strtolower(str_replace(' ', '_', $row['nama'] ?? '')) ?: 'santri_' . $row['id']),
-                'gender' => $finalGender,
-                'raw_gender' => $row['gender'] ?? '',
+                'gender' => $isPutri ? 'P' : 'L',
                 'tempatLahir' => $row['tempat_lahir'] ?? '',
                 'tanggalLahir' => $row['tanggal_lahir'] ?? '',
-                'urutanAnak' => $rawAnakKe,
-                'jumlahSaudara' => $rawSaudara,
-                'anak_ke' => $rawAnakKe,
-                'dari_bersaudara' => $rawSaudara,
+                'urutanAnak' => (!empty($row['anak_ke']) && is_numeric($row['anak_ke'])) ? (int)$row['anak_ke'] : null,
+                'jumlahSaudara' => (!empty($row['dari_bersaudara']) && is_numeric($row['dari_bersaudara'])) ? (int)$row['dari_bersaudara'] : null,
                 
                 // Data Asli Orang Tua dari Database (Mendukung nama_ayah, nama_bapak, ayah, bapak, nama_ibu, ibu)
                 'namaAyah' => $row['nama_ayah'] ?? $row['nama_bapak'] ?? $row['ayah'] ?? $row['bapak'] ?? '',

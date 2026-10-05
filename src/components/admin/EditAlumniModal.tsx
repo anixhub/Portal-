@@ -22,17 +22,15 @@ export const EditAlumniModal: React.FC<EditAlumniModalProps> = ({
   const [noKk, setNoKk] = useState(alumni?.noKk || '');
   const [nis, setNis] = useState(alumni?.nis || '');
   const [gender, setGender] = useState<'L' | 'P'>((alumni?.gender as 'L' | 'P') || 'L');
-  const rawInitialAnak = alumni?.anak_ke ?? alumni?.urutanAnak;
-  const rawInitialSaudara = alumni?.dari_bersaudara ?? alumni?.jumlahSaudara;
-  const [anakKe, setAnakKe] = useState<number | ''>(
-    rawInitialAnak !== undefined && rawInitialAnak !== null && rawInitialAnak !== '' && Number(rawInitialAnak) > 0
-      ? Number(rawInitialAnak)
-      : ''
+  const [anakKe, setAnakKe] = useState<number | string>(
+    alumni?.anak_ke !== undefined && alumni?.anak_ke !== null
+      ? Number(alumni.anak_ke)
+      : (alumni?.urutanAnak !== undefined && alumni?.urutanAnak !== null ? Number(alumni.urutanAnak) : 1)
   );
-  const [dariBersaudara, setDariBersaudara] = useState<number | ''>(
-    rawInitialSaudara !== undefined && rawInitialSaudara !== null && rawInitialSaudara !== '' && Number(rawInitialSaudara) > 0
-      ? Number(rawInitialSaudara)
-      : ''
+  const [dariBersaudara, setDariBersaudara] = useState<number | string>(
+    alumni?.dari_bersaudara !== undefined && alumni?.dari_bersaudara !== null
+      ? Number(alumni.dari_bersaudara)
+      : (alumni?.jumlahSaudara !== undefined && alumni?.jumlahSaudara !== null ? Number(alumni.jumlahSaudara) : 0)
   );
   const [gradYear, setGradYear] = useState(alumni?.gradYear || '');
   const [jenjang, setJenjang] = useState(alumni?.jenjang || '');
@@ -55,17 +53,15 @@ export const EditAlumniModal: React.FC<EditAlumniModalProps> = ({
       setNoKk(alumni.noKk || '');
       setNis(alumni.nis || '');
       setGender((alumni.gender as 'L' | 'P') || 'L');
-      const syncAnak = alumni.anak_ke ?? alumni.urutanAnak;
-      const syncSaudara = alumni.dari_bersaudara ?? alumni.jumlahSaudara;
       setAnakKe(
-        syncAnak !== undefined && syncAnak !== null && syncAnak !== '' && Number(syncAnak) > 0
-          ? Number(syncAnak)
-          : ''
+        alumni.anak_ke !== undefined && alumni.anak_ke !== null
+          ? Number(alumni.anak_ke)
+          : (alumni.urutanAnak !== undefined && alumni.urutanAnak !== null ? Number(alumni.urutanAnak) : 1)
       );
       setDariBersaudara(
-        syncSaudara !== undefined && syncSaudara !== null && syncSaudara !== '' && Number(syncSaudara) > 0
-          ? Number(syncSaudara)
-          : ''
+        alumni.dari_bersaudara !== undefined && alumni.dari_bersaudara !== null
+          ? Number(alumni.dari_bersaudara)
+          : (alumni.jumlahSaudara !== undefined && alumni.jumlahSaudara !== null ? Number(alumni.jumlahSaudara) : 0)
       );
       setGradYear(alumni.gradYear || '');
       setJenjang(alumni.jenjang || '');
@@ -87,10 +83,12 @@ export const EditAlumniModal: React.FC<EditAlumniModalProps> = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const finalAnak = typeof anakKe === 'number' && anakKe > 0 ? anakKe : undefined;
-    const finalSaudara = typeof dariBersaudara === 'number' && dariBersaudara > 0 
-      ? (finalAnak ? Math.max(finalAnak, dariBersaudara) : dariBersaudara)
-      : (finalAnak ? finalAnak : undefined);
+    const finalAnak = typeof anakKe === 'number'
+      ? Math.max(1, anakKe)
+      : (parseInt(String(anakKe), 10) || 1);
+    const finalSaudara = typeof dariBersaudara === 'number'
+      ? Math.max(0, dariBersaudara)
+      : (parseInt(String(dariBersaudara), 10) || 0);
 
     onSave(alumni.id, {
       name,
@@ -197,7 +195,7 @@ export const EditAlumniModal: React.FC<EditAlumniModalProps> = ({
 
           <div className="grid grid-cols-3 gap-2.5">
             <div>
-              <label className="block font-semibold text-slate-700 mb-1">Jenis Kelamin</label>
+              <label className="block font-semibold text-slate-700 mb-1">Jenis Kelamin (gender)</label>
               <select
                 value={gender}
                 onChange={(e) => setGender(e.target.value as 'L' | 'P')}
@@ -208,34 +206,51 @@ export const EditAlumniModal: React.FC<EditAlumniModalProps> = ({
               </select>
             </div>
             <div>
-              <label className="block font-semibold text-slate-700 mb-1">Anak Ke-</label>
+              <label className="block font-semibold text-slate-700 mb-1">Anak Ke</label>
               <input
                 type="number"
                 min={1}
                 max={25}
-                placeholder="Contoh: 1"
                 value={anakKe}
+                onFocus={(e) => e.target.select()}
                 onChange={(e) => {
-                  const val = e.target.value === '' ? '' : Math.max(1, parseInt(e.target.value));
-                  setAnakKe(val);
-                  if (typeof val === 'number' && typeof dariBersaudara === 'number' && val > dariBersaudara) {
-                    setDariBersaudara(val);
+                  const raw = e.target.value;
+                  if (raw === '') {
+                    setAnakKe('');
+                    return;
+                  }
+                  const val = parseInt(raw, 10);
+                  setAnakKe(isNaN(val) ? '' : val);
+                }}
+                onBlur={() => {
+                  if (anakKe === '' || Number(anakKe) < 1) {
+                    setAnakKe(1);
                   }
                 }}
                 className="w-full px-2.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:ring-2 focus:ring-sky-600 focus:bg-white"
               />
             </div>
             <div>
-              <label className="block font-semibold text-slate-700 mb-1">Dari Bersaudara</label>
+              <label className="block font-semibold text-slate-700 mb-1">Jumlah Saudara</label>
               <input
                 type="number"
-                min={typeof anakKe === 'number' ? anakKe : 1}
+                min={0}
                 max={25}
-                placeholder="Contoh: 3"
                 value={dariBersaudara}
+                onFocus={(e) => e.target.select()}
                 onChange={(e) => {
-                  const val = e.target.value === '' ? '' : Math.max(1, parseInt(e.target.value));
-                  setDariBersaudara(val);
+                  const raw = e.target.value;
+                  if (raw === '') {
+                    setDariBersaudara('');
+                    return;
+                  }
+                  const val = parseInt(raw, 10);
+                  setDariBersaudara(isNaN(val) ? '' : Math.max(0, val));
+                }}
+                onBlur={() => {
+                  if (dariBersaudara === '' || Number(dariBersaudara) < 0) {
+                    setDariBersaudara(0);
+                  }
                 }}
                 className="w-full px-2.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:ring-2 focus:ring-sky-600 focus:bg-white"
               />

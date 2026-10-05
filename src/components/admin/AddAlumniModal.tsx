@@ -293,7 +293,7 @@ export const AddAlumniModal: React.FC<AddAlumniModalProps> = ({
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                        Anak Ke-
+                        Anak Ke
                       </label>
                       <input
                         type="number"
@@ -303,9 +303,6 @@ export const AddAlumniModal: React.FC<AddAlumniModalProps> = ({
                         onChange={(e) => {
                           const val = Math.max(1, parseInt(e.target.value) || 1);
                           setAnakKe(val);
-                          if (val > dariBersaudara) {
-                            setDariBersaudara(val);
-                          }
                         }}
                         className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-sky-600 focus:bg-white focus:outline-none"
                       />
@@ -313,16 +310,16 @@ export const AddAlumniModal: React.FC<AddAlumniModalProps> = ({
 
                     <div>
                       <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                        Dari Bersaudara
+                        Jumlah Saudara
                       </label>
                       <input
                         type="number"
-                        min={anakKe}
+                        min={0}
                         max={25}
                         value={dariBersaudara}
                         onChange={(e) => {
-                          const val = Math.max(1, parseInt(e.target.value) || 1);
-                          setDariBersaudara(Math.max(val, anakKe));
+                          const val = Math.max(0, parseInt(e.target.value) || 0);
+                          setDariBersaudara(val);
                         }}
                         className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-sky-600 focus:bg-white focus:outline-none"
                       />
