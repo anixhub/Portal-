@@ -293,7 +293,7 @@ export const AddAlumniModal: React.FC<AddAlumniModalProps> = ({
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                        Anak Ke- (anak_ke)
+                        Anak Ke-
                       </label>
                       <input
                         type="number"
@@ -313,7 +313,7 @@ export const AddAlumniModal: React.FC<AddAlumniModalProps> = ({
 
                     <div>
                       <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                        Dari Bersaudara (dari_bersaudara)
+                        Dari Bersaudara
                       </label>
                       <input
                         type="number"

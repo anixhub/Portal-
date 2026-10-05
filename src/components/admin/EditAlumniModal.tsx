@@ -22,8 +22,18 @@ export const EditAlumniModal: React.FC<EditAlumniModalProps> = ({
   const [noKk, setNoKk] = useState(alumni?.noKk || '');
   const [nis, setNis] = useState(alumni?.nis || '');
   const [gender, setGender] = useState<'L' | 'P'>((alumni?.gender as 'L' | 'P') || 'L');
-  const [anakKe, setAnakKe] = useState<number>(Number(alumni?.anak_ke ?? alumni?.urutanAnak) || 1);
-  const [dariBersaudara, setDariBersaudara] = useState<number>(Number(alumni?.dari_bersaudara ?? alumni?.jumlahSaudara) || 1);
+  const rawInitialAnak = alumni?.anak_ke ?? alumni?.urutanAnak;
+  const rawInitialSaudara = alumni?.dari_bersaudara ?? alumni?.jumlahSaudara;
+  const [anakKe, setAnakKe] = useState<number | ''>(
+    rawInitialAnak !== undefined && rawInitialAnak !== null && rawInitialAnak !== '' && Number(rawInitialAnak) > 0
+      ? Number(rawInitialAnak)
+      : ''
+  );
+  const [dariBersaudara, setDariBersaudara] = useState<number | ''>(
+    rawInitialSaudara !== undefined && rawInitialSaudara !== null && rawInitialSaudara !== '' && Number(rawInitialSaudara) > 0
+      ? Number(rawInitialSaudara)
+      : ''
+  );
   const [gradYear, setGradYear] = useState(alumni?.gradYear || '');
   const [jenjang, setJenjang] = useState(alumni?.jenjang || '');
   const [asramaDulu, setAsramaDulu] = useState(alumni?.asramaDulu || '');
@@ -45,8 +55,18 @@ export const EditAlumniModal: React.FC<EditAlumniModalProps> = ({
       setNoKk(alumni.noKk || '');
       setNis(alumni.nis || '');
       setGender((alumni.gender as 'L' | 'P') || 'L');
-      setAnakKe(Number(alumni.anak_ke ?? alumni.urutanAnak) || 1);
-      setDariBersaudara(Number(alumni.dari_bersaudara ?? alumni.jumlahSaudara) || 1);
+      const syncAnak = alumni.anak_ke ?? alumni.urutanAnak;
+      const syncSaudara = alumni.dari_bersaudara ?? alumni.jumlahSaudara;
+      setAnakKe(
+        syncAnak !== undefined && syncAnak !== null && syncAnak !== '' && Number(syncAnak) > 0
+          ? Number(syncAnak)
+          : ''
+      );
+      setDariBersaudara(
+        syncSaudara !== undefined && syncSaudara !== null && syncSaudara !== '' && Number(syncSaudara) > 0
+          ? Number(syncSaudara)
+          : ''
+      );
       setGradYear(alumni.gradYear || '');
       setJenjang(alumni.jenjang || '');
       setAsramaDulu(alumni.asramaDulu || '');
@@ -67,16 +87,21 @@ export const EditAlumniModal: React.FC<EditAlumniModalProps> = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    const finalAnak = typeof anakKe === 'number' && anakKe > 0 ? anakKe : undefined;
+    const finalSaudara = typeof dariBersaudara === 'number' && dariBersaudara > 0 
+      ? (finalAnak ? Math.max(finalAnak, dariBersaudara) : dariBersaudara)
+      : (finalAnak ? finalAnak : undefined);
+
     onSave(alumni.id, {
       name,
       nik,
       noKk: noKk || undefined,
       nis,
       gender,
-      anak_ke: anakKe,
-      dari_bersaudara: dariBersaudara,
-      urutanAnak: anakKe,
-      jumlahSaudara: dariBersaudara,
+      anak_ke: finalAnak,
+      dari_bersaudara: finalSaudara,
+      urutanAnak: finalAnak,
+      jumlahSaudara: finalSaudara,
       gradYear,
       jenjang,
       asramaDulu,
@@ -172,7 +197,7 @@ export const EditAlumniModal: React.FC<EditAlumniModalProps> = ({
 
           <div className="grid grid-cols-3 gap-2.5">
             <div>
-              <label className="block font-semibold text-slate-700 mb-1">Jenis Kelamin (gender)</label>
+              <label className="block font-semibold text-slate-700 mb-1">Jenis Kelamin</label>
               <select
                 value={gender}
                 onChange={(e) => setGender(e.target.value as 'L' | 'P')}
@@ -183,16 +208,17 @@ export const EditAlumniModal: React.FC<EditAlumniModalProps> = ({
               </select>
             </div>
             <div>
-              <label className="block font-semibold text-slate-700 mb-1">Anak Ke- (anak_ke)</label>
+              <label className="block font-semibold text-slate-700 mb-1">Anak Ke-</label>
               <input
                 type="number"
                 min={1}
                 max={25}
+                placeholder="Contoh: 1"
                 value={anakKe}
                 onChange={(e) => {
-                  const val = Math.max(1, parseInt(e.target.value) || 1);
+                  const val = e.target.value === '' ? '' : Math.max(1, parseInt(e.target.value));
                   setAnakKe(val);
-                  if (val > dariBersaudara) {
+                  if (typeof val === 'number' && typeof dariBersaudara === 'number' && val > dariBersaudara) {
                     setDariBersaudara(val);
                   }
                 }}
@@ -200,15 +226,16 @@ export const EditAlumniModal: React.FC<EditAlumniModalProps> = ({
               />
             </div>
             <div>
-              <label className="block font-semibold text-slate-700 mb-1">Dari Bersaudara (dari_bersaudara)</label>
+              <label className="block font-semibold text-slate-700 mb-1">Dari Bersaudara</label>
               <input
                 type="number"
-                min={anakKe}
+                min={typeof anakKe === 'number' ? anakKe : 1}
                 max={25}
+                placeholder="Contoh: 3"
                 value={dariBersaudara}
                 onChange={(e) => {
-                  const val = Math.max(1, parseInt(e.target.value) || 1);
-                  setDariBersaudara(Math.max(val, anakKe));
+                  const val = e.target.value === '' ? '' : Math.max(1, parseInt(e.target.value));
+                  setDariBersaudara(val);
                 }}
                 className="w-full px-2.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:ring-2 focus:ring-sky-600 focus:bg-white"
               />

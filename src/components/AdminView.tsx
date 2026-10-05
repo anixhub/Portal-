@@ -37,7 +37,8 @@ import {
   Phone,
   Briefcase,
   FileText,
-  AtSign
+  AtSign,
+  ArrowUpDown
 } from 'lucide-react';
 import { AlumniRecord, AdminUser, EventAgenda, EventComment, EventCommentReply, AnnouncementItem, AttendanceSession, AttendanceAttendee, AudienceTarget } from '../types';
 import { AddAlumniModal } from './admin/AddAlumniModal';
@@ -618,6 +619,11 @@ export const AdminView: React.FC<AdminViewProps> = ({
   // Search & Filter state for Kelola Alumni
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'semua' | 'aktif' | 'tidak_aktif'>('semua');
+  const [filterGender, setFilterGender] = useState<'semua' | 'L' | 'P'>('semua');
+  const [sortBy, setSortBy] = useState<
+    'default' | 'name_asc' | 'name_desc' | 'grad_desc' | 'grad_asc' | 'entry_desc' | 'entry_asc' | 'age_young' | 'age_old'
+  >('default');
+  const [isSortSheetOpen, setIsSortSheetOpen] = useState(false);
   const [visibleCount, setVisibleCount] = useState(60);
   const [isFilterSheetOpen, setIsFilterSheetOpen] = useState(false);
   const [filterEntryFrom, setFilterEntryFrom] = useState('');
@@ -633,6 +639,8 @@ export const AdminView: React.FC<AdminViewProps> = ({
     setVisibleCount(60);
   }, [
     searchQuery,
+    filterGender,
+    sortBy,
     filterEntryFrom,
     filterEntryTo,
     filterGradFrom,
@@ -645,6 +653,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
   ]);
 
   const hasActiveFilters = Boolean(
+    filterGender !== 'semua' ||
     filterEntryFrom ||
     filterEntryTo ||
     filterGradFrom ||
@@ -656,6 +665,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
   );
 
   const handleResetFilters = () => {
+    setFilterGender('semua');
     setFilterEntryFrom('');
     setFilterEntryTo('');
     setFilterGradFrom('');
@@ -788,9 +798,12 @@ export const AdminView: React.FC<AdminViewProps> = ({
             filterDesa.toLowerCase().includes(item.desa!.toLowerCase())
           ));
 
+    const matchGender = filterGender === 'semua' || item.gender === filterGender;
+
     return (
       matchSearch &&
       matchStatus &&
+      matchGender &&
       matchEntryFrom &&
       matchEntryTo &&
       matchGradFrom &&
@@ -800,6 +813,36 @@ export const AdminView: React.FC<AdminViewProps> = ({
       matchKecamatan &&
       matchDesa
     );
+  });
+
+  // Sorted alumni list
+  const sortedList = [...filteredList].sort((a, b) => {
+    switch (sortBy) {
+      case 'name_asc':
+        return a.name.localeCompare(b.name, 'id');
+      case 'name_desc':
+        return b.name.localeCompare(a.name, 'id');
+      case 'grad_desc':
+        return (parseInt(b.gradYear, 10) || 0) - (parseInt(a.gradYear, 10) || 0);
+      case 'grad_asc':
+        return (parseInt(a.gradYear, 10) || 0) - (parseInt(b.gradYear, 10) || 0);
+      case 'entry_desc':
+        return (parseInt(b.entryYear, 10) || 0) - (parseInt(a.entryYear, 10) || 0);
+      case 'entry_asc':
+        return (parseInt(a.entryYear, 10) || 0) - (parseInt(b.entryYear, 10) || 0);
+      case 'age_young': {
+        const timeA = a.tanggalLahir ? new Date(a.tanggalLahir).getTime() : 0;
+        const timeB = b.tanggalLahir ? new Date(b.tanggalLahir).getTime() : 0;
+        return timeB - timeA;
+      }
+      case 'age_old': {
+        const timeA = a.tanggalLahir ? new Date(a.tanggalLahir).getTime() : 9999999999999;
+        const timeB = b.tanggalLahir ? new Date(b.tanggalLahir).getTime() : 9999999999999;
+        return timeA - timeB;
+      }
+      default:
+        return 0;
+    }
   });
 
   const handleEventSliderScroll = () => {
@@ -1058,7 +1101,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
       )}
 
       {/* ================= BODY TAB CONTAINER (HEADER DIHAPUS DI SEMUA TAB TERMASUK PROFIL) ================= */}
-      <div className="flex-1 overflow-y-auto flex flex-col relative">
+      <div className={`flex-1 flex flex-col relative ${activeTab === 'alumni' ? 'overflow-hidden' : 'overflow-y-auto'}`}>
         {/* ================= TAB 1: AGENDA (BERSIH TANPA HEADER) ================= */}
         {activeTab === 'agenda' && (
           <div className="flex-1 overflow-y-auto px-4 py-3 max-w-lg mx-auto w-full flex flex-col pb-28">
@@ -1358,100 +1401,157 @@ export const AdminView: React.FC<AdminViewProps> = ({
 
         {/* ================= TAB 2: KELOLA ALUMNI (BERSIH TANPA HEADER) ================= */}
         {activeTab === 'alumni' && (
-          <div className="flex-1 overflow-y-auto px-4 py-4 max-w-2xl mx-auto w-full space-y-3 pb-28">
-            {/* Search & Filter Bar */}
-            <div className="flex items-center gap-2">
-              <div className="relative flex-1">
-                <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-                <input
-                  type="text"
-                  placeholder="Cari NIK, NIS, nama, atau domisili..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-9 pr-9 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-medium focus:ring-2 focus:ring-sky-600 focus:outline-none shadow-2xs"
-                />
-                {searchQuery && (
-                  <button
-                    type="button"
-                    onClick={() => setSearchQuery('')}
-                    className="absolute right-2.5 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 cursor-pointer transition-colors"
-                    title="Hapus pencarian"
-                  >
-                    <X className="w-3.5 h-3.5" />
-                  </button>
+          <div className="flex-1 flex flex-col h-full overflow-hidden max-w-2xl mx-auto w-full">
+            {/* STICKY TOP BAR: Kotak cari, Tombol Urutkan, Tombol Filter, dan Tag Status Aktif/Tidak Aktif (Selalu diatas unscroll) */}
+            <div className="shrink-0 z-20 bg-slate-50/95 backdrop-blur-md px-4 pt-3.5 pb-2.5 space-y-2.5 border-b border-slate-200/70 shadow-2xs">
+              {/* Search, Sort & Filter Row */}
+              <div className="flex items-center gap-2">
+                <div className="relative flex-1">
+                  <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  <input
+                    type="text"
+                    placeholder="Cari NIK, NIS, nama, atau domisili..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="w-full pl-9 pr-9 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-medium focus:ring-2 focus:ring-sky-600 focus:outline-none shadow-2xs"
+                  />
+                  {searchQuery && (
+                    <button
+                      type="button"
+                      onClick={() => setSearchQuery('')}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 cursor-pointer transition-colors"
+                      title="Hapus pencarian"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+
+                {/* Tombol Urutkan (di sebelah kiri filter hanya icon) */}
+                <button
+                  type="button"
+                  onClick={() => setIsSortSheetOpen(true)}
+                  className={`p-2.5 rounded-xl border transition-all cursor-pointer flex items-center justify-center shrink-0 ${
+                    sortBy !== 'default'
+                      ? 'bg-sky-600 text-white border-sky-600 shadow-xs ring-2 ring-sky-500/20'
+                      : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+                  }`}
+                  title="Urutkan Data Alumni"
+                >
+                  <ArrowUpDown className="w-4 h-4" />
+                </button>
+
+                {/* Tombol Filter */}
+                <button
+                  type="button"
+                  onClick={() => setIsFilterSheetOpen(true)}
+                  className={`p-2.5 rounded-xl border transition-all cursor-pointer flex items-center justify-center shrink-0 ${
+                    hasActiveFilters
+                      ? 'bg-sky-600 text-white border-sky-600 shadow-xs ring-2 ring-sky-500/20'
+                      : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+                  }`}
+                  title="Buka Filter Data"
+                >
+                  <Filter className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Filter Label Status: Semua, Aktif, Tidak Aktif (Aktif = NIK pernah login) */}
+              <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 no-scrollbar">
+                <button
+                  type="button"
+                  onClick={() => setStatusFilter('semua')}
+                  className={`px-3 py-1 rounded-full text-xs font-bold transition-all cursor-pointer shrink-0 ${
+                    statusFilter === 'semua'
+                      ? 'bg-sky-600 text-white shadow-xs'
+                      : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+                  }`}
+                >
+                  Semua ({alumniList.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setStatusFilter('aktif')}
+                  className={`px-3 py-1 rounded-full text-xs font-bold transition-all cursor-pointer shrink-0 flex items-center gap-1.5 ${
+                    statusFilter === 'aktif'
+                      ? 'bg-emerald-600 text-white shadow-xs'
+                      : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+                  }`}
+                >
+                  <span className={`w-2 h-2 rounded-full ${statusFilter === 'aktif' ? 'bg-white' : 'bg-emerald-500'}`} />
+                  Aktif ({activeCount})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setStatusFilter('tidak_aktif')}
+                  className={`px-3 py-1 rounded-full text-xs font-bold transition-all cursor-pointer shrink-0 flex items-center gap-1.5 ${
+                    statusFilter === 'tidak_aktif'
+                      ? 'bg-slate-700 text-white shadow-xs'
+                      : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+                  }`}
+                >
+                  <span className={`w-2 h-2 rounded-full ${statusFilter === 'tidak_aktif' ? 'bg-white' : 'bg-slate-400'}`} />
+                  Tidak Aktif ({inactiveCount})
+                </button>
+              </div>
+
+              {/* Filter / Sort Active Indicator & Quick Reset */}
+              {(hasActiveFilters || sortBy !== 'default') && (
+                <div className="flex items-center justify-between text-[11px] text-sky-800 bg-sky-50 px-3 py-1.5 rounded-xl border border-sky-100 animate-in fade-in">
+                  <span className="truncate pr-2">
+                    {[
+                      filterGender !== 'semua' ? (filterGender === 'L' ? 'Laki-laki' : 'Perempuan') : null,
+                      sortBy !== 'default' ? `Urut: ${
+                        sortBy === 'name_asc' ? 'A-Z' :
+                        sortBy === 'name_desc' ? 'Z-A' :
+                        sortBy === 'grad_desc' ? 'Lulus Baru' :
+                        sortBy === 'grad_asc' ? 'Lulus Lama' :
+                        sortBy === 'entry_desc' ? 'Masuk Baru' :
+                        sortBy === 'entry_asc' ? 'Masuk Lama' :
+                        sortBy === 'age_young' ? 'Termuda' : 'Tertua'
+                      }` : null,
+                      filterEntryFrom || filterEntryTo ? `Masuk ${filterEntryFrom || '...'}-${filterEntryTo || '...'}` : null,
+                      filterGradFrom || filterGradTo ? `Lulus ${filterGradFrom || '...'}-${filterGradTo || '...'}` : null,
+                      filterProvince || filterCity || filterKecamatan || filterDesa ? [filterDesa, filterKecamatan, filterCity, filterProvince].filter(Boolean).join(', ') : null,
+                    ].filter(Boolean).join(' · ')} ({sortedList.length} alumni)
+                  </span>
+                  <div className="flex items-center gap-2 shrink-0">
+                    {hasActiveFilters && (
+                      <button
+                        type="button"
+                        onClick={handleResetFilters}
+                        className="font-bold underline text-sky-700 hover:text-sky-900 cursor-pointer"
+                      >
+                        Reset Filter
+                      </button>
+                    )}
+                    {sortBy !== 'default' && (
+                      <button
+                        type="button"
+                        onClick={() => setSortBy('default')}
+                        className="font-bold underline text-slate-500 hover:text-slate-800 cursor-pointer"
+                      >
+                        Reset Urutan
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* List Alumni Items (Scrollable) */}
+            <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3 pb-28">
+              {/* Total info alumni */}
+              <div className="flex items-center justify-between text-xs text-slate-500 px-0.5">
+                <span>Menampilkan <strong>{sortedList.length}</strong> alumni</span>
+                {alumniList.length > sortedList.length && (
+                  <span className="text-[11px] text-slate-400">dari total {alumniList.length}</span>
                 )}
               </div>
 
-              <button
-                type="button"
-                onClick={() => setIsFilterSheetOpen(true)}
-                className={`p-2.5 rounded-xl border transition-all cursor-pointer flex items-center justify-center shrink-0 ${
-                  hasActiveFilters
-                    ? 'bg-sky-600 text-white border-sky-600 shadow-xs'
-                    : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
-                }`}
-                title="Buka Filter Data"
-              >
-                <Filter className="w-4 h-4" />
-              </button>
-            </div>
-
-            {/* Filter Label Status: Semua, Aktif, Tidak Aktif (Aktif = NIK pernah login) */}
-            <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 scrollbar-none">
-              <button
-                type="button"
-                onClick={() => setStatusFilter('semua')}
-                className={`px-3 py-1 rounded-full text-xs font-bold transition-all cursor-pointer shrink-0 ${
-                  statusFilter === 'semua'
-                    ? 'bg-sky-600 text-white shadow-xs'
-                    : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
-                }`}
-              >
-                Semua ({alumniList.length})
-              </button>
-              <button
-                type="button"
-                onClick={() => setStatusFilter('aktif')}
-                className={`px-3 py-1 rounded-full text-xs font-bold transition-all cursor-pointer shrink-0 flex items-center gap-1.5 ${
-                  statusFilter === 'aktif'
-                    ? 'bg-emerald-600 text-white shadow-xs'
-                    : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
-                }`}
-              >
-                <span className={`w-2 h-2 rounded-full ${statusFilter === 'aktif' ? 'bg-white' : 'bg-emerald-500'}`} />
-                Aktif ({activeCount})
-              </button>
-              <button
-                type="button"
-                onClick={() => setStatusFilter('tidak_aktif')}
-                className={`px-3 py-1 rounded-full text-xs font-bold transition-all cursor-pointer shrink-0 flex items-center gap-1.5 ${
-                  statusFilter === 'tidak_aktif'
-                    ? 'bg-slate-700 text-white shadow-xs'
-                    : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
-                }`}
-              >
-                <span className={`w-2 h-2 rounded-full ${statusFilter === 'tidak_aktif' ? 'bg-white' : 'bg-slate-400'}`} />
-                Tidak Aktif ({inactiveCount})
-              </button>
-            </div>
-
-            {/* Filter Active Indicator & Quick Reset */}
-            {hasActiveFilters && (
-              <div className="flex items-center justify-between text-[11px] text-sky-800 bg-sky-50 px-3 py-1.5 rounded-xl border border-sky-100">
-                <span>Filter aktif diterapkan ({filteredList.length} alumni)</span>
-                <button
-                  type="button"
-                  onClick={handleResetFilters}
-                  className="font-bold underline text-sky-700 hover:text-sky-900 cursor-pointer"
-                >
-                  Reset Filter
-                </button>
-              </div>
-            )}
-
-            {/* Daftar Kartu Alumni */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-              {filteredList.slice(0, visibleCount).map((item) => {
+              {/* Daftar Kartu Alumni */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                {sortedList.slice(0, visibleCount).map((item) => {
                 const addressText = item.shareFullAddress === false
                   ? [item.kecamatan, item.city].filter(Boolean).join(', ') || item.city || item.province || 'Alamat disembunyikan'
                   : [item.desa, item.kecamatan, item.city].filter(Boolean).join(', ') || item.province || 'Alamat belum diisi';
@@ -1522,25 +1622,26 @@ export const AdminView: React.FC<AdminViewProps> = ({
                   </div>
                 );
               })}
+              </div>
+
+              {sortedList.length > visibleCount && (
+                <div className="flex justify-center pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setVisibleCount((prev) => prev + 60)}
+                    className="w-full sm:w-auto px-6 py-3 bg-white hover:bg-slate-50 border border-slate-200 text-sky-700 font-bold text-xs rounded-2xl shadow-xs transition-colors cursor-pointer flex items-center justify-center gap-2"
+                  >
+                    <span>Muat Lebih Banyak ({visibleCount} dari {sortedList.length} alumni)</span>
+                  </button>
+                </div>
+              )}
+
+              {sortedList.length === 0 && (
+                <div className="bg-white rounded-2xl border border-slate-200 p-8 text-center text-slate-500 text-xs">
+                  Tidak ditemukan data alumni dengan filter atau pencarian yang dipilih.
+                </div>
+              )}
             </div>
-
-            {filteredList.length > visibleCount && (
-              <div className="flex justify-center pt-2">
-                <button
-                  type="button"
-                  onClick={() => setVisibleCount((prev) => prev + 60)}
-                  className="w-full sm:w-auto px-6 py-3 bg-white hover:bg-slate-50 border border-slate-200 text-sky-700 font-bold text-xs rounded-2xl shadow-xs transition-colors cursor-pointer flex items-center justify-center gap-2"
-                >
-                  <span>Muat Lebih Banyak ({visibleCount} dari {filteredList.length} alumni)</span>
-                </button>
-              </div>
-            )}
-
-            {filteredList.length === 0 && (
-              <div className="bg-white rounded-2xl border border-slate-200 p-8 text-center text-slate-500 text-xs">
-                Tidak ditemukan data alumni dengan filter atau pencarian yang dipilih.
-              </div>
-            )}
           </div>
         )}
 
@@ -2972,6 +3073,48 @@ export const AdminView: React.FC<AdminViewProps> = ({
             </div>
 
             <div className="p-5 space-y-4 text-xs overflow-y-auto">
+              {/* Filter Jenis Kelamin (Gender) */}
+              <div>
+                <label className="block font-bold text-slate-700 mb-1.5">
+                  Jenis Kelamin
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setFilterGender('semua')}
+                    className={`py-2 px-2.5 rounded-xl border text-xs font-bold transition-all cursor-pointer text-center ${
+                      filterGender === 'semua'
+                        ? 'bg-sky-600 text-white border-sky-600 shadow-2xs'
+                        : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                    }`}
+                  >
+                    Semua
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFilterGender('L')}
+                    className={`py-2 px-2.5 rounded-xl border text-xs font-bold transition-all cursor-pointer text-center ${
+                      filterGender === 'L'
+                        ? 'bg-sky-600 text-white border-sky-600 shadow-2xs'
+                        : 'bg-sky-50/60 text-sky-700 border-sky-200 hover:bg-sky-100'
+                    }`}
+                  >
+                    Laki-laki
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFilterGender('P')}
+                    className={`py-2 px-2.5 rounded-xl border text-xs font-bold transition-all cursor-pointer text-center ${
+                      filterGender === 'P'
+                        ? 'bg-rose-600 text-white border-rose-600 shadow-2xs'
+                        : 'bg-rose-50/60 text-rose-700 border-rose-200 hover:bg-rose-100'
+                    }`}
+                  >
+                    Perempuan
+                  </button>
+                </div>
+              </div>
+
               <div>
                 <label className="block font-bold text-slate-700 mb-1.5">
                   Tahun Masuk
@@ -3051,6 +3194,109 @@ export const AdminView: React.FC<AdminViewProps> = ({
                 className="flex-1 py-2 bg-sky-600 hover:bg-sky-700 text-white font-bold rounded-xl text-xs transition-colors cursor-pointer text-center shadow-xs"
               >
                 Terapkan
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ================= BOTTOM SHEET URUTKAN DATA ALUMNI ================= */}
+      {isSortSheetOpen && (
+        <div 
+          className="fixed inset-0 z-50 bg-black/50 backdrop-blur-2xs flex flex-col justify-end animate-in fade-in"
+          onClick={() => setIsSortSheetOpen(false)}
+        >
+          <div 
+            className="w-full max-w-lg mx-auto bg-white rounded-t-3xl shadow-2xl border-t border-slate-200 flex flex-col max-h-[85vh] animate-in slide-in-from-bottom duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Top Drag Handle */}
+            <div className="w-10 h-1 bg-slate-300 rounded-full mx-auto mt-3 mb-1" />
+
+            {/* Sheet Header */}
+            <div className="px-5 py-3 flex items-center justify-between border-b border-slate-100 bg-white">
+              <div className="flex items-center gap-2">
+                <ArrowUpDown className="w-4 h-4 text-sky-600" />
+                <h3 className="font-bold text-sm text-slate-900">
+                  Urutkan Data Alumni
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsSortSheetOpen(false)}
+                className="w-7 h-7 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-500 cursor-pointer transition-colors"
+                title="Tutup"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Sort Options List */}
+            <div className="p-4 space-y-2 overflow-y-auto text-xs">
+              {[
+                { id: 'default', label: 'Bawaan Sistem', desc: 'Urutan default pendaftaran' },
+                { id: 'name_asc', label: 'Nama (A ke Z)', desc: 'Urutan abjad nama dari awal' },
+                { id: 'name_desc', label: 'Nama (Z ke A)', desc: 'Urutan abjad nama terbalik' },
+                { id: 'grad_desc', label: 'Tahun Boyong / Lulus (Terbaru)', desc: 'Alumni yang lulus paling baru' },
+                { id: 'grad_asc', label: 'Tahun Boyong / Lulus (Terlama)', desc: 'Alumni angkatan terdahulu' },
+                { id: 'entry_desc', label: 'Tahun Masuk (Terbaru)', desc: 'Tahun santri mulai masuk pondok' },
+                { id: 'entry_asc', label: 'Tahun Masuk (Terlama)', desc: 'Tahun santri masuk paling awal' },
+                { id: 'age_young', label: 'Usia (Termuda)', desc: 'Urutkan dari alumni usia paling muda' },
+                { id: 'age_old', label: 'Usia (Tertua)', desc: 'Urutkan dari alumni usia paling senior' },
+              ].map((opt) => {
+                const isSelected = sortBy === opt.id;
+                return (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    onClick={() => {
+                      setSortBy(opt.id as any);
+                      setIsSortSheetOpen(false);
+                      triggerToast(`Diurutkan berdasarkan ${opt.label}`);
+                    }}
+                    className={`w-full p-3 rounded-2xl border text-left flex items-center justify-between transition-all cursor-pointer ${
+                      isSelected
+                        ? 'bg-sky-50/70 border-sky-600 text-sky-900 ring-1 ring-sky-600/30'
+                        : 'bg-white border-slate-200/90 text-slate-700 hover:bg-slate-50 hover:border-slate-300'
+                    }`}
+                  >
+                    <div>
+                      <p className={`font-bold ${isSelected ? 'text-sky-700' : 'text-slate-800'}`}>
+                        {opt.label}
+                      </p>
+                      <p className="text-[11px] text-slate-400 mt-0.5">
+                        {opt.desc}
+                      </p>
+                    </div>
+                    {isSelected && (
+                      <div className="w-6 h-6 rounded-full bg-sky-600 text-white flex items-center justify-center shrink-0">
+                        <Check className="w-3.5 h-3.5" />
+                      </div>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Bottom Actions */}
+            <div className="p-4 border-t border-slate-100 flex items-center justify-between gap-3 bg-slate-50">
+              <button
+                type="button"
+                onClick={() => {
+                  setSortBy('default');
+                  setIsSortSheetOpen(false);
+                  triggerToast('Urutan dikembalikan ke bawaan');
+                }}
+                className="px-4 py-2.5 rounded-xl border border-slate-200 text-slate-700 font-bold text-xs hover:bg-slate-100 transition-colors cursor-pointer"
+              >
+                Reset Bawaan
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsSortSheetOpen(false)}
+                className="flex-1 py-2.5 bg-sky-600 hover:bg-sky-700 text-white font-bold rounded-xl text-xs transition-colors cursor-pointer text-center shadow-xs"
+              >
+                Tutup
               </button>
             </div>
           </div>

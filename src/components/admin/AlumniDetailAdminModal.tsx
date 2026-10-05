@@ -51,9 +51,19 @@ export const AlumniDetailAdminModal: React.FC<AlumniDetailAdminModalProps> = ({
   const [editName, setEditName] = useState(alumni.name);
   const [editTempatLahir, setEditTempatLahir] = useState(alumni.tempatLahir || '');
   const [editTanggalLahir, setEditTanggalLahir] = useState(alumni.tanggalLahir || '');
+  const initialAnakRaw = alumni.anak_ke ?? alumni.urutanAnak;
+  const initialSaudaraRaw = alumni.dari_bersaudara ?? alumni.jumlahSaudara;
   const [editGender, setEditGender] = useState<'L' | 'P'>((alumni.gender as 'L' | 'P') || 'L');
-  const [editUrutanAnak, setEditUrutanAnak] = useState<number>(Number(alumni.anak_ke ?? alumni.urutanAnak) || 1);
-  const [editJumlahSaudara, setEditJumlahSaudara] = useState<number>(Number(alumni.dari_bersaudara ?? alumni.jumlahSaudara) || 1);
+  const [editUrutanAnak, setEditUrutanAnak] = useState<number | ''>(
+    initialAnakRaw !== undefined && initialAnakRaw !== null && initialAnakRaw !== '' && Number(initialAnakRaw) > 0
+      ? Number(initialAnakRaw)
+      : ''
+  );
+  const [editJumlahSaudara, setEditJumlahSaudara] = useState<number | ''>(
+    initialSaudaraRaw !== undefined && initialSaudaraRaw !== null && initialSaudaraRaw !== '' && Number(initialSaudaraRaw) > 0
+      ? Number(initialSaudaraRaw)
+      : ''
+  );
   const [editNik, setEditNik] = useState(alumni.nik || '');
   const [editNoKk, setEditNoKk] = useState(alumni.noKk || '');
   const [editPhone, setEditPhone] = useState(alumni.phone || '');
@@ -94,8 +104,18 @@ export const AlumniDetailAdminModal: React.FC<AlumniDetailAdminModalProps> = ({
     setEditTempatLahir(alumni.tempatLahir || '');
     setEditTanggalLahir(alumni.tanggalLahir || '');
     setEditGender((alumni.gender as 'L' | 'P') || 'L');
-    setEditUrutanAnak(Number(alumni.anak_ke ?? alumni.urutanAnak) || 1);
-    setEditJumlahSaudara(Number(alumni.dari_bersaudara ?? alumni.jumlahSaudara) || 1);
+    const syncAnak = alumni.anak_ke ?? alumni.urutanAnak;
+    const syncSaudara = alumni.dari_bersaudara ?? alumni.jumlahSaudara;
+    setEditUrutanAnak(
+      syncAnak !== undefined && syncAnak !== null && syncAnak !== '' && Number(syncAnak) > 0
+        ? Number(syncAnak)
+        : ''
+    );
+    setEditJumlahSaudara(
+      syncSaudara !== undefined && syncSaudara !== null && syncSaudara !== '' && Number(syncSaudara) > 0
+        ? Number(syncSaudara)
+        : ''
+    );
     setEditNik(alumni.nik || '');
     setEditNoKk(alumni.noKk || '');
     setEditPhone(alumni.phone || '');
@@ -720,7 +740,7 @@ export const AlumniDetailAdminModal: React.FC<AlumniDetailAdminModalProps> = ({
             </div>
             <div className="space-y-3 text-xs">
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">Jenis Kelamin (gender)</label>
+                <label className="block font-semibold text-slate-700 mb-1">Jenis Kelamin</label>
                 <div className="grid grid-cols-2 gap-3">
                   <button
                     type="button"
@@ -744,16 +764,17 @@ export const AlumniDetailAdminModal: React.FC<AlumniDetailAdminModalProps> = ({
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Anak Ke- (anak_ke)</label>
+                  <label className="block font-semibold text-slate-700 mb-1">Anak Ke-</label>
                   <input
                     type="number"
                     min={1}
                     max={25}
+                    placeholder="Contoh: 1"
                     value={editUrutanAnak}
                     onChange={(e) => {
-                      const val = Math.max(1, Number(e.target.value) || 1);
+                      const val = e.target.value === '' ? '' : Math.max(1, Number(e.target.value));
                       setEditUrutanAnak(val);
-                      if (val > editJumlahSaudara) {
+                      if (typeof val === 'number' && typeof editJumlahSaudara === 'number' && val > editJumlahSaudara) {
                         setEditJumlahSaudara(val);
                       }
                     }}
@@ -761,21 +782,22 @@ export const AlumniDetailAdminModal: React.FC<AlumniDetailAdminModalProps> = ({
                   />
                 </div>
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Dari Bersaudara (dari_bersaudara)</label>
+                  <label className="block font-semibold text-slate-700 mb-1">Dari Bersaudara</label>
                   <input
                     type="number"
-                    min={editUrutanAnak}
+                    min={typeof editUrutanAnak === 'number' ? editUrutanAnak : 1}
                     max={25}
+                    placeholder="Contoh: 3"
                     value={editJumlahSaudara}
                     onChange={(e) => {
-                      const val = Math.max(1, Number(e.target.value) || 1);
-                      setEditJumlahSaudara(Math.max(val, editUrutanAnak));
+                      const val = e.target.value === '' ? '' : Math.max(1, Number(e.target.value));
+                      setEditJumlahSaudara(val);
                     }}
                     className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white text-xs font-semibold"
                   />
                 </div>
               </div>
-              {editUrutanAnak > editJumlahSaudara && (
+              {typeof editUrutanAnak === 'number' && typeof editJumlahSaudara === 'number' && editUrutanAnak > editJumlahSaudara && (
                 <p className="text-[11px] text-rose-500 font-medium">
                   * Jumlah bersaudara tidak boleh lebih kecil dari anak ke-{editUrutanAnak}
                 </p>
@@ -786,10 +808,12 @@ export const AlumniDetailAdminModal: React.FC<AlumniDetailAdminModalProps> = ({
               <button 
                 type="button" 
                 onClick={() => { 
-                  const finalAnak = Math.max(1, editUrutanAnak);
-                  const finalSaudara = Math.max(finalAnak, editJumlahSaudara);
-                  setEditUrutanAnak(finalAnak);
-                  setEditJumlahSaudara(finalSaudara);
+                  const finalAnak = typeof editUrutanAnak === 'number' && editUrutanAnak > 0 ? editUrutanAnak : undefined;
+                  const finalSaudara = typeof editJumlahSaudara === 'number' && editJumlahSaudara > 0 
+                    ? (finalAnak ? Math.max(finalAnak, editJumlahSaudara) : editJumlahSaudara)
+                    : (finalAnak ? finalAnak : undefined);
+                  setEditUrutanAnak(finalAnak ?? '');
+                  setEditJumlahSaudara(finalSaudara ?? '');
                   handleUpdate({ 
                     gender: editGender, 
                     anak_ke: finalAnak, 
