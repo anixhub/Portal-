@@ -47,7 +47,7 @@ import { WilayahAddressFilter } from './common/WilayahAddressFilter';
 import { AlumniDistributionMapModal } from './common/AlumniDistributionMapModal';
 import { CleanMediaPreviewModal } from './common/CleanMediaPreviewModal';
 import { FullscreenPhotoViewerModal } from './common/FullscreenPhotoViewerModal';
-import { FullscreenLocationMapModal, LocationCoordinates } from './common/FullscreenLocationMapModal';
+import { LocationCoordinates } from './common/FullscreenLocationMapModal';
 import { EventCommentsModal } from './common/EventCommentsModal';
 import { EventAttendanceScannerModal } from './admin/EventAttendanceScannerModal';
 import { CreateAttendanceModal } from './admin/CreateAttendanceModal';
@@ -170,7 +170,6 @@ export const AdminView: React.FC<AdminViewProps> = ({
   const [editAdminAlamatLengkap, setEditAdminAlamatLengkap] = useState(admin.alamatLengkap || 'Jl. Pesantren No. 01 RT 02 / RW 01');
   const [editAdminCoordinates, setEditAdminCoordinates] = useState<LocationCoordinates | null>(admin.coordinates || { lat: -8.2123, lng: 112.7534 });
   const [isEditAddressModalOpen, setIsEditAddressModalOpen] = useState(false);
-  const [isAdminLocationPickerOpen, setIsAdminLocationPickerOpen] = useState(false);
 
   // Kelola Alumni Sort state
   type SortOption = 'nama_asc' | 'nama_desc' | 'boyong_desc' | 'boyong_asc' | 'masuk_desc' | 'masuk_asc';
@@ -533,9 +532,9 @@ export const AdminView: React.FC<AdminViewProps> = ({
       const newReply: EventCommentReply = {
         id: `rep-${Date.now()}`,
         commentId: replyToCommentId,
-        authorName: admin.name,
-        authorHandle: 'admin_official',
-        authorAvatar: admin.avatar,
+        authorName: adminUser.name || admin.name,
+        authorHandle: adminUser.username || admin.username || '@admin_pusat',
+        authorAvatar: adminUser.avatar || admin.avatar,
         avatarRing: true,
         content: text.trim(),
         timeAgo: 'Baru saja',
@@ -560,9 +559,9 @@ export const AdminView: React.FC<AdminViewProps> = ({
       const newComment: EventComment = {
         id: `comm-${Date.now()}`,
         eventId,
-        authorName: admin.name,
-        authorHandle: 'admin_official',
-        authorAvatar: admin.avatar,
+        authorName: adminUser.name || admin.name,
+        authorHandle: adminUser.username || admin.username || '@admin_pusat',
+        authorAvatar: adminUser.avatar || admin.avatar,
         avatarRing: true,
         content: text.trim(),
         timeAgo: 'Baru saja',
@@ -1063,7 +1062,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
       )}
 
       {/* ================= BODY TAB CONTAINER (HEADER DIHAPUS DI SEMUA TAB TERMASUK PROFIL) ================= */}
-      <div className="flex-1 overflow-y-auto flex flex-col relative">
+      <div className={`flex-1 flex flex-col relative min-h-0 ${activeTab === 'alumni' ? 'overflow-hidden' : 'overflow-y-auto'}`}>
         {/* ================= TAB 1: AGENDA (BERSIH TANPA HEADER) ================= */}
         {activeTab === 'agenda' && (
           <div className="flex-1 overflow-y-auto px-4 py-3 max-w-lg mx-auto w-full flex flex-col pb-28">
@@ -1363,9 +1362,9 @@ export const AdminView: React.FC<AdminViewProps> = ({
 
         {/* ================= TAB 2: KELOLA ALUMNI (BERSIH TANPA HEADER) ================= */}
         {activeTab === 'alumni' && (
-          <div className="flex-1 overflow-y-auto px-4 py-2 max-w-2xl mx-auto w-full space-y-3 pb-28">
-            {/* Sticky Header untuk Search, Sort, Filter, dan Status Tag (tidak ikut terscroll, selalu di atas) */}
-            <div className="sticky top-0 z-20 bg-[#f0f2fb] -mx-4 px-4 pt-2 pb-2.5 space-y-2 border-b border-slate-200/60 shadow-2xs">
+          <div className="flex-1 flex flex-col min-h-0 overflow-hidden max-w-2xl mx-auto w-full">
+            {/* Header: Kotak cari, urutkan, dan filter status tag SELALU DI ATAS dan TIDAK IKUT TERSCROLL */}
+            <div className="shrink-0 z-20 bg-[#f0f2fb] px-4 pt-2.5 pb-2.5 space-y-2 border-b border-slate-200/60 shadow-2xs">
               {/* Search & Action Buttons (Urutkan di sebelah kiri tombol filter) */}
               <div className="flex items-center gap-2">
                 <div className="relative flex-1">
@@ -1456,24 +1455,26 @@ export const AdminView: React.FC<AdminViewProps> = ({
                   Tidak Aktif ({inactiveCount})
                 </button>
               </div>
+
+              {/* Filter Active Indicator & Quick Reset */}
+              {hasActiveFilters && (
+                <div className="flex items-center justify-between text-[11px] text-sky-800 bg-sky-50 px-3 py-1.5 rounded-xl border border-sky-100">
+                  <span>Filter aktif diterapkan ({filteredList.length} alumni)</span>
+                  <button
+                    type="button"
+                    onClick={handleResetFilters}
+                    className="font-bold underline text-sky-700 hover:text-sky-900 cursor-pointer"
+                  >
+                    Reset Filter
+                  </button>
+                </div>
+              )}
             </div>
 
-            {/* Filter Active Indicator & Quick Reset */}
-            {hasActiveFilters && (
-              <div className="flex items-center justify-between text-[11px] text-sky-800 bg-sky-50 px-3 py-1.5 rounded-xl border border-sky-100">
-                <span>Filter aktif diterapkan ({filteredList.length} alumni)</span>
-                <button
-                  type="button"
-                  onClick={handleResetFilters}
-                  className="font-bold underline text-sky-700 hover:text-sky-900 cursor-pointer"
-                >
-                  Reset Filter
-                </button>
-              </div>
-            )}
-
-            {/* Daftar Kartu Alumni */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+            {/* Scrollable Alumni List Container (Hanya kartu alumni yang di-scroll) */}
+            <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3 pb-28">
+              {/* Daftar Kartu Alumni */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
               {sortedFilteredList.slice(0, visibleCount).map((item) => {
                 const addressText = item.shareFullAddress === false
                   ? [item.kecamatan, item.city].filter(Boolean).join(', ') || item.city || item.province || 'Alamat disembunyikan'
@@ -1564,6 +1565,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
                 Tidak ditemukan data alumni dengan filter atau pencarian yang dipilih.
               </div>
             )}
+            </div>
           </div>
         )}
 
@@ -1699,27 +1701,31 @@ export const AdminView: React.FC<AdminViewProps> = ({
                 </div>
               </div>
 
-              {/* CARD LEBIH RINGKAS: SUSUNAN SEPERTI DI PROFIL ALUMNI BIASA */}
-              <div className="space-y-4">
-                <div className="bg-white rounded-2xl border border-slate-200/90 divide-y divide-slate-100 shadow-2xs overflow-hidden">
+              {/* SEGMEN INFORMASI PRIBADI ADMIN (SUSUNAN PERSIS SEPERTI DI PROFIL ALUMNI BIASA) */}
+              <div>
+                <p className="text-xs font-semibold text-slate-400 text-center tracking-wide mb-3">
+                  Informasi Admin
+                </p>
+
+                <div className="divide-y divide-slate-100">
                   {/* 1. Kolom Nama Lengkap */}
                   <div
                     onClick={() => {
                       setEditAdminName(adminUser.name);
                       setIsEditNameModalOpen(true);
                     }}
-                    className="flex items-center justify-between p-3.5 cursor-pointer hover:bg-slate-50 transition-colors group"
+                    className="flex items-center justify-between py-3.5 cursor-pointer hover:bg-slate-50/70 -mx-3 px-3 rounded-2xl transition-colors group"
                   >
-                    <div className="flex items-center gap-3 min-w-0 pr-2">
-                      <div className="w-9 h-9 rounded-xl bg-sky-50 text-sky-600 flex items-center justify-center shrink-0">
-                        <User className="w-4 h-4" />
+                    <div className="flex items-center gap-4 min-w-0 pr-2">
+                      <div className="w-6 flex items-center justify-center shrink-0">
+                        <User className="w-5 h-5 text-slate-700" />
                       </div>
                       <div className="min-w-0">
-                        <p className="text-[11px] font-medium text-slate-400">Nama Lengkap</p>
-                        <p className="text-xs font-bold text-slate-800 truncate mt-0.5">{adminUser.name}</p>
+                        <p className="text-[11px] text-slate-400 font-medium leading-tight">Nama Lengkap</p>
+                        <p className="text-sm font-semibold text-slate-800 truncate mt-0.5">{adminUser.name}</p>
                       </div>
                     </div>
-                    <ChevronRight className="w-4 h-4 text-slate-400 group-hover:translate-x-0.5 transition-transform shrink-0" />
+                    <ChevronRight className="w-4 h-4 text-slate-400 shrink-0 group-hover:translate-x-0.5 transition-transform" />
                   </div>
 
                   {/* 2. Kolom Username */}
@@ -1728,20 +1734,20 @@ export const AdminView: React.FC<AdminViewProps> = ({
                       setEditAdminUsername(adminUser.username || '@admin_pusat');
                       setIsEditUsernameModalOpen(true);
                     }}
-                    className="flex items-center justify-between p-3.5 cursor-pointer hover:bg-slate-50 transition-colors group"
+                    className="flex items-center justify-between py-3.5 cursor-pointer hover:bg-slate-50/70 -mx-3 px-3 rounded-2xl transition-colors group"
                   >
-                    <div className="flex items-center gap-3 min-w-0 pr-2">
-                      <div className="w-9 h-9 rounded-xl bg-sky-50 text-sky-600 flex items-center justify-center shrink-0">
-                        <User className="w-4 h-4" />
+                    <div className="flex items-center gap-4 min-w-0 pr-2">
+                      <div className="w-6 flex items-center justify-center shrink-0">
+                        <User className="w-5 h-5 text-slate-700" />
                       </div>
                       <div className="min-w-0">
-                        <p className="text-[11px] font-medium text-slate-400">Username</p>
-                        <p className="text-xs font-bold text-slate-800 truncate mt-0.5">
+                        <p className="text-[11px] text-slate-400 font-medium leading-tight">Username</p>
+                        <p className="text-sm font-semibold text-slate-800 truncate mt-0.5">
                           {adminUser.username.startsWith('@') ? adminUser.username : '@' + adminUser.username}
                         </p>
                       </div>
                     </div>
-                    <ChevronRight className="w-4 h-4 text-slate-400 group-hover:translate-x-0.5 transition-transform shrink-0" />
+                    <ChevronRight className="w-4 h-4 text-slate-400 shrink-0 group-hover:translate-x-0.5 transition-transform" />
                   </div>
 
                   {/* 3. Jabatan di Ikatan Alumni */}
@@ -1750,20 +1756,20 @@ export const AdminView: React.FC<AdminViewProps> = ({
                       setEditAdminJabatan(adminUser.jabatan || 'Kepala Bidang Kesantrian & Alumni Ponpes At-taroqqy');
                       setIsEditJabatanModalOpen(true);
                     }}
-                    className="flex items-center justify-between p-3.5 cursor-pointer hover:bg-slate-50 transition-colors group"
+                    className="flex items-center justify-between py-3.5 cursor-pointer hover:bg-slate-50/70 -mx-3 px-3 rounded-2xl transition-colors group"
                   >
-                    <div className="flex items-center gap-3 min-w-0 pr-2">
-                      <div className="w-9 h-9 rounded-xl bg-sky-50 text-sky-600 flex items-center justify-center shrink-0">
-                        <Briefcase className="w-4 h-4" />
+                    <div className="flex items-center gap-4 min-w-0 pr-2">
+                      <div className="w-6 flex items-center justify-center shrink-0">
+                        <Briefcase className="w-5 h-5 text-slate-700" />
                       </div>
                       <div className="min-w-0">
-                        <p className="text-[11px] font-medium text-slate-400">Jabatan di Ikatan Alumni</p>
-                        <p className="text-xs font-bold text-slate-800 truncate mt-0.5">
+                        <p className="text-[11px] text-slate-400 font-medium leading-tight">Jabatan di Ikatan Alumni</p>
+                        <p className="text-sm font-semibold text-slate-800 truncate mt-0.5">
                           {adminUser.jabatan || 'Kepala Bidang Kesantrian & Alumni Ponpes At-taroqqy'}
                         </p>
                       </div>
                     </div>
-                    <ChevronRight className="w-4 h-4 text-slate-400 group-hover:translate-x-0.5 transition-transform shrink-0" />
+                    <ChevronRight className="w-4 h-4 text-slate-400 shrink-0 group-hover:translate-x-0.5 transition-transform" />
                   </div>
 
                   {/* 4. Bio */}
@@ -1772,20 +1778,20 @@ export const AdminView: React.FC<AdminViewProps> = ({
                       setEditAdminBio(adminUser.bio || '');
                       setIsEditBioModalOpen(true);
                     }}
-                    className="flex items-center justify-between p-3.5 cursor-pointer hover:bg-slate-50 transition-colors group"
+                    className="flex items-center justify-between py-3.5 cursor-pointer hover:bg-slate-50/70 -mx-3 px-3 rounded-2xl transition-colors group"
                   >
-                    <div className="flex items-center gap-3 min-w-0 pr-2">
-                      <div className="w-9 h-9 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center shrink-0">
-                        <FileText className="w-4 h-4" />
+                    <div className="flex items-center gap-4 min-w-0 pr-2">
+                      <div className="w-6 flex items-center justify-center shrink-0">
+                        <FileText className="w-5 h-5 text-slate-700" />
                       </div>
                       <div className="min-w-0">
-                        <p className="text-[11px] font-medium text-slate-400">Bio</p>
-                        <p className="text-xs font-bold text-slate-800 truncate mt-0.5">
+                        <p className="text-[11px] text-slate-400 font-medium leading-tight">Bio</p>
+                        <p className="text-sm font-semibold text-slate-800 truncate mt-0.5">
                           {adminUser.bio || 'Belum diisi'}
                         </p>
                       </div>
                     </div>
-                    <ChevronRight className="w-4 h-4 text-slate-400 group-hover:translate-x-0.5 transition-transform shrink-0" />
+                    <ChevronRight className="w-4 h-4 text-slate-400 shrink-0 group-hover:translate-x-0.5 transition-transform" />
                   </div>
 
                   {/* 5. Alamat Domisili */}
@@ -1799,20 +1805,20 @@ export const AdminView: React.FC<AdminViewProps> = ({
                       setEditAdminCoordinates(adminUser.coordinates || { lat: -8.2123, lng: 112.7534 });
                       setIsEditAddressModalOpen(true);
                     }}
-                    className="flex items-center justify-between p-3.5 cursor-pointer hover:bg-slate-50 transition-colors group"
+                    className="flex items-center justify-between py-3.5 cursor-pointer hover:bg-slate-50/70 -mx-3 px-3 rounded-2xl transition-colors group"
                   >
-                    <div className="flex items-center gap-3 min-w-0 pr-2">
-                      <div className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
-                        <MapPin className="w-4 h-4" />
+                    <div className="flex items-center gap-4 min-w-0 pr-2">
+                      <div className="w-6 flex items-center justify-center shrink-0">
+                        <MapPin className="w-5 h-5 text-slate-700" />
                       </div>
                       <div className="min-w-0">
-                        <p className="text-[11px] font-medium text-slate-400">Alamat Domisili</p>
-                        <p className="text-xs font-bold text-slate-800 truncate mt-0.5">
+                        <p className="text-[11px] text-slate-400 font-medium leading-tight">Alamat Domisili</p>
+                        <p className="text-sm font-semibold text-slate-800 truncate mt-0.5">
                           {[adminUser.desa, adminUser.kecamatan, adminUser.city, adminUser.province].filter(Boolean).join(', ') || adminUser.alamatLengkap || 'Belum diatur'}
                         </p>
                       </div>
                     </div>
-                    <ChevronRight className="w-4 h-4 text-slate-400 group-hover:translate-x-0.5 transition-transform shrink-0" />
+                    <ChevronRight className="w-4 h-4 text-slate-400 shrink-0 group-hover:translate-x-0.5 transition-transform" />
                   </div>
 
                   {/* 6. Kolom Ganti Kata Sandi */}
@@ -1823,35 +1829,31 @@ export const AdminView: React.FC<AdminViewProps> = ({
                       setPasswordError(null);
                       setIsPasswordModalOpen(true);
                     }}
-                    className="flex items-center justify-between p-3.5 cursor-pointer hover:bg-slate-50 transition-colors group"
+                    className="flex items-center justify-between py-3.5 cursor-pointer hover:bg-slate-50/70 -mx-3 px-3 rounded-2xl transition-colors group"
                   >
-                    <div className="flex items-center gap-3 min-w-0 pr-2">
-                      <div className="w-9 h-9 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
-                        <KeyRound className="w-4 h-4" />
+                    <div className="flex items-center gap-4 min-w-0 pr-2">
+                      <div className="w-6 flex items-center justify-center shrink-0">
+                        <KeyRound className="w-5 h-5 text-slate-700" />
                       </div>
                       <div className="min-w-0">
-                        <p className="text-xs font-bold text-slate-800">Ganti Kata Sandi</p>
-                        <p className="text-[11px] text-slate-400">Perbarui kata sandi akun admin</p>
+                        <p className="text-[11px] text-slate-400 font-medium leading-tight">Kata Sandi</p>
+                        <p className="text-sm font-semibold text-slate-800 truncate mt-0.5">••••••••</p>
                       </div>
                     </div>
-                    <ChevronRight className="w-4 h-4 text-slate-400 group-hover:translate-x-0.5 transition-transform shrink-0" />
+                    <ChevronRight className="w-4 h-4 text-slate-400 shrink-0 group-hover:translate-x-0.5 transition-transform" />
                   </div>
+                </div>
 
-                  {/* 7. Keluar dari Akun */}
-                  <div
+                {/* Tombol Keluar dari Akun Admin */}
+                <div className="pt-6">
+                  <button
+                    type="button"
                     onClick={onLogout}
-                    className="flex items-center justify-between p-3.5 cursor-pointer hover:bg-rose-50/70 transition-colors group"
+                    className="w-full py-3.5 px-4 bg-rose-50 hover:bg-rose-100 text-rose-600 font-bold rounded-2xl flex items-center justify-center gap-2 border border-rose-200/60 transition-all cursor-pointer text-sm shadow-xs active:scale-[0.99]"
                   >
-                    <div className="flex items-center gap-3 min-w-0 pr-2">
-                      <div className="w-9 h-9 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center shrink-0">
-                        <LogOut className="w-4 h-4" />
-                      </div>
-                      <div className="min-w-0">
-                        <p className="text-xs font-bold text-rose-600">Keluar dari Akun</p>
-                      </div>
-                    </div>
-                    <ChevronRight className="w-4 h-4 text-slate-400 group-hover:translate-x-0.5 transition-transform shrink-0" />
-                  </div>
+                    <LogOut className="w-4 h-4" />
+                    <span>Keluar dari Akun Admin</span>
+                  </button>
                 </div>
               </div>
             </div>
@@ -2339,7 +2341,6 @@ export const AdminView: React.FC<AdminViewProps> = ({
                   if (vals.alamatLengkap !== undefined) setEditAdminAlamatLengkap(vals.alamatLengkap);
                   if (vals.coordinates !== undefined) setEditAdminCoordinates(vals.coordinates);
                 }}
-                onOpenLocationPicker={() => setIsAdminLocationPickerOpen(true)}
               />
 
               <div className="flex items-center gap-2 pt-3 border-t border-slate-100">
@@ -2363,31 +2364,18 @@ export const AdminView: React.FC<AdminViewProps> = ({
         </div>
       )}
 
-      {/* ================= FULLSCREEN LOCATION MAP PICKER MODAL (ADMIN) ================= */}
-      {isAdminLocationPickerOpen && (
-        <FullscreenLocationMapModal
-          isOpen={isAdminLocationPickerOpen}
-          onClose={() => setIsAdminLocationPickerOpen(false)}
-          initialCoordinates={editAdminCoordinates || { lat: -8.2123, lng: 112.7534 }}
-          title="Tandai Lokasi Rumah Admin"
-          onSave={(coords) => {
-            setEditAdminCoordinates(coords);
-            setIsAdminLocationPickerOpen(false);
-            triggerToast('Titik koordinat berhasil disimpan');
-          }}
-        />
-      )}
-
       {/* ================= MODAL / BOTTOM SHEET URUTKAN ALUMNI (KELOLA ALUMNI) ================= */}
       {isSortSheetOpen && (
         <div 
-          className="fixed inset-0 z-[100020] bg-black/60 backdrop-blur-xs flex items-end sm:items-center justify-center animate-in fade-in select-none"
+          className="fixed inset-0 z-[100020] bg-black/60 backdrop-blur-xs flex items-end justify-center animate-in fade-in select-none"
           onClick={() => setIsSortSheetOpen(false)}
         >
           <div 
-            className="bg-white rounded-t-3xl sm:rounded-3xl p-5 max-w-sm w-full space-y-3 shadow-2xl border border-slate-100 animate-in slide-in-from-bottom sm:zoom-in-95"
+            className="bg-white rounded-t-[32px] w-full p-5 pb-8 space-y-3 shadow-2xl border-t border-slate-100 animate-in slide-in-from-bottom duration-200"
             onClick={(e) => e.stopPropagation()}
           >
+            {/* Handle Drag Bar */}
+            <div className="w-12 h-1.5 bg-slate-200 rounded-full mx-auto -mt-1 mb-2" />
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div className="flex items-center gap-2">
                 <div className="w-8 h-8 rounded-xl bg-sky-50 text-sky-600 flex items-center justify-center">

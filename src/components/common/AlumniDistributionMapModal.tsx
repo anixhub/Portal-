@@ -681,12 +681,57 @@ export const AlumniDistributionMapModal: React.FC<AlumniDistributionMapModalProp
       markersGroup.addLayer(marker);
     });
 
+    // 3. ADD ADMIN PIN IF ADMIN MODE
+    if (isAdmin && adminUser?.coordinates?.lat && adminUser?.coordinates?.lng) {
+      const lat = adminUser.coordinates.lat;
+      const lng = adminUser.coordinates.lng;
+      const isSelected = selectedAlumni?.id === 'author-admin';
+
+      const adminMarkerHtml = `
+        <div style="position: relative; cursor: pointer; display: flex; flex-direction: column; align-items: center; transform: translate3d(0,0,0);">
+          <div style="width: 44px; height: 44px; border-radius: 9999px; border: 2.5px solid white; box-shadow: 0 10px 25px -3px rgba(0,0,0,0.4); overflow: hidden; background: #e0f2fe; ${
+            isSelected
+              ? 'box-shadow: 0 0 0 4.5px #0284c7, 0 14px 30px rgba(2,132,199,0.7); transform: scale(1.15);'
+              : 'box-shadow: 0 0 0 3px #0284c7, 0 10px 25px -3px rgba(0,0,0,0.5);'
+          }">
+            <img src="${adminUser.avatar || ''}" alt="${adminUser.name}" style="width: 100%; height: 100%; object-fit: cover; border-radius: 9999px;" />
+          </div>
+          <div style="width: 10px; height: 10px; background-color: #0284c7; transform: rotate(45deg); margin-top: -5px; border-right: 2px solid white; border-bottom: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.2);"></div>
+          <span style="background: #0284c7; color: white; font-size: 9px; font-weight: bold; padding: 1px 6px; border-radius: 9999px; margin-top: 2px; box-shadow: 0 2px 5px rgba(0,0,0,0.3); border: 1px solid white; white-space: nowrap;">Rumah Admin</span>
+        </div>
+      `;
+
+      const adminIcon = L.divIcon({
+        className: 'alumni-avatar-pin',
+        html: adminMarkerHtml,
+        iconSize: [48, 54],
+        iconAnchor: [24, 52],
+      });
+
+      const adminMarker = L.marker([lat, lng], { icon: adminIcon, zIndexOffset: 2500 });
+      adminMarker.on('click', (e) => {
+        L.DomEvent.stopPropagation(e);
+        const adminRecord = resolveAuthorAlumniRecord(
+          adminUser.name,
+          adminUser.username,
+          adminUser.avatar,
+          alumniList,
+          adminUser
+        );
+        setSelectedAlumni(adminRecord);
+        setIsShowingRealtimeGpsDetail(false);
+        centerMapOnAlumni(adminRecord, bottomSheetState === 'half');
+      });
+
+      markersGroup.addLayer(adminMarker);
+    }
+
     setTimeout(() => {
       if (!mapInstanceRef.current) return;
       mapInstanceRef.current.invalidateSize();
     }, 100);
 
-  }, [isOpen, displayedAlumni.length, realtimeGps.lat, realtimeGps.lng, selectedAlumni?.id, shareLocationTag, bottomSheetState]);
+  }, [isOpen, displayedAlumni.length, realtimeGps.lat, realtimeGps.lng, selectedAlumni?.id, shareLocationTag, bottomSheetState, adminUser?.coordinates?.lat, adminUser?.coordinates?.lng]);
 
   // Clean cleanup on modal close
   useEffect(() => {

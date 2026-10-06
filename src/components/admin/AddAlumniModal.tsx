@@ -29,7 +29,6 @@ export const AddAlumniModal: React.FC<AddAlumniModalProps> = ({
 
   // Form State - Step 1: Identitas
   const [nik, setNik] = useState('');
-  const [nis, setNis] = useState('');
   const [name, setName] = useState('');
   const [gender, setGender] = useState<'L' | 'P'>('L');
   const [anakKe, setAnakKe] = useState<number>(1);
@@ -96,7 +95,7 @@ export const AddAlumniModal: React.FC<AddAlumniModalProps> = ({
     setError(null);
 
     setIsSubmitting(true);
-    const generatedNis = nis.trim() || `TRQ-${gradYear}-${Math.floor(100 + Math.random() * 900)}`;
+    const generatedNis = `TRQ-${gradYear}-${Math.floor(100 + Math.random() * 900)}`;
 
     const newRecord: AlumniRecord = {
       id: 'alm-man-' + Date.now(),

@@ -59,6 +59,7 @@ import {
   Megaphone,
   CheckCircle,
   ArrowLeft,
+  ArrowUpDown,
   CheckCheck,
   Wallet,
   Navigation,
@@ -637,11 +638,16 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
   const handleAddAnnouncementComment = (targetId: string, text: string, replyToCommentId?: string) => {
     if (!text.trim()) return;
 
+    const userHandle = alumni.username
+      ? (alumni.username.startsWith('@') ? alumni.username : `@${alumni.username}`)
+      : `@${alumni.name.toLowerCase().replace(/[^a-z0-9]/g, '_')}`;
+
     if (replyToCommentId) {
       const newReply: EventCommentReply = {
         id: `ann-rep-${Date.now()}`,
         commentId: replyToCommentId,
         authorName: alumni.name,
+        authorHandle: userHandle,
         authorAvatar: alumni.photoUrl,
         content: text.trim(),
         timeAgo: 'Baru saja',
@@ -667,6 +673,7 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
         id: `ann-comm-${Date.now()}`,
         eventId: targetId,
         authorName: alumni.name,
+        authorHandle: userHandle,
         authorAvatar: alumni.photoUrl,
         content: text.trim(),
         timeAgo: 'Baru saja',
@@ -828,6 +835,10 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
     const record = resolveAuthorAlumniRecord(authorName, authorHandle, authorAvatar, allAlumni);
     setSelectedAlumniDetail(record);
   };
+
+  type SortOption = 'nama_asc' | 'nama_desc' | 'boyong_desc' | 'boyong_asc' | 'masuk_desc' | 'masuk_asc';
+  const [sortOption, setSortOption] = useState<SortOption>('nama_asc');
+  const [isSortSheetOpen, setIsSortSheetOpen] = useState(false);
   const [isFilterSheetOpen, setIsFilterSheetOpen] = useState(false);
   const [filterEntryFrom, setFilterEntryFrom] = useState('');
   const [filterEntryTo, setFilterEntryTo] = useState('');
@@ -1337,10 +1348,31 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
     );
   });
 
-  // Urutkan berdasarkan jarak jika tag 'Sekitarmu' aktif
-  const sortedFilteredAlumni = activeQuickTag === 'nearby'
-    ? [...filteredAlumni].sort((a, b) => getAlumniDistance(a) - getAlumniDistance(b))
-    : filteredAlumni;
+  // Urutkan data alumni berdasarkan tag sekitarmu ATAU opsi sortir yang dipilih
+  const sortedFilteredAlumni = [...filteredAlumni].sort((a, b) => {
+    if (activeQuickTag === 'nearby') {
+      return getAlumniDistance(a) - getAlumniDistance(b);
+    }
+    if (sortOption === 'nama_asc') {
+      return a.name.localeCompare(b.name, 'id');
+    }
+    if (sortOption === 'nama_desc') {
+      return b.name.localeCompare(a.name, 'id');
+    }
+    if (sortOption === 'boyong_desc') {
+      return (parseInt(b.gradYear, 10) || 0) - (parseInt(a.gradYear, 10) || 0);
+    }
+    if (sortOption === 'boyong_asc') {
+      return (parseInt(a.gradYear, 10) || 0) - (parseInt(b.gradYear, 10) || 0);
+    }
+    if (sortOption === 'masuk_desc') {
+      return (parseInt(b.entryYear, 10) || 0) - (parseInt(a.entryYear, 10) || 0);
+    }
+    if (sortOption === 'masuk_asc') {
+      return (parseInt(a.entryYear, 10) || 0) - (parseInt(b.entryYear, 10) || 0);
+    }
+    return 0;
+  });
 
   return (
     <div className="w-full h-full flex flex-col bg-slate-100 overflow-hidden relative">
@@ -1353,7 +1385,7 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
       )}
 
       {/* BODY SCROLLABLE CONTENT (HEADER BIRU TELAH DIHAPUS DI SEMUA HALAMAN) */}
-      <div className={`flex-1 overflow-y-auto ${activeTab === 'profile' || activeTab === 'directory' ? 'p-0 bg-slate-50' : 'px-4 py-4 space-y-4'}`}>
+      <div className={`flex-1 ${activeTab === 'directory' ? 'p-0 bg-slate-50 overflow-hidden flex flex-col min-h-0' : activeTab === 'profile' ? 'p-0 bg-slate-50 overflow-y-auto' : 'px-4 py-4 space-y-4 overflow-y-auto'}`}>
         {/* ================= TAB 1: HOME (PERSIS LAYOUT SCREENSHOT) ================= */}
         {activeTab === 'home' && (
           <div className="space-y-4 max-w-md mx-auto w-full pb-4">
@@ -1885,122 +1917,140 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
 
         {/* ================= TAB 3: CARI ALUMNI (SAMA PERSIS KELOLA DATA ALUMNI ADMIN) ================= */}
         {activeTab === 'directory' && (
-          <div className="p-4 space-y-3 flex-1 overflow-y-auto pb-24">
-            {/* Search & Filter Button - NOT inside a container */}
-            <div className="flex items-center gap-2">
-              <div className="relative flex-1">
-                <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-                <input
-                  type="text"
-                  placeholder="Cari NIK, NIS, nama, atau domisili..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-9 pr-9 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-medium focus:ring-2 focus:ring-sky-600 focus:outline-none shadow-2xs"
-                />
-                {searchQuery && (
-                  <button
-                    type="button"
-                    onClick={() => setSearchQuery('')}
-                    className="absolute right-2.5 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 cursor-pointer transition-colors"
-                    title="Hapus pencarian"
-                  >
-                    <X className="w-3.5 h-3.5" />
-                  </button>
-                )}
-              </div>
+          <div className="flex-1 flex flex-col min-h-0 overflow-hidden max-w-2xl mx-auto w-full">
+            {/* Header: Kotak cari, urutkan, dan filter tag SELALU DI ATAS dan TIDAK IKUT TERSCROLL */}
+            <div className="shrink-0 z-20 bg-slate-50 px-4 pt-3 pb-2.5 space-y-2 border-b border-slate-200/60 shadow-2xs">
+              {/* Search & Action Buttons (Urutkan di sebelah kiri tombol filter) */}
+              <div className="flex items-center gap-2">
+                <div className="relative flex-1">
+                  <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  <input
+                    type="text"
+                    placeholder="Cari NIK, NIS, nama, atau domisili..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="w-full pl-9 pr-9 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-medium focus:ring-2 focus:ring-sky-600 focus:outline-none shadow-2xs"
+                  />
+                  {searchQuery && (
+                    <button
+                      type="button"
+                      onClick={() => setSearchQuery('')}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 cursor-pointer transition-colors"
+                      title="Hapus pencarian"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
 
-              {/* Tombol filter sejajar di samping kanan (dinonaktifkan jika tag lokasi aktif) */}
-              <button
-                type="button"
-                disabled={Boolean(activeQuickTag)}
-                onClick={() => !activeQuickTag && setIsFilterSheetOpen(true)}
-                className={`p-2.5 rounded-xl border transition-all flex items-center justify-center shrink-0 ${
-                  activeQuickTag
-                    ? 'bg-slate-100 text-slate-300 border-slate-200 cursor-not-allowed opacity-50'
-                    : hasAdvancedFilters
-                    ? 'bg-sky-600 text-white border-sky-600 shadow-xs cursor-pointer'
-                    : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50 cursor-pointer'
-                }`}
-                title={activeQuickTag ? 'Filter dinonaktifkan saat tag lokasi aktif' : 'Buka Filter Data'}
-              >
-                <Filter className="w-4 h-4" />
-              </button>
-            </div>
-
-            {/* QUICK LOCATION TAGS: SEKITARMU, KECAMATAN USER, KABUPATEN USER, PROVINSI USER */}
-            <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
-              {/* 1. Tag Sekitarmu (tanpa kurung jumlah alumni) */}
-              <button
-                type="button"
-                onClick={() => setActiveQuickTag(activeQuickTag === 'nearby' ? null : 'nearby')}
-                className={`px-3 py-1.5 rounded-full text-xs font-semibold shrink-0 flex items-center gap-1.5 transition-all cursor-pointer select-none ${
-                  activeQuickTag === 'nearby'
-                    ? 'bg-sky-600 text-white shadow-xs'
-                    : 'bg-white text-slate-700 border border-slate-200/90 hover:border-sky-300 hover:bg-sky-50/50 shadow-2xs'
-                }`}
-              >
-                <Navigation className="w-3.5 h-3.5" />
-                <span>Sekitarmu</span>
-              </button>
-
-              {/* 2. Tag Kecamatan User (misal Sedan (2)) */}
-              <button
-                type="button"
-                onClick={() => setActiveQuickTag(activeQuickTag === 'kecamatan' ? null : 'kecamatan')}
-                className={`px-3 py-1.5 rounded-full text-xs font-semibold shrink-0 flex items-center gap-1.5 transition-all cursor-pointer select-none ${
-                  activeQuickTag === 'kecamatan'
-                    ? 'bg-sky-600 text-white shadow-xs'
-                    : 'bg-white text-slate-700 border border-slate-200/90 hover:border-sky-300 hover:bg-sky-50/50 shadow-2xs'
-                }`}
-              >
-                <MapPin className="w-3.5 h-3.5" />
-                <span>{userKecamatan} ({countKecamatan})</span>
-              </button>
-
-              {/* 3. Tag Kabupaten User (misal Rembang (4)) */}
-              <button
-                type="button"
-                onClick={() => setActiveQuickTag(activeQuickTag === 'city' ? null : 'city')}
-                className={`px-3 py-1.5 rounded-full text-xs font-semibold shrink-0 flex items-center gap-1.5 transition-all cursor-pointer select-none ${
-                  activeQuickTag === 'city'
-                    ? 'bg-sky-600 text-white shadow-xs'
-                    : 'bg-white text-slate-700 border border-slate-200/90 hover:border-sky-300 hover:bg-sky-50/50 shadow-2xs'
-                }`}
-              >
-                <MapPin className="w-3.5 h-3.5" />
-                <span>{userCity} ({countCity})</span>
-              </button>
-
-              {/* 4. Tag Provinsi User (misal Jawa Tengah (5)) */}
-              <button
-                type="button"
-                onClick={() => setActiveQuickTag(activeQuickTag === 'province' ? null : 'province')}
-                className={`px-3 py-1.5 rounded-full text-xs font-semibold shrink-0 flex items-center gap-1.5 transition-all cursor-pointer select-none ${
-                  activeQuickTag === 'province'
-                    ? 'bg-sky-600 text-white shadow-xs'
-                    : 'bg-white text-slate-700 border border-slate-200/90 hover:border-sky-300 hover:bg-sky-50/50 shadow-2xs'
-                }`}
-              >
-                <MapPin className="w-3.5 h-3.5" />
-                <span>{userProvince} ({countProvince})</span>
-              </button>
-            </div>
-
-            {/* Filter Active Indicator & Quick Reset (Hanya saat filter lembar aktif & tanpa tag lokasi) */}
-            {!activeQuickTag && hasAdvancedFilters && (
-              <div className="flex items-center justify-between text-[11px] text-sky-800 bg-sky-50 px-3 py-1.5 rounded-xl border border-sky-100">
-                <span>Filter aktif diterapkan ({filteredAlumni.length} alumni)</span>
+                {/* Tombol Urutkan (Hanya Icon) di sebelah kiri tombol filter */}
                 <button
-                  onClick={handleResetFilters}
-                  className="font-bold underline text-sky-700 hover:text-sky-900 cursor-pointer"
+                  type="button"
+                  onClick={() => setIsSortSheetOpen(true)}
+                  className={`p-2.5 rounded-xl border transition-all cursor-pointer flex items-center justify-center shrink-0 ${
+                    sortOption !== 'nama_asc'
+                      ? 'bg-sky-600 text-white border-sky-600 shadow-xs'
+                      : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+                  }`}
+                  title="Urutkan Data Alumni"
                 >
-                  Reset Filter
+                  <ArrowUpDown className="w-4 h-4" />
+                </button>
+
+                {/* Tombol filter sejajar di samping kanan (dinonaktifkan jika tag lokasi aktif) */}
+                <button
+                  type="button"
+                  disabled={Boolean(activeQuickTag)}
+                  onClick={() => !activeQuickTag && setIsFilterSheetOpen(true)}
+                  className={`p-2.5 rounded-xl border transition-all flex items-center justify-center shrink-0 ${
+                    activeQuickTag
+                      ? 'bg-slate-100 text-slate-300 border-slate-200 cursor-not-allowed opacity-50'
+                      : hasAdvancedFilters
+                      ? 'bg-sky-600 text-white border-sky-600 shadow-xs cursor-pointer'
+                      : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50 cursor-pointer'
+                  }`}
+                  title={activeQuickTag ? 'Filter dinonaktifkan saat tag lokasi aktif' : 'Buka Filter Data'}
+                >
+                  <Filter className="w-4 h-4" />
                 </button>
               </div>
-            )}
 
-            {/* Daftar Kartu Alumni (Card View) */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+              {/* QUICK LOCATION TAGS: SEKITARMU, KECAMATAN USER, KABUPATEN USER, PROVINSI USER */}
+              <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
+                {/* 1. Tag Sekitarmu (tanpa kurung jumlah alumni) */}
+                <button
+                  type="button"
+                  onClick={() => setActiveQuickTag(activeQuickTag === 'nearby' ? null : 'nearby')}
+                  className={`px-3 py-1.5 rounded-full text-xs font-semibold shrink-0 flex items-center gap-1.5 transition-all cursor-pointer select-none ${
+                    activeQuickTag === 'nearby'
+                      ? 'bg-sky-600 text-white shadow-xs'
+                      : 'bg-white text-slate-700 border border-slate-200/90 hover:border-sky-300 hover:bg-sky-50/50 shadow-2xs'
+                  }`}
+                >
+                  <Navigation className="w-3.5 h-3.5" />
+                  <span>Sekitarmu</span>
+                </button>
+
+                {/* 2. Tag Kecamatan User (misal Sedan (2)) */}
+                <button
+                  type="button"
+                  onClick={() => setActiveQuickTag(activeQuickTag === 'kecamatan' ? null : 'kecamatan')}
+                  className={`px-3 py-1.5 rounded-full text-xs font-semibold shrink-0 flex items-center gap-1.5 transition-all cursor-pointer select-none ${
+                    activeQuickTag === 'kecamatan'
+                      ? 'bg-sky-600 text-white shadow-xs'
+                      : 'bg-white text-slate-700 border border-slate-200/90 hover:border-sky-300 hover:bg-sky-50/50 shadow-2xs'
+                  }`}
+                >
+                  <MapPin className="w-3.5 h-3.5" />
+                  <span>{userKecamatan} ({countKecamatan})</span>
+                </button>
+
+                {/* 3. Tag Kabupaten User (misal Rembang (4)) */}
+                <button
+                  type="button"
+                  onClick={() => setActiveQuickTag(activeQuickTag === 'city' ? null : 'city')}
+                  className={`px-3 py-1.5 rounded-full text-xs font-semibold shrink-0 flex items-center gap-1.5 transition-all cursor-pointer select-none ${
+                    activeQuickTag === 'city'
+                      ? 'bg-sky-600 text-white shadow-xs'
+                      : 'bg-white text-slate-700 border border-slate-200/90 hover:border-sky-300 hover:bg-sky-50/50 shadow-2xs'
+                  }`}
+                >
+                  <MapPin className="w-3.5 h-3.5" />
+                  <span>{userCity} ({countCity})</span>
+                </button>
+
+                {/* 4. Tag Provinsi User (misal Jawa Tengah (5)) */}
+                <button
+                  type="button"
+                  onClick={() => setActiveQuickTag(activeQuickTag === 'province' ? null : 'province')}
+                  className={`px-3 py-1.5 rounded-full text-xs font-semibold shrink-0 flex items-center gap-1.5 transition-all cursor-pointer select-none ${
+                    activeQuickTag === 'province'
+                      ? 'bg-sky-600 text-white shadow-xs'
+                      : 'bg-white text-slate-700 border border-slate-200/90 hover:border-sky-300 hover:bg-sky-50/50 shadow-2xs'
+                  }`}
+                >
+                  <MapPin className="w-3.5 h-3.5" />
+                  <span>{userProvince} ({countProvince})</span>
+                </button>
+              </div>
+
+              {/* Filter Active Indicator & Quick Reset (Hanya saat filter lembar aktif & tanpa tag lokasi) */}
+              {!activeQuickTag && hasAdvancedFilters && (
+                <div className="flex items-center justify-between text-[11px] text-sky-800 bg-sky-50 px-3 py-1.5 rounded-xl border border-sky-100">
+                  <span>Filter aktif diterapkan ({filteredAlumni.length} alumni)</span>
+                  <button
+                    onClick={handleResetFilters}
+                    className="font-bold underline text-sky-700 hover:text-sky-900 cursor-pointer"
+                  >
+                    Reset Filter
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* DAFTAR KARTU ALUMNI (CARD VIEW) - SATU-SATUNYA BAGIAN YANG TERSCROLL */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-3 pb-24">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
               {sortedFilteredAlumni.map((item) => {
                 const addressText = item.shareFullAddress === false
                   ? [item.kecamatan, item.city].filter(Boolean).join(', ') || item.city || item.province || 'Alamat disembunyikan'
@@ -2082,6 +2132,7 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
                 Tidak ditemukan data alumni dengan filter atau pencarian yang dipilih.
               </div>
             )}
+            </div>
           </div>
         )}
 
@@ -4415,6 +4466,68 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
         />
       )}
 
+      {/* ================= MODAL / BOTTOM SHEET URUTKAN ALUMNI (CARI ALUMNI) ================= */}
+      {isSortSheetOpen && (
+        <div 
+          className="fixed inset-0 z-[100020] bg-black/60 backdrop-blur-xs flex items-end justify-center animate-in fade-in select-none"
+          onClick={() => setIsSortSheetOpen(false)}
+        >
+          <div 
+            className="bg-white rounded-t-[32px] w-full p-5 pb-8 space-y-3 shadow-2xl border-t border-slate-100 animate-in slide-in-from-bottom duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Handle Drag Bar */}
+            <div className="w-12 h-1.5 bg-slate-200 rounded-full mx-auto -mt-1 mb-2" />
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl bg-sky-50 text-sky-600 flex items-center justify-center">
+                  <ArrowUpDown className="w-4 h-4" />
+                </div>
+                <h3 className="font-display font-bold text-sm text-slate-900">
+                  Urutkan Alumni
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsSortSheetOpen(false)}
+                className="w-7 h-7 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-500 cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-1.5 py-1 text-xs">
+              {[
+                { id: 'nama_asc', label: 'Nama (A ke Z)' },
+                { id: 'nama_desc', label: 'Nama (Z ke A)' },
+                { id: 'boyong_desc', label: 'Tahun Boyong (Terbaru ke Terlama)' },
+                { id: 'boyong_asc', label: 'Tahun Boyong (Terlama ke Terbaru)' },
+                { id: 'masuk_desc', label: 'Tahun Masuk (Terbaru ke Terlama)' },
+                { id: 'masuk_asc', label: 'Tahun Masuk (Terlama ke Terbaru)' },
+              ].map((opt) => (
+                <button
+                  key={opt.id}
+                  type="button"
+                  onClick={() => {
+                    setSortOption(opt.id as SortOption);
+                    setIsSortSheetOpen(false);
+                    triggerToast(`Urutan: ${opt.label}`);
+                  }}
+                  className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl font-semibold transition-all cursor-pointer ${
+                    sortOption === opt.id
+                      ? 'bg-sky-50 text-sky-700 border border-sky-200 font-bold'
+                      : 'hover:bg-slate-50 text-slate-700 border border-transparent'
+                  }`}
+                >
+                  <span>{opt.label}</span>
+                  {sortOption === opt.id && <Check className="w-4 h-4 text-sky-600" />}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* BOTTOM SHEET FILTER (SAMA PERSIS DENGAN KELOLA DATA ALUMNI ADMIN) */}
       {isFilterSheetOpen && (
         <div 
@@ -4706,6 +4819,7 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
           onClose={() => setActiveCommentsModalEvent(null)}
           onAddComment={handleAddComment}
           onToggleLike={handleToggleLikeComment}
+          onOpenAuthorProfile={handleOpenAuthorProfile}
         />
       )}
 
@@ -4724,6 +4838,7 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
           onClose={() => setActiveCommentsAnnouncement(null)}
           onAddComment={handleAddAnnouncementComment}
           onToggleLike={handleToggleLikeComment}
+          onOpenAuthorProfile={handleOpenAuthorProfile}
         />
       )}
 

@@ -111,9 +111,14 @@ export const AlumniProfileCardModal: React.FC<AlumniProfileCardModalProps> = ({
 
   const isAdminRecord = Boolean(
     displayAlumni.id === 'author-admin' ||
+    displayAlumni.id === 'adm-001' ||
     displayAlumni.gradYear === 'Administrator Alumni' ||
-    (displayAlumni.gradYear && displayAlumni.gradYear.toLowerCase().includes('administrator')) ||
-    (displayAlumni.nis === 'TRQ-ADMIN')
+    (displayAlumni.gradYear && (
+      displayAlumni.gradYear.toLowerCase().includes('administrator') ||
+      displayAlumni.gradYear.toLowerCase().includes('kehormatan')
+    )) ||
+    (displayAlumni.nis === 'TRQ-ADMIN') ||
+    (displayAlumni.username && displayAlumni.username.toLowerCase().includes('admin'))
   );
 
   // Address display logic according to privacy permissions

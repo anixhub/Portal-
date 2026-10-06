@@ -7,7 +7,9 @@ import {
   ChevronDown,
   MapPin,
   Maximize2,
-  Navigation
+  Navigation,
+  Plus,
+  Edit3
 } from 'lucide-react';
 import L from 'leaflet';
 import { 
@@ -899,6 +901,9 @@ export const WilayahAddressFilter: React.FC<WilayahAddressFilterProps> = ({
               ) : null}
             </div>
           </div>
+          <span className="text-[9px] text-slate-400 block mt-0.5 font-normal">
+            Bisa ketik nama desa/dusun secara manual jika tidak ada di daftar.
+          </span>
 
           {/* DROPDOWN MENU DESA (DI ATAS INPUT BOX AGAR TIDAK TERTIMBUN KEYBOARD) */}
           {activeDropdown === 'desa' && selectedDistId && (
@@ -908,6 +913,20 @@ export const WilayahAddressFilter: React.FC<WilayahAddressFilterProps> = ({
                 <ChevronDown className="w-3 h-3 text-slate-400" />
               </div>
               <div className="max-h-48 overflow-y-auto divide-y divide-slate-50">
+                {/* Opsi Gunakan Input Mandiri jika nama desa diketik tapi belum ada di daftar resmi */}
+                {desa.trim() && !filteredVillages.some(v => formatWilayahName(v.name).toLowerCase() === desa.trim().toLowerCase()) && (
+                  <div
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      setActiveDropdown(null);
+                    }}
+                    className="px-3 py-2 text-xs cursor-pointer flex items-center gap-2 bg-sky-50 hover:bg-sky-100 text-sky-800 font-semibold border-b border-sky-100 transition-colors"
+                  >
+                    <Plus className="w-3.5 h-3.5 text-sky-600 shrink-0" />
+                    <span className="truncate">Gunakan &quot;{desa.trim()}&quot; (Input Mandiri)</span>
+                  </div>
+                )}
+
                 {loadingVill && (
                   <div className="px-3 py-4 text-center text-xs text-sky-600 flex items-center justify-center gap-1.5">
                     <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -934,8 +953,23 @@ export const WilayahAddressFilter: React.FC<WilayahAddressFilterProps> = ({
                   );
                 })}
                 {!loadingVill && filteredVillages.length === 0 && (
-                  <div className="px-3 py-3 text-center text-xs text-slate-400">
-                    Tidak ada desa yang cocok
+                  <div className="px-3 py-3 text-center text-xs text-slate-500 space-y-1.5">
+                    <p className="text-[11px] text-slate-400">Desa tidak ditemukan di daftar resmi.</p>
+                    {desa.trim() ? (
+                      <button
+                        type="button"
+                        onMouseDown={(e) => {
+                          e.preventDefault();
+                          setActiveDropdown(null);
+                        }}
+                        className="w-full py-1.5 px-2 bg-sky-600 hover:bg-sky-700 text-white rounded-lg font-bold text-[11px] flex items-center justify-center gap-1.5 cursor-pointer transition-colors"
+                      >
+                        <Check className="w-3 h-3" />
+                        <span>Tetap gunakan &quot;{desa.trim()}&quot;</span>
+                      </button>
+                    ) : (
+                      <p className="text-[10px] text-slate-400">Silakan ketikkan nama desa secara manual.</p>
+                    )}
                   </div>
                 )}
               </div>
