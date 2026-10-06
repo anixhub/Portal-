@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { Heart, Send } from 'lucide-react';
 import { AnnouncementItem, EventComment } from '../../types';
+import { formatAuthorUsername } from '../../utils/authorUtils';
 
 interface AnnouncementCommentsModalProps {
   announcement: AnnouncementItem;
@@ -13,6 +14,7 @@ interface AnnouncementCommentsModalProps {
   onClose: () => void;
   onAddComment: (announcementId: string, text: string, replyToCommentId?: string) => void;
   onToggleLike: (commentId: string, replyId?: string) => void;
+  onOpenAuthorProfile?: (authorName?: string, authorHandle?: string, authorAvatar?: string) => void;
 }
 
 const QUICK_EMOJIS = ['👍', '🤲', '🔥', '👏', '❤️', '🙏', '✨', '😊'];
@@ -24,6 +26,7 @@ export const AnnouncementCommentsModal: React.FC<AnnouncementCommentsModalProps>
   onClose,
   onAddComment,
   onToggleLike,
+  onOpenAuthorProfile,
 }) => {
   const [inputText, setInputText] = useState('');
   const [isFullScreen, setIsFullScreen] = useState(false);
@@ -127,15 +130,19 @@ export const AnnouncementCommentsModal: React.FC<AnnouncementCommentsModalProps>
                 <div key={c.id} className="space-y-2">
                   {/* Induk Komentar */}
                   <div className="flex items-start justify-between gap-3 text-xs">
-                    <div className="shrink-0">
+                    <div 
+                      onClick={() => onOpenAuthorProfile?.(c.authorName, c.authorHandle, c.authorAvatar)}
+                      className="shrink-0 cursor-pointer group"
+                      title="Lihat profil"
+                    >
                       {c.authorAvatar ? (
                         <img
                           src={c.authorAvatar}
                           alt={c.authorName}
-                          className="w-8 h-8 rounded-full object-cover"
+                          className="w-8 h-8 rounded-full object-cover group-hover:scale-105 transition-transform"
                         />
                       ) : (
-                        <div className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center text-slate-700 font-bold text-[11px]">
+                        <div className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center text-slate-700 font-bold text-[11px] group-hover:scale-105 transition-transform">
                           {c.authorName.charAt(0)}
                         </div>
                       )}
@@ -143,8 +150,12 @@ export const AnnouncementCommentsModal: React.FC<AnnouncementCommentsModalProps>
 
                     <div className="flex-1 min-w-0 pr-1">
                       <div className="flex items-center gap-1.5 flex-wrap">
-                        <span className="font-bold text-slate-900 text-xs">
-                          {c.authorName}
+                        <span 
+                          onClick={() => onOpenAuthorProfile?.(c.authorName, c.authorHandle, c.authorAvatar)}
+                          className="font-bold text-slate-900 text-xs cursor-pointer hover:text-sky-600 hover:underline transition-colors"
+                          title="Lihat profil"
+                        >
+                          {formatAuthorUsername(c.authorHandle || c.authorName)}
                         </span>
                         <span className="text-[11px] text-slate-400">{c.timeAgo}</span>
                       </div>
@@ -156,7 +167,7 @@ export const AnnouncementCommentsModal: React.FC<AnnouncementCommentsModalProps>
                       <div className="mt-1 flex items-center gap-3">
                         <button
                           type="button"
-                          onClick={() => handleReplyClick(c.id, c.authorName)}
+                          onClick={() => handleReplyClick(c.id, c.authorHandle || c.authorName)}
                           className="text-[11px] font-semibold text-slate-500 hover:text-slate-800 cursor-pointer"
                         >
                           Balas
@@ -202,15 +213,19 @@ export const AnnouncementCommentsModal: React.FC<AnnouncementCommentsModalProps>
                     <div className="pl-10 space-y-3 pt-1 border-l-2 border-slate-100 ml-4">
                       {replies.map((rep) => (
                         <div key={rep.id} className="flex items-start justify-between gap-2.5 text-xs">
-                          <div className="shrink-0">
+                          <div 
+                            onClick={() => onOpenAuthorProfile?.(rep.authorName, rep.authorHandle, rep.authorAvatar)}
+                            className="shrink-0 cursor-pointer group"
+                            title="Lihat profil"
+                          >
                             {rep.authorAvatar ? (
                               <img
                                 src={rep.authorAvatar}
                                 alt={rep.authorName}
-                                className="w-6 h-6 rounded-full object-cover"
+                                className="w-6 h-6 rounded-full object-cover group-hover:scale-105 transition-transform"
                               />
                             ) : (
-                              <div className="w-6 h-6 rounded-full bg-slate-200 flex items-center justify-center text-slate-700 font-bold text-[10px]">
+                              <div className="w-6 h-6 rounded-full bg-slate-200 flex items-center justify-center text-slate-700 font-bold text-[10px] group-hover:scale-105 transition-transform">
                                 {rep.authorName.charAt(0)}
                               </div>
                             )}
@@ -218,8 +233,12 @@ export const AnnouncementCommentsModal: React.FC<AnnouncementCommentsModalProps>
 
                           <div className="flex-1 min-w-0 pr-1">
                             <div className="flex items-center gap-1.5 flex-wrap">
-                              <span className="font-bold text-slate-900 text-xs">
-                                {rep.authorName}
+                              <span 
+                                onClick={() => onOpenAuthorProfile?.(rep.authorName, rep.authorHandle, rep.authorAvatar)}
+                                className="font-bold text-slate-900 text-xs cursor-pointer hover:text-sky-600 hover:underline transition-colors"
+                                title="Lihat profil"
+                              >
+                                {formatAuthorUsername(rep.authorHandle || rep.authorName)}
                               </span>
                               <span className="text-[10px] text-slate-400">{rep.timeAgo}</span>
                             </div>
@@ -231,7 +250,7 @@ export const AnnouncementCommentsModal: React.FC<AnnouncementCommentsModalProps>
                             <div className="mt-0.5 flex items-center gap-3">
                               <button
                                 type="button"
-                                onClick={() => handleReplyClick(c.id, rep.authorName)}
+                                onClick={() => handleReplyClick(c.id, rep.authorHandle || rep.authorName)}
                                 className="text-[10px] font-semibold text-slate-500 hover:text-slate-800 cursor-pointer"
                               >
                                 Balas

@@ -15,15 +15,17 @@ import {
   AlertCircle
 } from 'lucide-react';
 import L from 'leaflet';
-import { AlumniRecord } from '../../types';
+import { AlumniRecord, AdminUser } from '../../types';
 import { AlumniProfileCardModal } from './AlumniProfileCardModal';
 import { FullscreenLocationMapModal, LocationCoordinates } from './FullscreenLocationMapModal';
+import { resolveAuthorAlumniRecord } from '../../utils/authorUtils';
 
 interface AlumniDistributionMapModalProps {
   isOpen: boolean;
   onClose: () => void;
   alumniList: AlumniRecord[];
   currentUser?: AlumniRecord;
+  adminUser?: AdminUser;
   deviceGps?: { lat: number; lng: number } | null;
   onSelectAlumni: (alumni: AlumniRecord) => void;
   onUpdateProfile?: (updated: Partial<AlumniRecord>) => void;
@@ -127,13 +129,16 @@ export const AlumniDistributionMapModal: React.FC<AlumniDistributionMapModalProp
   onClose,
   alumniList,
   currentUser,
+  adminUser,
   deviceGps,
   onSelectAlumni,
   onUpdateProfile,
   isAdmin = false,
 }) => {
   const initialCoord = deviceGps || 
-    (!isAdmin && currentUser?.coordinates?.lat && currentUser?.coordinates?.lng
+    (isAdmin && adminUser?.coordinates?.lat && adminUser?.coordinates?.lng
+      ? { lat: adminUser.coordinates.lat, lng: adminUser.coordinates.lng }
+      : !isAdmin && currentUser?.coordinates?.lat && currentUser?.coordinates?.lng
       ? { lat: currentUser.coordinates.lat, lng: currentUser.coordinates.lng }
       : { lat: -6.7423, lng: 111.4589 });
 
@@ -169,7 +174,11 @@ export const AlumniDistributionMapModal: React.FC<AlumniDistributionMapModalProp
   const [showLocationNotSetPopup, setShowLocationNotSetPopup] = useState(false);
   const locationNotSetTimerRef = useRef<any>(null);
 
-  const isLocationTagSet = Boolean(!isAdmin && currentUser?.coordinates?.lat && currentUser?.coordinates?.lng);
+  const isLocationTagSet = Boolean(
+    isAdmin
+      ? true
+      : (currentUser?.coordinates?.lat && currentUser?.coordinates?.lng)
+  );
 
   const handleTriggerDisabledLocationTag = () => {
     setShowLocationNotSetPopup(true);
@@ -719,21 +728,36 @@ export const AlumniDistributionMapModal: React.FC<AlumniDistributionMapModalProp
     }
   };
 
-  // Pusatkan ke Tag Rumah Saya
+  // Pusatkan ke Tag Rumah Saya / Alamat Rumah Admin
   const handleCenterHome = () => {
-    if (isAdmin || !currentUser) return;
     if (!mapInstanceRef.current) return;
-    if (currentUser.coordinates?.lat && currentUser.coordinates?.lng) {
+    const targetCoords = isAdmin
+      ? (adminUser?.coordinates || (currentUser?.coordinates?.lat ? currentUser.coordinates : { lat: -8.2123, lng: 112.7534 }))
+      : currentUser?.coordinates;
+
+    if (targetCoords?.lat && targetCoords?.lng) {
       mapInstanceRef.current.setView(
-        [currentUser.coordinates.lat, currentUser.coordinates.lng],
+        [targetCoords.lat, targetCoords.lng],
         16,
         { animate: true }
       );
-      setSelectedAlumni(currentUser);
+      if (isAdmin) {
+        const adminRecord = resolveAuthorAlumniRecord(
+          adminUser?.name || 'Administrator',
+          adminUser?.username || '@admin_pusat',
+          adminUser?.avatar,
+          alumniList,
+          adminUser
+        );
+        setSelectedAlumni(adminRecord);
+        showToast('Memusatkan ke Alamat Rumah Admin');
+      } else if (currentUser) {
+        setSelectedAlumni(currentUser);
+        showToast('Memusatkan ke Rumah Anda');
+      }
       setIsShowingRealtimeGpsDetail(false);
-      showToast('Memusatkan ke Rumah Anda');
     } else {
-      showToast('Tag koordinat rumah belum diatur.');
+      showToast(isAdmin ? 'Koordinat alamat rumah admin belum diatur.' : 'Tag koordinat rumah belum diatur.');
     }
   };
 
@@ -921,27 +945,25 @@ export const AlumniDistributionMapModal: React.FC<AlumniDistributionMapModalProp
           </div>
         </button>
 
-        {!isAdmin && (
-          <button
-            type="button"
-            disabled={!isLocationTagSet}
-            onClick={isLocationTagSet ? handleCenterHome : undefined}
-            className={`w-12 h-12 sm:w-13 sm:h-13 rounded-[22px] bg-white shadow-[0_4px_24px_rgba(0,0,0,0.18)] border border-slate-100 flex items-center justify-center select-none ${
-              !isLocationTagSet
-                ? 'opacity-40 cursor-not-allowed'
-                : 'cursor-pointer transition-all active:scale-90 hover:shadow-2xl group'
-            }`}
-            title={isLocationTagSet ? 'Pusatkan ke Rumah Saya' : 'Tag lokasi rumah belum diatur'}
-          >
-            <div className={`w-8 h-8 sm:w-8.5 sm:h-8.5 rounded-full flex items-center justify-center transition-colors ${
-              !isLocationTagSet
-                ? 'bg-slate-100 text-slate-400'
-                : 'bg-slate-100 group-hover:bg-sky-50 text-slate-700 group-hover:text-sky-600'
-            }`}>
-              <Home className="w-4.5 h-4.5" />
-            </div>
-          </button>
-        )}
+        <button
+          type="button"
+          disabled={!isLocationTagSet}
+          onClick={isLocationTagSet ? handleCenterHome : undefined}
+          className={`w-12 h-12 sm:w-13 sm:h-13 rounded-[22px] bg-white shadow-[0_4px_24px_rgba(0,0,0,0.18)] border border-slate-100 flex items-center justify-center select-none ${
+            !isLocationTagSet
+              ? 'opacity-40 cursor-not-allowed'
+              : 'cursor-pointer transition-all active:scale-90 hover:shadow-2xl group'
+          }`}
+          title={isAdmin ? 'Pusatkan ke Alamat Rumah Admin' : (isLocationTagSet ? 'Pusatkan ke Rumah Saya' : 'Tag lokasi rumah belum diatur')}
+        >
+          <div className={`w-8 h-8 sm:w-8.5 sm:h-8.5 rounded-full flex items-center justify-center transition-colors ${
+            !isLocationTagSet
+              ? 'bg-slate-100 text-slate-400'
+              : 'bg-slate-100 group-hover:bg-sky-50 text-slate-700 group-hover:text-sky-600'
+          }`}>
+            <Home className="w-4.5 h-4.5" />
+          </div>
+        </button>
       </div>
 
       {/* ================= 4. BOTTOM SHEET 60% LAYAR (DAFTAR ALUMNI HASIL PENCARIAN ALAMAT) =================

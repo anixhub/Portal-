@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useState, useCallback } from 'react';
+import React, { useRef, useEffect, useState, useCallback, useMemo } from 'react';
 
 interface DateWheelPickerProps {
   value: string; // Format: 'YYYY-MM-DD'
@@ -13,16 +13,16 @@ const BULAN_SINGKAT = [
 ];
 
 const ITEM_HEIGHT = 50; // px per baris
-// Container height = 150px (3 baris terlihat: atas 50px, tengah 50px, bawah 50px)
+// Container height = 150px (3 baris: atas 50px, tengah 50px, bawah 50px)
 const PADDING_SPACER = 50; // Spacer atas & bawah tepat 50px agar item pertama & terakhir pas di tengah (75px)
 
 export const DateWheelPicker: React.FC<DateWheelPickerProps> = ({
   value,
   onChange,
-  minYear = 1970,
-  maxYear = 2050,
+  minYear = 2020,
+  maxYear = 2035,
 }) => {
-  // Parse date value
+  // Parse date value safely
   let initialDate = new Date();
   if (value) {
     const parts = value.split('-');
@@ -44,8 +44,11 @@ export const DateWheelPicker: React.FC<DateWheelPickerProps> = ({
   const daysInMonth = new Date(selectedYear, selectedMonth + 1, 0).getDate();
   const validDay = Math.min(selectedDay, daysInMonth);
 
-  const days = Array.from({ length: daysInMonth }, (_, i) => i + 1);
-  const years = Array.from({ length: maxYear - minYear + 1 }, (_, i) => minYear + i);
+  const days = useMemo(() => Array.from({ length: daysInMonth }, (_, i) => i + 1), [daysInMonth]);
+  const years = useMemo(
+    () => Array.from({ length: Math.max(1, maxYear - minYear + 1) }, (_, i) => minYear + i),
+    [minYear, maxYear]
+  );
 
   // Active highlighted items during scroll
   const [activeDay, setActiveDay] = useState(validDay);
@@ -134,7 +137,7 @@ export const DateWheelPicker: React.FC<DateWheelPickerProps> = ({
       clearTimeout(scrollTimerRef.current[type]);
     }
 
-    // Scroll end debouncer: ensures the element lands EXACTLY at snapIdx * ITEM_HEIGHT
+    // Scroll end debouncer: ensures the element lands EXACTLY at snapIdx * ITEM_HEIGHT dead center
     scrollTimerRef.current[type] = setTimeout(() => {
       if (!container) return;
 
@@ -144,31 +147,36 @@ export const DateWheelPicker: React.FC<DateWheelPickerProps> = ({
       if (type === 'day') {
         const clampedDay = Math.max(1, Math.min(daysInMonth, targetIdx + 1));
         const finalScroll = (clampedDay - 1) * ITEM_HEIGHT;
-        container.scrollTo({ top: finalScroll, behavior: 'smooth' });
+        if (Math.abs(container.scrollTop - finalScroll) > 1) {
+          container.scrollTo({ top: finalScroll, behavior: 'smooth' });
+        }
         setActiveDay(clampedDay);
         updateDate(selectedYear, selectedMonth, clampedDay);
       } else if (type === 'month') {
         const clampedMonth = Math.max(0, Math.min(11, targetIdx));
         const finalScroll = clampedMonth * ITEM_HEIGHT;
-        container.scrollTo({ top: finalScroll, behavior: 'smooth' });
+        if (Math.abs(container.scrollTop - finalScroll) > 1) {
+          container.scrollTo({ top: finalScroll, behavior: 'smooth' });
+        }
         setActiveMonth(clampedMonth);
         updateDate(selectedYear, clampedMonth, validDay);
       } else if (type === 'year') {
         const clampedYearIdx = Math.max(0, Math.min(years.length - 1, targetIdx));
         const finalScroll = clampedYearIdx * ITEM_HEIGHT;
         const newYear = years[clampedYearIdx];
-        container.scrollTo({ top: finalScroll, behavior: 'smooth' });
+        if (Math.abs(container.scrollTop - finalScroll) > 1) {
+          container.scrollTo({ top: finalScroll, behavior: 'smooth' });
+        }
         if (newYear) {
           setActiveYear(newYear);
           updateDate(newYear, selectedMonth, validDay);
         }
       }
 
-      // Re-enable external sync after snap has completed
       setTimeout(() => {
         isUserScrollingRef.current[type] = false;
-      }, 100);
-    }, 100);
+      }, 150);
+    }, 120);
   };
 
   const handleItemClick = (type: 'day' | 'month' | 'year', val: number) => {
@@ -194,7 +202,7 @@ export const DateWheelPicker: React.FC<DateWheelPickerProps> = ({
     <div className="w-full relative select-none max-w-xs mx-auto py-1">
       {/* 3-Column Wheel Container (Tinggi 150px = 3 baris item) */}
       <div className="relative h-[150px] flex items-stretch justify-center gap-2 sm:gap-4 overflow-hidden px-2">
-        {/* Garis batas seleksi tengah (50px persis di tengah) */}
+        {/* Garis batas seleksi tengah (50px persis di tengah 50px-100px) */}
         <div 
           className="absolute inset-x-2 top-[50px] h-[50px] border-y-2 border-sky-300 bg-sky-100/30 pointer-events-none z-10 rounded-xl shadow-xs" 
           aria-hidden="true"
@@ -222,7 +230,7 @@ export const DateWheelPicker: React.FC<DateWheelPickerProps> = ({
             }}
           >
             {/* Top Spacer persis 50px agar item pertama mendarat di tengah */}
-            <div style={{ height: `${PADDING_SPACER}px` }} className="shrink-0 pointer-events-none" aria-hidden="true" />
+            <div style={{ height: `${PADDING_SPACER}px`, scrollSnapAlign: 'none' }} className="shrink-0 pointer-events-none" aria-hidden="true" />
             {days.map((d) => {
               const isSelected = d === activeDay;
               const formatted = String(d).padStart(2, '0');
@@ -233,7 +241,7 @@ export const DateWheelPicker: React.FC<DateWheelPickerProps> = ({
                   style={{
                     height: `${ITEM_HEIGHT}px`,
                     scrollSnapAlign: 'center',
-                    scrollSnapStop: 'normal',
+                    scrollSnapStop: 'always',
                   }}
                   className={`flex items-center justify-center cursor-pointer transition-all duration-100 select-none ${
                     isSelected
@@ -246,7 +254,7 @@ export const DateWheelPicker: React.FC<DateWheelPickerProps> = ({
               );
             })}
             {/* Bottom Spacer persis 50px agar item terakhir mendarat di tengah */}
-            <div style={{ height: `${PADDING_SPACER}px` }} className="shrink-0 pointer-events-none" aria-hidden="true" />
+            <div style={{ height: `${PADDING_SPACER}px`, scrollSnapAlign: 'none' }} className="shrink-0 pointer-events-none" aria-hidden="true" />
           </div>
         </div>
 
@@ -262,7 +270,7 @@ export const DateWheelPicker: React.FC<DateWheelPickerProps> = ({
             }}
           >
             {/* Top Spacer */}
-            <div style={{ height: `${PADDING_SPACER}px` }} className="shrink-0 pointer-events-none" aria-hidden="true" />
+            <div style={{ height: `${PADDING_SPACER}px`, scrollSnapAlign: 'none' }} className="shrink-0 pointer-events-none" aria-hidden="true" />
             {BULAN_SINGKAT.map((m, idx) => {
               const isSelected = idx === activeMonth;
               return (
@@ -272,7 +280,7 @@ export const DateWheelPicker: React.FC<DateWheelPickerProps> = ({
                   style={{
                     height: `${ITEM_HEIGHT}px`,
                     scrollSnapAlign: 'center',
-                    scrollSnapStop: 'normal',
+                    scrollSnapStop: 'always',
                   }}
                   className={`flex items-center justify-center cursor-pointer transition-all duration-100 select-none ${
                     isSelected
@@ -285,11 +293,11 @@ export const DateWheelPicker: React.FC<DateWheelPickerProps> = ({
               );
             })}
             {/* Bottom Spacer */}
-            <div style={{ height: `${PADDING_SPACER}px` }} className="shrink-0 pointer-events-none" aria-hidden="true" />
+            <div style={{ height: `${PADDING_SPACER}px`, scrollSnapAlign: 'none' }} className="shrink-0 pointer-events-none" aria-hidden="true" />
           </div>
         </div>
 
-        {/* 3. KOLOM TAHUN (e.g. 1970 - 2050 / 2020 - 2035) */}
+        {/* 3. KOLOM TAHUN (2020 - 2035) */}
         <div className="w-24 h-full relative z-10">
           <div
             ref={yearRef}
@@ -301,7 +309,7 @@ export const DateWheelPicker: React.FC<DateWheelPickerProps> = ({
             }}
           >
             {/* Top Spacer */}
-            <div style={{ height: `${PADDING_SPACER}px` }} className="shrink-0 pointer-events-none" aria-hidden="true" />
+            <div style={{ height: `${PADDING_SPACER}px`, scrollSnapAlign: 'none' }} className="shrink-0 pointer-events-none" aria-hidden="true" />
             {years.map((y) => {
               const isSelected = y === activeYear;
               return (
@@ -311,7 +319,7 @@ export const DateWheelPicker: React.FC<DateWheelPickerProps> = ({
                   style={{
                     height: `${ITEM_HEIGHT}px`,
                     scrollSnapAlign: 'center',
-                    scrollSnapStop: 'normal',
+                    scrollSnapStop: 'always',
                   }}
                   className={`flex items-center justify-center cursor-pointer transition-all duration-100 select-none ${
                     isSelected
@@ -324,7 +332,7 @@ export const DateWheelPicker: React.FC<DateWheelPickerProps> = ({
               );
             })}
             {/* Bottom Spacer */}
-            <div style={{ height: `${PADDING_SPACER}px` }} className="shrink-0 pointer-events-none" aria-hidden="true" />
+            <div style={{ height: `${PADDING_SPACER}px`, scrollSnapAlign: 'none' }} className="shrink-0 pointer-events-none" aria-hidden="true" />
           </div>
         </div>
       </div>

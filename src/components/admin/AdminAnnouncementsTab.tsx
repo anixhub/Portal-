@@ -499,11 +499,16 @@ export const AdminAnnouncementsTab: React.FC<AdminAnnouncementsTabProps> = ({
           comments={commentsList}
           currentUser={{
             name: adminUser.name,
+            username: adminUser.username,
             photoUrl: adminUser.avatar,
           }}
           onClose={() => setActiveCommentsAnnouncement(null)}
           onAddComment={handleAddComment}
           onToggleLike={handleToggleLikeComment}
+          onOpenAuthorProfile={(name, handle, avatar) => {
+            const record = resolveAuthorAlumniRecord(name, handle, avatar, alumniList, adminUser);
+            onOpenAuthorProfile?.(record);
+          }}
         />
       )}
 

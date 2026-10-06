@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { Heart, Send } from 'lucide-react';
 import { EventAgenda, EventComment } from '../../types';
+import { formatAuthorUsername } from '../../utils/authorUtils';
 
 interface EventCommentsModalProps {
   event?: EventAgenda | { id: string; title?: string; attendeesCount?: number; absentCount?: number };
@@ -16,6 +17,7 @@ interface EventCommentsModalProps {
   onClose: () => void;
   onAddComment: (targetId: string, text: string, replyToCommentId?: string) => void;
   onToggleLike: (commentId: string, replyId?: string) => void;
+  onOpenAuthorProfile?: (authorName?: string, authorHandle?: string, authorAvatar?: string) => void;
 }
 
 const QUICK_EMOJIS = ['🤣', '🙌', '🔥', '👏', '😢', '🗿', '😭', '😂'];
@@ -30,6 +32,7 @@ export const EventCommentsModal: React.FC<EventCommentsModalProps> = ({
   onClose,
   onAddComment,
   onToggleLike,
+  onOpenAuthorProfile,
 }) => {
   const [inputText, setInputText] = useState('');
   const [isFullScreen, setIsFullScreen] = useState(false);
@@ -154,9 +157,13 @@ export const EventCommentsModal: React.FC<EventCommentsModalProps> = ({
                   {/* Induk Tanggapan */}
                   <div className="flex items-start justify-between gap-3 text-xs">
                     {/* Left: Avatar with optional Instagram gradient ring */}
-                    <div className="shrink-0">
+                    <div 
+                      onClick={() => onOpenAuthorProfile?.(c.authorName, c.authorHandle, c.authorAvatar)}
+                      className="shrink-0 cursor-pointer group"
+                      title="Lihat profil"
+                    >
                       {c.avatarRing ? (
-                        <div className="p-[2px] bg-gradient-to-tr from-amber-500 via-rose-500 to-fuchsia-600 rounded-full">
+                        <div className="p-[2px] bg-gradient-to-tr from-amber-500 via-rose-500 to-fuchsia-600 rounded-full group-hover:scale-105 transition-transform">
                           {c.authorAvatar ? (
                             <img
                               src={c.authorAvatar}
@@ -170,7 +177,7 @@ export const EventCommentsModal: React.FC<EventCommentsModalProps> = ({
                           )}
                         </div>
                       ) : (
-                        <div>
+                        <div className="group-hover:scale-105 transition-transform">
                           {c.authorAvatar ? (
                             <img
                               src={c.authorAvatar}
@@ -189,8 +196,12 @@ export const EventCommentsModal: React.FC<EventCommentsModalProps> = ({
                     {/* Center: Author, Time, Response & Replies */}
                     <div className="flex-1 min-w-0 pr-1">
                       <div className="flex items-center gap-1.5 flex-wrap">
-                        <span className="font-bold text-slate-900 text-xs">
-                          {c.authorName}
+                        <span 
+                          onClick={() => onOpenAuthorProfile?.(c.authorName, c.authorHandle, c.authorAvatar)}
+                          className="font-bold text-slate-900 text-xs cursor-pointer hover:text-sky-600 hover:underline transition-colors"
+                          title="Lihat profil"
+                        >
+                          {formatAuthorUsername(c.authorHandle || c.authorName)}
                         </span>
                         <span className="text-[11px] text-slate-400">{c.timeAgo}</span>
                         {c.status && (
@@ -259,15 +270,19 @@ export const EventCommentsModal: React.FC<EventCommentsModalProps> = ({
                       {replies.map((rep) => (
                         <div key={rep.id} className="flex items-start justify-between gap-2.5 text-xs">
                           {/* Avatar Balasan */}
-                          <div className="shrink-0">
+                          <div 
+                            onClick={() => onOpenAuthorProfile?.(rep.authorName, rep.authorHandle, rep.authorAvatar)}
+                            className="shrink-0 cursor-pointer group"
+                            title="Lihat profil"
+                          >
                             {rep.authorAvatar ? (
                               <img
                                 src={rep.authorAvatar}
                                 alt={rep.authorName}
-                                className="w-6 h-6 rounded-full object-cover"
+                                className="w-6 h-6 rounded-full object-cover group-hover:scale-105 transition-transform"
                               />
                             ) : (
-                              <div className="w-6 h-6 rounded-full bg-slate-200 flex items-center justify-center text-slate-700 font-bold text-[10px]">
+                              <div className="w-6 h-6 rounded-full bg-slate-200 flex items-center justify-center text-slate-700 font-bold text-[10px] group-hover:scale-105 transition-transform">
                                 {rep.authorName.charAt(0)}
                               </div>
                             )}
@@ -276,8 +291,12 @@ export const EventCommentsModal: React.FC<EventCommentsModalProps> = ({
                           {/* Isi Balasan */}
                           <div className="flex-1 min-w-0 pr-1">
                             <div className="flex items-center gap-1.5 flex-wrap">
-                              <span className="font-bold text-slate-900 text-xs">
-                                {rep.authorName}
+                              <span 
+                                onClick={() => onOpenAuthorProfile?.(rep.authorName, rep.authorHandle, rep.authorAvatar)}
+                                className="font-bold text-slate-900 text-xs cursor-pointer hover:text-sky-600 hover:underline transition-colors"
+                                title="Lihat profil"
+                              >
+                                {formatAuthorUsername(rep.authorHandle || rep.authorName)}
                               </span>
                               <span className="text-[10px] text-slate-400">{rep.timeAgo}</span>
                             </div>
@@ -289,7 +308,7 @@ export const EventCommentsModal: React.FC<EventCommentsModalProps> = ({
                             <div className="mt-0.5 flex items-center gap-3">
                               <button
                                 type="button"
-                                onClick={() => handleReplyClick(c.id, rep.authorName)}
+                                onClick={() => handleReplyClick(c.id, rep.authorHandle || rep.authorName)}
                                 className="text-[10px] font-semibold text-slate-500 hover:text-slate-800 cursor-pointer"
                               >
                                 Balas

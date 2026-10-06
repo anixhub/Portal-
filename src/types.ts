@@ -64,6 +64,14 @@ export interface AdminUser {
   avatar?: string;
   coverPhotoUrl?: string;
   password?: string;
+  bio?: string;
+  phone?: string;
+  province?: string;
+  city?: string;
+  kecamatan?: string;
+  desa?: string;
+  alamatLengkap?: string;
+  coordinates?: { lat: number; lng: number } | null;
 }
 
 export interface AudienceTarget {

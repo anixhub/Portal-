@@ -332,6 +332,14 @@ export const INITIAL_ADMIN: AdminUser = {
   jabatan: 'Kepala Bidang Kesantrian & Alumni Ponpes At-taroqqy',
   avatar: logoPonpesImg,
   password: '1997',
+  bio: 'Pengasuh & Dewan Pembina Ikatan Alumni Pondok Pesantren At-taroqqy.',
+  phone: '081234567890',
+  province: 'Jawa Timur',
+  city: 'Kab. Malang',
+  kecamatan: 'Dampit',
+  desa: 'Majangtengah',
+  alamatLengkap: 'Jl. Pesantren No. 01 RT 02 / RW 01',
+  coordinates: { lat: -8.2123, lng: 112.7534 },
 };
 
 export const INITIAL_EVENTS: EventAgenda[] = [

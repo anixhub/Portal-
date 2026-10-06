@@ -109,6 +109,13 @@ export const AlumniProfileCardModal: React.FC<AlumniProfileCardModalProps> = ({
 
   if (!isOpen || !displayAlumni) return null;
 
+  const isAdminRecord = Boolean(
+    displayAlumni.id === 'author-admin' ||
+    displayAlumni.gradYear === 'Administrator Alumni' ||
+    (displayAlumni.gradYear && displayAlumni.gradYear.toLowerCase().includes('administrator')) ||
+    (displayAlumni.nis === 'TRQ-ADMIN')
+  );
+
   // Address display logic according to privacy permissions
   const isFullAddressAllowed = displayAlumni.shareFullAddress !== false;
   const addressText = isFullAddressAllowed
@@ -233,10 +240,10 @@ export const AlumniProfileCardModal: React.FC<AlumniProfileCardModalProps> = ({
             )}
           </div>
 
-          {/* Pengganti exp: Boyong 2024 & Colorful Dashes */}
+          {/* Pengganti exp: Boyong 2024 / Administrator Alumni & Colorful Dashes */}
           <div className="flex items-center gap-1.5 pb-2.5">
             <span className="text-xs font-bold text-slate-700 font-display">
-              Boyong {displayAlumni.gradYear || '2024'}
+              {isAdminRecord ? 'Administrator Alumni' : `Boyong ${displayAlumni.gradYear || '2024'}`}
             </span>
             <div className="flex items-center gap-0.5">
               {['#8b5cf6', '#ec4899', '#f43f5e', '#f97316', '#eab308', '#22c55e', '#06b6d4', '#3b82f6'].map(
@@ -266,32 +273,48 @@ export const AlumniProfileCardModal: React.FC<AlumniProfileCardModalProps> = ({
 
           {/* Bio dengan Tanda Petik (otomatis membungkus ke baris berikutnya jika panjang) */}
           <p className="text-xs text-slate-600 italic leading-relaxed mt-1 break-words whitespace-normal">
-            “{displayAlumni.bio || displayAlumni.occupation || 'Santri Pondok Pesantren At-Taroqqy'}”
+            “{displayAlumni.bio || displayAlumni.occupation || (isAdminRecord ? 'Administrator Ikatan Alumni Ponpes At-Taroqqy' : 'Santri Pondok Pesantren At-Taroqqy')}”
           </p>
 
-          {/* Profesi & Perusahaan/Instansi di baris berbeda dengan icon berbeda */}
-          {(displayAlumni.occupation || displayAlumni.institution) && (
-            <div className="mt-2.5 space-y-1.5">
-              {/* Baris 1: Profesi / Pekerjaan dengan Icon Briefcase */}
-              {displayAlumni.occupation && (
-                <div className="flex items-start gap-2 text-xs text-slate-700 font-medium">
+          {/* Jabatan di Ikatan Alumni (Untuk Akun Admin) ATAU Profesi & Perusahaan/Instansi (Untuk Alumni Biasa) */}
+          {isAdminRecord ? (
+            displayAlumni.occupation && (
+              <div className="mt-2.5 space-y-1">
+                <span className="text-[10px] font-bold text-slate-400 block uppercase tracking-wider">
+                  Jabatan di Ikatan Alumni
+                </span>
+                <div className="flex items-start gap-2 text-xs text-sky-950 font-semibold bg-sky-50 border border-sky-200/80 px-3 py-2 rounded-xl">
                   <Briefcase className="w-3.5 h-3.5 text-sky-600 shrink-0 mt-0.5" />
                   <span className="break-words whitespace-normal leading-relaxed">
                     {displayAlumni.occupation}
                   </span>
                 </div>
-              )}
+              </div>
+            )
+          ) : (
+            (displayAlumni.occupation || displayAlumni.institution) && (
+              <div className="mt-2.5 space-y-1.5">
+                {/* Baris 1: Profesi / Pekerjaan dengan Icon Briefcase */}
+                {displayAlumni.occupation && (
+                  <div className="flex items-start gap-2 text-xs text-slate-700 font-medium">
+                    <Briefcase className="w-3.5 h-3.5 text-sky-600 shrink-0 mt-0.5" />
+                    <span className="break-words whitespace-normal leading-relaxed">
+                      {displayAlumni.occupation}
+                    </span>
+                  </div>
+                )}
 
-              {/* Baris 2: Perusahaan / Lembaga / Instansi dengan Icon Building2 */}
-              {displayAlumni.institution && (
-                <div className="flex items-start gap-2 text-xs text-slate-700 font-medium">
-                  <Building2 className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
-                  <span className="break-words whitespace-normal leading-relaxed">
-                    {displayAlumni.institution}
-                  </span>
-                </div>
-              )}
-            </div>
+                {/* Baris 2: Perusahaan / Lembaga / Instansi dengan Icon Building2 */}
+                {displayAlumni.institution && (
+                  <div className="flex items-start gap-2 text-xs text-slate-700 font-medium">
+                    <Building2 className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
+                    <span className="break-words whitespace-normal leading-relaxed">
+                      {displayAlumni.institution}
+                    </span>
+                  </div>
+                )}
+              </div>
+            )
           )}
         </div>
 

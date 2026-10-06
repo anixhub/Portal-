@@ -33,7 +33,10 @@ import {
   Megaphone,
   Check,
   MoreVertical,
-  Globe
+  Globe,
+  ArrowUpDown,
+  Briefcase,
+  FileText
 } from 'lucide-react';
 import { AlumniRecord, AdminUser, EventAgenda, EventComment, EventCommentReply, AnnouncementItem, AttendanceSession, AttendanceAttendee, AudienceTarget } from '../types';
 import { AddAlumniModal } from './admin/AddAlumniModal';
@@ -44,6 +47,7 @@ import { WilayahAddressFilter } from './common/WilayahAddressFilter';
 import { AlumniDistributionMapModal } from './common/AlumniDistributionMapModal';
 import { CleanMediaPreviewModal } from './common/CleanMediaPreviewModal';
 import { FullscreenPhotoViewerModal } from './common/FullscreenPhotoViewerModal';
+import { FullscreenLocationMapModal, LocationCoordinates } from './common/FullscreenLocationMapModal';
 import { EventCommentsModal } from './common/EventCommentsModal';
 import { EventAttendanceScannerModal } from './admin/EventAttendanceScannerModal';
 import { CreateAttendanceModal } from './admin/CreateAttendanceModal';
@@ -55,6 +59,7 @@ import { PostMediaCarousel } from './common/PostMediaCarousel';
 import { AudienceTargetModal, formatAudienceSummary } from './common/AudienceTargetModal';
 import { INITIAL_EVENT_COMMENTS, INITIAL_ANNOUNCEMENTS } from '../data/mockData';
 import { formatAuthorUsername, resolveAuthorAlumniRecord } from '../utils/authorUtils';
+import { shareMediaWithCaption } from '../utils/shareUtils';
 import logoPonpesImg from '../assets/images/logo_ponpes_attaroqqy_1790648746461.jpg';
 import posterReuniImg from '../assets/images/poster_reuni_akbar_1790648045947.jpg';
 
@@ -154,11 +159,37 @@ export const AdminView: React.FC<AdminViewProps> = ({
   const [isEditNameModalOpen, setIsEditNameModalOpen] = useState(false);
   const [editAdminUsername, setEditAdminUsername] = useState(admin.username || '@admin_pusat');
   const [isEditUsernameModalOpen, setIsEditUsernameModalOpen] = useState(false);
+  const [editAdminJabatan, setEditAdminJabatan] = useState(admin.jabatan || 'Kepala Bidang Kesantrian & Alumni Ponpes At-taroqqy');
+  const [isEditJabatanModalOpen, setIsEditJabatanModalOpen] = useState(false);
+  const [editAdminBio, setEditAdminBio] = useState(admin.bio || 'Pengasuh & Dewan Pembina Ikatan Alumni Pondok Pesantren At-taroqqy.');
+  const [isEditBioModalOpen, setIsEditBioModalOpen] = useState(false);
+  const [editAdminProvince, setEditAdminProvince] = useState(admin.province || 'Jawa Timur');
+  const [editAdminCity, setEditAdminCity] = useState(admin.city || 'Kab. Malang');
+  const [editAdminKecamatan, setEditAdminKecamatan] = useState(admin.kecamatan || 'Dampit');
+  const [editAdminDesa, setEditAdminDesa] = useState(admin.desa || 'Majangtengah');
+  const [editAdminAlamatLengkap, setEditAdminAlamatLengkap] = useState(admin.alamatLengkap || 'Jl. Pesantren No. 01 RT 02 / RW 01');
+  const [editAdminCoordinates, setEditAdminCoordinates] = useState<LocationCoordinates | null>(admin.coordinates || { lat: -8.2123, lng: 112.7534 });
+  const [isEditAddressModalOpen, setIsEditAddressModalOpen] = useState(false);
+  const [isAdminLocationPickerOpen, setIsAdminLocationPickerOpen] = useState(false);
+
+  // Kelola Alumni Sort state
+  type SortOption = 'nama_asc' | 'nama_desc' | 'boyong_desc' | 'boyong_asc' | 'masuk_desc' | 'masuk_asc';
+  const [sortOption, setSortOption] = useState<SortOption>('nama_asc');
+  const [isSortSheetOpen, setIsSortSheetOpen] = useState(false);
+  const [eventSlideMap, setEventSlideMap] = useState<Record<string, number>>({});
 
   useEffect(() => {
     setAdminUser(admin);
     setEditAdminName(admin.name);
     setEditAdminUsername(admin.username || '@admin_pusat');
+    setEditAdminJabatan(admin.jabatan || 'Kepala Bidang Kesantrian & Alumni Ponpes At-taroqqy');
+    setEditAdminBio(admin.bio || 'Pengasuh & Dewan Pembina Ikatan Alumni Pondok Pesantren At-taroqqy.');
+    setEditAdminProvince(admin.province || 'Jawa Timur');
+    setEditAdminCity(admin.city || 'Kab. Malang');
+    setEditAdminKecamatan(admin.kecamatan || 'Dampit');
+    setEditAdminDesa(admin.desa || 'Majangtengah');
+    setEditAdminAlamatLengkap(admin.alamatLengkap || 'Jl. Pesantren No. 01 RT 02 / RW 01');
+    setEditAdminCoordinates(admin.coordinates || { lat: -8.2123, lng: 112.7534 });
   }, [admin]);
 
   useEffect(() => {
@@ -265,6 +296,47 @@ export const AdminView: React.FC<AdminViewProps> = ({
 
     setIsEditNameModalOpen(false);
     triggerToast('Nama lengkap berhasil diperbarui');
+  };
+
+  const handleSaveAdminJabatan = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editAdminJabatan.trim()) {
+      triggerToast('Jabatan tidak boleh kosong');
+      return;
+    }
+    const updated: Partial<AdminUser> = {
+      jabatan: editAdminJabatan.trim(),
+    };
+    setAdminUser((prev) => ({ ...prev, ...updated }));
+    onUpdateAdmin?.(updated);
+    setIsEditJabatanModalOpen(false);
+    triggerToast('Jabatan di Ikatan Alumni berhasil diperbarui');
+  };
+
+  const handleSaveAdminBio = (e: React.FormEvent) => {
+    e.preventDefault();
+    const updated: Partial<AdminUser> = {
+      bio: editAdminBio.trim(),
+    };
+    setAdminUser((prev) => ({ ...prev, ...updated }));
+    onUpdateAdmin?.(updated);
+    setIsEditBioModalOpen(false);
+    triggerToast('Bio berhasil diperbarui');
+  };
+
+  const handleSaveAdminAddress = () => {
+    const updated: Partial<AdminUser> = {
+      province: editAdminProvince,
+      city: editAdminCity,
+      kecamatan: editAdminKecamatan,
+      desa: editAdminDesa,
+      alamatLengkap: editAdminAlamatLengkap,
+      coordinates: editAdminCoordinates || undefined,
+    };
+    setAdminUser((prev) => ({ ...prev, ...updated }));
+    onUpdateAdmin?.(updated);
+    setIsEditAddressModalOpen(false);
+    triggerToast('Alamat domisili berhasil diperbarui');
   };
 
   // Photo & Cover States (sama persis dengan akun alumni/user biasa)
@@ -725,6 +797,28 @@ export const AdminView: React.FC<AdminViewProps> = ({
     );
   });
 
+  const sortedFilteredList = [...filteredList].sort((a, b) => {
+    if (sortOption === 'nama_asc') {
+      return a.name.localeCompare(b.name, 'id');
+    }
+    if (sortOption === 'nama_desc') {
+      return b.name.localeCompare(a.name, 'id');
+    }
+    if (sortOption === 'boyong_desc') {
+      return (parseInt(b.gradYear, 10) || 0) - (parseInt(a.gradYear, 10) || 0);
+    }
+    if (sortOption === 'boyong_asc') {
+      return (parseInt(a.gradYear, 10) || 0) - (parseInt(b.gradYear, 10) || 0);
+    }
+    if (sortOption === 'masuk_desc') {
+      return (parseInt(b.entryYear, 10) || 0) - (parseInt(a.entryYear, 10) || 0);
+    }
+    if (sortOption === 'masuk_asc') {
+      return (parseInt(a.entryYear, 10) || 0) - (parseInt(b.entryYear, 10) || 0);
+    }
+    return 0;
+  });
+
   const handleEventSliderScroll = () => {
     if (!eventSliderRef.current) return;
     const { scrollLeft, clientWidth } = eventSliderRef.current;
@@ -1103,6 +1197,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
                       fallbackImage={ev.posterUrl || posterReuniImg}
                       title={ev.title}
                       onPreview={(url) => setFullscreenPosterUrl(url)}
+                      onSlideChange={(idx) => setEventSlideMap((prev) => ({ ...prev, [ev.id]: idx }))}
                     />
 
                     {/* 3. BARIS KETERANGAN KEHADIRAN (KETERANGAN KEHADIRAN DI KIRI, TOMBOL BUAT PRESENSI DI KANAN) */}
@@ -1268,81 +1363,99 @@ export const AdminView: React.FC<AdminViewProps> = ({
 
         {/* ================= TAB 2: KELOLA ALUMNI (BERSIH TANPA HEADER) ================= */}
         {activeTab === 'alumni' && (
-          <div className="flex-1 overflow-y-auto px-4 py-4 max-w-2xl mx-auto w-full space-y-3 pb-28">
-            {/* Search & Filter Bar */}
-            <div className="flex items-center gap-2">
-              <div className="relative flex-1">
-                <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-                <input
-                  type="text"
-                  placeholder="Cari NIK, NIS, nama, atau domisili..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-9 pr-9 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-medium focus:ring-2 focus:ring-sky-600 focus:outline-none shadow-2xs"
-                />
-                {searchQuery && (
-                  <button
-                    type="button"
-                    onClick={() => setSearchQuery('')}
-                    className="absolute right-2.5 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 cursor-pointer transition-colors"
-                    title="Hapus pencarian"
-                  >
-                    <X className="w-3.5 h-3.5" />
-                  </button>
-                )}
+          <div className="flex-1 overflow-y-auto px-4 py-2 max-w-2xl mx-auto w-full space-y-3 pb-28">
+            {/* Sticky Header untuk Search, Sort, Filter, dan Status Tag (tidak ikut terscroll, selalu di atas) */}
+            <div className="sticky top-0 z-20 bg-[#f0f2fb] -mx-4 px-4 pt-2 pb-2.5 space-y-2 border-b border-slate-200/60 shadow-2xs">
+              {/* Search & Action Buttons (Urutkan di sebelah kiri tombol filter) */}
+              <div className="flex items-center gap-2">
+                <div className="relative flex-1">
+                  <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  <input
+                    type="text"
+                    placeholder="Cari NIK, NIS, nama, atau domisili..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="w-full pl-9 pr-9 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-medium focus:ring-2 focus:ring-sky-600 focus:outline-none shadow-2xs"
+                  />
+                  {searchQuery && (
+                    <button
+                      type="button"
+                      onClick={() => setSearchQuery('')}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 cursor-pointer transition-colors"
+                      title="Hapus pencarian"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+
+                {/* Tombol Urutkan (Hanya Icon) di sebelah kiri tombol filter */}
+                <button
+                  type="button"
+                  onClick={() => setIsSortSheetOpen(true)}
+                  className={`p-2.5 rounded-xl border transition-all cursor-pointer flex items-center justify-center shrink-0 ${
+                    sortOption !== 'nama_asc'
+                      ? 'bg-sky-600 text-white border-sky-600 shadow-xs'
+                      : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+                  }`}
+                  title="Urutkan Data Alumni"
+                >
+                  <ArrowUpDown className="w-4 h-4" />
+                </button>
+
+                {/* Tombol Filter */}
+                <button
+                  type="button"
+                  onClick={() => setIsFilterSheetOpen(true)}
+                  className={`p-2.5 rounded-xl border transition-all cursor-pointer flex items-center justify-center shrink-0 ${
+                    hasActiveFilters
+                      ? 'bg-sky-600 text-white border-sky-600 shadow-xs'
+                      : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+                  }`}
+                  title="Buka Filter Data"
+                >
+                  <Filter className="w-4 h-4" />
+                </button>
               </div>
 
-              <button
-                type="button"
-                onClick={() => setIsFilterSheetOpen(true)}
-                className={`p-2.5 rounded-xl border transition-all cursor-pointer flex items-center justify-center shrink-0 ${
-                  hasActiveFilters
-                    ? 'bg-sky-600 text-white border-sky-600 shadow-xs'
-                    : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
-                }`}
-                title="Buka Filter Data"
-              >
-                <Filter className="w-4 h-4" />
-              </button>
-            </div>
-
-            {/* Filter Label Status: Semua, Aktif, Tidak Aktif (Aktif = NIK pernah login) */}
-            <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 scrollbar-none">
-              <button
-                type="button"
-                onClick={() => setStatusFilter('semua')}
-                className={`px-3 py-1 rounded-full text-xs font-bold transition-all cursor-pointer shrink-0 ${
-                  statusFilter === 'semua'
-                    ? 'bg-sky-600 text-white shadow-xs'
-                    : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
-                }`}
-              >
-                Semua ({alumniList.length})
-              </button>
-              <button
-                type="button"
-                onClick={() => setStatusFilter('aktif')}
-                className={`px-3 py-1 rounded-full text-xs font-bold transition-all cursor-pointer shrink-0 flex items-center gap-1.5 ${
-                  statusFilter === 'aktif'
-                    ? 'bg-emerald-600 text-white shadow-xs'
-                    : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
-                }`}
-              >
-                <span className={`w-2 h-2 rounded-full ${statusFilter === 'aktif' ? 'bg-white' : 'bg-emerald-500'}`} />
-                Aktif ({activeCount})
-              </button>
-              <button
-                type="button"
-                onClick={() => setStatusFilter('tidak_aktif')}
-                className={`px-3 py-1 rounded-full text-xs font-bold transition-all cursor-pointer shrink-0 flex items-center gap-1.5 ${
-                  statusFilter === 'tidak_aktif'
-                    ? 'bg-slate-700 text-white shadow-xs'
-                    : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
-                }`}
-              >
-                <span className={`w-2 h-2 rounded-full ${statusFilter === 'tidak_aktif' ? 'bg-white' : 'bg-slate-400'}`} />
-                Tidak Aktif ({inactiveCount})
-              </button>
+              {/* Filter Label Status: Semua, Aktif, Tidak Aktif (tidak ikut terscroll) */}
+              <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 scrollbar-none">
+                <button
+                  type="button"
+                  onClick={() => setStatusFilter('semua')}
+                  className={`px-3 py-1 rounded-full text-xs font-bold transition-all cursor-pointer shrink-0 ${
+                    statusFilter === 'semua'
+                      ? 'bg-sky-600 text-white shadow-xs'
+                      : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+                  }`}
+                >
+                  Semua ({alumniList.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setStatusFilter('aktif')}
+                  className={`px-3 py-1 rounded-full text-xs font-bold transition-all cursor-pointer shrink-0 flex items-center gap-1.5 ${
+                    statusFilter === 'aktif'
+                      ? 'bg-emerald-600 text-white shadow-xs'
+                      : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+                  }`}
+                >
+                  <span className={`w-2 h-2 rounded-full ${statusFilter === 'aktif' ? 'bg-white' : 'bg-emerald-500'}`} />
+                  Aktif ({activeCount})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setStatusFilter('tidak_aktif')}
+                  className={`px-3 py-1 rounded-full text-xs font-bold transition-all cursor-pointer shrink-0 flex items-center gap-1.5 ${
+                    statusFilter === 'tidak_aktif'
+                      ? 'bg-slate-700 text-white shadow-xs'
+                      : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+                  }`}
+                >
+                  <span className={`w-2 h-2 rounded-full ${statusFilter === 'tidak_aktif' ? 'bg-white' : 'bg-slate-400'}`} />
+                  Tidak Aktif ({inactiveCount})
+                </button>
+              </div>
             </div>
 
             {/* Filter Active Indicator & Quick Reset */}
@@ -1361,7 +1474,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
 
             {/* Daftar Kartu Alumni */}
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-              {filteredList.slice(0, visibleCount).map((item) => {
+              {sortedFilteredList.slice(0, visibleCount).map((item) => {
                 const addressText = item.shareFullAddress === false
                   ? [item.kecamatan, item.city].filter(Boolean).join(', ') || item.city || item.province || 'Alamat disembunyikan'
                   : [item.desa, item.kecamatan, item.city].filter(Boolean).join(', ') || item.province || 'Alamat belum diisi';
@@ -1586,10 +1699,10 @@ export const AdminView: React.FC<AdminViewProps> = ({
                 </div>
               </div>
 
-              {/* CARD LEBIH RINGKAS: KOLOM NAMA LENGKAP, USERNAME, GANTI KATA SANDI, LOGOUT */}
+              {/* CARD LEBIH RINGKAS: SUSUNAN SEPERTI DI PROFIL ALUMNI BIASA */}
               <div className="space-y-4">
                 <div className="bg-white rounded-2xl border border-slate-200/90 divide-y divide-slate-100 shadow-2xs overflow-hidden">
-                  {/* 1. Kolom Nama Lengkap (Saat diklik munculkan modal edit nama lengkap) */}
+                  {/* 1. Kolom Nama Lengkap */}
                   <div
                     onClick={() => {
                       setEditAdminName(adminUser.name);
@@ -1597,16 +1710,16 @@ export const AdminView: React.FC<AdminViewProps> = ({
                     }}
                     className="flex items-center justify-between p-3.5 cursor-pointer hover:bg-slate-50 transition-colors group"
                   >
-                    <div className="flex items-center gap-3 min-w-0">
+                    <div className="flex items-center gap-3 min-w-0 pr-2">
                       <div className="w-9 h-9 rounded-xl bg-sky-50 text-sky-600 flex items-center justify-center shrink-0">
                         <User className="w-4 h-4" />
                       </div>
                       <div className="min-w-0">
                         <p className="text-[11px] font-medium text-slate-400">Nama Lengkap</p>
-                        <p className="text-xs font-bold text-slate-800 truncate">{adminUser.name}</p>
+                        <p className="text-xs font-bold text-slate-800 truncate mt-0.5">{adminUser.name}</p>
                       </div>
                     </div>
-                    <ChevronRight className="w-4 h-4 text-slate-400 group-hover:translate-x-0.5 transition-transform shrink-0 ml-2" />
+                    <ChevronRight className="w-4 h-4 text-slate-400 group-hover:translate-x-0.5 transition-transform shrink-0" />
                   </div>
 
                   {/* 2. Kolom Username */}
@@ -1617,21 +1730,92 @@ export const AdminView: React.FC<AdminViewProps> = ({
                     }}
                     className="flex items-center justify-between p-3.5 cursor-pointer hover:bg-slate-50 transition-colors group"
                   >
-                    <div className="flex items-center gap-3 min-w-0">
+                    <div className="flex items-center gap-3 min-w-0 pr-2">
                       <div className="w-9 h-9 rounded-xl bg-sky-50 text-sky-600 flex items-center justify-center shrink-0">
                         <User className="w-4 h-4" />
                       </div>
                       <div className="min-w-0">
                         <p className="text-[11px] font-medium text-slate-400">Username</p>
-                        <p className="text-xs font-bold text-slate-800 truncate">
+                        <p className="text-xs font-bold text-slate-800 truncate mt-0.5">
                           {adminUser.username.startsWith('@') ? adminUser.username : '@' + adminUser.username}
                         </p>
                       </div>
                     </div>
-                    <ChevronRight className="w-4 h-4 text-slate-400 group-hover:translate-x-0.5 transition-transform shrink-0 ml-2" />
+                    <ChevronRight className="w-4 h-4 text-slate-400 group-hover:translate-x-0.5 transition-transform shrink-0" />
                   </div>
 
-                  {/* 3. Kolom Ganti Kata Sandi (Saat diklik munculkan modal dengan 2 kolom input) */}
+                  {/* 3. Jabatan di Ikatan Alumni */}
+                  <div
+                    onClick={() => {
+                      setEditAdminJabatan(adminUser.jabatan || 'Kepala Bidang Kesantrian & Alumni Ponpes At-taroqqy');
+                      setIsEditJabatanModalOpen(true);
+                    }}
+                    className="flex items-center justify-between p-3.5 cursor-pointer hover:bg-slate-50 transition-colors group"
+                  >
+                    <div className="flex items-center gap-3 min-w-0 pr-2">
+                      <div className="w-9 h-9 rounded-xl bg-sky-50 text-sky-600 flex items-center justify-center shrink-0">
+                        <Briefcase className="w-4 h-4" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-[11px] font-medium text-slate-400">Jabatan di Ikatan Alumni</p>
+                        <p className="text-xs font-bold text-slate-800 truncate mt-0.5">
+                          {adminUser.jabatan || 'Kepala Bidang Kesantrian & Alumni Ponpes At-taroqqy'}
+                        </p>
+                      </div>
+                    </div>
+                    <ChevronRight className="w-4 h-4 text-slate-400 group-hover:translate-x-0.5 transition-transform shrink-0" />
+                  </div>
+
+                  {/* 4. Bio */}
+                  <div
+                    onClick={() => {
+                      setEditAdminBio(adminUser.bio || '');
+                      setIsEditBioModalOpen(true);
+                    }}
+                    className="flex items-center justify-between p-3.5 cursor-pointer hover:bg-slate-50 transition-colors group"
+                  >
+                    <div className="flex items-center gap-3 min-w-0 pr-2">
+                      <div className="w-9 h-9 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center shrink-0">
+                        <FileText className="w-4 h-4" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-[11px] font-medium text-slate-400">Bio</p>
+                        <p className="text-xs font-bold text-slate-800 truncate mt-0.5">
+                          {adminUser.bio || 'Belum diisi'}
+                        </p>
+                      </div>
+                    </div>
+                    <ChevronRight className="w-4 h-4 text-slate-400 group-hover:translate-x-0.5 transition-transform shrink-0" />
+                  </div>
+
+                  {/* 5. Alamat Domisili */}
+                  <div
+                    onClick={() => {
+                      setEditAdminProvince(adminUser.province || 'Jawa Timur');
+                      setEditAdminCity(adminUser.city || 'Kab. Malang');
+                      setEditAdminKecamatan(adminUser.kecamatan || 'Dampit');
+                      setEditAdminDesa(adminUser.desa || 'Majangtengah');
+                      setEditAdminAlamatLengkap(adminUser.alamatLengkap || 'Jl. Pesantren No. 01 RT 02 / RW 01');
+                      setEditAdminCoordinates(adminUser.coordinates || { lat: -8.2123, lng: 112.7534 });
+                      setIsEditAddressModalOpen(true);
+                    }}
+                    className="flex items-center justify-between p-3.5 cursor-pointer hover:bg-slate-50 transition-colors group"
+                  >
+                    <div className="flex items-center gap-3 min-w-0 pr-2">
+                      <div className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
+                        <MapPin className="w-4 h-4" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-[11px] font-medium text-slate-400">Alamat Domisili</p>
+                        <p className="text-xs font-bold text-slate-800 truncate mt-0.5">
+                          {[adminUser.desa, adminUser.kecamatan, adminUser.city, adminUser.province].filter(Boolean).join(', ') || adminUser.alamatLengkap || 'Belum diatur'}
+                        </p>
+                      </div>
+                    </div>
+                    <ChevronRight className="w-4 h-4 text-slate-400 group-hover:translate-x-0.5 transition-transform shrink-0" />
+                  </div>
+
+                  {/* 6. Kolom Ganti Kata Sandi */}
                   <div
                     onClick={() => {
                       setNewAdminPassword('');
@@ -1641,7 +1825,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
                     }}
                     className="flex items-center justify-between p-3.5 cursor-pointer hover:bg-slate-50 transition-colors group"
                   >
-                    <div className="flex items-center gap-3 min-w-0">
+                    <div className="flex items-center gap-3 min-w-0 pr-2">
                       <div className="w-9 h-9 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
                         <KeyRound className="w-4 h-4" />
                       </div>
@@ -1650,15 +1834,15 @@ export const AdminView: React.FC<AdminViewProps> = ({
                         <p className="text-[11px] text-slate-400">Perbarui kata sandi akun admin</p>
                       </div>
                     </div>
-                    <ChevronRight className="w-4 h-4 text-slate-400 group-hover:translate-x-0.5 transition-transform shrink-0 ml-2" />
+                    <ChevronRight className="w-4 h-4 text-slate-400 group-hover:translate-x-0.5 transition-transform shrink-0" />
                   </div>
 
-                  {/* 4. Keluar dari Akun */}
+                  {/* 7. Keluar dari Akun */}
                   <div
                     onClick={onLogout}
                     className="flex items-center justify-between p-3.5 cursor-pointer hover:bg-rose-50/70 transition-colors group"
                   >
-                    <div className="flex items-center gap-3 min-w-0">
+                    <div className="flex items-center gap-3 min-w-0 pr-2">
                       <div className="w-9 h-9 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center shrink-0">
                         <LogOut className="w-4 h-4" />
                       </div>
@@ -1666,7 +1850,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
                         <p className="text-xs font-bold text-rose-600">Keluar dari Akun</p>
                       </div>
                     </div>
-                    <ChevronRight className="w-4 h-4 text-slate-400 group-hover:translate-x-0.5 transition-transform shrink-0 ml-2" />
+                    <ChevronRight className="w-4 h-4 text-slate-400 group-hover:translate-x-0.5 transition-transform shrink-0" />
                   </div>
                 </div>
               </div>
@@ -1828,6 +2012,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
           onClose={() => setIsDistributionMapOpen(false)}
           alumniList={alumniList}
           isAdmin={true}
+          adminUser={adminUser}
           onSelectAlumni={(selected) => setDetailAlumni(selected)}
           onUpdateProfile={(updated) => {
             if (detailAlumni) {
@@ -1843,12 +2028,17 @@ export const AdminView: React.FC<AdminViewProps> = ({
           event={activeCommentsModalEvent}
           comments={commentsList}
           currentUser={{
-            name: admin.name,
-            photoUrl: admin.avatar,
+            name: adminUser.name,
+            username: adminUser.username,
+            photoUrl: adminUser.avatar,
           }}
           onClose={() => setActiveCommentsModalEvent(null)}
           onAddComment={handleAddComment}
           onToggleLike={handleToggleLikeComment}
+          onOpenAuthorProfile={(name, handle, avatar) => {
+            const record = resolveAuthorAlumniRecord(name, handle, avatar, alumniList, adminUser);
+            setSelectedAuthorProfile(record);
+          }}
         />
       )}
 
@@ -1992,6 +2182,258 @@ export const AdminView: React.FC<AdminViewProps> = ({
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ================= MODAL EDIT JABATAN DI IKATAN ALUMNI ================= */}
+      {isEditJabatanModalOpen && (
+        <div className="fixed inset-0 z-[100010] bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in select-none">
+          <div className="bg-white rounded-3xl p-6 max-w-sm w-full space-y-4 shadow-2xl border border-slate-100 animate-in zoom-in-95">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl bg-sky-50 text-sky-600 flex items-center justify-center">
+                  <Briefcase className="w-4 h-4" />
+                </div>
+                <h3 className="font-display font-bold text-base text-slate-900">
+                  Jabatan di Ikatan Alumni
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsEditJabatanModalOpen(false)}
+                className="w-7 h-7 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-500 cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveAdminJabatan} className="space-y-4 text-xs">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Jabatan / Posisi Kepengurusan
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={editAdminJabatan}
+                  onChange={(e) => setEditAdminJabatan(e.target.value)}
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-sky-600 focus:bg-white"
+                  placeholder="Contoh: Kepala Bidang Kesantrian & Alumni Ponpes At-taroqqy"
+                />
+              </div>
+
+              <div className="flex items-center gap-2 pt-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setIsEditJabatanModalOpen(false)}
+                  className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs transition-colors cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 py-2.5 bg-sky-600 hover:bg-sky-700 text-white font-bold rounded-xl text-xs transition-colors cursor-pointer shadow-md shadow-sky-600/20"
+                >
+                  Simpan
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ================= MODAL EDIT BIO ADMIN ================= */}
+      {isEditBioModalOpen && (
+        <div className="fixed inset-0 z-[100010] bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in select-none">
+          <div className="bg-white rounded-3xl p-6 max-w-sm w-full space-y-4 shadow-2xl border border-slate-100 animate-in zoom-in-95">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center">
+                  <FileText className="w-4 h-4" />
+                </div>
+                <h3 className="font-display font-bold text-base text-slate-900">
+                  Edit Bio
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsEditBioModalOpen(false)}
+                className="w-7 h-7 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-500 cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveAdminBio} className="space-y-4 text-xs">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Kutipan / Bio Singkat
+                </label>
+                <textarea
+                  rows={3}
+                  value={editAdminBio}
+                  onChange={(e) => setEditAdminBio(e.target.value)}
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-sky-600 focus:bg-white resize-none"
+                  placeholder="Tuliskan bio atau moto kepengurusan..."
+                />
+              </div>
+
+              <div className="flex items-center gap-2 pt-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setIsEditBioModalOpen(false)}
+                  className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs transition-colors cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 py-2.5 bg-sky-600 hover:bg-sky-700 text-white font-bold rounded-xl text-xs transition-colors cursor-pointer shadow-md shadow-sky-600/20"
+                >
+                  Simpan
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ================= MODAL EDIT ALAMAT ADMIN ================= */}
+      {isEditAddressModalOpen && (
+        <div className="fixed inset-0 z-[100010] bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in select-none">
+          <div className="bg-white rounded-3xl p-6 max-w-md w-full space-y-4 shadow-2xl border border-slate-100 animate-in zoom-in-95 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
+                  <MapPin className="w-4 h-4" />
+                </div>
+                <h3 className="font-display font-bold text-base text-slate-900">
+                  Alamat Domisili Admin
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsEditAddressModalOpen(false)}
+                className="w-7 h-7 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-500 cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-3 pt-1">
+              <WilayahAddressFilter
+                province={editAdminProvince}
+                city={editAdminCity}
+                kecamatan={editAdminKecamatan}
+                desa={editAdminDesa}
+                alamatLengkap={editAdminAlamatLengkap}
+                coordinates={editAdminCoordinates}
+                showAlamatLengkap={true}
+                showLocationTag={true}
+                onChange={(vals) => {
+                  setEditAdminProvince(vals.province);
+                  setEditAdminCity(vals.city);
+                  setEditAdminKecamatan(vals.kecamatan || '');
+                  setEditAdminDesa(vals.desa || '');
+                  if (vals.alamatLengkap !== undefined) setEditAdminAlamatLengkap(vals.alamatLengkap);
+                  if (vals.coordinates !== undefined) setEditAdminCoordinates(vals.coordinates);
+                }}
+                onOpenLocationPicker={() => setIsAdminLocationPickerOpen(true)}
+              />
+
+              <div className="flex items-center gap-2 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setIsEditAddressModalOpen(false)}
+                  className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs transition-colors cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveAdminAddress}
+                  className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs transition-colors cursor-pointer shadow-md shadow-emerald-600/20"
+                >
+                  Simpan Alamat
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ================= FULLSCREEN LOCATION MAP PICKER MODAL (ADMIN) ================= */}
+      {isAdminLocationPickerOpen && (
+        <FullscreenLocationMapModal
+          isOpen={isAdminLocationPickerOpen}
+          onClose={() => setIsAdminLocationPickerOpen(false)}
+          initialCoordinates={editAdminCoordinates || { lat: -8.2123, lng: 112.7534 }}
+          title="Tandai Lokasi Rumah Admin"
+          onSave={(coords) => {
+            setEditAdminCoordinates(coords);
+            setIsAdminLocationPickerOpen(false);
+            triggerToast('Titik koordinat berhasil disimpan');
+          }}
+        />
+      )}
+
+      {/* ================= MODAL / BOTTOM SHEET URUTKAN ALUMNI (KELOLA ALUMNI) ================= */}
+      {isSortSheetOpen && (
+        <div 
+          className="fixed inset-0 z-[100020] bg-black/60 backdrop-blur-xs flex items-end sm:items-center justify-center animate-in fade-in select-none"
+          onClick={() => setIsSortSheetOpen(false)}
+        >
+          <div 
+            className="bg-white rounded-t-3xl sm:rounded-3xl p-5 max-w-sm w-full space-y-3 shadow-2xl border border-slate-100 animate-in slide-in-from-bottom sm:zoom-in-95"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl bg-sky-50 text-sky-600 flex items-center justify-center">
+                  <ArrowUpDown className="w-4 h-4" />
+                </div>
+                <h3 className="font-display font-bold text-sm text-slate-900">
+                  Urutkan Alumni
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsSortSheetOpen(false)}
+                className="w-7 h-7 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-500 cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-1.5 py-1 text-xs">
+              {[
+                { id: 'nama_asc', label: 'Nama (A ke Z)' },
+                { id: 'nama_desc', label: 'Nama (Z ke A)' },
+                { id: 'boyong_desc', label: 'Tahun Boyong (Terbaru ke Terlama)' },
+                { id: 'boyong_asc', label: 'Tahun Boyong (Terlama ke Terbaru)' },
+                { id: 'masuk_desc', label: 'Tahun Masuk (Terbaru ke Terlama)' },
+                { id: 'masuk_asc', label: 'Tahun Masuk (Terlama ke Terbaru)' },
+              ].map((opt) => (
+                <button
+                  key={opt.id}
+                  type="button"
+                  onClick={() => {
+                    setSortOption(opt.id as SortOption);
+                    setIsSortSheetOpen(false);
+                    triggerToast(`Urutan: ${opt.label}`);
+                  }}
+                  className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl font-semibold transition-all cursor-pointer ${
+                    sortOption === opt.id
+                      ? 'bg-sky-50 text-sky-700 border border-sky-200 font-bold'
+                      : 'hover:bg-slate-50 text-slate-700 border border-transparent'
+                  }`}
+                >
+                  <span>{opt.label}</span>
+                  {sortOption === opt.id && <Check className="w-4 h-4 text-sky-600" />}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
       )}
@@ -2706,15 +3148,17 @@ export const AdminView: React.FC<AdminViewProps> = ({
               {/* 2. Bagikan */}
               <button
                 type="button"
-                onClick={() => {
+                onClick={async () => {
                   const evToShare = activeMenuEvent;
                   setActiveMenuEvent(null);
-                  if (navigator.clipboard) {
-                    navigator.clipboard.writeText(
-                      `*${evToShare.title}*\nTanggal: ${evToShare.date}\nWaktu: ${evToShare.time}\nTempat: ${evToShare.location}\n\nInfo selengkapnya di Portal Alumni Ponpes At-Taroqqy: https://attaroqqy.com`
-                    );
-                  }
-                  triggerToast('Tautan agenda disalin');
+                  const activeSlideIdx = eventSlideMap[evToShare.id] || 0;
+                  const imageToShare = (evToShare.images && evToShare.images[activeSlideIdx]) || evToShare.posterUrl || posterReuniImg;
+                  await shareMediaWithCaption({
+                    imageUrl: imageToShare,
+                    title: evToShare.title,
+                    text: `*${evToShare.title}*\n\n🗓️ Tanggal: ${evToShare.date}\n⏰ Waktu: ${evToShare.time}\n📍 Tempat: ${evToShare.location}\n\n${evToShare.description}\n\nInfo selengkapnya di Portal Alumni Ponpes At-Taroqqy`,
+                    onToast: triggerToast,
+                  });
                 }}
                 className="w-full flex items-center gap-3.5 px-4 py-3 rounded-2xl hover:bg-slate-50 text-slate-800 font-semibold text-sm transition-colors cursor-pointer text-left"
               >
