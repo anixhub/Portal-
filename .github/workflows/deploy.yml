@@ -1,0 +1,79 @@
+name: Deploy ke Hostinger
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 📥 Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: ⚙️ Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: 📦 Install Dependencies
+        run: |
+          npm install
+          npm install basic-ftp
+
+      - name: 🔨 Build Vite React App
+        run: npm run build
+
+      - name: 🚀 Deploy ke Hostinger via FTP
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        run: |
+          node --input-type=module -e '
+          import * as ftp from "basic-ftp";
+          import path from "node:path";
+
+          async function deploy() {
+            const rawHost = (process.env.FTP_SERVER || "").replace(/^[a-zA-Z]+:\/\//, "").replace(/\/.*$/, "").trim();
+            const user = (process.env.FTP_USERNAME || "").trim();
+            const password = (process.env.FTP_PASSWORD || "").trim();
+
+            if (!rawHost || !user) {
+              console.log("⚠️ FTP_SERVER atau FTP_USERNAME belum diisi di Secrets.");
+              return;
+            }
+
+            console.log(`🔌 Menghubungkan ke FTP Hostinger: ${rawHost}...`);
+            const client = new ftp.Client();
+            client.ftp.verbose = true;
+
+            try {
+              await client.access({
+                host: rawHost,
+                user: user,
+                password: password,
+                port: 21,
+                secure: false
+              });
+              console.log("✅ Berhasil login ke FTP Hostinger!");
+
+              const list = await client.list();
+              const hasPublicHtml = list.some(item => item.name === "public_html");
+              const target = hasPublicHtml ? "public_html" : ".";
+              console.log(`📂 Mengunggah ke direktori server: "${target}"`);
+
+              await client.uploadFromDir(path.resolve("dist"), target);
+              console.log("🎉 BERHASIL! Seluruh file website sudah terupload ke Hostinger!");
+              console.log("🌐 Kunjungi website Anda di: https://alumni.attaroqqy.com");
+            } catch (err) {
+              console.error("❌ Terjadi kendala saat upload:", err.message || err);
+              process.exit(1);
+            } finally {
+              client.close();
+            }
+          }
+          deploy();
+          '
