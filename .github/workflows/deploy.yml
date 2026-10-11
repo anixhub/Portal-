@@ -19,9 +19,7 @@ jobs:
           node-version: 20
 
       - name: 📦 Install Dependencies
-        run: |
-          npm install
-          npm install basic-ftp
+        run: npm install --legacy-peer-deps
 
       - name: 🔨 Build Vite React App
         run: npm run build
