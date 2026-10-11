@@ -126,6 +126,9 @@ interface AdminViewProps {
   onAddAnnouncement?: (ann: AnnouncementItem) => void;
   onUpdateAnnouncement?: (id: string, updated: Partial<AnnouncementItem>) => void;
   onDeleteAnnouncement?: (id: string) => void;
+  isDbLoading?: boolean;
+  isDbConnected?: boolean;
+  onRefreshData?: () => void;
 }
 
 type AdminTab = 'agenda' | 'alumni' | 'pengumuman' | 'profile';
@@ -145,6 +148,9 @@ export const AdminView: React.FC<AdminViewProps> = ({
   onAddAnnouncement,
   onUpdateAnnouncement,
   onDeleteAnnouncement,
+  isDbLoading = false,
+  isDbConnected = true,
+  onRefreshData,
 }) => {
   const [activeTab, setActiveTab] = useState<AdminTab>('alumni');
   const [eventList, setEventList] = useState<EventAgenda[]>(events);
@@ -1418,42 +1424,71 @@ export const AdminView: React.FC<AdminViewProps> = ({
               </div>
 
               {/* Filter Label Status: Semua, Aktif, Tidak Aktif (tidak ikut terscroll) */}
-              <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 scrollbar-none">
-                <button
-                  type="button"
-                  onClick={() => setStatusFilter('semua')}
-                  className={`px-3 py-1 rounded-full text-xs font-bold transition-all cursor-pointer shrink-0 ${
-                    statusFilter === 'semua'
-                      ? 'bg-sky-600 text-white shadow-xs'
-                      : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
-                  }`}
-                >
-                  Semua ({alumniList.length})
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setStatusFilter('aktif')}
-                  className={`px-3 py-1 rounded-full text-xs font-bold transition-all cursor-pointer shrink-0 flex items-center gap-1.5 ${
-                    statusFilter === 'aktif'
-                      ? 'bg-emerald-600 text-white shadow-xs'
-                      : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
-                  }`}
-                >
-                  <span className={`w-2 h-2 rounded-full ${statusFilter === 'aktif' ? 'bg-white' : 'bg-emerald-500'}`} />
-                  Aktif ({activeCount})
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setStatusFilter('tidak_aktif')}
-                  className={`px-3 py-1 rounded-full text-xs font-bold transition-all cursor-pointer shrink-0 flex items-center gap-1.5 ${
-                    statusFilter === 'tidak_aktif'
-                      ? 'bg-slate-700 text-white shadow-xs'
-                      : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
-                  }`}
-                >
-                  <span className={`w-2 h-2 rounded-full ${statusFilter === 'tidak_aktif' ? 'bg-white' : 'bg-slate-400'}`} />
-                  Tidak Aktif ({inactiveCount})
-                </button>
+              <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 scrollbar-none justify-between">
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setStatusFilter('semua')}
+                    className={`px-3 py-1 rounded-full text-xs font-bold transition-all cursor-pointer shrink-0 ${
+                      statusFilter === 'semua'
+                        ? 'bg-sky-600 text-white shadow-xs'
+                        : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+                    }`}
+                  >
+                    Semua ({alumniList.length.toLocaleString('id-ID')})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setStatusFilter('aktif')}
+                    className={`px-3 py-1 rounded-full text-xs font-bold transition-all cursor-pointer shrink-0 flex items-center gap-1.5 ${
+                      statusFilter === 'aktif'
+                        ? 'bg-emerald-600 text-white shadow-xs'
+                        : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+                    }`}
+                  >
+                    <span className={`w-2 h-2 rounded-full ${statusFilter === 'aktif' ? 'bg-white' : 'bg-emerald-500'}`} />
+                    Aktif ({activeCount.toLocaleString('id-ID')})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setStatusFilter('tidak_aktif')}
+                    className={`px-3 py-1 rounded-full text-xs font-bold transition-all cursor-pointer shrink-0 flex items-center gap-1.5 ${
+                      statusFilter === 'tidak_aktif'
+                        ? 'bg-slate-700 text-white shadow-xs'
+                        : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+                    }`}
+                  >
+                    <span className={`w-2 h-2 rounded-full ${statusFilter === 'tidak_aktif' ? 'bg-white' : 'bg-slate-400'}`} />
+                    Tidak Aktif ({inactiveCount.toLocaleString('id-ID')})
+                  </button>
+                </div>
+
+                {/* Indikator Status Database Hostinger MySQL */}
+                <div className="flex items-center gap-1.5 shrink-0 text-[11px] font-semibold text-slate-600 bg-white border border-slate-200/90 px-2.5 py-1 rounded-full shadow-2xs">
+                  <span
+                    className={`w-2 h-2 rounded-full ${
+                      isDbLoading
+                        ? 'bg-amber-400 animate-ping'
+                        : isDbConnected
+                        ? 'bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.5)]'
+                        : 'bg-slate-400'
+                    }`}
+                  />
+                  <span>
+                    {isDbLoading ? 'Memuat...' : isDbConnected ? 'MySQL Terhubung' : 'Lokal'}
+                  </span>
+                  {onRefreshData && (
+                    <button
+                      type="button"
+                      onClick={onRefreshData}
+                      disabled={isDbLoading}
+                      title="Sinkronisasi ulang dari database Hostinger"
+                      className="text-sky-600 hover:text-sky-800 ml-0.5 font-bold cursor-pointer disabled:opacity-40"
+                    >
+                      ↻
+                    </button>
+                  )}
+                </div>
               </div>
 
               {/* Filter Active Indicator & Quick Reset */}

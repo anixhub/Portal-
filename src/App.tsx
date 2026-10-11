@@ -37,23 +37,31 @@ export default function App() {
   const [isRegisterOpen, setIsRegisterOpen] = useState(false);
   const [isForgotPasswordOpen, setIsForgotPasswordOpen] = useState(false);
 
-  // Load real data from Hostinger MySQL database on mount
-  useEffect(() => {
-    let isMounted = true;
-    async function loadData() {
-      try {
-        const res = await fetchAlumniFromHostinger();
-        if (isMounted && res.success && res.data && res.data.length > 0) {
-          setAlumniList(res.data);
-        }
-      } catch (err) {
-        console.warn('Gagal memuat data alumni dari Hostinger:', err);
+  // Database connection states
+  const [isDbLoading, setIsDbLoading] = useState(true);
+  const [isDbConnected, setIsDbConnected] = useState(false);
+
+  // Load real data from Hostinger MySQL database on mount & support manual refresh
+  const loadData = async () => {
+    setIsDbLoading(true);
+    try {
+      const res = await fetchAlumniFromHostinger();
+      if (res.success && res.data && res.data.length > 0) {
+        setAlumniList(res.data);
+        setIsDbConnected(true);
+      } else {
+        setIsDbConnected(false);
       }
+    } catch (err) {
+      console.warn('Gagal memuat data alumni dari Hostinger:', err);
+      setIsDbConnected(false);
+    } finally {
+      setIsDbLoading(false);
     }
+  };
+
+  useEffect(() => {
     loadData();
-    return () => {
-      isMounted = false;
-    };
   }, []);
 
   const handleLoginSuccess = (
@@ -400,6 +408,9 @@ export default function App() {
           onAddAnnouncement={handleAddAnnouncement}
           onUpdateAnnouncement={handleUpdateAnnouncement}
           onDeleteAnnouncement={handleDeleteAnnouncement}
+          isDbLoading={isDbLoading}
+          isDbConnected={isDbConnected}
+          onRefreshData={loadData}
         />
       )}
 
@@ -411,6 +422,9 @@ export default function App() {
           onLoginSuccess={handleLoginSuccess}
           onOpenRegister={() => setIsRegisterOpen(true)}
           onOpenForgotPassword={() => setIsForgotPasswordOpen(true)}
+          isDbLoading={isDbLoading}
+          isDbConnected={isDbConnected}
+          onRefreshData={loadData}
         />
       )}
 

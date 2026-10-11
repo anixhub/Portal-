@@ -18,7 +18,14 @@ import {
   fetchRegencies, 
   fetchDistricts, 
   fetchVillages, 
-  formatWilayahName 
+  formatWilayahName,
+  cleanWilayahName,
+  normalizeProvinceName,
+  resolveLocationHierarchy,
+  FALLBACK_PROVINCES,
+  FALLBACK_REGENCIES,
+  FALLBACK_DISTRICTS,
+  FALLBACK_VILLAGES
 } from '../../services/wilayahService';
 import { 
   FullscreenLocationMapModal, 
@@ -77,6 +84,7 @@ export const WilayahAddressFilter: React.FC<WilayahAddressFilterProps> = ({
 
   // Active dropdown
   const [activeDropdown, setActiveDropdown] = useState<ActiveField>(null);
+  const [isTypingField, setIsTypingField] = useState<ActiveField>(null);
 
   // Fullscreen map modal state
   const [isMapModalOpen, setIsMapModalOpen] = useState(false);
@@ -216,27 +224,46 @@ export const WilayahAddressFilter: React.FC<WilayahAddressFilterProps> = ({
     fetchProvinces()
       .then((items) => {
         if (!isMounted) return;
-        setProvincesList(items);
+        setProvincesList(items && items.length > 0 ? items : FALLBACK_PROVINCES);
         setLoadingProv(false);
-
-        if (province) {
-          const match = items.find(
-            (p) => p.name.toLowerCase() === province.toLowerCase() ||
-                   formatWilayahName(p.name).toLowerCase() === province.toLowerCase()
-          );
-          if (match) {
-            setSelectedProvId(match.id);
-          }
-        }
       })
       .catch(() => {
-        if (isMounted) setLoadingProv(false);
+        if (!isMounted) return;
+        setLoadingProv(false);
+        setProvincesList(FALLBACK_PROVINCES);
       });
 
     return () => {
       isMounted = false;
     };
   }, []);
+
+  // Auto-sync IDs dan normalisasi dari props secara otomatis saat edit alamat dibuka
+  useEffect(() => {
+    const resolved = resolveLocationHierarchy(province, city, kecamatan);
+
+    // Auto-isi nama provinsi jika belum ada di data alumni tetapi kabupaten/kecamatannya diketahui
+    if (resolved.provName && !province && (city || kecamatan)) {
+      onChange({
+        province: resolved.provName,
+        city,
+        kecamatan,
+        desa,
+        alamatLengkap,
+        coordinates: coordinates || undefined,
+      });
+    }
+
+    if (resolved.provId && resolved.provId !== selectedProvId) {
+      setSelectedProvId(resolved.provId);
+    }
+    if (resolved.regId && resolved.regId !== selectedRegId) {
+      setSelectedRegId(resolved.regId);
+    }
+    if (resolved.distId && resolved.distId !== selectedDistId) {
+      setSelectedDistId(resolved.distId);
+    }
+  }, [province, city, kecamatan]);
 
   // Fetch regencies when selectedProvId changes
   useEffect(() => {
@@ -251,21 +278,27 @@ export const WilayahAddressFilter: React.FC<WilayahAddressFilterProps> = ({
     fetchRegencies(selectedProvId)
       .then((items) => {
         if (!isMounted) return;
-        setRegenciesList(items);
+        const list = items && items.length > 0 ? items : (FALLBACK_REGENCIES[selectedProvId] || []);
+        setRegenciesList(list);
         setLoadingReg(false);
 
+        // Cocokkan kembali nama kota/kabupaten jika sudah ada
         if (city) {
-          const match = items.find(
-            (r) => r.name.toLowerCase().includes(city.toLowerCase()) ||
-                   formatWilayahName(r.name).toLowerCase().includes(city.toLowerCase())
-          );
-          if (match) {
+          const cleanCity = cleanWilayahName(city);
+          const match = list.find((r) => {
+            const cleanR = cleanWilayahName(r.name);
+            return cleanR === cleanCity || cleanR.includes(cleanCity) || cleanCity.includes(cleanR);
+          });
+          if (match && match.id !== selectedRegId) {
             setSelectedRegId(match.id);
           }
         }
       })
       .catch(() => {
-        if (isMounted) setLoadingReg(false);
+        if (!isMounted) return;
+        setLoadingReg(false);
+        const fallback = FALLBACK_REGENCIES[selectedProvId] || [];
+        setRegenciesList(fallback);
       });
 
     return () => {
@@ -286,21 +319,27 @@ export const WilayahAddressFilter: React.FC<WilayahAddressFilterProps> = ({
     fetchDistricts(selectedRegId)
       .then((items) => {
         if (!isMounted) return;
-        setDistrictsList(items);
+        const list = items && items.length > 0 ? items : (FALLBACK_DISTRICTS[selectedRegId] || []);
+        setDistrictsList(list);
         setLoadingDist(false);
 
+        // Cocokkan kembali nama kecamatan jika sudah ada
         if (kecamatan) {
-          const match = items.find(
-            (d) => d.name.toLowerCase() === kecamatan.toLowerCase() ||
-                   formatWilayahName(d.name).toLowerCase() === kecamatan.toLowerCase()
-          );
-          if (match) {
+          const cleanKec = cleanWilayahName(kecamatan);
+          const match = list.find((d) => {
+            const cleanD = cleanWilayahName(d.name);
+            return cleanD === cleanKec || cleanD.includes(cleanKec) || cleanKec.includes(cleanD);
+          });
+          if (match && match.id !== selectedDistId) {
             setSelectedDistId(match.id);
           }
         }
       })
       .catch(() => {
-        if (isMounted) setLoadingDist(false);
+        if (!isMounted) return;
+        setLoadingDist(false);
+        const fallback = FALLBACK_DISTRICTS[selectedRegId] || [];
+        setDistrictsList(fallback);
       });
 
     return () => {
@@ -320,11 +359,15 @@ export const WilayahAddressFilter: React.FC<WilayahAddressFilterProps> = ({
     fetchVillages(selectedDistId)
       .then((items) => {
         if (!isMounted) return;
-        setVillagesList(items);
+        const list = items && items.length > 0 ? items : (FALLBACK_VILLAGES[selectedDistId] || []);
+        setVillagesList(list);
         setLoadingVill(false);
       })
       .catch(() => {
-        if (isMounted) setLoadingVill(false);
+        if (!isMounted) return;
+        setLoadingVill(false);
+        const fallback = FALLBACK_VILLAGES[selectedDistId] || [];
+        setVillagesList(fallback);
       });
 
     return () => {
@@ -335,20 +378,15 @@ export const WilayahAddressFilter: React.FC<WilayahAddressFilterProps> = ({
   // 1. PROVINSI HANDLERS
   const handleProvinceInputChange = (val: string) => {
     setActiveDropdown('province');
-    const match = provincesList.find(
-      (p) => p.name.toLowerCase() === val.trim().toLowerCase() ||
-             formatWilayahName(p.name).toLowerCase() === val.trim().toLowerCase()
-    );
+    setIsTypingField('province');
+    const cleanVal = cleanWilayahName(normalizeProvinceName(val));
+    const match = provincesList.find((p) => {
+      const cleanP = cleanWilayahName(p.name);
+      return cleanP === cleanVal;
+    });
 
     if (match) {
       setSelectedProvId(match.id);
-      setSelectedRegId('');
-      setSelectedDistId('');
-      setRegenciesList([]);
-      setDistrictsList([]);
-      setVillagesList([]);
-    } else {
-      setSelectedProvId('');
       setSelectedRegId('');
       setSelectedDistId('');
       setRegenciesList([]);
@@ -375,6 +413,12 @@ export const WilayahAddressFilter: React.FC<WilayahAddressFilterProps> = ({
     setDistrictsList([]);
     setVillagesList([]);
     setActiveDropdown(null);
+    setIsTypingField(null);
+
+    // Pre-fetch regencies immediately
+    fetchRegencies(item.id).then((regs) => {
+      if (regs && regs.length > 0) setRegenciesList(regs);
+    }).catch(() => {});
 
     onChange({
       province: formatted,
@@ -389,25 +433,43 @@ export const WilayahAddressFilter: React.FC<WilayahAddressFilterProps> = ({
   // 2. KOTA / KABUPATEN HANDLERS
   const handleCityInputChange = (val: string) => {
     setActiveDropdown('city');
-    const match = regenciesList.find(
-      (r) => r.name.toLowerCase() === val.trim().toLowerCase() ||
-             formatWilayahName(r.name).toLowerCase() === val.trim().toLowerCase()
-    );
+    setIsTypingField('city');
+    const cleanVal = cleanWilayahName(val);
+    
+    // Cari kecocokan di regenciesList saat ini atau di seluruh fallback provinsi
+    let match = regenciesList.find((r) => {
+      const cleanR = cleanWilayahName(r.name);
+      return cleanR === cleanVal || cleanR.includes(cleanVal);
+    });
+
+    let autoProv = province;
+    if (!match && cleanVal) {
+      for (const [pId, list] of Object.entries(FALLBACK_REGENCIES)) {
+        const found = list.find(r => {
+          const cName = cleanWilayahName(r.name);
+          return cName === cleanVal || cName.includes(cleanVal);
+        });
+        if (found) {
+          match = found;
+          if (pId !== selectedProvId) {
+            setSelectedProvId(pId);
+            const pObj = FALLBACK_PROVINCES.find(p => p.id === pId);
+            if (pObj) autoProv = formatWilayahName(pObj.name);
+          }
+          break;
+        }
+      }
+    }
 
     if (match) {
       setSelectedRegId(match.id);
       setSelectedDistId('');
       setDistrictsList([]);
       setVillagesList([]);
-    } else {
-      setSelectedRegId('');
-      setSelectedDistId('');
-      setDistrictsList([]);
-      setVillagesList([]);
     }
 
     onChange({
-      province,
+      province: autoProv || province,
       city: val,
       kecamatan: '',
       desa: '',
@@ -423,6 +485,12 @@ export const WilayahAddressFilter: React.FC<WilayahAddressFilterProps> = ({
     setDistrictsList([]);
     setVillagesList([]);
     setActiveDropdown(null);
+    setIsTypingField(null);
+
+    // Pre-fetch districts langsung agar saat buka kecamatan instan muncul
+    fetchDistricts(item.id).then((dists) => {
+      if (dists && dists.length > 0) setDistrictsList(dists);
+    }).catch(() => {});
 
     onChange({
       province,
@@ -437,16 +505,15 @@ export const WilayahAddressFilter: React.FC<WilayahAddressFilterProps> = ({
   // 3. KECAMATAN HANDLERS
   const handleKecamatanInputChange = (val: string) => {
     setActiveDropdown('kecamatan');
-    const match = districtsList.find(
-      (d) => d.name.toLowerCase() === val.trim().toLowerCase() ||
-             formatWilayahName(d.name).toLowerCase() === val.trim().toLowerCase()
-    );
+    setIsTypingField('kecamatan');
+    const cleanVal = cleanWilayahName(val);
+    const match = districtsList.find((d) => {
+      const cleanD = cleanWilayahName(d.name);
+      return cleanD === cleanVal || cleanD.includes(cleanVal);
+    });
 
     if (match) {
       setSelectedDistId(match.id);
-      setVillagesList([]);
-    } else {
-      setSelectedDistId('');
       setVillagesList([]);
     }
 
@@ -465,6 +532,12 @@ export const WilayahAddressFilter: React.FC<WilayahAddressFilterProps> = ({
     setSelectedDistId(item.id);
     setVillagesList([]);
     setActiveDropdown(null);
+    setIsTypingField(null);
+
+    // Pre-fetch villages langsung agar saat buka desa instan muncul
+    fetchVillages(item.id).then((vills) => {
+      if (vills && vills.length > 0) setVillagesList(vills);
+    }).catch(() => {});
 
     onChange({
       province,
@@ -479,6 +552,7 @@ export const WilayahAddressFilter: React.FC<WilayahAddressFilterProps> = ({
   // 4. DESA / KELURAHAN HANDLERS
   const handleDesaInputChange = (val: string) => {
     setActiveDropdown('desa');
+    setIsTypingField('desa');
     onChange({
       province,
       city,
@@ -492,6 +566,7 @@ export const WilayahAddressFilter: React.FC<WilayahAddressFilterProps> = ({
   const handleSelectDesa = (item: WilayahItem) => {
     const formatted = formatWilayahName(item.name);
     setActiveDropdown(null);
+    setIsTypingField(null);
     onChange({
       province,
       city,
@@ -504,27 +579,31 @@ export const WilayahAddressFilter: React.FC<WilayahAddressFilterProps> = ({
 
   // Filter lists based on what's typed directly in the respective input
   const filteredProvinces = provincesList.filter((it) => {
-    if (!province.trim()) return true;
-    const q = province.toLowerCase();
-    return it.name.toLowerCase().includes(q) || formatWilayahName(it.name).toLowerCase().includes(q);
+    if (isTypingField !== 'province' || !province.trim()) return true;
+    const q = cleanWilayahName(normalizeProvinceName(province));
+    const n = cleanWilayahName(it.name);
+    return n.includes(q) || q.includes(n);
   });
 
   const filteredRegencies = regenciesList.filter((it) => {
-    if (!city.trim()) return true;
-    const q = city.toLowerCase();
-    return it.name.toLowerCase().includes(q) || formatWilayahName(it.name).toLowerCase().includes(q);
+    if (isTypingField !== 'city' || !city.trim()) return true;
+    const q = cleanWilayahName(city);
+    const n = cleanWilayahName(it.name);
+    return n.includes(q) || q.includes(n);
   });
 
   const filteredDistricts = districtsList.filter((it) => {
-    if (!kecamatan.trim()) return true;
-    const q = kecamatan.toLowerCase();
-    return it.name.toLowerCase().includes(q) || formatWilayahName(it.name).toLowerCase().includes(q);
+    if (isTypingField !== 'kecamatan' || !kecamatan.trim()) return true;
+    const q = cleanWilayahName(kecamatan);
+    const n = cleanWilayahName(it.name);
+    return n.includes(q) || q.includes(n);
   });
 
   const filteredVillages = villagesList.filter((it) => {
-    if (!desa.trim()) return true;
-    const q = desa.toLowerCase();
-    return it.name.toLowerCase().includes(q) || formatWilayahName(it.name).toLowerCase().includes(q);
+    if (isTypingField !== 'desa' || !desa.trim()) return true;
+    const q = cleanWilayahName(desa);
+    const n = cleanWilayahName(it.name);
+    return n.includes(q) || q.includes(n);
   });
 
   // Handle location selected from fullscreen interactive map
@@ -576,8 +655,14 @@ export const WilayahAddressFilter: React.FC<WilayahAddressFilterProps> = ({
               placeholder="Ketik provinsi..."
               value={province}
               onChange={(e) => handleProvinceInputChange(e.target.value)}
-              onFocus={() => setActiveDropdown('province')}
-              onClick={() => setActiveDropdown('province')}
+              onFocus={() => {
+                setActiveDropdown('province');
+                setIsTypingField(null);
+              }}
+              onClick={() => {
+                setActiveDropdown('province');
+                setIsTypingField(null);
+              }}
               className={`w-full pl-3 pr-7 py-2 bg-slate-50 border rounded-xl text-xs font-medium text-slate-800 placeholder-slate-400 focus:outline-none transition-colors ${
                 activeDropdown === 'province'
                   ? 'border-sky-500 ring-2 ring-sky-100 bg-white'
@@ -614,9 +699,9 @@ export const WilayahAddressFilter: React.FC<WilayahAddressFilterProps> = ({
             </div>
           </div>
 
-          {/* DROPDOWN MENU PROVINSI (DI ATAS INPUT BOX AGAR TIDAK TERTIMBUN KEYBOARD) */}
+          {/* DROPDOWN MENU PROVINSI */}
           {activeDropdown === 'province' && (
-            <div className="absolute left-0 right-0 bottom-full mb-1.5 z-[999] bg-white border border-slate-200 rounded-2xl shadow-2xl overflow-hidden animate-in fade-in ring-1 ring-black/10">
+            <div className="absolute left-0 right-0 top-full mt-1.5 z-[9999] bg-white border border-slate-200 rounded-2xl shadow-2xl overflow-hidden animate-in fade-in ring-1 ring-black/10">
               <div className="px-3 py-1.5 bg-slate-50 border-b border-slate-100 flex items-center justify-between text-[10px] text-slate-400 font-medium">
                 <span>Pilih Provinsi</span>
                 <ChevronDown className="w-3 h-3 text-slate-400" />
@@ -665,20 +750,19 @@ export const WilayahAddressFilter: React.FC<WilayahAddressFilterProps> = ({
           <div className="relative flex items-center">
             <input
               type="text"
-              placeholder={!selectedProvId ? 'Pilih provinsi dulu' : 'Ketik kota/kabupaten...'}
-              disabled={!selectedProvId}
+              placeholder={!selectedProvId ? 'Pilih provinsi atau ketik kota...' : 'Ketik kota/kabupaten...'}
               value={city}
               onChange={(e) => handleCityInputChange(e.target.value)}
               onFocus={() => {
-                if (selectedProvId) setActiveDropdown('city');
+                setActiveDropdown('city');
+                setIsTypingField(null);
               }}
               onClick={() => {
-                if (selectedProvId) setActiveDropdown('city');
+                setActiveDropdown('city');
+                setIsTypingField(null);
               }}
               className={`w-full pl-3 pr-7 py-2 rounded-xl text-xs font-medium text-slate-800 placeholder-slate-400 focus:outline-none transition-colors ${
-                !selectedProvId
-                  ? 'bg-slate-100 border border-slate-200/60 cursor-not-allowed opacity-60'
-                  : activeDropdown === 'city'
+                activeDropdown === 'city'
                   ? 'border-sky-500 ring-2 ring-sky-100 bg-white'
                   : 'bg-slate-50 border border-slate-200 hover:border-slate-300'
               }`}
@@ -711,9 +795,9 @@ export const WilayahAddressFilter: React.FC<WilayahAddressFilterProps> = ({
             </div>
           </div>
 
-          {/* DROPDOWN MENU KOTA / KABUPATEN (DI ATAS INPUT BOX AGAR TIDAK TERTIMBUN KEYBOARD) */}
-          {activeDropdown === 'city' && selectedProvId && (
-            <div className="absolute left-0 right-0 bottom-full mb-1.5 z-[999] bg-white border border-slate-200 rounded-2xl shadow-2xl overflow-hidden animate-in fade-in ring-1 ring-black/10">
+          {/* DROPDOWN MENU KOTA / KABUPATEN */}
+          {activeDropdown === 'city' && (
+            <div className="absolute left-0 right-0 top-full mt-1.5 z-[9999] bg-white border border-slate-200 rounded-2xl shadow-2xl overflow-hidden animate-in fade-in ring-1 ring-black/10">
               <div className="px-3 py-1.5 bg-slate-50 border-b border-slate-100 flex items-center justify-between text-[10px] text-slate-400 font-medium">
                 <span>Pilih Kota / Kabupaten</span>
                 <ChevronDown className="w-3 h-3 text-slate-400" />
@@ -746,7 +830,7 @@ export const WilayahAddressFilter: React.FC<WilayahAddressFilterProps> = ({
                 })}
                 {!loadingReg && filteredRegencies.length === 0 && (
                   <div className="px-3 py-3 text-center text-xs text-slate-400">
-                    Tidak ada kota/kabupaten yang cocok
+                    {!selectedProvId ? 'Silakan pilih provinsi terlebih dahulu.' : 'Tidak ada kota/kabupaten yang cocok'}
                   </div>
                 )}
               </div>
@@ -770,10 +854,16 @@ export const WilayahAddressFilter: React.FC<WilayahAddressFilterProps> = ({
               value={kecamatan}
               onChange={(e) => handleKecamatanInputChange(e.target.value)}
               onFocus={() => {
-                if (selectedRegId) setActiveDropdown('kecamatan');
+                if (selectedRegId) {
+                  setActiveDropdown('kecamatan');
+                  setIsTypingField(null);
+                }
               }}
               onClick={() => {
-                if (selectedRegId) setActiveDropdown('kecamatan');
+                if (selectedRegId) {
+                  setActiveDropdown('kecamatan');
+                  setIsTypingField(null);
+                }
               }}
               className={`w-full pl-3 pr-7 py-2 rounded-xl text-xs font-medium text-slate-800 placeholder-slate-400 focus:outline-none transition-colors ${
                 !selectedRegId
@@ -809,14 +899,29 @@ export const WilayahAddressFilter: React.FC<WilayahAddressFilterProps> = ({
             </div>
           </div>
 
-          {/* DROPDOWN MENU KECAMATAN (DI ATAS INPUT BOX AGAR TIDAK TERTIMBUN KEYBOARD) */}
+          {/* DROPDOWN MENU KECAMATAN */}
           {activeDropdown === 'kecamatan' && selectedRegId && (
-            <div className="absolute left-0 right-0 bottom-full mb-1.5 z-[999] bg-white border border-slate-200 rounded-2xl shadow-2xl overflow-hidden animate-in fade-in ring-1 ring-black/10">
+            <div className="absolute left-0 right-0 top-full mt-1.5 z-[9999] bg-white border border-slate-200 rounded-2xl shadow-2xl overflow-hidden animate-in fade-in ring-1 ring-black/10">
               <div className="px-3 py-1.5 bg-slate-50 border-b border-slate-100 flex items-center justify-between text-[10px] text-slate-400 font-medium">
                 <span>Pilih Kecamatan</span>
                 <ChevronDown className="w-3 h-3 text-slate-400" />
               </div>
               <div className="max-h-48 overflow-y-auto divide-y divide-slate-50">
+                {/* Opsi Gunakan Input Mandiri jika kecamatan diketik belum ada di daftar resmi */}
+                {kecamatan.trim() && !filteredDistricts.some(d => cleanWilayahName(d.name) === cleanWilayahName(kecamatan)) && (
+                  <div
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      setActiveDropdown(null);
+                      setIsTypingField(null);
+                    }}
+                    className="px-3 py-2 text-xs cursor-pointer flex items-center gap-2 bg-sky-50 hover:bg-sky-100 text-sky-800 font-semibold border-b border-sky-100 transition-colors"
+                  >
+                    <Plus className="w-3.5 h-3.5 text-sky-600 shrink-0" />
+                    <span className="truncate">Gunakan &quot;{kecamatan.trim()}&quot; (Input Mandiri)</span>
+                  </div>
+                )}
+
                 {loadingDist && (
                   <div className="px-3 py-4 text-center text-xs text-sky-600 flex items-center justify-center gap-1.5">
                     <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -825,7 +930,7 @@ export const WilayahAddressFilter: React.FC<WilayahAddressFilterProps> = ({
                 )}
                 {!loadingDist && filteredDistricts.map((item) => {
                   const nameFormatted = formatWilayahName(item.name);
-                  const isSelected = kecamatan.toLowerCase() === nameFormatted.toLowerCase();
+                  const isSelected = cleanWilayahName(kecamatan) === cleanWilayahName(item.name);
                   return (
                     <div
                       key={item.id}
@@ -865,10 +970,16 @@ export const WilayahAddressFilter: React.FC<WilayahAddressFilterProps> = ({
               value={desa}
               onChange={(e) => handleDesaInputChange(e.target.value)}
               onFocus={() => {
-                if (selectedDistId) setActiveDropdown('desa');
+                if (selectedDistId) {
+                  setActiveDropdown('desa');
+                  setIsTypingField(null);
+                }
               }}
               onClick={() => {
-                if (selectedDistId) setActiveDropdown('desa');
+                if (selectedDistId) {
+                  setActiveDropdown('desa');
+                  setIsTypingField(null);
+                }
               }}
               className={`w-full pl-3 pr-7 py-2 rounded-xl text-xs font-medium text-slate-800 placeholder-slate-400 focus:outline-none transition-colors ${
                 !selectedDistId
@@ -905,20 +1016,21 @@ export const WilayahAddressFilter: React.FC<WilayahAddressFilterProps> = ({
             Bisa ketik nama desa/dusun secara manual jika tidak ada di daftar.
           </span>
 
-          {/* DROPDOWN MENU DESA (DI ATAS INPUT BOX AGAR TIDAK TERTIMBUN KEYBOARD) */}
+          {/* DROPDOWN MENU DESA */}
           {activeDropdown === 'desa' && selectedDistId && (
-            <div className="absolute left-0 right-0 bottom-full mb-1.5 z-[999] bg-white border border-slate-200 rounded-2xl shadow-2xl overflow-hidden animate-in fade-in ring-1 ring-black/10">
+            <div className="absolute left-0 right-0 top-full mt-1.5 z-[9999] bg-white border border-slate-200 rounded-2xl shadow-2xl overflow-hidden animate-in fade-in ring-1 ring-black/10">
               <div className="px-3 py-1.5 bg-slate-50 border-b border-slate-100 flex items-center justify-between text-[10px] text-slate-400 font-medium">
                 <span>Pilih Desa / Kelurahan</span>
                 <ChevronDown className="w-3 h-3 text-slate-400" />
               </div>
               <div className="max-h-48 overflow-y-auto divide-y divide-slate-50">
                 {/* Opsi Gunakan Input Mandiri jika nama desa diketik tapi belum ada di daftar resmi */}
-                {desa.trim() && !filteredVillages.some(v => formatWilayahName(v.name).toLowerCase() === desa.trim().toLowerCase()) && (
+                {desa.trim() && !filteredVillages.some(v => cleanWilayahName(v.name) === cleanWilayahName(desa)) && (
                   <div
                     onMouseDown={(e) => {
                       e.preventDefault();
                       setActiveDropdown(null);
+                      setIsTypingField(null);
                     }}
                     className="px-3 py-2 text-xs cursor-pointer flex items-center gap-2 bg-sky-50 hover:bg-sky-100 text-sky-800 font-semibold border-b border-sky-100 transition-colors"
                   >
@@ -935,7 +1047,7 @@ export const WilayahAddressFilter: React.FC<WilayahAddressFilterProps> = ({
                 )}
                 {!loadingVill && filteredVillages.map((item) => {
                   const nameFormatted = formatWilayahName(item.name);
-                  const isSelected = desa.toLowerCase() === nameFormatted.toLowerCase();
+                  const isSelected = cleanWilayahName(desa) === cleanWilayahName(item.name);
                   return (
                     <div
                       key={item.id}
@@ -961,6 +1073,7 @@ export const WilayahAddressFilter: React.FC<WilayahAddressFilterProps> = ({
                         onMouseDown={(e) => {
                           e.preventDefault();
                           setActiveDropdown(null);
+                          setIsTypingField(null);
                         }}
                         className="w-full py-1.5 px-2 bg-sky-600 hover:bg-sky-700 text-white rounded-lg font-bold text-[11px] flex items-center justify-center gap-1.5 cursor-pointer transition-colors"
                       >

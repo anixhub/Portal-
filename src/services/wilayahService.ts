@@ -1,3 +1,5 @@
+import { REMBANG_DISTRICTS, REMBANG_VILLAGES_BY_DISTRICT } from '../data/rembangWilayahData';
+
 export interface WilayahItem {
   id: string;
   name: string;
@@ -18,11 +20,12 @@ export const formatWilayahName = (name: string): string => {
     .join(' ');
 };
 
-// Use direct HTTPS URL to avoid 301 Mixed Content redirects on GitHub Pages
-const BASE_URL = 'https://www.emsifa.com/api-wilayah-indonesia/api';
+// Configurable wilayah API endpoint (mendukung endpoint buatan sendiri atau default emsifa)
+const DEFAULT_API_URL = 'https://www.emsifa.com/api-wilayah-indonesia/api';
+const BASE_URL = (import.meta.env.VITE_WILAYAH_API_URL || DEFAULT_API_URL).replace(/\/+$/, '');
 
 // Comprehensive Fallback Provinces
-const FALLBACK_PROVINCES: WilayahItem[] = [
+export const FALLBACK_PROVINCES: WilayahItem[] = [
   { id: '11', name: 'ACEH' },
   { id: '12', name: 'SUMATERA UTARA' },
   { id: '13', name: 'SUMATERA BARAT' },
@@ -60,7 +63,7 @@ const FALLBACK_PROVINCES: WilayahItem[] = [
 ];
 
 // Fallback Regencies for major provinces to ensure 100% instant display even if network is restricted
-const FALLBACK_REGENCIES: Record<string, WilayahItem[]> = {
+export const FALLBACK_REGENCIES: Record<string, WilayahItem[]> = {
   // Jawa Timur (35)
   '35': [
     { id: '3501', name: 'KABUPATEN PACITAN' },
@@ -201,7 +204,7 @@ const FALLBACK_REGENCIES: Record<string, WilayahItem[]> = {
 };
 
 // Fallback Districts for Kota Malang (3573) and Kabupaten Malang (3507)
-const FALLBACK_DISTRICTS: Record<string, WilayahItem[]> = {
+export const FALLBACK_DISTRICTS: Record<string, WilayahItem[]> = {
   '3573': [ // Kota Malang
     { id: '3573010', name: 'KEDUNGKANDANG' },
     { id: '3573020', name: 'SUKUN' },
@@ -243,12 +246,14 @@ const FALLBACK_DISTRICTS: Record<string, WilayahItem[]> = {
     { id: '3507310', name: 'PAGAK' },
     { id: '3507320', name: 'SUMBERPUCUNG' },
     { id: '3507330', name: 'LAWANG' }
-  ]
+  ],
+  // Kabupaten Rembang (3317) - 14 Kecamatan Lengkap
+  '3317': REMBANG_DISTRICTS
 };
 
-// Fallback Villages for Klojen (3573030)
-const FALLBACK_VILLAGES: Record<string, WilayahItem[]> = {
-  '3573030': [ // Klojen
+// Fallback Villages for Klojen (3573030), Sumber (3317010), Sedan (3317060), and all Rembang districts
+export const FALLBACK_VILLAGES: Record<string, WilayahItem[]> = {
+  '3573030': [ // Klojen, Kota Malang
     { id: '3573030001', name: 'KASIN' },
     { id: '3573030002', name: 'SUKOHARJO' },
     { id: '3573030003', name: 'KIDUL DALEM' },
@@ -260,7 +265,174 @@ const FALLBACK_VILLAGES: Record<string, WilayahItem[]> = {
     { id: '3573030009', name: 'SAMAAN' },
     { id: '3573030010', name: 'PENANGGUNGAN' },
     { id: '3573030011', name: 'KLOJEN' }
+  ],
+  // Seluruh desa dari 14 kecamatan di Kabupaten Rembang (termasuk Sedan dan Sumber)
+  ...REMBANG_VILLAGES_BY_DISTRICT
+};
+
+// Daftar desa yang sering tertinggal di endpoint EMSIFA agar otomatis ditambahkan ke dropdown
+const KNOWN_EXTRA_VILLAGES: Record<string, WilayahItem[]> = {
+  // Sumber, Kab Rembang (emsifa melewatkan Kedungtulup, Sumber, dan Megulung)
+  '3317010': [
+    { id: '3317010006', name: 'KEDUNGTULUP' },
+    { id: '3317010009', name: 'SUMBER' },
+    { id: '3317010016', name: 'MEGULUNG' }
+  ],
+  '33.17.01': [
+    { id: '33.17.01.2006', name: 'Kedungtulup' },
+    { id: '33.17.01.2009', name: 'Sumber' },
+    { id: '33.17.01.2016', name: 'Megulung' }
   ]
+};
+
+// Clean prefixes and punctuation for resilient matching
+export const cleanWilayahName = (name: string): string => {
+  if (!name) return '';
+  return name
+    .toLowerCase()
+    .replace(/^(provinsi|prov\.|daerah khusus ibukota|daerah istimewa|dki|di)\s+/i, '')
+    .replace(/^(kabupaten|kota administrasi|kota adm\.|kota|kab\.|kot\.)\s+/i, '')
+    .replace(/^(kecamatan|kec\.)\s+/i, '')
+    .replace(/^(desa|kelurahan|ds\.|kel\.)\s+/i, '')
+    .trim();
+};
+
+export const normalizeProvinceName = (prov: string): string => {
+  if (!prov) return '';
+  const p = prov.trim().toUpperCase();
+  if (p === 'JATENG') return 'JAWA TENGAH';
+  if (p === 'JATIM') return 'JAWA TIMUR';
+  if (p === 'JABAR') return 'JAWA BARAT';
+  if (p === 'DKI' || p === 'JAKARTA') return 'DKI JAKARTA';
+  if (p === 'DIY' || p === 'JOGJA' || p === 'YOGYAKARTA') return 'DI YOGYAKARTA';
+  if (p === 'BANTEN') return 'BANTEN';
+  if (p === 'BALI') return 'BALI';
+  if (p === 'SUMUT') return 'SUMATERA UTARA';
+  if (p === 'SUMBAR') return 'SUMATERA BARAT';
+  if (p === 'SUMSEL') return 'SUMATERA SELATAN';
+  if (p === 'LAMPUNG') return 'LAMPUNG';
+  if (p === 'ACEH') return 'ACEH';
+  if (p === 'RIAU') return 'RIAU';
+  if (p === 'JAMBI') return 'JAMBI';
+  return prov;
+};
+
+export interface ResolvedLocation {
+  provId: string;
+  provName: string;
+  regId: string;
+  regName: string;
+  distId: string;
+  distName: string;
+}
+
+export const resolveLocationHierarchy = (
+  rawProv?: string,
+  rawCity?: string,
+  rawKec?: string
+): ResolvedLocation => {
+  let provId = '';
+  let provName = '';
+  let regId = '';
+  let regName = '';
+  let distId = '';
+  let distName = '';
+
+  const cleanProv = cleanWilayahName(normalizeProvinceName(rawProv || ''));
+  const cleanCity = cleanWilayahName(rawCity || '');
+  const cleanKec = cleanWilayahName(rawKec || '');
+
+  // 1. Try to match province directly
+  if (cleanProv) {
+    const provMatch = FALLBACK_PROVINCES.find(
+      p => cleanWilayahName(p.name) === cleanProv || cleanWilayahName(p.name).includes(cleanProv)
+    );
+    if (provMatch) {
+      provId = provMatch.id;
+      provName = formatWilayahName(provMatch.name);
+    }
+  }
+
+  // 2. If province not found or empty, search city across known provinces
+  if (!provId && cleanCity) {
+    for (const [pId, regList] of Object.entries(FALLBACK_REGENCIES)) {
+      const regMatch = regList.find(r => {
+        const cName = cleanWilayahName(r.name);
+        return cName === cleanCity || cName.includes(cleanCity) || cleanCity.includes(cName);
+      });
+      if (regMatch) {
+        provId = pId;
+        const pObj = FALLBACK_PROVINCES.find(p => p.id === pId);
+        provName = pObj ? formatWilayahName(pObj.name) : '';
+        regId = regMatch.id;
+        regName = formatWilayahName(regMatch.name);
+        break;
+      }
+    }
+  }
+
+  // 3. If province still not found, check if kecamatan belongs to known district
+  if (!provId && cleanKec) {
+    for (const [rId, distList] of Object.entries(FALLBACK_DISTRICTS)) {
+      const distMatch = distList.find(d => {
+        const dName = cleanWilayahName(d.name);
+        return dName === cleanKec || dName.includes(cleanKec) || cleanKec.includes(dName);
+      });
+      if (distMatch) {
+        for (const [pId, regList] of Object.entries(FALLBACK_REGENCIES)) {
+          const rObj = regList.find(r => r.id === rId);
+          if (rObj) {
+            provId = pId;
+            const pObj = FALLBACK_PROVINCES.find(p => p.id === pId);
+            provName = pObj ? formatWilayahName(pObj.name) : '';
+            regId = rId;
+            regName = formatWilayahName(rObj.name);
+            distId = distMatch.id;
+            distName = formatWilayahName(distMatch.name);
+            break;
+          }
+        }
+        if (provId) break;
+      }
+    }
+  }
+
+  // 4. If provId is found, but regId is still not found, search city in that province
+  if (provId && !regId && cleanCity) {
+    const regList = FALLBACK_REGENCIES[provId] || [];
+    const regMatch = regList.find(r => {
+      const cName = cleanWilayahName(r.name);
+      return cName === cleanCity || cName.includes(cleanCity) || cleanCity.includes(cName);
+    });
+    if (regMatch) {
+      regId = regMatch.id;
+      regName = formatWilayahName(regMatch.name);
+    }
+  }
+
+  // 5. If regId is found, but distId is still not found, search kecamatan in that regency
+  if (regId && !distId && cleanKec) {
+    const distList = FALLBACK_DISTRICTS[regId] || [];
+    const distMatch = distList.find(d => {
+      const dName = cleanWilayahName(d.name);
+      return dName === cleanKec || dName.includes(cleanKec) || cleanKec.includes(dName);
+    });
+    if (distMatch) {
+      distId = distMatch.id;
+      distName = formatWilayahName(distMatch.name);
+    }
+  }
+
+  return { provId, provName, regId, regName, distId, distName };
+};
+
+// Helper untuk normalisasi item dari berbagai format API (emsifa [{id, name}], wilayah.id {data: [{code, name}]})
+const normalizeItems = (raw: any): WilayahItem[] => {
+  const arr = Array.isArray(raw) ? raw : (Array.isArray(raw?.data) ? raw.data : []);
+  return arr.map((item: any) => ({
+    id: String(item.id || item.code || ''),
+    name: String(item.name || '')
+  }));
 };
 
 export const fetchProvinces = async (): Promise<WilayahItem[]> => {
@@ -268,10 +440,14 @@ export const fetchProvinces = async (): Promise<WilayahItem[]> => {
     return cache.get('provinces')!;
   }
   try {
-    const res = await fetch(`${BASE_URL}/provinces.json`);
+    let res = await fetch('/api/wilayah/provinces').catch(() => null);
+    if (!res || !res.ok) {
+      res = await fetch(`${BASE_URL}/provinces.json`);
+    }
     if (!res.ok) throw new Error('HTTP ' + res.status);
-    const data: WilayahItem[] = await res.json();
-    if (Array.isArray(data) && data.length > 0) {
+    const raw = await res.json();
+    const data = normalizeItems(raw);
+    if (data.length > 0) {
       cache.set('provinces', data);
       return data;
     }
@@ -290,10 +466,14 @@ export const fetchRegencies = async (provinceId: string): Promise<WilayahItem[]>
     return cache.get(cacheKey)!;
   }
   try {
-    const res = await fetch(`${BASE_URL}/regencies/${provinceId}.json`);
+    let res = await fetch(`/api/wilayah/regencies/${provinceId}`).catch(() => null);
+    if (!res || !res.ok) {
+      res = await fetch(`${BASE_URL}/regencies/${provinceId}.json`);
+    }
     if (!res.ok) throw new Error('HTTP ' + res.status);
-    const data: WilayahItem[] = await res.json();
-    if (Array.isArray(data) && data.length > 0) {
+    const raw = await res.json();
+    const data = normalizeItems(raw);
+    if (data.length > 0) {
       cache.set(cacheKey, data);
       return data;
     }
@@ -312,11 +492,23 @@ export const fetchDistricts = async (regencyId: string): Promise<WilayahItem[]> 
   if (cache.has(cacheKey)) {
     return cache.get(cacheKey)!;
   }
+
+  // Cek fallback lokal Rembang terlebih dahulu untuk kecepatan instan
+  if (FALLBACK_DISTRICTS[regencyId] && FALLBACK_DISTRICTS[regencyId].length > 0) {
+    const local = FALLBACK_DISTRICTS[regencyId];
+    cache.set(cacheKey, local);
+    return local;
+  }
+
   try {
-    const res = await fetch(`${BASE_URL}/districts/${regencyId}.json`);
+    let res = await fetch(`/api/wilayah/districts/${regencyId}`).catch(() => null);
+    if (!res || !res.ok) {
+      res = await fetch(`${BASE_URL}/districts/${regencyId}.json`);
+    }
     if (!res.ok) throw new Error('HTTP ' + res.status);
-    const data: WilayahItem[] = await res.json();
-    if (Array.isArray(data) && data.length > 0) {
+    const raw = await res.json();
+    const data = normalizeItems(raw);
+    if (data.length > 0) {
       cache.set(cacheKey, data);
       return data;
     }
@@ -335,11 +527,36 @@ export const fetchVillages = async (districtId: string): Promise<WilayahItem[]> 
   if (cache.has(cacheKey)) {
     return cache.get(cacheKey)!;
   }
+
+  // Cek fallback lokal terlebih dahulu (terutama Sedan 3317060 dan Sumber 3317010)
+  if (FALLBACK_VILLAGES[districtId] && FALLBACK_VILLAGES[districtId].length > 0) {
+    const local = FALLBACK_VILLAGES[districtId];
+    cache.set(cacheKey, local);
+    return local;
+  }
+
   try {
-    const res = await fetch(`${BASE_URL}/villages/${districtId}.json`);
+    let res = await fetch(`/api/wilayah/villages/${districtId}`).catch(() => null);
+    if (!res || !res.ok) {
+      res = await fetch(`${BASE_URL}/villages/${districtId}.json`);
+    }
     if (!res.ok) throw new Error('HTTP ' + res.status);
-    const data: WilayahItem[] = await res.json();
-    if (Array.isArray(data) && data.length > 0) {
+    const raw = await res.json();
+    const data = normalizeItems(raw);
+    if (data.length > 0) {
+      // Lengkapi desa yang hilang dari emsifa jika ada
+      const extra = KNOWN_EXTRA_VILLAGES[districtId] || [];
+      for (const item of extra) {
+        const alreadyExists = data.some(
+          d => d.name.toLowerCase() === item.name.toLowerCase() ||
+               d.id === item.id
+        );
+        if (!alreadyExists) {
+          data.push(item);
+        }
+      }
+      data.sort((a, b) => a.name.localeCompare(b.name));
+
       cache.set(cacheKey, data);
       return data;
     }

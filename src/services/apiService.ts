@@ -7,7 +7,7 @@ export const HOSTINGER_API_URL =
 
 // URL Endpoint Express DB Backend SmartSantri (aplikasi lama)
 export const HOSTINGER_EXPRESS_DB_URL =
-  import.meta.env.VITE_HOSTINGER_EXPRESS_DB_URL || 'https://attaroqqy.com/api/db';
+  import.meta.env.VITE_HOSTINGER_EXPRESS_DB_URL || '/api/db';
 
 export interface HostingerApiResponse<T> {
   success: boolean;
@@ -15,6 +15,152 @@ export interface HostingerApiResponse<T> {
   data?: T;
   message?: string;
   id?: string;
+}
+
+/**
+ * Normalisasi data santri dari database Hostinger MySQL / Express ke AlumniRecord
+ */
+export function normalizeSingleAlumni(item: any): AlumniRecord {
+  // Gender parser
+  const rawGender = String(
+    item.gender ??
+    item.jenis_kelamin ??
+    item.jenisKelamin ??
+    item.jk ??
+    item.jeniskelamin ??
+    item.sex ??
+    item.kelamin ??
+    ''
+  ).trim().toLowerCase();
+
+  const isPutri = 
+    rawGender === 'p' ||
+    rawGender === 'f' ||
+    rawGender === '2' ||
+    rawGender.startsWith('perem') ||
+    rawGender.startsWith('putri') ||
+    rawGender === 'wanita' ||
+    rawGender === 'female';
+
+  const gender: 'L' | 'P' = isPutri ? 'P' : 'L';
+
+  // Urutan anak (anak ke - database field: anak_ke)
+  const rawAnakKe = 
+    item.anak_ke ??
+    item.anakKe ??
+    item.anakke ??
+    item.urutanAnak ??
+    item.urutan_anak ??
+    item.urutan ??
+    item.anak ??
+    item.anak_ke_berapa;
+  const parsedAnakKe = parseInt(String(rawAnakKe !== undefined && rawAnakKe !== null ? rawAnakKe : '').replace(/[^0-9]/g, ''), 10);
+  const urutanAnak = !isNaN(parsedAnakKe) && parsedAnakKe >= 0 ? parsedAnakKe : 1;
+  const anak_ke = urutanAnak;
+
+  // Jumlah saudara (database field: dari_bersaudara / jumlah_saudara / dariBersaudara)
+  const rawDariBersaudara = 
+    item.dari_bersaudara ??
+    item.dariBersaudara ??
+    item.jumlahSaudara ??
+    item.jumlah_saudara ??
+    item.daribersaudara ??
+    item.bersaudara ??
+    item.jml_saudara ??
+    item.saudara ??
+    item.jml_sdr ??
+    item.saudara_kandung ??
+    item.jumlah_saudara_kandung ??
+    item.total_saudara ??
+    item.saudara_total ??
+    item.banyak_saudara;
+  const parsedSaudara = parseInt(String(rawDariBersaudara !== undefined && rawDariBersaudara !== null ? rawDariBersaudara : '').replace(/[^0-9]/g, ''), 10);
+  const jumlahSaudara = !isNaN(parsedSaudara) && parsedSaudara >= 0 ? parsedSaudara : 0;
+  const dari_bersaudara = jumlahSaudara;
+
+  // Tempat & Tanggal Lahir
+  const tempatLahir = item.tempatLahir || item.tempat_lahir || item.tmp_lahir || item.tmplahir || item.kota_lahir || '';
+  const tanggalLahir = item.tanggalLahir || item.tanggal_lahir || item.tgl_lahir || item.tgllahir || item.tglLahir || '';
+
+  // Tahun boyong / lulus & masuk
+  const gradYear = String(
+    item.gradYear ||
+    item.tahun_lulus ||
+    item.thn_lulus ||
+    item.tahun_boyong ||
+    item.thn_boyong ||
+    item.boyong ||
+    item.lulus ||
+    (item.tanggal_keluar ? String(item.tanggal_keluar).slice(0, 4) : '2022')
+  );
+  const entryYear = String(
+    item.entryYear ||
+    item.tahun_masuk ||
+    item.thn_masuk ||
+    item.masuk ||
+    (item.tanggal_masuk ? String(item.tanggal_masuk).slice(0, 4) : '2016')
+  );
+
+  // Alamat
+  const desa = item.desa || item.kelurahan || item.desa_kelurahan || item.nama_desa || '';
+  const kecamatan = item.kecamatan || item.nama_kecamatan || item.kec || '';
+  const city = item.city || item.kabupaten || item.kota || item.kab || item.kab_kota || item.nama_kabupaten || '';
+  const province = item.province || item.provinsi || item.propinsi || item.nama_provinsi || '';
+  const alamatLengkap = item.alamatLengkap || item.address || item.alamat || (item.asal ? 'Asal: ' + item.asal : '');
+  
+  return {
+    id: String(item.id || `alm-${Math.random().toString(36).substring(2, 9)}`),
+    nik: item.nik || '',
+    noKk: item.noKk || item.no_kk || item.nokk || '',
+    nis: String(item.nis || ''),
+    nism: String(item.nism || ''),
+    nisn: String(item.nisn || ''),
+    name: item.name || item.nama || item.nama_lengkap || 'Tanpa Nama',
+    username: item.username || (item.nama ? item.nama.toLowerCase().replace(/\s+/g, '_') : (item.name ? item.name.toLowerCase().replace(/\s+/g, '_') : 'santri_' + item.id)),
+    gender,
+    tempatLahir,
+    tanggalLahir,
+    anak_ke,
+    dari_bersaudara,
+    urutanAnak,
+    jumlahSaudara,
+    namaAyah: item.namaAyah || item.nama_ayah || item.nama_bapak || item.ayah || item.bapak || '',
+    nikAyah: item.nikAyah || item.nik_ayah || item.nik_bapak || '',
+    pekerjaanAyah: item.pekerjaanAyah || item.pekerjaan_ayah || item.pekerjaan_bapak || '',
+    pendidikanAyah: item.pendidikanAyah || item.pendidikan_ayah || item.pendidikan_bapak || '',
+    namaIbu: item.namaIbu || item.nama_ibu || item.ibu || '',
+    nikIbu: item.nikIbu || item.nik_ibu || '',
+    pekerjaanIbu: item.pekerjaanIbu || item.pekerjaan_ibu || '',
+    pendidikanIbu: item.pendidikanIbu || item.pendidikan_ibu || '',
+    gradYear,
+    entryYear,
+    entryDate: item.entryDate || item.entry_date || item.tgl_masuk || item.tanggal_masuk || '',
+    gradDate: item.gradDate || item.grad_date || item.tgl_lulus || item.tanggal_keluar || '',
+    jenjang: item.jenjang || 'Madrasah Aliyah Keagamaan (MAK)',
+    asramaDulu: item.asramaDulu || item.asrama || item.komplek || item.kamar || 'Komplek Santri',
+    email: item.email || '',
+    phone: item.phone || item.no_hp || item.nohp || item.telepon || item.wa || '',
+    alamatLengkap,
+    desa,
+    kecamatan,
+    city,
+    province,
+    occupation: item.occupation || item.pekerjaan || item.profesi || '',
+    institution: item.institution || item.instansi || item.perusahaan || item.kampus || '',
+    photoUrl: item.avatarUrl || item.photoUrl || item.foto || item.foto_url || item.file_pas_foto || '',
+    coverPhotoUrl: item.coverPhotoUrl || item.foto_sampul || item.sampul || '',
+    bio: item.bio || '',
+    coordinates: item.coordinates || (item.latitude && item.longitude ? { lat: Number(item.latitude), lng: Number(item.longitude) } : undefined),
+    password: String(item.password || '1234'),
+    isPasswordChanged: Boolean(item.isPasswordChanged || item.is_password_changed),
+    hasLoggedIn: Boolean(item.hasLoggedIn || item.isPasswordChanged || item.is_password_changed),
+    shareContact: item.shareContact !== undefined ? Boolean(item.shareContact) : (item.share_contact !== undefined ? Boolean(item.share_contact) : true),
+    shareFullAddress: true,
+    shareLocationTag: true,
+    status: 'alumni',
+    source: 'hostinger_sync',
+    syncTime: new Date().toISOString().replace('T', ' ').slice(0, 19),
+  };
 }
 
 /**
@@ -26,189 +172,97 @@ export async function fetchAlumniFromHostinger(): Promise<{
   isLive: boolean;
   message?: string;
 }> {
-  try {
-    const response = await fetch(`${HOSTINGER_API_URL}?action=get_alumni`, {
-      method: 'GET',
-      headers: {
-        Accept: 'application/json',
-      },
-    });
+  const endpointsToTry = [
+    '/api/db/santri',
+    `${HOSTINGER_EXPRESS_DB_URL}/santri`,
+    'https://attaroqqy.com/api/db/santri',
+    'https://api.allorigins.win/raw?url=https%3A%2F%2Fattaroqqy.com%2Fapi%2Fdb%2Fsantri',
+    `${HOSTINGER_API_URL}?action=get_alumni`,
+  ];
 
-    if (!response.ok) {
-      throw new Error(`HTTP Error ${response.status}: ${response.statusText}`);
-    }
+  for (const url of endpointsToTry) {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 6000);
 
-    const result: HostingerApiResponse<AlumniRecord[]> = await response.json();
-
-    if (result.success && Array.isArray(result.data)) {
-      // Normalisasi data jika ada kolom dengan nama berbeda dari MySQL / Hostinger
-      const normalizedData: AlumniRecord[] = result.data.map((item: any) => {
-        // Gender parser
-        const rawGender = String(
-          item.gender ??
-          item.jenis_kelamin ??
-          item.jenisKelamin ??
-          item.jk ??
-          item.jeniskelamin ??
-          item.sex ??
-          item.kelamin ??
-          ''
-        ).trim().toLowerCase();
-
-        const isPutri = 
-          rawGender === 'p' ||
-          rawGender === 'f' ||
-          rawGender === '2' ||
-          rawGender.startsWith('perem') ||
-          rawGender.startsWith('putri') ||
-          rawGender === 'wanita' ||
-          rawGender === 'female';
-
-        const gender: 'L' | 'P' = isPutri ? 'P' : 'L';
-
-        // Urutan anak (anak ke - database field: anak_ke)
-        const rawAnakKe = 
-          item.anak_ke ??
-          item.anakKe ??
-          item.anakke ??
-          item.urutanAnak ??
-          item.urutan_anak ??
-          item.urutan ??
-          item.anak ??
-          item.anak_ke_berapa;
-        const parsedAnakKe = parseInt(String(rawAnakKe !== undefined && rawAnakKe !== null ? rawAnakKe : '').replace(/[^0-9]/g, ''), 10);
-        const urutanAnak = !isNaN(parsedAnakKe) && parsedAnakKe >= 0 ? parsedAnakKe : 1;
-        const anak_ke = urutanAnak;
-
-        // Jumlah saudara (database field: dari_bersaudara / jumlah_saudara / dariBersaudara)
-        const rawDariBersaudara = 
-          item.dari_bersaudara ??
-          item.dariBersaudara ??
-          item.jumlahSaudara ??
-          item.jumlah_saudara ??
-          item.daribersaudara ??
-          item.bersaudara ??
-          item.jml_saudara ??
-          item.saudara ??
-          item.jml_sdr ??
-          item.saudara_kandung ??
-          item.jumlah_saudara_kandung ??
-          item.total_saudara ??
-          item.saudara_total ??
-          item.banyak_saudara;
-        const parsedSaudara = parseInt(String(rawDariBersaudara !== undefined && rawDariBersaudara !== null ? rawDariBersaudara : '').replace(/[^0-9]/g, ''), 10);
-        // Pertahankan nilai asli jumlah saudara tanpa memaksa >= urutan anak
-        const jumlahSaudara = !isNaN(parsedSaudara) && parsedSaudara >= 0 ? parsedSaudara : 0;
-        const dari_bersaudara = jumlahSaudara;
-
-        // Tempat & Tanggal Lahir
-        const tempatLahir = item.tempatLahir || item.tempat_lahir || item.tmp_lahir || item.tmplahir || item.kota_lahir || '';
-        const tanggalLahir = item.tanggalLahir || item.tanggal_lahir || item.tgl_lahir || item.tgllahir || item.tglLahir || '';
-
-        // Tahun boyong / lulus & masuk
-        const gradYear = String(
-          item.gradYear ||
-          item.tahun_lulus ||
-          item.thn_lulus ||
-          item.tahun_boyong ||
-          item.thn_boyong ||
-          item.boyong ||
-          item.lulus ||
-          '2022'
-        );
-        const entryYear = String(
-          item.entryYear ||
-          item.tahun_masuk ||
-          item.thn_masuk ||
-          item.masuk ||
-          '2016'
-        );
-
-        // Alamat
-        const desa = item.desa || item.kelurahan || item.desa_kelurahan || item.nama_desa || '';
-        const kecamatan = item.kecamatan || item.nama_kecamatan || item.kec || '';
-        const city = item.city || item.kabupaten || item.kota || item.kab || item.kab_kota || item.nama_kabupaten || '';
-        const province = item.province || item.provinsi || item.propinsi || item.nama_provinsi || '';
-        const alamatLengkap = item.alamatLengkap || item.address || item.alamat || '';
-        
-        return {
-          id: String(item.id || `alm-${Math.random().toString(36).substring(2, 9)}`),
-          nik: item.nik || '',
-          noKk: item.noKk || item.no_kk || item.nokk || '',
-          nis: item.nis || '',
-          nism: item.nism || '',
-          nisn: item.nisn || '',
-          name: item.name || item.nama || item.nama_lengkap || 'Tanpa Nama',
-          username: item.username || (item.name ? item.name.toLowerCase().replace(/\s+/g, '_') : ''),
-          gender,
-          tempatLahir,
-          tanggalLahir,
-          anak_ke,
-          dari_bersaudara,
-          urutanAnak,
-          jumlahSaudara,
-          // Data Orang Tua (Mendukung alias nama_ayah, nama_bapak, ayah, bapak, nama_ibu, ibu)
-          namaAyah: item.namaAyah || item.nama_ayah || item.nama_bapak || item.ayah || item.bapak || '',
-          nikAyah: item.nikAyah || item.nik_ayah || item.nik_bapak || '',
-          pekerjaanAyah: item.pekerjaanAyah || item.pekerjaan_ayah || item.pekerjaan_bapak || '',
-          pendidikanAyah: item.pendidikanAyah || item.pendidikan_ayah || item.pendidikan_bapak || '',
-          namaIbu: item.namaIbu || item.nama_ibu || item.ibu || '',
-          nikIbu: item.nikIbu || item.nik_ibu || '',
-          pekerjaanIbu: item.pekerjaanIbu || item.pekerjaan_ibu || '',
-          pendidikanIbu: item.pendidikanIbu || item.pendidikan_ibu || '',
-          gradYear,
-          entryYear,
-          entryDate: item.entryDate || item.entry_date || item.tgl_masuk || '',
-          gradDate: item.gradDate || item.grad_date || item.tgl_lulus || '',
-          jenjang: item.jenjang || 'Madrasah Aliyah Keagamaan (MAK)',
-          asramaDulu: item.asramaDulu || item.asrama || item.komplek || 'Komplek Santri',
-          email: item.email || '',
-          phone: item.phone || item.no_hp || item.nohp || item.telepon || item.wa || '',
-          alamatLengkap,
-          desa,
-          kecamatan,
-          city,
-          province,
-          occupation: item.occupation || item.pekerjaan || item.profesi || '',
-          institution: item.institution || item.instansi || item.perusahaan || item.kampus || '',
-          photoUrl: item.avatarUrl || item.photoUrl || item.foto || item.foto_url || '',
-          coverPhotoUrl: item.coverPhotoUrl || item.foto_sampul || item.sampul || '',
-          bio: item.bio || '',
-          coordinates: item.coordinates || undefined,
-          password: item.password || '1234',
-          isPasswordChanged: Boolean(item.isPasswordChanged),
-          hasLoggedIn: Boolean(item.hasLoggedIn || item.isPasswordChanged),
-          shareContact: item.shareContact !== undefined ? Boolean(item.shareContact) : true,
-          shareFullAddress: true,
-          shareLocationTag: true,
-          status: 'alumni',
-          source: 'hostinger_sync',
-          syncTime: new Date().toISOString().replace('T', ' ').slice(0, 19),
-        };
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          Accept: 'application/json',
+        },
+        signal: controller.signal,
       });
+      clearTimeout(timeoutId);
 
-      return {
-        success: true,
-        data: normalizedData.length > 0 ? normalizedData : INITIAL_ALUMNI,
-        isLive: true,
-      };
+      if (!response.ok) continue;
+
+      const contentType = response.headers.get('content-type') || '';
+      if (!contentType.includes('application/json')) {
+        // Melewati jika respons berupa HTML SPA fallback
+        continue;
+      }
+
+      const result = await response.json();
+      const rawList = Array.isArray(result) ? result : (Array.isArray(result?.data) ? result.data : []);
+
+      if (rawList.length > 0) {
+        // Filter santri yang berstatus 'Alumni' (jika ada)
+        const alumniOnly = rawList.filter((item: any) => {
+          const status = String(item.status_keanggotaan || '').toLowerCase();
+          return status.includes('alumni') || !status;
+        });
+
+        const listToNormalize = alumniOnly.length > 0 ? alumniOnly : rawList;
+        const normalizedData: AlumniRecord[] = listToNormalize.map(normalizeSingleAlumni);
+
+        if (normalizedData.length > 0) {
+          console.log(`[Database Hostinger] Berhasil memuat ${normalizedData.length} data alumni dari ${url}`);
+          return {
+            success: true,
+            data: normalizedData,
+            isLive: true,
+          };
+        }
+      }
+    } catch (err: any) {
+      console.warn(`Gagal memuat dari ${url}:`, err?.message);
+      continue;
     }
-
-    return {
-      success: false,
-      data: INITIAL_ALUMNI,
-      isLive: false,
-      message: result.message || 'Format data dari server tidak sesuai',
-    };
-  } catch (error: any) {
-    console.warn('Gagal memuat data dari Hostinger API, menggunakan data lokal:', error?.message);
-    return {
-      success: false,
-      data: INITIAL_ALUMNI,
-      isLive: false,
-      message: error?.message || 'Gagal tersambung ke Hostinger',
-    };
   }
+
+  // Fallback 1: Coba ambil dari snapshot database santri bawaan sistem
+  try {
+    const snapshotModule = await import('../data/santri_snapshot.json');
+    const snapshotData = (snapshotModule.default || snapshotModule) as any;
+    const rawList = Array.isArray(snapshotData) ? snapshotData : (Array.isArray(snapshotData?.data) ? snapshotData.data : []);
+    if (rawList.length > 0) {
+      const alumniOnly = rawList.filter((item: any) => {
+        const status = String(item.status_keanggotaan || '').toLowerCase();
+        return status.includes('alumni') || !status;
+      });
+      const listToNormalize = alumniOnly.length > 0 ? alumniOnly : rawList;
+      const normalizedData: AlumniRecord[] = listToNormalize.map(normalizeSingleAlumni);
+      if (normalizedData.length > 0) {
+        console.log(`[Database Snapshot] Memuat ${normalizedData.length} data alumni dari snapshot lokal`);
+        return {
+          success: true,
+          data: normalizedData,
+          isLive: false,
+          message: 'Menggunakan snapshot data database terbaru',
+        };
+      }
+    }
+  } catch (snapErr) {
+    console.warn('Gagal memuat snapshot lokal:', snapErr);
+  }
+
+  console.warn('Gagal memuat data dari Hostinger API, menggunakan data lokal awal');
+  return {
+    success: false,
+    data: INITIAL_ALUMNI,
+    isLive: false,
+    message: 'Gagal tersambung ke database Hostinger',
+  };
 }
 
 /**

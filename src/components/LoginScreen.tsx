@@ -9,6 +9,9 @@ interface LoginScreenProps {
   onLoginSuccess: (role: UserRole, alumniData?: AlumniRecord, adminData?: AdminUser) => void;
   onOpenRegister?: () => void;
   onOpenForgotPassword: () => void;
+  isDbLoading?: boolean;
+  isDbConnected?: boolean;
+  onRefreshData?: () => void;
 }
 
 export const LoginScreen: React.FC<LoginScreenProps> = ({
@@ -16,9 +19,12 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
   adminAccount,
   onLoginSuccess,
   onOpenForgotPassword,
+  isDbLoading = false,
+  isDbConnected = true,
+  onRefreshData,
 }) => {
   const [selectedRole, setSelectedRole] = useState<UserRole>('alumni');
-  const [username, setUsername] = useState('mulia_ningsih');
+  const [username, setUsername] = useState('1986001');
   const [password, setPassword] = useState('1234');
   const [showPassword, setShowPassword] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -29,7 +35,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
     setSelectedRole(role);
     setErrorMessage(null);
     if (role === 'alumni') {
-      setUsername('mulia_ningsih');
+      setUsername('1986001');
       setPassword('1234');
     } else {
       setUsername('@admin_pusat');
@@ -37,16 +43,16 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
     }
   };
 
-  const handleQuickDemo = (type: 'mulia' | 'fauzi' | 'admin') => {
+  const handleQuickDemo = (type: 'sulaiman' | 'aminuddin' | 'admin') => {
     setErrorMessage(null);
-    if (type === 'mulia') {
+    if (type === 'sulaiman') {
       setSelectedRole('alumni');
-      setUsername('mulia_ningsih');
+      setUsername('1986001');
       setPassword('1234');
-    } else if (type === 'fauzi') {
+    } else if (type === 'aminuddin') {
       setSelectedRole('alumni');
-      setUsername('fauzi_trq');
-      setPassword('passwordfauzi');
+      setUsername('1993006');
+      setPassword('1234');
     } else if (type === 'admin') {
       setSelectedRole('admin');
       setUsername('@admin_pusat');
@@ -62,7 +68,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
     if (!inputVal) {
       setErrorMessage(
         selectedRole === 'alumni'
-          ? 'Silakan masukkan username alumni Anda.'
+          ? 'Silakan masukkan NIS, nama lengkap, atau username alumni Anda.'
           : 'Silakan masukkan username admin.'
       );
       return;
@@ -102,21 +108,26 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
         }
       }
 
-      // Role Alumni: Cari berdasarkan Username (dengan fallback NIK / NIS)
+      // Role Alumni: Cari berdasarkan NIS, Nama Lengkap, Username, NIK, atau Email
+      const cleanInput = inputVal.toLowerCase().replace(/^@/, '').trim();
       const matchedAlumni = alumniList.find((alm) => {
-        const cleanInput = inputVal.toLowerCase().replace(/^@/, '');
-        const almUser = (alm.username || '').toLowerCase().replace(/^@/, '');
-        const isUserMatch = almUser && almUser === cleanInput;
-        const isNikMatch = alm.nik === inputVal;
-        const isNisMatch = alm.nis.toLowerCase() === inputVal.toLowerCase();
-        const isEmailMatch = alm.email.toLowerCase() === inputVal.toLowerCase();
+        const almUser = (alm.username || '').toLowerCase().replace(/^@/, '').trim();
+        const isUserMatch = almUser && (almUser === cleanInput || almUser.replace(/[^a-z0-9]/g, '') === cleanInput.replace(/[^a-z0-9]/g, ''));
+        const isNikMatch = Boolean(alm.nik && alm.nik.trim() === inputVal.trim());
+        const isNisMatch = Boolean(alm.nis && alm.nis.toLowerCase().trim() === inputVal.toLowerCase().trim());
+        const isEmailMatch = Boolean(alm.email && alm.email.toLowerCase().trim() === inputVal.toLowerCase().trim());
+        const isIdMatch = Boolean(alm.id && alm.id.toLowerCase() === cleanInput);
+        
+        // Pencarian cerdas nama alumni
+        const cleanName = (alm.name || '').toLowerCase().trim();
+        const isNameMatch = cleanName === cleanInput || cleanName.includes(cleanInput);
 
-        return isUserMatch || isNikMatch || isNisMatch || isEmailMatch;
+        return isNisMatch || isNameMatch || isUserMatch || isNikMatch || isEmailMatch || isIdMatch;
       });
 
       if (!matchedAlumni) {
         setErrorMessage(
-          'Username belum terdaftar di database alumni. Silakan periksa kembali nama pengguna Anda.'
+          `Data "${inputVal}" tidak ditemukan di ${alumniList.length.toLocaleString('id-ID')} data alumni. Coba masukkan NIS (misal: 1986001) atau nama lengkap Anda.`
         );
         return;
       }
@@ -129,7 +140,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
       }
 
       onLoginSuccess('alumni', matchedAlumni);
-    }, 450);
+    }, 350);
   };
 
   return (
@@ -207,31 +218,61 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
           </button>
         </div>
 
+        {/* DATABASE CONNECTION STATUS BADGE */}
+        <div className="mb-2.5 px-3 py-1.5 rounded-xl text-[11px] font-medium flex items-center justify-between border bg-slate-50 border-slate-200">
+          <div className="flex items-center gap-2">
+            <span
+              className={`w-2 h-2 rounded-full ${
+                isDbLoading
+                  ? 'bg-amber-400 animate-ping'
+                  : isDbConnected
+                  ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]'
+                  : 'bg-rose-400'
+              }`}
+            />
+            <span className="text-slate-600 font-semibold">
+              {isDbLoading
+                ? 'Sinkronisasi database Hostinger...'
+                : `Hostinger MySQL: ${alumniList.length.toLocaleString('id-ID')} Data Alumni Aktif`}
+            </span>
+          </div>
+          {onRefreshData && (
+            <button
+              type="button"
+              onClick={onRefreshData}
+              disabled={isDbLoading}
+              className="text-[10px] text-sky-600 hover:text-sky-800 font-bold hover:underline cursor-pointer disabled:opacity-50"
+            >
+              Segarkan
+            </button>
+          )}
+        </div>
+
         {/* QUICK SHORTCUTS */}
-        <div className="mb-3.5 flex items-center justify-between text-[11px] bg-slate-50 px-2.5 py-1.5 rounded-xl border border-slate-200/80">
-          <span className="text-slate-500 font-medium">Contoh Akun:</span>
+        <div className="mb-3.5 flex items-center justify-between text-[11px] bg-sky-50/70 px-2.5 py-1.5 rounded-xl border border-sky-100">
+          <span className="text-sky-800 font-medium text-[10px]">Coba Akun:</span>
           <div className="flex gap-1">
             <button
               type="button"
-              onClick={() => handleQuickDemo('mulia')}
+              onClick={() => handleQuickDemo('sulaiman')}
               className={`px-2 py-0.5 rounded-lg border text-[10px] font-semibold cursor-pointer transition-colors ${
-                selectedRole === 'alumni' && username === 'mulia_ningsih'
+                selectedRole === 'alumni' && username === '1986001'
                   ? 'bg-sky-600 text-white border-sky-600'
                   : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
               }`}
             >
-              Mulia (1234)
+              NIS 1986001
             </button>
             <button
               type="button"
-              onClick={() => handleQuickDemo('fauzi')}
+              onClick={() => handleQuickDemo('aminuddin')}
               className={`px-2 py-0.5 rounded-lg border text-[10px] font-semibold cursor-pointer transition-colors ${
-                selectedRole === 'alumni' && username === 'fauzi_trq'
+                selectedRole === 'alumni' && username === '1993006'
                   ? 'bg-sky-600 text-white border-sky-600'
                   : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
               }`}
             >
-              Fauzi
+              NIS 1993006
             </button>
             <button
               type="button"
@@ -257,11 +298,16 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
 
         {/* FORM LOGIN: USERNAME & KATA SANDI */}
         <form onSubmit={handleSubmit} className="space-y-3">
-          {/* KOTAK 1: USERNAME */}
+          {/* KOTAK 1: IDENTITAS ALUMNI / ADMIN */}
           <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1">
-              Username
-            </label>
+            <div className="flex items-center justify-between mb-1">
+              <label className="block text-xs font-bold text-slate-700">
+                {selectedRole === 'alumni' ? 'NIS / Nama Lengkap / Username' : 'Username Admin'}
+              </label>
+              {selectedRole === 'alumni' && (
+                <span className="text-[10px] text-slate-400">Default sandi: 1234</span>
+              )}
+            </div>
             <div className="relative">
               <div className="absolute left-3.5 top-1/2 -translate-y-1/2 text-sky-600">
                 <User className="w-4 h-4" />
@@ -271,7 +317,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
                 required
                 placeholder={
                   selectedRole === 'alumni'
-                    ? 'Contoh: mulia_ningsih'
+                    ? 'Masukkan NIS (cth: 1986001) atau nama lengkap'
                     : 'Contoh: @admin_pusat'
                 }
                 value={username}
