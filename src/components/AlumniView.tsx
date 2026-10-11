@@ -4056,7 +4056,7 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
       )}
 
       {/* ================= BOTTOM BAR TABS ================= */}
-      <div className="bg-white border-t border-slate-200 px-3 py-2 flex items-center justify-around shrink-0 select-none z-30">
+      <div className="bg-white border-t border-slate-200 px-3 py-2 pb-safe flex items-center justify-around shrink-0 select-none z-30 shadow-[0_-2px_10px_rgba(0,0,0,0.03)]">
         <button
           onClick={() => setActiveTab('home')}
           className={`flex flex-col items-center gap-1 py-1 px-3 rounded-xl transition-colors cursor-pointer ${

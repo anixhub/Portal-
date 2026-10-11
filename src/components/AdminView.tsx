@@ -1961,7 +1961,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
       )}
 
       {/* ================= DOCKER / BOTTOM NAVIGATION (KELOLA ALUMNI, AGENDA, PENGUMUMAN, PROFIL ADMIN) ================= */}
-      <div className="bg-white border-t border-slate-200 px-4 py-2 flex items-center justify-around shrink-0 select-none z-30 shadow-xs">
+      <div className="bg-white border-t border-slate-200 px-4 py-2 pb-safe flex items-center justify-around shrink-0 select-none z-30 shadow-[0_-2px_10px_rgba(0,0,0,0.03)]">
         <button
           type="button"
           onClick={() => setActiveTab('alumni')}

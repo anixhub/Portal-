@@ -376,7 +376,7 @@ export default function App() {
   };
 
   return (
-    <div className="w-full min-h-screen h-screen flex flex-col bg-slate-50 overflow-hidden text-slate-800">
+    <div className="w-full h-full h-[100dvh] flex flex-col bg-slate-50 overflow-hidden text-slate-800">
       {/* 1. STATE: LOGGED IN AS ALUMNI */}
       {currentSession?.role === 'alumni' && currentSession.alumniData && (
         <AlumniView
