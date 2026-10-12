@@ -116,6 +116,92 @@ export const AlumniDetailAdminModal: React.FC<AlumniDetailAdminModalProps> = ({
   const [newAdminUsernameInput, setNewAdminUsernameInput] = useState('');
   const [adminUsernameError, setAdminUsernameError] = useState<string | null>(null);
 
+  // Dedicated Draft states for submodals
+  const [draftName, setDraftName] = useState('');
+  const [draftTempatLahir, setDraftTempatLahir] = useState('');
+  const [draftTanggalLahir, setDraftTanggalLahir] = useState('');
+  const [draftGender, setDraftGender] = useState<'L' | 'P'>('L');
+  const [draftUrutanAnak, setDraftUrutanAnak] = useState<number | string>(1);
+  const [draftJumlahSaudara, setDraftJumlahSaudara] = useState<number | string>(0);
+  const [draftNik, setDraftNik] = useState('');
+  const [draftNoKk, setDraftNoKk] = useState('');
+  const [draftPhone, setDraftPhone] = useState('');
+  const [draftEmail, setDraftEmail] = useState('');
+  const [draftOccupation, setDraftOccupation] = useState('');
+  const [draftInstitution, setDraftInstitution] = useState('');
+  const [draftProvince, setDraftProvince] = useState('');
+  const [draftCity, setDraftCity] = useState('');
+  const [draftKecamatan, setDraftKecamatan] = useState('');
+  const [draftDesa, setDraftDesa] = useState('');
+  const [draftAlamatLengkap, setDraftAlamatLengkap] = useState('');
+  const [draftCoordinates, setDraftCoordinates] = useState<LocationCoordinates | null>(null);
+  const [draftNis, setDraftNis] = useState('');
+  const [draftNism, setDraftNism] = useState('');
+  const [draftNisn, setDraftNisn] = useState('');
+  const [draftNamaAyah, setDraftNamaAyah] = useState('');
+  const [draftNikAyah, setDraftNikAyah] = useState('');
+  const [draftPekerjaanAyah, setDraftPekerjaanAyah] = useState('');
+  const [draftPendidikanAyah, setDraftPendidikanAyah] = useState('');
+  const [draftNamaIbu, setDraftNamaIbu] = useState('');
+  const [draftNikIbu, setDraftNikIbu] = useState('');
+  const [draftPekerjaanIbu, setDraftPekerjaanIbu] = useState('');
+  const [draftPendidikanIbu, setDraftPendidikanIbu] = useState('');
+
+  const openEditModal = (modalKey: string) => {
+    if (modalKey === 'nama') setDraftName(editName);
+    if (modalKey === 'username') {
+      setNewAdminUsernameInput(editUsername || alumni.username || '');
+      setAdminUsernameError(null);
+    }
+    if (modalKey === 'ttl') {
+      setDraftTempatLahir(editTempatLahir);
+      setDraftTanggalLahir(editTanggalLahir);
+    }
+    if (modalKey === 'gender_saudara') {
+      setDraftGender(editGender);
+      setDraftUrutanAnak(editUrutanAnak);
+      setDraftJumlahSaudara(editJumlahSaudara);
+    }
+    if (modalKey === 'nik_kk') {
+      setDraftNik(editNik);
+      setDraftNoKk(editNoKk);
+    }
+    if (modalKey === 'alamat') {
+      setDraftProvince(editProvince);
+      setDraftCity(editCity);
+      setDraftKecamatan(editKecamatan);
+      setDraftDesa(editDesa);
+      setDraftAlamatLengkap(editAlamatLengkap);
+      setDraftCoordinates(editCoordinates);
+    }
+    if (modalKey === 'kontak') {
+      setDraftPhone(editPhone);
+      setDraftEmail(editEmail);
+    }
+    if (modalKey === 'pekerjaan') {
+      setDraftOccupation(editOccupation);
+      setDraftInstitution(editInstitution);
+    }
+    if (modalKey === 'nis') setDraftNis(editNis);
+    if (modalKey === 'nism') setDraftNism(editNism);
+    if (modalKey === 'nisn') setDraftNisn(editNisn);
+    if (modalKey === 'tanggal_masuk') setTempEntryDate(editEntryDate || '');
+    if (modalKey === 'tanggal_keluar') setTempGradDate(editGradDate || '');
+    if (modalKey === 'ayah') {
+      setDraftNamaAyah(editNamaAyah);
+      setDraftNikAyah(editNikAyah);
+      setDraftPekerjaanAyah(editPekerjaanAyah);
+      setDraftPendidikanAyah(editPendidikanAyah);
+    }
+    if (modalKey === 'ibu') {
+      setDraftNamaIbu(editNamaIbu);
+      setDraftNikIbu(editNikIbu);
+      setDraftPekerjaanIbu(editPekerjaanIbu);
+      setDraftPendidikanIbu(editPendidikanIbu);
+    }
+    setActiveEditModal(modalKey);
+  };
+
   // Sinkronisasi state saat data alumni dari props berubah
   useEffect(() => {
     setEditPhotoUrl(alumni.photoUrl || '');
@@ -291,7 +377,7 @@ export const AlumniDetailAdminModal: React.FC<AlumniDetailAdminModalProps> = ({
               <div className="divide-y divide-slate-100">
                 {/* 1. Nama Lengkap */}
                 <div
-                  onClick={() => setActiveEditModal('nama')}
+                  onClick={() => openEditModal('nama')}
                   className="flex items-center justify-between py-3.5 cursor-pointer hover:bg-slate-50/70 -mx-3 px-3 rounded-2xl transition-colors group"
                 >
                   <div className="flex items-center gap-4 min-w-0 pr-2">
@@ -310,11 +396,7 @@ export const AlumniDetailAdminModal: React.FC<AlumniDetailAdminModalProps> = ({
 
                 {/* 1b. Username Alumni */}
                 <div
-                  onClick={() => {
-                    setNewAdminUsernameInput(editUsername || alumni.username || '');
-                    setAdminUsernameError(null);
-                    setActiveEditModal('username');
-                  }}
+                  onClick={() => openEditModal('username')}
                   className="flex items-center justify-between py-3.5 cursor-pointer hover:bg-slate-50/70 -mx-3 px-3 rounded-2xl transition-colors group"
                 >
                   <div className="flex items-center gap-4 min-w-0 pr-2">
@@ -333,7 +415,7 @@ export const AlumniDetailAdminModal: React.FC<AlumniDetailAdminModalProps> = ({
 
                 {/* 2. Tempat, Tanggal Lahir (TTL) */}
                 <div
-                  onClick={() => setActiveEditModal('ttl')}
+                  onClick={() => openEditModal('ttl')}
                   className="flex items-center justify-between py-3.5 cursor-pointer hover:bg-slate-50/70 -mx-3 px-3 rounded-2xl transition-colors group"
                 >
                   <div className="flex items-center gap-4 min-w-0 pr-2">
@@ -352,7 +434,7 @@ export const AlumniDetailAdminModal: React.FC<AlumniDetailAdminModalProps> = ({
 
                 {/* 3. Gender & Saudara */}
                 <div
-                  onClick={() => setActiveEditModal('gender_saudara')}
+                  onClick={() => openEditModal('gender_saudara')}
                   className="flex items-center justify-between py-3.5 cursor-pointer hover:bg-slate-50/70 -mx-3 px-3 rounded-2xl transition-colors group"
                 >
                   <div className="flex items-center gap-4 min-w-0 pr-2">
@@ -375,7 +457,7 @@ export const AlumniDetailAdminModal: React.FC<AlumniDetailAdminModalProps> = ({
 
                 {/* 4. NIK & Nomor KK */}
                 <div
-                  onClick={() => setActiveEditModal('nik_kk')}
+                  onClick={() => openEditModal('nik_kk')}
                   className="flex items-center justify-between py-3.5 cursor-pointer hover:bg-slate-50/70 -mx-3 px-3 rounded-2xl transition-colors group"
                 >
                   <div className="flex items-center gap-4 min-w-0 pr-2">
@@ -394,7 +476,7 @@ export const AlumniDetailAdminModal: React.FC<AlumniDetailAdminModalProps> = ({
 
                 {/* 5. Alamat */}
                 <div
-                  onClick={() => setActiveEditModal('alamat')}
+                  onClick={() => openEditModal('alamat')}
                   className="flex items-center justify-between py-3.5 cursor-pointer hover:bg-slate-50/70 -mx-3 px-3 rounded-2xl transition-colors group"
                 >
                   <div className="flex items-center gap-4 min-w-0 pr-2">
@@ -413,7 +495,7 @@ export const AlumniDetailAdminModal: React.FC<AlumniDetailAdminModalProps> = ({
 
                 {/* 6. Kontak WhatsApp & Email */}
                 <div
-                  onClick={() => setActiveEditModal('kontak')}
+                  onClick={() => openEditModal('kontak')}
                   className="flex items-center justify-between py-3.5 cursor-pointer hover:bg-slate-50/70 -mx-3 px-3 rounded-2xl transition-colors group"
                 >
                   <div className="flex items-center gap-4 min-w-0 pr-2">
@@ -432,7 +514,7 @@ export const AlumniDetailAdminModal: React.FC<AlumniDetailAdminModalProps> = ({
 
                 {/* 7. Pekerjaan & Instansi */}
                 <div
-                  onClick={() => setActiveEditModal('pekerjaan')}
+                  onClick={() => openEditModal('pekerjaan')}
                   className="flex items-center justify-between py-3.5 cursor-pointer hover:bg-slate-50/70 -mx-3 px-3 rounded-2xl transition-colors group"
                 >
                   <div className="flex items-center gap-4 min-w-0 pr-2">
@@ -461,7 +543,7 @@ export const AlumniDetailAdminModal: React.FC<AlumniDetailAdminModalProps> = ({
               <div className="divide-y divide-slate-100">
                 {/* 1. NIS (Bisa diubah oleh Admin) */}
                 <div
-                  onClick={() => setActiveEditModal('nis')}
+                  onClick={() => openEditModal('nis')}
                   className="flex items-center justify-between py-3.5 cursor-pointer hover:bg-slate-50/70 -mx-3 px-3 rounded-2xl transition-colors group"
                 >
                   <div className="flex items-center gap-4 min-w-0 pr-2">
@@ -480,7 +562,7 @@ export const AlumniDetailAdminModal: React.FC<AlumniDetailAdminModalProps> = ({
 
                 {/* 2. NISM (Nomor Induk Santri Madrasah) */}
                 <div
-                  onClick={() => setActiveEditModal('nism')}
+                  onClick={() => openEditModal('nism')}
                   className="flex items-center justify-between py-3.5 cursor-pointer hover:bg-slate-50/70 -mx-3 px-3 rounded-2xl transition-colors group"
                 >
                   <div className="flex items-center gap-4 min-w-0 pr-2">
@@ -499,7 +581,7 @@ export const AlumniDetailAdminModal: React.FC<AlumniDetailAdminModalProps> = ({
 
                 {/* 3. NISN (Nomor Induk Siswa Nasional) */}
                 <div
-                  onClick={() => setActiveEditModal('nisn')}
+                  onClick={() => openEditModal('nisn')}
                   className="flex items-center justify-between py-3.5 cursor-pointer hover:bg-slate-50/70 -mx-3 px-3 rounded-2xl transition-colors group"
                 >
                   <div className="flex items-center gap-4 min-w-0 pr-2">
@@ -518,10 +600,7 @@ export const AlumniDetailAdminModal: React.FC<AlumniDetailAdminModalProps> = ({
 
                 {/* 4. Tanggal Masuk */}
                 <div
-                  onClick={() => {
-                    setTempEntryDate(editEntryDate || '');
-                    setActiveEditModal('tanggal_masuk');
-                  }}
+                  onClick={() => openEditModal('tanggal_masuk')}
                   className="flex items-center justify-between py-3.5 cursor-pointer hover:bg-slate-50/70 -mx-3 px-3 rounded-2xl transition-colors group"
                 >
                   <div className="flex items-center gap-4 min-w-0 pr-2">
@@ -540,10 +619,7 @@ export const AlumniDetailAdminModal: React.FC<AlumniDetailAdminModalProps> = ({
 
                 {/* 5. Tanggal Keluar */}
                 <div
-                  onClick={() => {
-                    setTempGradDate(editGradDate || '');
-                    setActiveEditModal('tanggal_keluar');
-                  }}
+                  onClick={() => openEditModal('tanggal_keluar')}
                   className="flex items-center justify-between py-3.5 cursor-pointer hover:bg-slate-50/70 -mx-3 px-3 rounded-2xl transition-colors group"
                 >
                   <div className="flex items-center gap-4 min-w-0 pr-2">
@@ -571,7 +647,7 @@ export const AlumniDetailAdminModal: React.FC<AlumniDetailAdminModalProps> = ({
               <div className="divide-y divide-slate-100">
                 {/* 1. Ayah */}
                 <div
-                  onClick={() => setActiveEditModal('ayah')}
+                  onClick={() => openEditModal('ayah')}
                   className="flex items-center justify-between py-3.5 cursor-pointer hover:bg-slate-50/70 -mx-3 px-3 rounded-2xl transition-colors group"
                 >
                   <div className="flex items-center gap-4 min-w-0 pr-2">
@@ -594,7 +670,7 @@ export const AlumniDetailAdminModal: React.FC<AlumniDetailAdminModalProps> = ({
 
                 {/* 2. Ibu */}
                 <div
-                  onClick={() => setActiveEditModal('ibu')}
+                  onClick={() => openEditModal('ibu')}
                   className="flex items-center justify-between py-3.5 cursor-pointer hover:bg-slate-50/70 -mx-3 px-3 rounded-2xl transition-colors group"
                 >
                   <div className="flex items-center gap-4 min-w-0 pr-2">
@@ -728,14 +804,18 @@ export const AlumniDetailAdminModal: React.FC<AlumniDetailAdminModalProps> = ({
             </div>
             <input
               type="text"
-              value={editName}
-              onChange={(e) => setEditName(e.target.value)}
+              value={draftName}
+              onChange={(e) => setDraftName(e.target.value)}
               className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-medium focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500 text-xs"
               placeholder="Nama lengkap..."
             />
             <div className="flex gap-2 pt-2">
               <button type="button" onClick={() => setActiveEditModal(null)} className="flex-1 py-2 rounded-xl border border-slate-200 text-slate-600 font-semibold text-xs cursor-pointer">Batal</button>
-              <button type="button" onClick={() => { handleUpdate({ name: editName }); setActiveEditModal(null); }} className="flex-1 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs cursor-pointer">Simpan</button>
+              <button type="button" onClick={() => { 
+                setEditName(draftName);
+                handleUpdate({ name: draftName }); 
+                setActiveEditModal(null); 
+              }} className="flex-1 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs cursor-pointer">Simpan</button>
             </div>
           </div>
         </div>
@@ -819,8 +899,8 @@ export const AlumniDetailAdminModal: React.FC<AlumniDetailAdminModalProps> = ({
                 <label className="block font-semibold text-slate-700 mb-1">Tempat Lahir</label>
                 <input
                   type="text"
-                  value={editTempatLahir}
-                  onChange={(e) => setEditTempatLahir(e.target.value)}
+                  value={draftTempatLahir}
+                  onChange={(e) => setDraftTempatLahir(e.target.value)}
                   className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white text-xs"
                   placeholder="Kota/Kabupaten kelahiran..."
                 />
@@ -829,15 +909,20 @@ export const AlumniDetailAdminModal: React.FC<AlumniDetailAdminModalProps> = ({
                 <label className="block font-semibold text-slate-700 mb-1">Tanggal Lahir</label>
                 <input
                   type="date"
-                  value={editTanggalLahir}
-                  onChange={(e) => setEditTanggalLahir(e.target.value)}
+                  value={draftTanggalLahir}
+                  onChange={(e) => setDraftTanggalLahir(e.target.value)}
                   className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white text-xs"
                 />
               </div>
             </div>
             <div className="flex gap-2 pt-2">
               <button type="button" onClick={() => setActiveEditModal(null)} className="flex-1 py-2 rounded-xl border border-slate-200 text-slate-600 font-semibold text-xs cursor-pointer">Batal</button>
-              <button type="button" onClick={() => { handleUpdate({ tempatLahir: editTempatLahir, tanggalLahir: editTanggalLahir }); setActiveEditModal(null); }} className="flex-1 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs cursor-pointer">Simpan</button>
+              <button type="button" onClick={() => { 
+                setEditTempatLahir(draftTempatLahir);
+                setEditTanggalLahir(draftTanggalLahir);
+                handleUpdate({ tempatLahir: draftTempatLahir, tanggalLahir: draftTanggalLahir }); 
+                setActiveEditModal(null); 
+              }} className="flex-1 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs cursor-pointer">Simpan</button>
             </div>
           </div>
         </div>
@@ -857,18 +942,18 @@ export const AlumniDetailAdminModal: React.FC<AlumniDetailAdminModalProps> = ({
                 <div className="grid grid-cols-2 gap-3">
                   <button
                     type="button"
-                    onClick={() => setEditGender('L')}
-                    className={`p-2.5 rounded-xl border font-bold text-center transition-all ${
-                      editGender === 'L' ? 'bg-sky-50 border-sky-600 text-sky-700' : 'bg-slate-50 border-slate-200 text-slate-600'
+                    onClick={() => setDraftGender('L')}
+                    className={`p-2.5 rounded-xl border font-bold text-center transition-all cursor-pointer ${
+                      draftGender === 'L' ? 'bg-sky-50 border-sky-600 text-sky-700' : 'bg-slate-50 border-slate-200 text-slate-600'
                     }`}
                   >
                     Laki-laki
                   </button>
                   <button
                     type="button"
-                    onClick={() => setEditGender('P')}
-                    className={`p-2.5 rounded-xl border font-bold text-center transition-all ${
-                      editGender === 'P' ? 'bg-rose-50 border-rose-600 text-rose-700' : 'bg-slate-50 border-slate-200 text-slate-600'
+                    onClick={() => setDraftGender('P')}
+                    className={`p-2.5 rounded-xl border font-bold text-center transition-all cursor-pointer ${
+                      draftGender === 'P' ? 'bg-rose-50 border-rose-600 text-rose-700' : 'bg-slate-50 border-slate-200 text-slate-600'
                     }`}
                   >
                     Perempuan
@@ -882,21 +967,21 @@ export const AlumniDetailAdminModal: React.FC<AlumniDetailAdminModalProps> = ({
                     type="number"
                     min={1}
                     max={25}
-                    value={editUrutanAnak}
+                    value={draftUrutanAnak}
                     onFocus={(e) => e.target.select()}
                     onClick={(e) => e.currentTarget.select()}
                     onChange={(e) => {
                       const raw = e.target.value;
                       if (raw === '') {
-                        setEditUrutanAnak('');
+                        setDraftUrutanAnak('');
                         return;
                       }
                       const val = parseInt(raw, 10);
-                      setEditUrutanAnak(isNaN(val) ? '' : val);
+                      setDraftUrutanAnak(isNaN(val) ? '' : val);
                     }}
                     onBlur={() => {
-                      if (editUrutanAnak === '' || Number(editUrutanAnak) < 1) {
-                        setEditUrutanAnak(1);
+                      if (draftUrutanAnak === '' || Number(draftUrutanAnak) < 1) {
+                        setDraftUrutanAnak(1);
                       }
                     }}
                     className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white text-xs font-semibold"
@@ -908,21 +993,21 @@ export const AlumniDetailAdminModal: React.FC<AlumniDetailAdminModalProps> = ({
                     type="number"
                     min={0}
                     max={25}
-                    value={editJumlahSaudara}
+                    value={draftJumlahSaudara}
                     onFocus={(e) => e.target.select()}
                     onClick={(e) => e.currentTarget.select()}
                     onChange={(e) => {
                       const raw = e.target.value;
                       if (raw === '') {
-                        setEditJumlahSaudara('');
+                        setDraftJumlahSaudara('');
                         return;
                       }
                       const val = parseInt(raw, 10);
-                      setEditJumlahSaudara(isNaN(val) ? '' : Math.max(0, val));
+                      setDraftJumlahSaudara(isNaN(val) ? '' : Math.max(0, val));
                     }}
                     onBlur={() => {
-                      if (editJumlahSaudara === '' || Number(editJumlahSaudara) < 0) {
-                        setEditJumlahSaudara(0);
+                      if (draftJumlahSaudara === '' || Number(draftJumlahSaudara) < 0) {
+                        setDraftJumlahSaudara(0);
                       }
                     }}
                     className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white text-xs font-semibold"
@@ -935,16 +1020,17 @@ export const AlumniDetailAdminModal: React.FC<AlumniDetailAdminModalProps> = ({
               <button 
                 type="button" 
                 onClick={() => { 
-                  const finalAnak = typeof editUrutanAnak === 'number'
-                    ? Math.max(1, editUrutanAnak)
-                    : (parseInt(String(editUrutanAnak), 10) || 1);
-                  const finalSaudara = typeof editJumlahSaudara === 'number'
-                    ? Math.max(0, editJumlahSaudara)
-                    : (parseInt(String(editJumlahSaudara), 10) || 0);
+                  const finalAnak = typeof draftUrutanAnak === 'number'
+                    ? Math.max(1, draftUrutanAnak)
+                    : (parseInt(String(draftUrutanAnak), 10) || 1);
+                  const finalSaudara = typeof draftJumlahSaudara === 'number'
+                    ? Math.max(0, draftJumlahSaudara)
+                    : (parseInt(String(draftJumlahSaudara), 10) || 0);
+                  setEditGender(draftGender);
                   setEditUrutanAnak(finalAnak);
                   setEditJumlahSaudara(finalSaudara);
                   handleUpdate({ 
-                    gender: editGender, 
+                    gender: draftGender, 
                     anak_ke: finalAnak, 
                     dari_bersaudara: finalSaudara, 
                     urutanAnak: finalAnak, 
@@ -974,8 +1060,8 @@ export const AlumniDetailAdminModal: React.FC<AlumniDetailAdminModalProps> = ({
                 <label className="block font-semibold text-slate-700 mb-1">Nomor Induk Kependudukan (NIK)</label>
                 <input
                   type="text"
-                  value={editNik}
-                  onChange={(e) => setEditNik(e.target.value)}
+                  value={draftNik}
+                  onChange={(e) => setDraftNik(e.target.value)}
                   className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white text-xs font-mono"
                   placeholder="16 digit NIK..."
                 />
@@ -984,8 +1070,8 @@ export const AlumniDetailAdminModal: React.FC<AlumniDetailAdminModalProps> = ({
                 <label className="block font-semibold text-slate-700 mb-1">Nomor Kartu Keluarga (KK)</label>
                 <input
                   type="text"
-                  value={editNoKk}
-                  onChange={(e) => setEditNoKk(e.target.value)}
+                  value={draftNoKk}
+                  onChange={(e) => setDraftNoKk(e.target.value)}
                   className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white text-xs font-mono"
                   placeholder="16 digit Nomor KK..."
                 />
@@ -993,13 +1079,18 @@ export const AlumniDetailAdminModal: React.FC<AlumniDetailAdminModalProps> = ({
             </div>
             <div className="flex gap-2 pt-2">
               <button type="button" onClick={() => setActiveEditModal(null)} className="flex-1 py-2 rounded-xl border border-slate-200 text-slate-600 font-semibold text-xs cursor-pointer">Batal</button>
-              <button type="button" onClick={() => { handleUpdate({ nik: editNik, noKk: editNoKk }); setActiveEditModal(null); }} className="flex-1 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs cursor-pointer">Simpan</button>
+              <button type="button" onClick={() => { 
+                setEditNik(draftNik);
+                setEditNoKk(draftNoKk);
+                handleUpdate({ nik: draftNik, noKk: draftNoKk }); 
+                setActiveEditModal(null); 
+              }} className="flex-1 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs cursor-pointer">Simpan</button>
             </div>
           </div>
         </div>
       )}
 
-      {/* 5. EDIT ALAMAT (KOTAK ALAMAT LENGKAP YANG DI BAWAHNYA ADA PETA TELAH DIHAPUS) */}
+      {/* 5. EDIT ALAMAT */}
       {activeEditModal === 'alamat' && (
         <div className="fixed inset-0 z-[100010] bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in" onClick={() => setActiveEditModal(null)}>
           <div className="bg-white rounded-3xl p-5 w-full max-w-sm space-y-4 shadow-2xl border border-slate-100 max-h-[85vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
@@ -1009,34 +1100,40 @@ export const AlumniDetailAdminModal: React.FC<AlumniDetailAdminModalProps> = ({
             </div>
             <div className="space-y-3 text-xs">
               <WilayahAddressFilter
-                province={editProvince}
-                city={editCity}
-                kecamatan={editKecamatan}
-                desa={editDesa}
-                alamatLengkap={editAlamatLengkap}
-                coordinates={editCoordinates}
+                province={draftProvince}
+                city={draftCity}
+                kecamatan={draftKecamatan}
+                desa={draftDesa}
+                alamatLengkap={draftAlamatLengkap}
+                coordinates={draftCoordinates}
                 showAlamatLengkap={true}
                 showLocationTag={true}
                 onChange={({ province, city, kecamatan, desa, alamatLengkap, coordinates }) => {
-                  setEditProvince(province);
-                  setEditCity(city);
-                  setEditKecamatan(kecamatan);
-                  setEditDesa(desa);
-                  if (alamatLengkap !== undefined) setEditAlamatLengkap(alamatLengkap);
-                  if (coordinates) setEditCoordinates(coordinates);
+                  setDraftProvince(province);
+                  setDraftCity(city);
+                  setDraftKecamatan(kecamatan);
+                  setDraftDesa(desa);
+                  if (alamatLengkap !== undefined) setDraftAlamatLengkap(alamatLengkap);
+                  if (coordinates) setDraftCoordinates(coordinates);
                 }}
               />
             </div>
             <div className="flex gap-2 pt-2">
               <button type="button" onClick={() => setActiveEditModal(null)} className="flex-1 py-2 rounded-xl border border-slate-200 text-slate-600 font-semibold text-xs cursor-pointer">Batal</button>
               <button type="button" onClick={() => {
+                setEditProvince(draftProvince);
+                setEditCity(draftCity);
+                setEditKecamatan(draftKecamatan);
+                setEditDesa(draftDesa);
+                setEditAlamatLengkap(draftAlamatLengkap);
+                setEditCoordinates(draftCoordinates);
                 handleUpdate({
-                  province: editProvince,
-                  city: editCity,
-                  kecamatan: editKecamatan,
-                  desa: editDesa,
-                  alamatLengkap: editAlamatLengkap,
-                  coordinates: editCoordinates || undefined
+                  province: draftProvince,
+                  city: draftCity,
+                  kecamatan: draftKecamatan,
+                  desa: draftDesa,
+                  alamatLengkap: draftAlamatLengkap,
+                  coordinates: draftCoordinates || undefined
                 });
                 setActiveEditModal(null);
               }} className="flex-1 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs cursor-pointer">Simpan</button>
@@ -1058,8 +1155,8 @@ export const AlumniDetailAdminModal: React.FC<AlumniDetailAdminModalProps> = ({
                 <label className="block font-semibold text-slate-700 mb-1">Nomor WhatsApp</label>
                 <input
                   type="text"
-                  value={editPhone}
-                  onChange={(e) => setEditPhone(e.target.value)}
+                  value={draftPhone}
+                  onChange={(e) => setDraftPhone(e.target.value)}
                   className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white text-xs"
                   placeholder="08123456789"
                 />
@@ -1068,8 +1165,8 @@ export const AlumniDetailAdminModal: React.FC<AlumniDetailAdminModalProps> = ({
                 <label className="block font-semibold text-slate-700 mb-1">Alamat Email</label>
                 <input
                   type="email"
-                  value={editEmail}
-                  onChange={(e) => setEditEmail(e.target.value)}
+                  value={draftEmail}
+                  onChange={(e) => setDraftEmail(e.target.value)}
                   className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white text-xs"
                   placeholder="alumni@attaroqqy.ac.id"
                 />
@@ -1077,7 +1174,12 @@ export const AlumniDetailAdminModal: React.FC<AlumniDetailAdminModalProps> = ({
             </div>
             <div className="flex gap-2 pt-2">
               <button type="button" onClick={() => setActiveEditModal(null)} className="flex-1 py-2 rounded-xl border border-slate-200 text-slate-600 font-semibold text-xs cursor-pointer">Batal</button>
-              <button type="button" onClick={() => { handleUpdate({ phone: editPhone, email: editEmail }); setActiveEditModal(null); }} className="flex-1 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs cursor-pointer">Simpan</button>
+              <button type="button" onClick={() => { 
+                setEditPhone(draftPhone);
+                setEditEmail(draftEmail);
+                handleUpdate({ phone: draftPhone, email: draftEmail }); 
+                setActiveEditModal(null); 
+              }} className="flex-1 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs cursor-pointer">Simpan</button>
             </div>
           </div>
         </div>
@@ -1096,8 +1198,8 @@ export const AlumniDetailAdminModal: React.FC<AlumniDetailAdminModalProps> = ({
                 <label className="block font-semibold text-slate-700 mb-1">Profesi / Pekerjaan</label>
                 <input
                   type="text"
-                  value={editOccupation}
-                  onChange={(e) => setEditOccupation(e.target.value)}
+                  value={draftOccupation}
+                  onChange={(e) => setDraftOccupation(e.target.value)}
                   className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white text-xs"
                   placeholder="Profesi saat ini..."
                 />
@@ -1106,8 +1208,8 @@ export const AlumniDetailAdminModal: React.FC<AlumniDetailAdminModalProps> = ({
                 <label className="block font-semibold text-slate-700 mb-1">Nama Instansi / Lembaga / Usaha</label>
                 <input
                   type="text"
-                  value={editInstitution}
-                  onChange={(e) => setEditInstitution(e.target.value)}
+                  value={draftInstitution}
+                  onChange={(e) => setDraftInstitution(e.target.value)}
                   className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white text-xs"
                   placeholder="Nama kantor, usaha, sekolah..."
                 />
@@ -1115,7 +1217,12 @@ export const AlumniDetailAdminModal: React.FC<AlumniDetailAdminModalProps> = ({
             </div>
             <div className="flex gap-2 pt-2">
               <button type="button" onClick={() => setActiveEditModal(null)} className="flex-1 py-2 rounded-xl border border-slate-200 text-slate-600 font-semibold text-xs cursor-pointer">Batal</button>
-              <button type="button" onClick={() => { handleUpdate({ occupation: editOccupation, institution: editInstitution }); setActiveEditModal(null); }} className="flex-1 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs cursor-pointer">Simpan</button>
+              <button type="button" onClick={() => { 
+                setEditOccupation(draftOccupation);
+                setEditInstitution(draftInstitution);
+                handleUpdate({ occupation: draftOccupation, institution: draftInstitution }); 
+                setActiveEditModal(null); 
+              }} className="flex-1 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs cursor-pointer">Simpan</button>
             </div>
           </div>
         </div>
@@ -1133,15 +1240,19 @@ export const AlumniDetailAdminModal: React.FC<AlumniDetailAdminModalProps> = ({
               <label className="block font-semibold text-slate-700 mb-1 text-xs">Nomor Induk Santri</label>
               <input
                 type="text"
-                value={editNis}
-                onChange={(e) => setEditNis(e.target.value)}
+                value={draftNis}
+                onChange={(e) => setDraftNis(e.target.value)}
                 className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-mono focus:bg-white text-xs"
                 placeholder="NIS Santri..."
               />
             </div>
             <div className="flex gap-2 pt-2">
               <button type="button" onClick={() => setActiveEditModal(null)} className="flex-1 py-2 rounded-xl border border-slate-200 text-slate-600 font-semibold text-xs cursor-pointer">Batal</button>
-              <button type="button" onClick={() => { handleUpdate({ nis: editNis }); setActiveEditModal(null); }} className="flex-1 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs cursor-pointer">Simpan</button>
+              <button type="button" onClick={() => { 
+                setEditNis(draftNis);
+                handleUpdate({ nis: draftNis }); 
+                setActiveEditModal(null); 
+              }} className="flex-1 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs cursor-pointer">Simpan</button>
             </div>
           </div>
         </div>
@@ -1159,15 +1270,19 @@ export const AlumniDetailAdminModal: React.FC<AlumniDetailAdminModalProps> = ({
               <label className="block font-semibold text-slate-700 mb-1 text-xs">Nomor Induk Santri Madrasah (NISM)</label>
               <input
                 type="text"
-                value={editNism}
-                onChange={(e) => setEditNism(e.target.value)}
+                value={draftNism}
+                onChange={(e) => setDraftNism(e.target.value)}
                 className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-mono focus:bg-white text-xs"
                 placeholder="131233170001"
               />
             </div>
             <div className="flex gap-2 pt-2">
               <button type="button" onClick={() => setActiveEditModal(null)} className="flex-1 py-2 rounded-xl border border-slate-200 text-slate-600 font-semibold text-xs cursor-pointer">Batal</button>
-              <button type="button" onClick={() => { handleUpdate({ nism: editNism }); setActiveEditModal(null); }} className="flex-1 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs cursor-pointer">Simpan</button>
+              <button type="button" onClick={() => { 
+                setEditNism(draftNism);
+                handleUpdate({ nism: draftNism }); 
+                setActiveEditModal(null); 
+              }} className="flex-1 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs cursor-pointer">Simpan</button>
             </div>
           </div>
         </div>
@@ -1185,15 +1300,19 @@ export const AlumniDetailAdminModal: React.FC<AlumniDetailAdminModalProps> = ({
               <label className="block font-semibold text-slate-700 mb-1 text-xs">Nomor Induk Siswa Nasional (NISN)</label>
               <input
                 type="text"
-                value={editNisn}
-                onChange={(e) => setEditNisn(e.target.value)}
+                value={draftNisn}
+                onChange={(e) => setDraftNisn(e.target.value)}
                 className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-mono focus:bg-white text-xs"
                 placeholder="0012345678"
               />
             </div>
             <div className="flex gap-2 pt-2">
               <button type="button" onClick={() => setActiveEditModal(null)} className="flex-1 py-2 rounded-xl border border-slate-200 text-slate-600 font-semibold text-xs cursor-pointer">Batal</button>
-              <button type="button" onClick={() => { handleUpdate({ nisn: editNisn }); setActiveEditModal(null); }} className="flex-1 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs cursor-pointer">Simpan</button>
+              <button type="button" onClick={() => { 
+                setEditNisn(draftNisn);
+                handleUpdate({ nisn: draftNisn }); 
+                setActiveEditModal(null); 
+              }} className="flex-1 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs cursor-pointer">Simpan</button>
             </div>
           </div>
         </div>
@@ -1232,7 +1351,7 @@ export const AlumniDetailAdminModal: React.FC<AlumniDetailAdminModalProps> = ({
         </div>
       )}
 
-      {/* 12. EDIT TANGGAL KELUAR (MODAL PERSIS TANGGAL MASUK) */}
+      {/* 12. EDIT TANGGAL KELUAR */}
       {activeEditModal === 'tanggal_keluar' && (
         <div className="fixed inset-0 z-[100010] bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in" onClick={() => setActiveEditModal(null)}>
           <div className="bg-white rounded-3xl p-5 w-full max-w-sm space-y-4 shadow-2xl border border-slate-100" onClick={(e) => e.stopPropagation()}>
@@ -1274,8 +1393,8 @@ export const AlumniDetailAdminModal: React.FC<AlumniDetailAdminModalProps> = ({
                 <label className="block font-semibold text-slate-700 mb-1">Nama Lengkap Ayah</label>
                 <input
                   type="text"
-                  value={editNamaAyah}
-                  onChange={(e) => setEditNamaAyah(e.target.value)}
+                  value={draftNamaAyah}
+                  onChange={(e) => setDraftNamaAyah(e.target.value)}
                   className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white text-xs"
                   placeholder="Nama lengkap ayah..."
                 />
@@ -1285,8 +1404,8 @@ export const AlumniDetailAdminModal: React.FC<AlumniDetailAdminModalProps> = ({
                 <input
                   type="text"
                   maxLength={16}
-                  value={editNikAyah}
-                  onChange={(e) => setEditNikAyah(e.target.value.replace(/[^0-9]/g, ''))}
+                  value={draftNikAyah}
+                  onChange={(e) => setDraftNikAyah(e.target.value.replace(/[^0-9]/g, ''))}
                   className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-mono focus:bg-white text-xs"
                   placeholder="NIK KTP Ayah..."
                 />
@@ -1295,8 +1414,8 @@ export const AlumniDetailAdminModal: React.FC<AlumniDetailAdminModalProps> = ({
                 <label className="block font-semibold text-slate-700 mb-1">Pekerjaan Ayah</label>
                 <input
                   type="text"
-                  value={editPekerjaanAyah}
-                  onChange={(e) => setEditPekerjaanAyah(e.target.value)}
+                  value={draftPekerjaanAyah}
+                  onChange={(e) => setDraftPekerjaanAyah(e.target.value)}
                   className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white text-xs"
                   placeholder="Petani / Guru / Wiraswasta..."
                 />
@@ -1305,8 +1424,8 @@ export const AlumniDetailAdminModal: React.FC<AlumniDetailAdminModalProps> = ({
                 <label className="block font-semibold text-slate-700 mb-1">Pendidikan Terakhir Ayah</label>
                 <input
                   type="text"
-                  value={editPendidikanAyah}
-                  onChange={(e) => setEditPendidikanAyah(e.target.value)}
+                  value={draftPendidikanAyah}
+                  onChange={(e) => setDraftPendidikanAyah(e.target.value)}
                   className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white text-xs"
                   placeholder="SMA / S1 / Pesantren..."
                 />
@@ -1315,11 +1434,15 @@ export const AlumniDetailAdminModal: React.FC<AlumniDetailAdminModalProps> = ({
             <div className="flex gap-2 pt-2">
               <button type="button" onClick={() => setActiveEditModal(null)} className="flex-1 py-2 rounded-xl border border-slate-200 text-slate-600 font-semibold text-xs cursor-pointer">Batal</button>
               <button type="button" onClick={() => { 
+                setEditNamaAyah(draftNamaAyah);
+                setEditNikAyah(draftNikAyah);
+                setEditPekerjaanAyah(draftPekerjaanAyah);
+                setEditPendidikanAyah(draftPendidikanAyah);
                 handleUpdate({ 
-                  namaAyah: editNamaAyah, 
-                  nikAyah: editNikAyah, 
-                  pekerjaanAyah: editPekerjaanAyah, 
-                  pendidikanAyah: editPendidikanAyah 
+                  namaAyah: draftNamaAyah, 
+                  nikAyah: draftNikAyah, 
+                  pekerjaanAyah: draftPekerjaanAyah, 
+                  pendidikanAyah: draftPendidikanAyah 
                 }); 
                 setActiveEditModal(null); 
               }} className="flex-1 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs cursor-pointer">Simpan</button>
@@ -1341,8 +1464,8 @@ export const AlumniDetailAdminModal: React.FC<AlumniDetailAdminModalProps> = ({
                 <label className="block font-semibold text-slate-700 mb-1">Nama Lengkap Ibu</label>
                 <input
                   type="text"
-                  value={editNamaIbu}
-                  onChange={(e) => setEditNamaIbu(e.target.value)}
+                  value={draftNamaIbu}
+                  onChange={(e) => setDraftNamaIbu(e.target.value)}
                   className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white text-xs"
                   placeholder="Nama lengkap ibu..."
                 />
@@ -1352,8 +1475,8 @@ export const AlumniDetailAdminModal: React.FC<AlumniDetailAdminModalProps> = ({
                 <input
                   type="text"
                   maxLength={16}
-                  value={editNikIbu}
-                  onChange={(e) => setEditNikIbu(e.target.value.replace(/[^0-9]/g, ''))}
+                  value={draftNikIbu}
+                  onChange={(e) => setDraftNikIbu(e.target.value.replace(/[^0-9]/g, ''))}
                   className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-mono focus:bg-white text-xs"
                   placeholder="NIK KTP Ibu..."
                 />
@@ -1362,8 +1485,8 @@ export const AlumniDetailAdminModal: React.FC<AlumniDetailAdminModalProps> = ({
                 <label className="block font-semibold text-slate-700 mb-1">Pekerjaan Ibu</label>
                 <input
                   type="text"
-                  value={editPekerjaanIbu}
-                  onChange={(e) => setEditPekerjaanIbu(e.target.value)}
+                  value={draftPekerjaanIbu}
+                  onChange={(e) => setDraftPekerjaanIbu(e.target.value)}
                   className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white text-xs"
                   placeholder="Ibu Rumah Tangga / Guru / Wiraswasta..."
                 />
@@ -1372,8 +1495,8 @@ export const AlumniDetailAdminModal: React.FC<AlumniDetailAdminModalProps> = ({
                 <label className="block font-semibold text-slate-700 mb-1">Pendidikan Terakhir Ibu</label>
                 <input
                   type="text"
-                  value={editPendidikanIbu}
-                  onChange={(e) => setEditPendidikanIbu(e.target.value)}
+                  value={draftPendidikanIbu}
+                  onChange={(e) => setDraftPendidikanIbu(e.target.value)}
                   className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white text-xs"
                   placeholder="SMA / S1 / Pesantren..."
                 />
@@ -1382,11 +1505,15 @@ export const AlumniDetailAdminModal: React.FC<AlumniDetailAdminModalProps> = ({
             <div className="flex gap-2 pt-2">
               <button type="button" onClick={() => setActiveEditModal(null)} className="flex-1 py-2 rounded-xl border border-slate-200 text-slate-600 font-semibold text-xs cursor-pointer">Batal</button>
               <button type="button" onClick={() => { 
+                setEditNamaIbu(draftNamaIbu);
+                setEditNikIbu(draftNikIbu);
+                setEditPekerjaanIbu(draftPekerjaanIbu);
+                setEditPendidikanIbu(draftPendidikanIbu);
                 handleUpdate({ 
-                  namaIbu: editNamaIbu, 
-                  nikIbu: editNikIbu, 
-                  pekerjaanIbu: editPekerjaanIbu, 
-                  pendidikanIbu: editPendidikanIbu 
+                  namaIbu: draftNamaIbu, 
+                  nikIbu: draftNikIbu, 
+                  pekerjaanIbu: draftPekerjaanIbu, 
+                  pendidikanIbu: draftPendidikanIbu 
                 }); 
                 setActiveEditModal(null); 
               }} className="flex-1 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs cursor-pointer">Simpan</button>

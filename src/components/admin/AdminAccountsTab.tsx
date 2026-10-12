@@ -95,97 +95,26 @@ export const AdminAccountsTab: React.FC<AdminAccountsTabProps> = ({
   };
 
   return (
-    <div className="flex-1 flex flex-col min-h-0 overflow-y-auto px-4 py-3 max-w-xl mx-auto w-full pb-28 space-y-4">
-      {/* 1. Header Banner & Info Kewenangan Akun Sendiri */}
-      <div className="bg-white rounded-3xl p-4 sm:p-5 border border-slate-200/90 shadow-2xs space-y-3">
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-3 min-w-0">
-            <div className="w-11 h-11 rounded-2xl bg-sky-50 text-sky-700 flex items-center justify-center font-bold shrink-0 border border-sky-100 shadow-2xs">
-              <ShieldCheck className="w-6 h-6" />
-            </div>
-            <div className="min-w-0">
-              <h3 className="font-display font-extrabold text-sm sm:text-base text-slate-900 truncate">
-                Kelola Akun Admin
-              </h3>
-              <p className="text-[11px] text-slate-500 font-medium">
-                {isCurrentPusat
-                  ? 'Akses Penuh Pusat: Lihat, tambah, atur & hapus akun'
-                  : `Wewenang Wilayah: ${formatAdminAuthorityLabel(currentAdmin)}`}
-              </p>
-            </div>
-          </div>
-
+    <div className="flex-1 flex flex-col min-h-0 overflow-y-auto px-4 py-3 max-w-xl mx-auto w-full pb-28 space-y-3 relative">
+      {/* 1. Pencarian Minimalis & Bersih */}
+      <div className="relative">
+        <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+        <input
+          type="text"
+          placeholder="Cari nama admin, username, atau daerah..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className="w-full pl-9 pr-9 py-2.5 bg-white border border-slate-200/90 rounded-2xl text-xs font-medium focus:ring-2 focus:ring-sky-600 focus:outline-none shadow-2xs placeholder:text-slate-400"
+        />
+        {searchQuery && (
           <button
             type="button"
-            onClick={handleOpenAdd}
-            className="py-2 px-3.5 rounded-2xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs flex items-center gap-1.5 shadow-xs transition-all cursor-pointer shrink-0 active:scale-95"
+            onClick={() => setSearchQuery('')}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
           >
-            <Plus className="w-4 h-4" />
-            <span>Tambah</span>
+            <X className="w-4 h-4" />
           </button>
-        </div>
-
-        {/* Ringkasan status wewenang */}
-        <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200/80 text-[11px] text-slate-600 leading-relaxed flex items-start gap-2">
-          <Building2 className="w-4 h-4 text-sky-600 shrink-0 mt-0.5" />
-          <div>
-            <p className="font-semibold text-slate-800">
-              Hak Akses Anda: {formatAdminAuthorityLabel(currentAdmin)}
-            </p>
-            <p className="text-slate-500 mt-0.5">
-              {isCurrentPusat
-                ? 'Sebagai Admin Pusat, Anda dapat mengatur semua akun admin se-Indonesia dan menentukan cakupan wilayah wewenangnya.'
-                : 'Anda hanya dapat menambah dan mengubah akun admin di area yang Anda bawahi. Untuk akun di luar area, Anda hanya dapat melihat datanya.'}
-            </p>
-          </div>
-        </div>
-      </div>
-
-      {/* 2. Pencarian & Filter Tingkat Wewenang */}
-      <div className="space-y-2">
-        <div className="relative">
-          <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-          <input
-            type="text"
-            placeholder="Cari nama admin, username, jabatan, atau daerah..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-9 pr-9 py-2.5 bg-white border border-slate-200 rounded-2xl text-xs font-medium focus:ring-2 focus:ring-sky-600 focus:outline-none shadow-2xs"
-          />
-          {searchQuery && (
-            <button
-              type="button"
-              onClick={() => setSearchQuery('')}
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
-            >
-              <X className="w-4 h-4" />
-            </button>
-          )}
-        </div>
-
-        {/* Filter Tingkat */}
-        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1 text-xs">
-          {[
-            { id: 'semua', label: `Semua (${adminList.length})` },
-            { id: 'pusat', label: 'Pusat' },
-            { id: 'provinsi', label: 'Provinsi' },
-            { id: 'kota', label: 'Kab / Kota' },
-            { id: 'kecamatan', label: 'Kecamatan' },
-          ].map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              onClick={() => setLevelFilter(item.id as any)}
-              className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer shrink-0 ${
-                levelFilter === item.id
-                  ? 'bg-sky-600 text-white shadow-xs'
-                  : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
-              }`}
-            >
-              {item.label}
-            </button>
-          ))}
-        </div>
+        )}
       </div>
 
       {/* 3. Daftar Kartu Akun Admin */}
@@ -205,75 +134,50 @@ export const AdminAccountsTab: React.FC<AdminAccountsTabProps> = ({
                   : 'border-slate-200/90 shadow-2xs hover:border-slate-300'
               }`}
             >
-              {/* Header Kartu: Avatar, Nama, Username, Badges */}
-              <div className="flex items-start gap-3.5">
-                <div className="relative shrink-0">
-                  <img
-                    src={
-                      adm.avatar ||
-                      'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=256'
-                    }
-                    alt={adm.name}
-                    className="w-12 h-12 rounded-2xl object-cover border border-slate-200"
-                  />
-                  {admLevel === 'pusat' && (
-                    <span className="absolute -bottom-1 -right-1 w-4 h-4 bg-amber-500 text-white rounded-full flex items-center justify-center text-[9px] shadow-xs" title="Admin Pusat">
-                      ★
-                    </span>
-                  )}
-                </div>
-
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    <h4 className="font-display font-bold text-sm text-slate-900 truncate">
-                      {adm.name}
-                    </h4>
-                    {isMe && (
-                      <span className="text-[10px] font-bold text-sky-700 bg-sky-50 border border-sky-200 px-1.5 py-0.2 rounded-md">
-                        Akun Anda
+              {/* Header Kartu: Avatar, Nama, Username */}
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="relative shrink-0">
+                    <img
+                      src={
+                        adm.avatar ||
+                        'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=256'
+                      }
+                      alt={adm.name}
+                      className="w-11 h-11 rounded-2xl object-cover border border-slate-200"
+                    />
+                    {admLevel === 'pusat' && (
+                      <span className="absolute -bottom-1 -right-1 w-4 h-4 bg-amber-500 text-white rounded-full flex items-center justify-center text-[9px] shadow-xs font-bold" title="Admin Pusat">
+                        ★
                       </span>
                     )}
                   </div>
 
-                  <p className="text-xs font-mono text-slate-500 mt-0.5">
-                    {adm.username.startsWith('@') ? adm.username : `@${adm.username}`}
-                  </p>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-1.5">
+                      <h4 className="font-display font-bold text-sm text-slate-900 truncate">
+                        {adm.name}
+                      </h4>
+                      {isMe && (
+                        <span className="text-[10px] font-bold text-sky-700 bg-sky-50 border border-sky-200 px-1.5 py-0.2 rounded-md">
+                          Anda
+                        </span>
+                      )}
+                    </div>
 
-                  <p className="text-xs text-slate-600 font-medium mt-1">
-                    {adm.jabatan || 'Pengurus Ikatan Alumni'}
-                  </p>
-                </div>
-              </div>
-
-              {/* Detail Wewenang & Wilayah */}
-              <div className="mt-3 pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2 text-xs">
-                {/* Badge Wewenang Daerah */}
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  <span
-                    className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full flex items-center gap-1 ${
-                      admLevel === 'pusat'
-                        ? 'bg-purple-50 text-purple-700 border border-purple-200'
-                        : admLevel === 'provinsi'
-                        ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                        : admLevel === 'kota'
-                        ? 'bg-sky-50 text-sky-700 border border-sky-200'
-                        : 'bg-amber-50 text-amber-700 border border-amber-200'
-                    }`}
-                  >
-                    <Building2 className="w-3 h-3" />
-                    <span>{formatAdminAuthorityLabel(adm)}</span>
-                  </span>
-
-                  {!canManage && (
-                    <span className="text-[10px] text-slate-400 bg-slate-100 px-2 py-0.5 rounded-md flex items-center gap-1" title="Hanya bisa melihat, tidak bisa edit">
-                      <Lock className="w-2.5 h-2.5" />
-                      Luar Wilayah (Hanya Lihat)
-                    </span>
-                  )}
+                    <p className="text-xs font-mono text-slate-500">
+                      {adm.username.startsWith('@') ? adm.username : `@${adm.username}`}
+                    </p>
+                    {adm.jabatan && (
+                      <p className="text-[11px] text-slate-600 font-medium truncate mt-0.5">
+                        {adm.jabatan}
+                      </p>
+                    )}
+                  </div>
                 </div>
 
                 {/* Tombol Aksi */}
-                <div className="flex items-center gap-1.5">
+                <div className="flex items-center gap-1.5 shrink-0">
                   {canManage ? (
                     <>
                       <button
@@ -282,7 +186,7 @@ export const AdminAccountsTab: React.FC<AdminAccountsTabProps> = ({
                         className="py-1.5 px-3 rounded-xl bg-slate-100 hover:bg-sky-50 hover:text-sky-700 text-slate-700 font-bold text-xs flex items-center gap-1 transition-colors cursor-pointer"
                       >
                         <Edit2 className="w-3 h-3" />
-                        <span>Atur</span>
+                        <span>Edit</span>
                       </button>
 
                       {adm.username !== '@admin_pusat' && !isMe && (
@@ -307,7 +211,7 @@ export const AdminAccountsTab: React.FC<AdminAccountsTabProps> = ({
                       className="py-1.5 px-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold text-xs flex items-center gap-1 transition-colors cursor-pointer"
                     >
                       <Eye className="w-3 h-3" />
-                      <span>Lihat Detail</span>
+                      <span>Lihat</span>
                     </button>
                   )}
                 </div>
@@ -321,11 +225,21 @@ export const AdminAccountsTab: React.FC<AdminAccountsTabProps> = ({
             <ShieldCheck className="w-8 h-8 text-slate-300 mx-auto" />
             <p className="font-semibold text-slate-700">Tidak ada akun admin ditemukan</p>
             <p className="text-slate-400 text-[11px]">
-              Coba sesuaikan kata kunci pencarian atau filter tingkat wewenang.
+              Coba sesuaikan kata kunci pencarian.
             </p>
           </div>
         )}
       </div>
+
+      {/* Tombol Plus Melayang (Floating Action Button) */}
+      <button
+        type="button"
+        onClick={handleOpenAdd}
+        aria-label="Tambah Akun Admin"
+        className="fixed bottom-24 right-5 sm:right-8 z-40 w-14 h-14 rounded-full bg-linear-to-tr from-sky-600 to-sky-500 hover:from-sky-700 hover:to-sky-600 text-white shadow-xl shadow-sky-600/35 flex items-center justify-center transition-all duration-200 active:scale-90 hover:scale-105 cursor-pointer ring-4 ring-white"
+      >
+        <Plus className="w-6 h-6 stroke-[2.5]" />
+      </button>
 
       {/* Modal Tambah / Edit / Detail Akun Admin */}
       {isModalOpen && (

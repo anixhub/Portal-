@@ -326,7 +326,7 @@ export const AdminAccountEditModal: React.FC<AdminAccountEditModalProps> = ({
                   type="text"
                   disabled={isReadOnly}
                   required
-                  placeholder="Contoh: Korda Alumni Wilayah Jawa Timur"
+                  placeholder="Contoh: Pengurus Alumni Wilayah Jawa Timur"
                   value={jabatan}
                   onChange={(e) => setJabatan(e.target.value)}
                   className="w-full pl-9 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:bg-white focus:ring-2 focus:ring-sky-600 disabled:opacity-75"
