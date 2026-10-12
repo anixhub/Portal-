@@ -176,45 +176,47 @@ export function ensureConsistentAlumniIdentities(list: AlumniRecord[]): AlumniRe
     };
   });
 
-  // 2. Kelompokkan berdasarkan tahun masuk untuk menghitung urutan NIS konsisten
-  // Jika alumni tidak memiliki entryDate atau tanggal masuk kosong, nis = ''
-  const recordsByYear = new Map<string, AlumniRecord[]>();
+  // 2. Kelompokkan berdasarkan tanggal masuk untuk menghitung urutan NIS konsisten
+  // Sesuai aturan:
+  // "Buat tgl masuk ini menjadi acuan generate nis di database. Yaitu 4 digit tahun 3 digit akhir nomor urut santri di tahun itu. Apabila tgl nya sama ya maka yang lebih dulu diinput lebih awal nomernya. Apabila belum mengisi tanggal masuk maka nis belum ada"
+  const recordsByYear = new Map<string, { alumni: AlumniRecord; originalIndex: number }[]>();
 
-  withUniqueUsernames.forEach((alumni) => {
-    const rawDate = alumni.entryDate || '';
+  withUniqueUsernames.forEach((alumni, originalIndex) => {
+    const rawDate = (alumni.entryDate || '').trim();
     const yearMatch = rawDate.match(/^(\d{4})/);
-    const year = yearMatch ? yearMatch[1] : (alumni.entryYear && /^\d{4}$/.test(alumni.entryYear) ? alumni.entryYear : null);
 
-    if (year) {
+    if (yearMatch) {
+      const year = yearMatch[1];
       if (!recordsByYear.has(year)) {
         recordsByYear.set(year, []);
       }
-      recordsByYear.get(year)!.push(alumni);
+      recordsByYear.get(year)!.push({ alumni, originalIndex });
     }
   });
 
-  // Urutkan per tahun: tanggal masuk lebih awal -> urutan lebih awal, jika sama -> urutan asli list
+  // Urutkan per tahun: tanggal masuk lebih awal -> urutan lebih awal, jika tgl sama -> yang lebih awal diinput (originalIndex)
   const nisLookup = new Map<string, string>();
 
   recordsByYear.forEach((yearList, year) => {
-    // Sort stable berdasarkan entryDate
     yearList.sort((a, b) => {
-      const dateA = a.entryDate || `${year}-01-01`;
-      const dateB = b.entryDate || `${year}-01-01`;
-      return dateA.localeCompare(dateB);
+      const dateA = a.alumni.entryDate || `${year}-01-01`;
+      const dateB = b.alumni.entryDate || `${year}-01-01`;
+      const cmp = dateA.localeCompare(dateB);
+      if (cmp !== 0) return cmp;
+      return a.originalIndex - b.originalIndex;
     });
 
-    yearList.forEach((alm, idx) => {
-      // Jika nis alumni sudah berformat YYYYNNN yang valid untuk tahun tersebut, pertahankan jika tidak tabrakan
+    yearList.forEach((item, idx) => {
       const seq = String(idx + 1).padStart(3, '0');
       const standardNis = `${year}${seq}`;
-      nisLookup.set(alm.id, standardNis);
+      nisLookup.set(item.alumni.id, standardNis);
     });
   });
 
   return withUniqueUsernames.map((alumni) => {
-    // Jika tidak memiliki tanggal masuk sama sekali, NIS belum ada
-    if (!alumni.entryDate && !alumni.entryYear) {
+    // Apabila belum mengisi tanggal masuk maka NIS belum ada (kosong)
+    const rawDate = (alumni.entryDate || '').trim();
+    if (!rawDate) {
       return {
         ...alumni,
         nis: '',
@@ -224,7 +226,7 @@ export function ensureConsistentAlumniIdentities(list: AlumniRecord[]): AlumniRe
     const calculatedNis = nisLookup.get(alumni.id);
     return {
       ...alumni,
-      nis: calculatedNis || alumni.nis || '',
+      nis: calculatedNis || '',
     };
   });
 }

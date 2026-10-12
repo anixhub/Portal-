@@ -5,7 +5,7 @@ export interface AlumniRecord {
   nis: string;
   name: string;
   username?: string;
-  gender: 'L' | 'P';
+  gender: 'L' | 'P' | 'Putra' | 'Putri';
   gradYear: string;
   entryYear: string;
   gradDate?: string;
@@ -141,7 +141,7 @@ export interface AttendanceAttendee {
   jenjang?: string;
   checkInTime: string;
   photoUrl?: string;
-  gender?: 'L' | 'P';
+  gender?: 'L' | 'P' | 'Putra' | 'Putri';
   method: 'qr' | 'manual';
 }
 

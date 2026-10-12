@@ -511,6 +511,9 @@ export const AdminView: React.FC<AdminViewProps> = ({
     };
 
     setAttendanceSessions((prev) => [newSession, ...prev]);
+    setIsCreateAttendanceModalOpen(false);
+    setInitialEventForCreateAttendance(null);
+    setActiveAttendanceSession(newSession);
     triggerToast(`Sesi presensi "${data.title}" berhasil dibuat`);
   };
 
@@ -619,6 +622,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
 
   // Search & Filter state for Kelola Alumni
   const [searchQuery, setSearchQuery] = useState('');
+  const [genderFilter, setGenderFilter] = useState<'semua' | 'Putra' | 'Putri'>('semua');
   const [statusFilter, setStatusFilter] = useState<'semua' | 'aktif' | 'tidak_aktif'>('semua');
   const [visibleCount, setVisibleCount] = useState(60);
   const [isFilterSheetOpen, setIsFilterSheetOpen] = useState(false);
@@ -635,6 +639,8 @@ export const AdminView: React.FC<AdminViewProps> = ({
     setVisibleCount(60);
   }, [
     searchQuery,
+    genderFilter,
+    statusFilter,
     filterEntryFrom,
     filterEntryTo,
     filterGradFrom,
@@ -643,10 +649,11 @@ export const AdminView: React.FC<AdminViewProps> = ({
     filterCity,
     filterKecamatan,
     filterDesa,
-    statusFilter,
   ]);
 
   const hasActiveFilters = Boolean(
+    genderFilter !== 'semua' ||
+    statusFilter !== 'semua' ||
     filterEntryFrom ||
     filterEntryTo ||
     filterGradFrom ||
@@ -658,6 +665,8 @@ export const AdminView: React.FC<AdminViewProps> = ({
   );
 
   const handleResetFilters = () => {
+    setGenderFilter('semua');
+    setStatusFilter('semua');
     setFilterEntryFrom('');
     setFilterEntryTo('');
     setFilterGradFrom('');
@@ -739,9 +748,11 @@ export const AdminView: React.FC<AdminViewProps> = ({
   // Jika sedang berada di tab Agenda, Pengumuman, atau Profil Admin, tekan tombol fisik kembali ke Kelola Alumni
   useBackHandler(activeTab !== 'alumni', 'admin-tab-alumni', () => setActiveTab('alumni'));
 
-  // Counts for status labels
+  // Counts for status labels & gender
   const activeCount = alumniList.filter((item) => item.hasLoggedIn === true || item.isPasswordChanged === true).length;
   const inactiveCount = alumniList.filter((item) => !item.hasLoggedIn && !item.isPasswordChanged).length;
+  const putraCount = alumniList.filter((item) => item.gender === 'Putra' || item.gender === 'L' || item.gender?.toLowerCase() === 'putra').length;
+  const putriCount = alumniList.filter((item) => item.gender === 'Putri' || item.gender === 'P' || item.gender?.toLowerCase() === 'putri').length;
 
   // Toast
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -773,6 +784,16 @@ export const AdminView: React.FC<AdminViewProps> = ({
         : statusFilter === 'aktif'
         ? isAlumniActive
         : !isAlumniActive;
+
+    // Filter gender Putra / Putri
+    const isPutra = item.gender === 'Putra' || item.gender === 'L' || item.gender?.toLowerCase() === 'putra';
+    const isPutri = item.gender === 'Putri' || item.gender === 'P' || item.gender?.toLowerCase() === 'putri';
+    const matchGender =
+      genderFilter === 'semua'
+        ? true
+        : genderFilter === 'Putra'
+        ? isPutra
+        : isPutri;
 
     const entryNum = parseInt(item.entryYear, 10);
     const gradNum = parseInt(item.gradYear, 10);
@@ -812,6 +833,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
     return (
       matchSearch &&
       matchStatus &&
+      matchGender &&
       matchEntryFrom &&
       matchEntryTo &&
       matchGradFrom &&
@@ -1444,72 +1466,43 @@ export const AdminView: React.FC<AdminViewProps> = ({
                 </button>
               </div>
 
-              {/* Filter Label Status: Semua, Aktif, Tidak Aktif (tidak ikut terscroll) */}
-              <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 scrollbar-none justify-between">
-                <div className="flex items-center gap-1.5 shrink-0">
-                  <button
-                    type="button"
-                    onClick={() => setStatusFilter('semua')}
-                    className={`px-3 py-1 rounded-full text-xs font-bold transition-all cursor-pointer shrink-0 ${
-                      statusFilter === 'semua'
-                        ? 'bg-sky-600 text-white shadow-xs'
-                        : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
-                    }`}
-                  >
-                    Semua ({alumniList.length.toLocaleString('id-ID')})
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setStatusFilter('aktif')}
-                    className={`px-3 py-1 rounded-full text-xs font-bold transition-all cursor-pointer shrink-0 flex items-center gap-1.5 ${
-                      statusFilter === 'aktif'
-                        ? 'bg-emerald-600 text-white shadow-xs'
-                        : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
-                    }`}
-                  >
-                    <span className={`w-2 h-2 rounded-full ${statusFilter === 'aktif' ? 'bg-white' : 'bg-emerald-500'}`} />
-                    Aktif ({activeCount.toLocaleString('id-ID')})
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setStatusFilter('tidak_aktif')}
-                    className={`px-3 py-1 rounded-full text-xs font-bold transition-all cursor-pointer shrink-0 flex items-center gap-1.5 ${
-                      statusFilter === 'tidak_aktif'
-                        ? 'bg-slate-700 text-white shadow-xs'
-                        : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
-                    }`}
-                  >
-                    <span className={`w-2 h-2 rounded-full ${statusFilter === 'tidak_aktif' ? 'bg-white' : 'bg-slate-400'}`} />
-                    Tidak Aktif ({inactiveCount.toLocaleString('id-ID')})
-                  </button>
-                </div>
-
-                {/* Indikator Status Database Hostinger MySQL */}
-                <div className="flex items-center gap-1.5 shrink-0 text-[11px] font-semibold text-slate-600 bg-white border border-slate-200/90 px-2.5 py-1 rounded-full shadow-2xs">
-                  <span
-                    className={`w-2 h-2 rounded-full ${
-                      isDbLoading
-                        ? 'bg-amber-400 animate-ping'
-                        : isDbConnected
-                        ? 'bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.5)]'
-                        : 'bg-slate-400'
-                    }`}
-                  />
-                  <span>
-                    {isDbLoading ? 'Memuat...' : isDbConnected ? 'MySQL Terhubung' : 'Lokal'}
-                  </span>
-                  {onRefreshData && (
-                    <button
-                      type="button"
-                      onClick={onRefreshData}
-                      disabled={isDbLoading}
-                      title="Sinkronisasi ulang dari database Hostinger"
-                      className="text-sky-600 hover:text-sky-800 ml-0.5 font-bold cursor-pointer disabled:opacity-40"
-                    >
-                      ↻
-                    </button>
-                  )}
-                </div>
+              {/* Filter Label Gender: Semua, Putra, Putri */}
+              <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 scrollbar-none">
+                <button
+                  type="button"
+                  onClick={() => setGenderFilter('semua')}
+                  className={`px-3 py-1 rounded-full text-xs font-bold transition-all cursor-pointer shrink-0 ${
+                    genderFilter === 'semua'
+                      ? 'bg-sky-600 text-white shadow-xs'
+                      : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+                  }`}
+                >
+                  Semua ({alumniList.length.toLocaleString('id-ID')})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setGenderFilter('Putra')}
+                  className={`px-3 py-1 rounded-full text-xs font-bold transition-all cursor-pointer shrink-0 flex items-center gap-1.5 ${
+                    genderFilter === 'Putra'
+                      ? 'bg-sky-700 text-white shadow-xs'
+                      : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+                  }`}
+                >
+                  <span className={`w-2 h-2 rounded-full ${genderFilter === 'Putra' ? 'bg-white' : 'bg-sky-500'}`} />
+                  Putra ({putraCount.toLocaleString('id-ID')})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setGenderFilter('Putri')}
+                  className={`px-3 py-1 rounded-full text-xs font-bold transition-all cursor-pointer shrink-0 flex items-center gap-1.5 ${
+                    genderFilter === 'Putri'
+                      ? 'bg-rose-600 text-white shadow-xs'
+                      : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+                  }`}
+                >
+                  <span className={`w-2 h-2 rounded-full ${genderFilter === 'Putri' ? 'bg-white' : 'bg-rose-400'}`} />
+                  Putri ({putriCount.toLocaleString('id-ID')})
+                </button>
               </div>
 
               {/* Filter Active Indicator & Quick Reset */}
@@ -2048,10 +2041,11 @@ export const AdminView: React.FC<AdminViewProps> = ({
         <AlumniDetailAdminModal
           isOpen={Boolean(detailAlumni)}
           alumni={detailAlumni}
+          existingAlumni={alumniList}
           onClose={() => setDetailAlumni(null)}
           onResetPassword={(id) => {
             onResetPassword(id);
-            triggerToast('Kata sandi berhasil di-reset ke: 1234');
+            triggerToast('Kata sandi berhasil di-reset ke pengaturan awal');
           }}
           onSave={(id, updated) => {
             onUpdateAlumni(id, updated);
@@ -2936,7 +2930,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
           onClick={() => setIsCoverBottomSheetOpen(false)}
         >
           <div 
-            className="w-full max-w-md mx-auto bg-white rounded-t-3xl shadow-2xl border-t border-slate-200 flex flex-col animate-in slide-in-from-bottom duration-200"
+            className="w-full bg-white rounded-t-3xl shadow-2xl border-t border-slate-200 flex flex-col animate-in slide-in-from-bottom duration-200"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="w-10 h-1 bg-slate-300 rounded-full mx-auto mt-3 mb-1" />
@@ -3079,6 +3073,49 @@ export const AdminView: React.FC<AdminViewProps> = ({
             </div>
 
             <div className="p-5 space-y-4 text-xs overflow-y-auto">
+              <div>
+                <label className="block font-bold text-slate-700 mb-1.5">
+                  Status Akun
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setStatusFilter('semua')}
+                    className={`py-2 px-3 rounded-xl font-bold text-xs border text-center transition-all cursor-pointer ${
+                      statusFilter === 'semua'
+                        ? 'bg-sky-600 text-white border-sky-600 shadow-xs'
+                        : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                    }`}
+                  >
+                    Semua
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setStatusFilter('aktif')}
+                    className={`py-2 px-3 rounded-xl font-bold text-xs border text-center transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                      statusFilter === 'aktif'
+                        ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
+                        : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                    }`}
+                  >
+                    <span className={`w-1.5 h-1.5 rounded-full ${statusFilter === 'aktif' ? 'bg-white' : 'bg-emerald-500'}`} />
+                    Aktif ({activeCount.toLocaleString('id-ID')})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setStatusFilter('tidak_aktif')}
+                    className={`py-2 px-3 rounded-xl font-bold text-xs border text-center transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                      statusFilter === 'tidak_aktif'
+                        ? 'bg-slate-700 text-white border-slate-700 shadow-xs'
+                        : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                    }`}
+                  >
+                    <span className={`w-1.5 h-1.5 rounded-full ${statusFilter === 'tidak_aktif' ? 'bg-white' : 'bg-slate-400'}`} />
+                    Tidak Aktif ({inactiveCount.toLocaleString('id-ID')})
+                  </button>
+                </div>
+              </div>
+
               <div>
                 <label className="block font-bold text-slate-700 mb-1.5">
                   Tahun Masuk

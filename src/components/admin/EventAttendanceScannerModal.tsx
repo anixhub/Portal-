@@ -31,7 +31,8 @@ export interface AttendanceRecord {
   jenjang?: string;
   checkInTime: string;
   photoUrl?: string;
-  gender: 'L' | 'P';
+  gender: 'L' | 'P' | 'Putra' | 'Putri';
+  method?: 'qr' | 'manual';
 }
 
 interface EventAttendanceScannerModalProps {
@@ -44,6 +45,47 @@ interface EventAttendanceScannerModalProps {
   existingAttendees?: AttendanceAttendee[];
   onDeleteCustomAttendee?: (attendeeId: string) => void;
 }
+
+// Singleton AudioContext to prevent exceeding maximum audio instances in mobile browsers
+let sharedAudioCtx: AudioContext | null = null;
+
+const playSuccessBeep = () => {
+  try {
+    const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+    if (!AudioCtx) return;
+    if (!sharedAudioCtx || sharedAudioCtx.state === 'closed') {
+      sharedAudioCtx = new AudioCtx();
+    }
+    const ctx = sharedAudioCtx;
+    if (ctx.state === 'suspended') {
+      ctx.resume().catch(() => {});
+    }
+
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.type = 'sine';
+
+    const t = ctx.currentTime;
+    osc.frequency.setValueAtTime(880, t);
+    osc.frequency.setValueAtTime(1320, t + 0.08);
+
+    gain.gain.setValueAtTime(0.25, t);
+    gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.28);
+
+    osc.start(t);
+    osc.stop(t + 0.28);
+  } catch (err) {
+    console.warn('Audio playback error:', err);
+  }
+
+  if (navigator.vibrate) {
+    try {
+      navigator.vibrate(100);
+    } catch {}
+  }
+};
 
 export const EventAttendanceScannerModal: React.FC<EventAttendanceScannerModalProps> = ({
   isOpen,
@@ -67,6 +109,7 @@ export const EventAttendanceScannerModal: React.FC<EventAttendanceScannerModalPr
         checkInTime: a.checkInTime,
         photoUrl: a.photoUrl,
         gender: a.gender || 'L',
+        method: a.method || 'qr',
       }));
     }
     return [];
@@ -85,10 +128,12 @@ export const EventAttendanceScannerModal: React.FC<EventAttendanceScannerModalPr
           checkInTime: a.checkInTime,
           photoUrl: a.photoUrl,
           gender: a.gender || 'L',
+          method: a.method || 'qr',
         }))
       );
     }
   }, [existingAttendees]);
+
   const [searchQuery, setSearchQuery] = useState('');
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [isCameraActive, setIsCameraActive] = useState(false);
@@ -110,31 +155,6 @@ export const EventAttendanceScannerModal: React.FC<EventAttendanceScannerModalPr
     setTimeout(() => {
       setToastMessage((prev) => (prev === msg ? null : prev));
     }, 2800);
-  };
-
-  const playSuccessBeep = () => {
-    try {
-      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
-      if (!AudioCtx) return;
-      const ctx = new AudioCtx();
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(880, ctx.currentTime);
-      osc.frequency.setValueAtTime(1200, ctx.currentTime + 0.08);
-      gain.gain.setValueAtTime(0.18, ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.28);
-      osc.start(ctx.currentTime);
-      osc.stop(ctx.currentTime + 0.28);
-    } catch {
-      // Audio autoplay policy fallback
-    }
-
-    if (navigator.vibrate) {
-      navigator.vibrate(100);
-    }
   };
 
   // Start Camera Stream
@@ -178,8 +198,8 @@ export const EventAttendanceScannerModal: React.FC<EventAttendanceScannerModalPr
     setIsCameraActive(false);
   };
 
-  // Check in an alumni
-  const handleCheckInAlumni = (alumni: AlumniRecord) => {
+  // Check in an alumni (QR scan vs Manual Input)
+  const handleCheckInAlumni = (alumni: AlumniRecord, method: 'qr' | 'manual' = 'qr') => {
     const now = Date.now();
     const lastScan = lastScannedTimeRef.current[alumni.id] || 0;
     if (now - lastScan < 2500) {
@@ -222,12 +242,13 @@ export const EventAttendanceScannerModal: React.FC<EventAttendanceScannerModalPr
       checkInTime: timeStr,
       photoUrl: alumni.photoUrl,
       gender: alumni.gender,
+      method: method,
     };
 
     playSuccessBeep();
     setAttendees((prev) => [newRecord, ...prev]);
     setLastScannedAlumni(alumni);
-    showToast(`Presensi Berhasil: ${alumni.name}`);
+    showToast(`Presensi Berhasil: ${alumni.name} (${method === 'manual' ? 'Manual' : 'Scan QR'})`);
 
     onRecordCustomAttendee?.({
       id: newRecord.id,
@@ -243,7 +264,7 @@ export const EventAttendanceScannerModal: React.FC<EventAttendanceScannerModalPr
       checkInTime: timeStr,
       photoUrl: alumni.photoUrl,
       gender: alumni.gender,
-      method: 'qr',
+      method: method,
     });
 
     // Update parent attendee count
@@ -360,7 +381,7 @@ export const EventAttendanceScannerModal: React.FC<EventAttendanceScannerModalPr
     );
 
     if (matched) {
-      handleCheckInAlumni(matched);
+      handleCheckInAlumni(matched, 'manual');
       setManualInputNis('');
       setShowManualModal(false);
     } else {
@@ -508,9 +529,15 @@ export const EventAttendanceScannerModal: React.FC<EventAttendanceScannerModalPr
               Daftar Kehadiran
             </h4>
 
-            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 border border-emerald-200">
-              <span className="text-[11px] font-semibold text-emerald-800">
-                Jumlah yang Hadir: <strong className="font-bold font-mono text-emerald-900">{attendees.length}</strong>
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="text-[10.5px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
+                Total: {attendees.length}
+              </span>
+              <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                QR: {attendees.filter((a) => a.method !== 'manual').length}
+              </span>
+              <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-sky-50 text-sky-700 border border-sky-200">
+                Manual: {attendees.filter((a) => a.method === 'manual').length}
               </span>
             </div>
           </div>
@@ -594,9 +621,13 @@ export const EventAttendanceScannerModal: React.FC<EventAttendanceScannerModalPr
 
                   <div className="text-right shrink-0 flex items-center gap-2">
                   <div className="flex flex-col items-end gap-1">
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold text-[10px]">
-                      <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                      <span>Hadir</span>
+                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full font-bold text-[10px] border ${
+                      att.method === 'manual'
+                        ? 'bg-sky-50 text-sky-700 border-sky-200'
+                        : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                    }`}>
+                      <CheckCircle2 className={`w-3 h-3 ${att.method === 'manual' ? 'text-sky-600' : 'text-emerald-600'}`} />
+                      <span>{att.method === 'manual' ? 'Manual' : 'Scan QR'}</span>
                     </span>
                     <span className="text-[10px] text-slate-400 font-mono flex items-center gap-1">
                       <Clock className="w-2.5 h-2.5" />
@@ -688,7 +719,7 @@ export const EventAttendanceScannerModal: React.FC<EventAttendanceScannerModalPr
                         key={alm.id}
                         type="button"
                         onClick={() => {
-                          handleCheckInAlumni(alm);
+                          handleCheckInAlumni(alm, 'manual');
                           setManualInputNis('');
                           setShowManualModal(false);
                         }}

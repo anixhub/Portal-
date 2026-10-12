@@ -42,6 +42,60 @@ try {
 $action = $_GET['action'] ?? 'get_alumni';
 
 // ==========================================
+// FUNGSI BANTUAN NORMALISASI & UPLOAD FOTO
+// ==========================================
+function normalizePhotoUrlForOutput($path) {
+    if (empty($path)) return '';
+    $path = trim($path);
+    if (strpos($path, 'http://') === 0 || strpos($path, 'https://') === 0 || strpos($path, 'data:') === 0) {
+        return $path;
+    }
+    if (strpos($path, '/') === 0) {
+        return 'https://attaroqqy.com' . $path;
+    }
+    return 'https://attaroqqy.com/api/uploads/pas_foto/' . $path;
+}
+
+function processIncomingPhoto($photoData, $prefix = 'filePasFoto') {
+    if (empty($photoData)) return null;
+    $photoData = trim($photoData);
+
+    // Jika berupa base64 Data URL, coba simpan sebagai file fisik
+    if (strpos($photoData, 'data:image/') === 0) {
+        if (preg_match('/data:image\/([a-zA-Z0-9]+);base64,(.+)/', $photoData, $matches)) {
+            $ext = strtolower($matches[1]);
+            if ($ext === 'jpeg') $ext = 'jpg';
+            $decoded = base64_decode($matches[2]);
+            if ($decoded) {
+                $filename = $prefix . '_' . round(microtime(true) * 1000) . '_' . substr(md5(uniqid()), 0, 5) . '.' . $ext;
+                $possibleDirs = [
+                    __DIR__ . '/api/uploads/pas_foto/',
+                    __DIR__ . '/uploads/pas_foto/',
+                    dirname(__DIR__) . '/public_html/api/uploads/pas_foto/',
+                ];
+                foreach ($possibleDirs as $dir) {
+                    if (!is_dir($dir)) {
+                        @mkdir($dir, 0755, true);
+                    }
+                    if (is_dir($dir) && is_writable($dir)) {
+                        if (@file_put_contents($dir . $filename, $decoded)) {
+                            return '/api/uploads/pas_foto/' . $filename;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Jika mengarah ke domain attaroqqy.com, normalkan kembali ke path relatif untuk database
+    if (strpos($photoData, 'https://attaroqqy.com/') === 0) {
+        return str_replace('https://attaroqqy.com', '', $photoData);
+    }
+
+    return $photoData;
+}
+
+// ==========================================
 // 1. AMBIL DATA SANTRI YANG BERSTATUS 'Alumni'
 // ==========================================
 if ($action === 'get_alumni') {
@@ -102,8 +156,8 @@ if ($action === 'get_alumni') {
                 'province' => $row['provinsi'] ?? '',
                 'occupation' => $row['pekerjaan'] ?? '',
                 'institution' => $row['instansi'] ?? '',
-                'avatarUrl' => $row['file_pas_foto'] ?? '',
-                'coverPhotoUrl' => $row['foto_sampul'] ?? '',
+                'avatarUrl' => normalizePhotoUrlForOutput($row['file_pas_foto'] ?? ''),
+                'coverPhotoUrl' => normalizePhotoUrlForOutput($row['foto_sampul'] ?? ''),
                 'bio' => $row['bio'] ?? '',
                 'coordinates' => (!empty($row['latitude']) && !empty($row['longitude'])) ? [
                     'lat' => (float)$row['latitude'],
@@ -150,22 +204,14 @@ if ($action === 'update_alumni' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         $fields[] = "status_keanggotaan = 'Alumni'";
 
         // Biodata Santri
+        if (isset($input['nis'])) { $fields[] = "nis = :nis"; $params[':nis'] = $input['nis']; }
         if (isset($input['name'])) { $fields[] = "nama = :name"; $params[':name'] = $input['name']; }
         if (isset($input['username'])) { $fields[] = "username = :username"; $params[':username'] = $input['username']; }
         if (isset($input['gender'])) { $fields[] = "gender = :gender"; $params[':gender'] = ($input['gender'] === 'P') ? 'Putri' : 'Putra'; }
         if (isset($input['tempatLahir'])) { $fields[] = "tempat_lahir = :tempatLahir"; $params[':tempatLahir'] = $input['tempatLahir']; }
         if (isset($input['tanggalLahir'])) { $fields[] = "tanggal_lahir = :tanggalLahir"; $params[':tanggalLahir'] = $input['tanggalLahir']; }
-        $anakVal = $input['anak_ke'] ?? $input['urutanAnak'] ?? $input['anakKe'] ?? null;
-        if ($anakVal !== null) { 
-            $fields[] = "anak_ke = :anakKe"; 
-            $params[':anakKe'] = is_numeric($anakVal) ? (int)$anakVal : null; 
-        }
-
-        $saudaraVal = $input['dari_bersaudara'] ?? $input['jumlahSaudara'] ?? $input['dariBersaudara'] ?? $input['jumlah_saudara'] ?? null;
-        if ($saudaraVal !== null) { 
-            $fields[] = "dari_bersaudara = :saudara"; 
-            $params[':saudara'] = is_numeric($saudaraVal) ? (int)$saudaraVal : null; 
-        }
+        if (isset($input['urutanAnak'])) { $fields[] = "anak_ke = :anakKe"; $params[':anakKe'] = $input['urutanAnak']; }
+        if (isset($input['jumlahSaudara'])) { $fields[] = "dari_bersaudara = :saudara"; $params[':saudara'] = $input['jumlahSaudara']; }
 
         // Data Orang Tua
         if (isset($input['namaAyah'])) { $fields[] = "nama_ayah = :namaAyah"; $params[':namaAyah'] = $input['namaAyah']; }
@@ -192,17 +238,30 @@ if ($action === 'update_alumni' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         if (isset($input['institution'])) { $fields[] = "instansi = :institution"; $params[':institution'] = $input['institution']; }
         if (isset($input['bio'])) { $fields[] = "bio = :bio"; $params[':bio'] = $input['bio']; }
         if (isset($input['avatarUrl']) || isset($input['photoUrl'])) { 
+            $rawPhotoVal = $input['avatarUrl'] ?? $input['photoUrl'];
+            $processed = processIncomingPhoto($rawPhotoVal, 'filePasFoto');
             $fields[] = "file_pas_foto = :avatarUrl"; 
-            $params[':avatarUrl'] = $input['avatarUrl'] ?? $input['photoUrl']; 
+            $params[':avatarUrl'] = $processed; 
         }
-        if (isset($input['coverPhotoUrl'])) { $fields[] = "foto_sampul = :coverPhotoUrl"; $params[':coverPhotoUrl'] = $input['coverPhotoUrl']; }
+        if (isset($input['coverPhotoUrl'])) { 
+            $processedCover = processIncomingPhoto($input['coverPhotoUrl'], 'fotoSampul');
+            $fields[] = "foto_sampul = :coverPhotoUrl"; 
+            $params[':coverPhotoUrl'] = $processedCover; 
+        }
         if (isset($input['password'])) { $fields[] = "password = :password"; $params[':password'] = $input['password']; }
         if (isset($input['isPasswordChanged'])) { $fields[] = "is_password_changed = :is_pwd"; $params[':is_pwd'] = $input['isPasswordChanged'] ? 1 : 0; }
         if (isset($input['shareContact'])) { $fields[] = "share_contact = :share_contact"; $params[':share_contact'] = $input['shareContact'] ? 1 : 0; }
 
-        // Riwayat Keluar / Tahun Lulus
+        // Riwayat Pondok & Tanggal Masuk/Keluar
+        if (isset($input['entryDate']) || isset($input['tanggal_masuk'])) { 
+            $fields[] = "tanggal_masuk = :entryDate"; 
+            $params[':entryDate'] = $input['entryDate'] ?? $input['tanggal_masuk']; 
+        }
         if (isset($input['gradYear'])) { $fields[] = "tahun_lulus = :gradYear"; $params[':gradYear'] = $input['gradYear']; }
-        if (isset($input['gradDate'])) { $fields[] = "tanggal_keluar = :gradDate"; $params[':gradDate'] = $input['gradDate']; }
+        if (isset($input['gradDate']) || isset($input['tanggal_keluar'])) { 
+            $fields[] = "tanggal_keluar = :gradDate"; 
+            $params[':gradDate'] = $input['gradDate'] ?? $input['tanggal_keluar']; 
+        }
 
         if (isset($input['coordinates'])) {
             $coords = $input['coordinates'];
@@ -234,17 +293,17 @@ if ($action === 'add_alumni' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     try {
         $id = $input['id'] ?? ('alm-' . time());
         $sql = "INSERT INTO santri (
-            id, nis, nama, nik, no_kk, gender, tempat_lahir, tanggal_lahir, 
+            id, nis, nama, username, nik, no_kk, gender, tempat_lahir, tanggal_lahir, 
             alamat, desa, kecamatan, kabupaten, provinsi, no_hp, email,
-            pekerjaan, instansi, status_keanggotaan, tahun_lulus, kamar,
+            pekerjaan, instansi, status_keanggotaan, tahun_lulus, tanggal_masuk, tanggal_keluar, kamar,
             password, is_password_changed, latitude, longitude,
             nama_ayah, nik_ayah, pekerjaan_ayah, pendidikan_ayah,
             nama_ibu, nik_ibu, pekerjaan_ibu, pendidikan_ibu,
             anak_ke, dari_bersaudara, created_at
         ) VALUES (
-            :id, :nis, :nama, :nik, :no_kk, :gender, :tempat_lahir, :tanggal_lahir,
+            :id, :nis, :nama, :username, :nik, :no_kk, :gender, :tempat_lahir, :tanggal_lahir,
             :alamat, :desa, :kecamatan, :kabupaten, :provinsi, :no_hp, :email,
-            :pekerjaan, :instansi, 'Alumni', :tahun_lulus, :kamar,
+            :pekerjaan, :instansi, 'Alumni', :tahun_lulus, :tanggal_masuk, :tanggal_keluar, :kamar,
             :password, 0, :lat, :lng,
             :nama_ayah, :nik_ayah, :pekerjaan_ayah, :pendidikan_ayah,
             :nama_ibu, :nik_ibu, :pekerjaan_ibu, :pendidikan_ibu,
@@ -257,6 +316,7 @@ if ($action === 'add_alumni' && $_SERVER['REQUEST_METHOD'] === 'POST') {
             ':id' => $id,
             ':nis' => $input['nis'] ?? '',
             ':nama' => $input['name'] ?? '',
+            ':username' => $input['username'] ?? '',
             ':nik' => $input['nik'] ?? '',
             ':no_kk' => $input['noKk'] ?? '',
             ':gender' => ($input['gender'] === 'P') ? 'Putri' : 'Putra',
@@ -272,6 +332,8 @@ if ($action === 'add_alumni' && $_SERVER['REQUEST_METHOD'] === 'POST') {
             ':pekerjaan' => $input['occupation'] ?? '',
             ':instansi' => $input['institution'] ?? '',
             ':tahun_lulus' => $input['gradYear'] ?? date('Y'),
+            ':tanggal_masuk' => $input['entryDate'] ?? ($input['tanggal_masuk'] ?? null),
+            ':tanggal_keluar' => $input['gradDate'] ?? ($input['tanggal_keluar'] ?? null),
             ':kamar' => $input['asramaDulu'] ?? '',
             ':password' => $input['password'] ?? '1234',
             ':lat' => $coords ? $coords['lat'] : null,

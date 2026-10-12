@@ -16,17 +16,22 @@ import {
   Camera,
   FileText,
   FileCheck,
-  Trash2
+  Trash2,
+  AtSign,
+  Check
 } from 'lucide-react';
 import { AlumniRecord } from '../../types';
 import { WilayahAddressFilter } from '../common/WilayahAddressFilter';
 import { FullscreenPhotoViewerModal } from '../common/FullscreenPhotoViewerModal';
 import { useBackHandler } from '../../utils/navigationHistory';
 import { getAlumniPhotoUrl } from '../../utils/photoUtils';
+import { generateNisFromEntryDate, isUsernameTaken, formatBaseUsername } from '../../utils/alumniIdentityUtils';
+import { DateWheelPicker } from '../common/DateWheelPicker';
 
 interface AlumniDetailAdminModalProps {
   isOpen: boolean;
   alumni: AlumniRecord | null;
+  existingAlumni?: AlumniRecord[];
   onClose: () => void;
   onResetPassword: (id: string) => void;
   onSave?: (id: string, updated: Partial<AlumniRecord>) => void;
@@ -36,6 +41,7 @@ interface AlumniDetailAdminModalProps {
 export const AlumniDetailAdminModal: React.FC<AlumniDetailAdminModalProps> = ({
   isOpen,
   alumni,
+  existingAlumni = [],
   onClose,
   onResetPassword,
   onSave,
@@ -103,10 +109,16 @@ export const AlumniDetailAdminModal: React.FC<AlumniDetailAdminModalProps> = ({
   const [editPekerjaanIbu, setEditPekerjaanIbu] = useState(alumni.pekerjaanIbu || '');
   const [editPendidikanIbu, setEditPendidikanIbu] = useState(alumni.pendidikanIbu || '');
 
+  // Username
+  const [editUsername, setEditUsername] = useState(alumni.username || '');
+  const [newAdminUsernameInput, setNewAdminUsernameInput] = useState('');
+  const [adminUsernameError, setAdminUsernameError] = useState<string | null>(null);
+
   // Sinkronisasi state saat data alumni dari props berubah
   useEffect(() => {
     setEditPhotoUrl(alumni.photoUrl || '');
     setEditName(alumni.name);
+    setEditUsername(alumni.username || '');
     setEditTempatLahir(alumni.tempatLahir || '');
     setEditTanggalLahir(alumni.tanggalLahir || '');
     setEditGender((alumni.gender as 'L' | 'P') || 'L');
@@ -286,6 +298,29 @@ export const AlumniDetailAdminModal: React.FC<AlumniDetailAdminModalProps> = ({
                       <p className="text-[11px] text-slate-400 font-medium leading-tight">Nama Lengkap</p>
                       <p className="text-sm font-semibold text-slate-800 truncate mt-0.5">
                         {editName}
+                      </p>
+                    </div>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-slate-400 shrink-0 group-hover:translate-x-0.5 transition-transform" />
+                </div>
+
+                {/* 1b. Username Alumni */}
+                <div
+                  onClick={() => {
+                    setNewAdminUsernameInput(editUsername || alumni.username || '');
+                    setAdminUsernameError(null);
+                    setActiveEditModal('username');
+                  }}
+                  className="flex items-center justify-between py-3.5 cursor-pointer hover:bg-slate-50/70 -mx-3 px-3 rounded-2xl transition-colors group"
+                >
+                  <div className="flex items-center gap-4 min-w-0 pr-2">
+                    <div className="w-6 flex items-center justify-center shrink-0">
+                      <AtSign className="w-5 h-5 text-slate-700" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-[11px] text-slate-400 font-medium leading-tight">Username Alumni</p>
+                      <p className="text-sm font-semibold text-slate-800 truncate mt-0.5">
+                        {editUsername || alumni.username ? `@${editUsername || alumni.username}` : 'Belum diatur'}
                       </p>
                     </div>
                   </div>
@@ -590,7 +625,7 @@ export const AlumniDetailAdminModal: React.FC<AlumniDetailAdminModalProps> = ({
                     <div className="min-w-0">
                       <p className="text-sm font-semibold text-slate-800 leading-tight">Reset Kata Sandi Akun</p>
                       <p className="text-[11px] text-slate-400 leading-tight mt-0.5">
-                        Kembalikan kata sandi login alumni ini ke standar (1234)
+                        Kembalikan kata sandi login alumni ini ke pengaturan awal
                       </p>
                     </div>
                   </div>
@@ -696,6 +731,71 @@ export const AlumniDetailAdminModal: React.FC<AlumniDetailAdminModalProps> = ({
         </div>
       )}
 
+      {/* 1b. EDIT USERNAME */}
+      {activeEditModal === 'username' && (
+        <div className="fixed inset-0 z-[100010] bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in" onClick={() => setActiveEditModal(null)}>
+          <div className="bg-white rounded-3xl p-5 w-full max-w-sm space-y-4 shadow-2xl border border-slate-100" onClick={(e) => e.stopPropagation()}>
+            <div className="flex justify-between items-center border-b border-slate-100 pb-2.5">
+              <h3 className="font-bold text-sm text-slate-900">Ubah Username Alumni</h3>
+              <button type="button" onClick={() => setActiveEditModal(null)} className="text-slate-400 hover:text-slate-600 cursor-pointer"><X className="w-4 h-4" /></button>
+            </div>
+            <div className="space-y-3 text-xs">
+              <p className="text-slate-500 leading-relaxed text-[11px]">
+                Username login bersifat unik. Spasi akan otomatis diganti underscore (_) dan tidak boleh sama dengan alumni lain.
+              </p>
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">Username Baru</label>
+                <div className="relative">
+                  <span className="absolute left-3 top-2.5 text-slate-400 font-bold">@</span>
+                  <input
+                    type="text"
+                    value={newAdminUsernameInput}
+                    onChange={(e) => {
+                      const clean = formatBaseUsername(e.target.value);
+                      setNewAdminUsernameInput(clean);
+                      if (clean && isUsernameTaken(clean, existingAlumni, alumni.id)) {
+                        setAdminUsernameError('Username sudah digunakan alumni lain');
+                      } else {
+                        setAdminUsernameError(null);
+                      }
+                    }}
+                    className="w-full pl-7 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-medium focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500 text-xs"
+                    placeholder="username_baru"
+                  />
+                </div>
+                {adminUsernameError && (
+                  <p className="text-[11px] text-rose-600 mt-1 font-medium">{adminUsernameError}</p>
+                )}
+                {!adminUsernameError && newAdminUsernameInput && (
+                  <p className="text-[11px] text-emerald-600 mt-1 font-medium">Username tersedia</p>
+                )}
+              </div>
+            </div>
+            <div className="flex gap-2 pt-2">
+              <button type="button" onClick={() => setActiveEditModal(null)} className="flex-1 py-2 rounded-xl border border-slate-200 text-slate-600 font-semibold text-xs cursor-pointer">Batal</button>
+              <button
+                type="button"
+                disabled={!newAdminUsernameInput.trim() || Boolean(adminUsernameError)}
+                onClick={() => {
+                  const clean = formatBaseUsername(newAdminUsernameInput);
+                  if (!clean) return;
+                  if (isUsernameTaken(clean, existingAlumni, alumni.id)) {
+                    setAdminUsernameError('Username sudah digunakan alumni lain');
+                    return;
+                  }
+                  setEditUsername(clean);
+                  handleUpdate({ username: clean });
+                  setActiveEditModal(null);
+                }}
+                className="flex-1 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Simpan
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* 2. EDIT TTL */}
       {activeEditModal === 'ttl' && (
         <div className="fixed inset-0 z-[100010] bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in" onClick={() => setActiveEditModal(null)}>
@@ -774,6 +874,7 @@ export const AlumniDetailAdminModal: React.FC<AlumniDetailAdminModalProps> = ({
                     max={25}
                     value={editUrutanAnak}
                     onFocus={(e) => e.target.select()}
+                    onClick={(e) => e.currentTarget.select()}
                     onChange={(e) => {
                       const raw = e.target.value;
                       if (raw === '') {
@@ -799,6 +900,7 @@ export const AlumniDetailAdminModal: React.FC<AlumniDetailAdminModalProps> = ({
                     max={25}
                     value={editJumlahSaudara}
                     onFocus={(e) => e.target.select()}
+                    onClick={(e) => e.currentTarget.select()}
                     onChange={(e) => {
                       const raw = e.target.value;
                       if (raw === '') {
@@ -1092,25 +1194,28 @@ export const AlumniDetailAdminModal: React.FC<AlumniDetailAdminModalProps> = ({
         <div className="fixed inset-0 z-[100010] bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in" onClick={() => setActiveEditModal(null)}>
           <div className="bg-white rounded-3xl p-5 w-full max-w-sm space-y-4 shadow-2xl border border-slate-100" onClick={(e) => e.stopPropagation()}>
             <div className="flex justify-between items-center border-b border-slate-100 pb-2.5">
-              <h3 className="font-bold text-sm text-slate-900">Ubah Tanggal Masuk Pondok</h3>
+              <h3 className="font-bold text-sm text-slate-900 text-center">Ubah Tanggal Masuk Pondok</h3>
               <button type="button" onClick={() => setActiveEditModal(null)} className="text-slate-400 hover:text-slate-600 cursor-pointer"><X className="w-4 h-4" /></button>
             </div>
-            <div>
-              <label className="block font-semibold text-slate-700 mb-1 text-xs">Tanggal Masuk</label>
-              <input
-                type="date"
-                value={editEntryDate}
-                onChange={(e) => setEditEntryDate(e.target.value)}
-                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white text-xs"
+            <div className="bg-slate-50 rounded-2xl border border-slate-200/90 p-2.5">
+              <DateWheelPicker
+                value={editEntryDate || '2021-07-15'}
+                onChange={(val) => setEditEntryDate(val)}
+                minYear={1980}
+                maxYear={2035}
               />
             </div>
             <div className="flex gap-2 pt-2">
-              <button type="button" onClick={() => setActiveEditModal(null)} className="flex-1 py-2 rounded-xl border border-slate-200 text-slate-600 font-semibold text-xs cursor-pointer">Batal</button>
+              <button type="button" onClick={() => setActiveEditModal(null)} className="flex-1 py-2.5 rounded-xl border border-slate-200 text-slate-600 font-semibold text-xs cursor-pointer hover:bg-slate-50">Batal</button>
               <button type="button" onClick={() => {
-                const year = editEntryDate ? editEntryDate.substring(0, 4) : alumni.entryYear;
-                handleUpdate({ entryDate: editEntryDate, entryYear: year });
+                const year = editEntryDate ? editEntryDate.substring(0, 4) : '';
+                const calculatedNis = editEntryDate.trim()
+                  ? generateNisFromEntryDate(editEntryDate.trim(), existingAlumni, alumni.id)
+                  : '';
+                setEditNis(calculatedNis);
+                handleUpdate({ entryDate: editEntryDate, entryYear: year, nis: calculatedNis });
                 setActiveEditModal(null);
-              }} className="flex-1 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs cursor-pointer">Simpan</button>
+              }} className="flex-1 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs cursor-pointer shadow-xs">Simpan Tanggal</button>
             </div>
           </div>
         </div>
@@ -1118,28 +1223,27 @@ export const AlumniDetailAdminModal: React.FC<AlumniDetailAdminModalProps> = ({
 
       {/* 12. EDIT TANGGAL KELUAR */}
       {activeEditModal === 'tanggal_keluar' && (
-        <div className="fixed inset-0 z-[100010] bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in" onClick={() => setActiveEditModal(null)}>
-          <div className="bg-white rounded-3xl p-5 w-full max-w-sm space-y-4 shadow-2xl border border-slate-100" onClick={(e) => e.stopPropagation()}>
+        <div className="fixed inset-0 z-[100010] bg-black/60 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4 animate-in fade-in" onClick={() => setActiveEditModal(null)}>
+          <div className="bg-white rounded-t-3xl sm:rounded-3xl p-5 w-full max-w-sm space-y-4 shadow-2xl border border-slate-100 animate-in slide-in-from-bottom sm:zoom-in-95 duration-200" onClick={(e) => e.stopPropagation()}>
             <div className="flex justify-between items-center border-b border-slate-100 pb-2.5">
-              <h3 className="font-bold text-sm text-slate-900">Ubah Tanggal Keluar (Boyong)</h3>
+              <h3 className="font-bold text-sm text-slate-900 text-center">Ubah Tanggal Keluar (Boyong)</h3>
               <button type="button" onClick={() => setActiveEditModal(null)} className="text-slate-400 hover:text-slate-600 cursor-pointer"><X className="w-4 h-4" /></button>
             </div>
-            <div>
-              <label className="block font-semibold text-slate-700 mb-1 text-xs">Tanggal Keluar (Boyong)</label>
-              <input
-                type="date"
-                value={editGradDate}
-                onChange={(e) => setEditGradDate(e.target.value)}
-                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white text-xs"
+            <div className="bg-slate-50 rounded-2xl border border-slate-200/90 p-2.5">
+              <DateWheelPicker
+                value={editGradDate || '2024-05-20'}
+                onChange={(val) => setEditGradDate(val)}
+                minYear={1980}
+                maxYear={2035}
               />
             </div>
             <div className="flex gap-2 pt-2">
-              <button type="button" onClick={() => setActiveEditModal(null)} className="flex-1 py-2 rounded-xl border border-slate-200 text-slate-600 font-semibold text-xs cursor-pointer">Batal</button>
+              <button type="button" onClick={() => setActiveEditModal(null)} className="flex-1 py-2.5 rounded-xl border border-slate-200 text-slate-600 font-semibold text-xs cursor-pointer hover:bg-slate-50">Batal</button>
               <button type="button" onClick={() => {
                 const year = editGradDate ? editGradDate.substring(0, 4) : alumni.gradYear;
                 handleUpdate({ gradDate: editGradDate, gradYear: year });
                 setActiveEditModal(null);
-              }} className="flex-1 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs cursor-pointer">Simpan</button>
+              }} className="flex-1 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs cursor-pointer shadow-xs">Simpan Tanggal</button>
             </div>
           </div>
         </div>

@@ -86,15 +86,14 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
         }
       }
 
-      // Role Alumni: Autentikasi hanya menggunakan NIK atau Username (dengan toleransi NIS)
+      // Role Alumni: Autentikasi HANYA menggunakan NIK atau Username
       const cleanInput = inputVal.toLowerCase().replace(/^@/, '').trim();
       const matchedAlumni = alumniList.find((alm) => {
         const almUser = (alm.username || '').toLowerCase().replace(/^@/, '').trim();
         const isUserMatch = Boolean(almUser && almUser === cleanInput);
         const isNikMatch = Boolean(alm.nik && alm.nik.trim() === inputVal.trim());
-        const isNisMatch = Boolean(alm.nis && alm.nis.toLowerCase().trim() === inputVal.toLowerCase().trim());
 
-        return isNikMatch || isUserMatch || isNisMatch;
+        return isNikMatch || isUserMatch;
       });
 
       if (!matchedAlumni) {

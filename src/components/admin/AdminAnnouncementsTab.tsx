@@ -454,27 +454,7 @@ export const AdminAnnouncementsTab: React.FC<AdminAnnouncementsTabProps> = ({
                 <span>Edit</span>
               </button>
 
-              {/* 2. Bagikan */}
-              <button
-                type="button"
-                onClick={async () => {
-                  const annToShare = activeMenuAnnouncement;
-                  setActiveMenuAnnouncement(null);
-                  const imageToShare = annToShare.images && annToShare.images.length > 0 ? annToShare.images[0] : null;
-                  await shareMediaWithCaption({
-                    imageUrl: imageToShare,
-                    title: annToShare.title,
-                    text: `*${annToShare.title}*\n\n${annToShare.content}\n\n📅 Tanggal: ${annToShare.date}\nDiterbitkan oleh: ${annToShare.authorName || 'Pondok Pesantren At-taroqqy'}`,
-                    onToast: triggerToast,
-                  });
-                }}
-                className="w-full flex items-center gap-3.5 px-4 py-3 rounded-2xl hover:bg-slate-50 text-slate-800 font-semibold text-sm transition-colors cursor-pointer text-left"
-              >
-                <Share2 className="w-5 h-5 text-slate-700 shrink-0" />
-                <span>Bagikan</span>
-              </button>
-
-              {/* 3. Hapus */}
+              {/* 2. Hapus */}
               <button
                 type="button"
                 onClick={() => {

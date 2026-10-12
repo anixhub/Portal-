@@ -15,6 +15,7 @@ import { AlumniRecord } from '../../types';
 import { WilayahAddressFilter } from '../common/WilayahAddressFilter';
 import { LocationCoordinates } from '../common/FullscreenLocationMapModal';
 import { generateNisFromEntryDate, generateUniqueUsername } from '../../utils/alumniIdentityUtils';
+import { DateWheelPicker } from '../common/DateWheelPicker';
 
 interface AddAlumniModalProps {
   isOpen: boolean;
@@ -39,10 +40,25 @@ export const AddAlumniModal: React.FC<AddAlumniModalProps> = ({
   const [dariBersaudara, setDariBersaudara] = useState<number>(1);
 
   // Form State - Step 2: Riwayat Tanggal Pondok
-  // Jenjang & kamar dulu dihapus sesuai permintaan
-  // Diganti tanggal masuk & tanggal keluar
   const [entryDate, setEntryDate] = useState('');
   const [gradDate, setGradDate] = useState('');
+  const [activeDateModal, setActiveDateModal] = useState<'entry' | 'grad' | null>(null);
+  const [tempPickerDate, setTempPickerDate] = useState<string>('2021-07-15');
+
+  const formatIndonesianDate = (iso: string) => {
+    if (!iso) return '';
+    try {
+      const [y, m, d] = iso.split('-').map(Number);
+      if (!y || !m || !d) return iso;
+      const months = [
+        'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+        'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
+      ];
+      return `${d} ${months[m - 1]} ${y}`;
+    } catch {
+      return iso;
+    }
+  };
 
   // Form State - Step 3: Kontak & Domisili
   const [phone, setPhone] = useState('');
@@ -59,15 +75,21 @@ export const AddAlumniModal: React.FC<AddAlumniModalProps> = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [canSubmitStep3, setCanSubmitStep3] = useState(false);
+  const step3EnteredAtRef = React.useRef<number>(0);
 
   if (!isOpen) return null;
 
-  const handleNext = () => {
+  const handleNext = (e?: React.MouseEvent) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
     setError(null);
 
     if (currentStep === 1) {
-      if (!nik || nik.length < 10) {
-        setError('Masukkan NIK yang valid (minimal 10 digit angka).');
+      if (!nik || nik.length !== 16) {
+        setError('NIK harus tepat 16 digit angka (tidak boleh kurang atau lebih).');
         return;
       }
       if (!name.trim()) {
@@ -79,25 +101,41 @@ export const AddAlumniModal: React.FC<AddAlumniModalProps> = ({
     }
 
     if (currentStep === 2) {
-      // Tanggal masuk boleh diisi atau dilewati, namun jika ingin langsung generate NIS disarankan diisi
+      // Pindah ke Step 3: Domisili & Kontak
+      // Berikan jeda pengaman agar event klik/touch tidak bocor ke tombol Simpan
       setCurrentStep(3);
+      step3EnteredAtRef.current = Date.now();
+      setCanSubmitStep3(false);
+      setTimeout(() => {
+        setCanSubmitStep3(true);
+      }, 700);
       return;
     }
   };
 
-  const handlePrev = () => {
-    setError(null);
-    if (currentStep === 2) setCurrentStep(1);
-    if (currentStep === 3) setCurrentStep(2);
-  };
-
-  const handleSubmit = (e?: React.FormEvent) => {
+  const handlePrev = (e?: React.MouseEvent) => {
     if (e) {
       e.preventDefault();
       e.stopPropagation();
     }
-    // Mencegah submit jika belum sampai langkah 3 (menghindari auto-save saat pindah tab)
+    setError(null);
+    if (currentStep === 2) setCurrentStep(1);
+    if (currentStep === 3) {
+      setCurrentStep(2);
+      setCanSubmitStep3(false);
+    }
+  };
+
+  const handleSubmit = (e?: React.FormEvent | React.MouseEvent) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    // Mencegah submit jika belum sampai langkah 3 atau jika transisi baru saja terjadi
     if (currentStep !== 3) {
+      return;
+    }
+    if (!canSubmitStep3 || Date.now() - step3EnteredAtRef.current < 700) {
       return;
     }
     if (isSubmitting) return;
@@ -261,12 +299,16 @@ export const AddAlumniModal: React.FC<AddAlumniModalProps> = ({
                     <input
                       type="text"
                       inputMode="numeric"
+                      maxLength={16}
                       required
                       placeholder="Masukkan 16 digit NIK"
                       value={nik}
-                      onChange={(e) => setNik(e.target.value.replace(/[^0-9]/g, ''))}
+                      onChange={(e) => setNik(e.target.value.replace(/\D/g, '').slice(0, 16))}
                       className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-mono text-xs text-slate-900 focus:ring-2 focus:ring-sky-600 focus:bg-white focus:outline-none"
                     />
+                    <p className="text-[11px] text-slate-400 mt-1">
+                      {nik.length}/16 digit {nik.length === 16 ? '✓ Tepat 16 digit' : ''}
+                    </p>
                   </div>
 
                   <div>
@@ -278,7 +320,7 @@ export const AddAlumniModal: React.FC<AddAlumniModalProps> = ({
                       required
                       placeholder="Nama lengkap beserta gelar (jika ada)"
                       value={name}
-                      onChange={(e) => setName(e.target.value)}
+                      onChange={(e) => setName(e.target.value.replace(/[^a-zA-Z\s.'’-]/g, ''))}
                       className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-900 focus:ring-2 focus:ring-sky-600 focus:bg-white focus:outline-none"
                     />
                   </div>
@@ -307,6 +349,8 @@ export const AddAlumniModal: React.FC<AddAlumniModalProps> = ({
                         min={1}
                         max={25}
                         value={anakKe}
+                        onFocus={(e) => e.target.select()}
+                        onClick={(e) => e.currentTarget.select()}
                         onChange={(e) => {
                           const val = Math.max(1, parseInt(e.target.value) || 1);
                           setAnakKe(val);
@@ -324,6 +368,8 @@ export const AddAlumniModal: React.FC<AddAlumniModalProps> = ({
                         min={0}
                         max={25}
                         value={dariBersaudara}
+                        onFocus={(e) => e.target.select()}
+                        onClick={(e) => e.currentTarget.select()}
                         onChange={(e) => {
                           const val = Math.max(0, parseInt(e.target.value) || 0);
                           setDariBersaudara(val);
@@ -335,7 +381,7 @@ export const AddAlumniModal: React.FC<AddAlumniModalProps> = ({
                 </div>
               )}
 
-              {/* ================= STEP 2: TANGGAL PONDOK (JENJANG & KAMAR DIHAPUS) ================= */}
+              {/* ================= STEP 2: TANGGAL PONDOK ================= */}
               {currentStep === 2 && (
                 <div className="bg-white rounded-3xl p-5 sm:p-6 border border-slate-200/90 shadow-2xs space-y-4">
                   <div>
@@ -345,14 +391,19 @@ export const AddAlumniModal: React.FC<AddAlumniModalProps> = ({
                     <p className="text-[11px] text-slate-500 mb-2">
                       Tanggal masuk menjadi acuan generate NIS otomatis (Tahun + 3 digit urutan santri).
                     </p>
-                    <div className="relative">
-                      <input
-                        type="date"
-                        value={entryDate}
-                        onChange={(e) => setEntryDate(e.target.value)}
-                        className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-900 focus:ring-2 focus:ring-sky-600 focus:bg-white focus:outline-none"
-                      />
-                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setTempPickerDate(entryDate || new Date().toISOString().split('T')[0]);
+                        setActiveDateModal('entry');
+                      }}
+                      className="w-full px-3.5 py-2.5 bg-slate-50 hover:bg-slate-100/70 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 flex items-center justify-between transition-colors cursor-pointer group"
+                    >
+                      <span className={entryDate ? 'text-slate-900 font-semibold' : 'text-slate-400 font-normal'}>
+                        {entryDate ? formatIndonesianDate(entryDate) : 'Pilih Tanggal Masuk Pondok'}
+                      </span>
+                      <Calendar className="w-4 h-4 text-slate-400 group-hover:text-sky-600 transition-colors shrink-0" />
+                    </button>
                   </div>
 
                   <div>
@@ -362,14 +413,19 @@ export const AddAlumniModal: React.FC<AddAlumniModalProps> = ({
                     <p className="text-[11px] text-slate-500 mb-2">
                       Tanggal kelulusan atau peresmian status alumni.
                     </p>
-                    <div className="relative">
-                      <input
-                        type="date"
-                        value={gradDate}
-                        onChange={(e) => setGradDate(e.target.value)}
-                        className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-900 focus:ring-2 focus:ring-sky-600 focus:bg-white focus:outline-none"
-                      />
-                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setTempPickerDate(gradDate || new Date().toISOString().split('T')[0]);
+                        setActiveDateModal('grad');
+                      }}
+                      className="w-full px-3.5 py-2.5 bg-slate-50 hover:bg-slate-100/70 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 flex items-center justify-between transition-colors cursor-pointer group"
+                    >
+                      <span className={gradDate ? 'text-slate-900 font-semibold' : 'text-slate-400 font-normal'}>
+                        {gradDate ? formatIndonesianDate(gradDate) : 'Pilih Tanggal Keluar Pondok (Opsional)'}
+                      </span>
+                      <Calendar className="w-4 h-4 text-slate-400 group-hover:text-sky-600 transition-colors shrink-0" />
+                    </button>
                   </div>
 
                   {entryDate && (
@@ -491,7 +547,7 @@ export const AddAlumniModal: React.FC<AddAlumniModalProps> = ({
                 {currentStep < 3 ? (
                   <button
                     type="button"
-                    onClick={handleNext}
+                    onClick={(e) => handleNext(e)}
                     className="ml-auto px-6 py-3 rounded-2xl bg-sky-600 hover:bg-sky-700 active:scale-95 text-white font-bold text-xs shadow-md shadow-sky-600/25 transition-all cursor-pointer flex items-center gap-1.5"
                   >
                     <span>Lanjutkan</span>
@@ -500,9 +556,9 @@ export const AddAlumniModal: React.FC<AddAlumniModalProps> = ({
                 ) : (
                   <button
                     type="button"
-                    onClick={() => handleSubmit()}
-                    disabled={isSubmitting}
-                    className="ml-auto px-6 py-3 rounded-2xl bg-sky-600 hover:bg-sky-700 active:scale-95 text-white font-bold text-xs shadow-md shadow-sky-600/25 transition-all cursor-pointer flex items-center gap-1.5 disabled:opacity-60"
+                    onClick={(e) => handleSubmit(e)}
+                    disabled={isSubmitting || !canSubmitStep3}
+                    className="ml-auto px-6 py-3 rounded-2xl bg-sky-600 hover:bg-sky-700 active:scale-95 text-white font-bold text-xs shadow-md shadow-sky-600/25 transition-all cursor-pointer flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <Check className="w-4 h-4" />
                     <span>{isSubmitting ? 'Menyimpan...' : 'Simpan Data Alumni'}</span>
@@ -513,6 +569,56 @@ export const AddAlumniModal: React.FC<AddAlumniModalProps> = ({
           )}
         </div>
       </div>
+      {/* BOTTOM SHEET DATE WHEEL PICKER BERSIH */}
+      {activeDateModal && (
+        <div
+          className="fixed inset-0 z-[100030] bg-black/60 backdrop-blur-2xs flex flex-col justify-end animate-in fade-in duration-200"
+          onClick={() => setActiveDateModal(null)}
+        >
+          <div
+            className="w-full bg-white rounded-t-3xl shadow-2xl border-t border-slate-200 p-5 pb-6 flex flex-col animate-in slide-in-from-bottom duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="w-10 h-1 bg-slate-300 rounded-full mx-auto mb-4" />
+            <h3 className="font-bold text-sm text-slate-900 text-center mb-4">
+              {activeDateModal === 'entry' ? 'Pilih Tanggal Masuk Pondok' : 'Pilih Tanggal Keluar Pondok'}
+            </h3>
+
+            <div className="bg-slate-50 rounded-2xl border border-slate-200/90 p-2.5 mb-4">
+              <DateWheelPicker
+                value={tempPickerDate || new Date().toISOString().split('T')[0]}
+                onChange={(val) => setTempPickerDate(val)}
+                minYear={1980}
+                maxYear={2035}
+              />
+            </div>
+
+            <div className="flex items-center gap-3 pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setActiveDateModal(null)}
+                className="flex-1 py-2.5 text-center text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl cursor-pointer transition-colors"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (activeDateModal === 'entry') {
+                    setEntryDate(tempPickerDate);
+                  } else {
+                    setGradDate(tempPickerDate);
+                  }
+                  setActiveDateModal(null);
+                }}
+                className="flex-1 py-2.5 text-center text-xs font-bold text-white bg-sky-600 hover:bg-sky-700 rounded-xl cursor-pointer shadow-xs transition-colors"
+              >
+                Simpan Tanggal
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

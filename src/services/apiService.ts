@@ -280,7 +280,7 @@ export async function updateAlumniInHostinger(
   try {
     // Tentukan gender standar
     let rawGender: string | undefined = undefined;
-    let expressGender: 'putra' | 'putri' | undefined = undefined;
+    let expressGender: 'Putra' | 'Putri' | undefined = undefined;
     let standardGender: 'L' | 'P' | undefined = undefined;
 
     if (updates.gender !== undefined) {
@@ -288,7 +288,7 @@ export async function updateAlumniInHostinger(
       const isPutri = g === 'p' || g === 'putri' || g.startsWith('perem') || g === 'wanita' || g === 'female' || g === '2';
       standardGender = isPutri ? 'P' : 'L';
       rawGender = isPutri ? 'Putri' : 'Putra';
-      expressGender = isPutri ? 'putri' : 'putra';
+      expressGender = isPutri ? 'Putri' : 'Putra';
     }
 
     const finalAnakKe = updates.anak_ke !== undefined || updates.urutanAnak !== undefined
@@ -304,9 +304,14 @@ export async function updateAlumniInHostinger(
     const expressPayload: Record<string, any> = {
       id,
     };
-    if (expressGender !== undefined) expressPayload.gender = expressGender;
+    if (expressGender !== undefined) {
+      expressPayload.gender = expressGender; // Tersimpan 'Putra' atau 'Putri' persis database aplikasi lama
+      expressPayload.jenis_kelamin = expressGender;
+      expressPayload.jk = expressGender;
+    }
     if (updates.name !== undefined) expressPayload.nama = updates.name;
     if (updates.username !== undefined) expressPayload.username = updates.username;
+    if (updates.nis !== undefined) expressPayload.nis = updates.nis;
     if (updates.tempatLahir !== undefined) expressPayload.tempat_lahir = updates.tempatLahir;
     if (updates.tanggalLahir !== undefined) expressPayload.tanggal_lahir = updates.tanggalLahir;
     if (finalAnakKe !== undefined) {
@@ -358,8 +363,14 @@ export async function updateAlumniInHostinger(
       expressPayload.share_contact = updates.shareContact ? 1 : 0;
     }
     if (updates.gradYear !== undefined) expressPayload.tahun_lulus = updates.gradYear;
-    if (updates.gradDate !== undefined) expressPayload.tanggal_keluar = updates.gradDate;
-    if (updates.entryDate !== undefined) expressPayload.tanggal_masuk = updates.entryDate;
+    if (updates.gradDate !== undefined) {
+      expressPayload.tanggal_keluar = updates.gradDate;
+      expressPayload.tahun_lulus = updates.gradDate.slice(0, 4);
+    }
+    if (updates.entryDate !== undefined) {
+      expressPayload.tanggal_masuk = updates.entryDate;
+      expressPayload.tahun_masuk = updates.entryDate.slice(0, 4);
+    }
     if (updates.asramaDulu !== undefined) expressPayload.kamar = updates.asramaDulu;
     if (updates.coordinates !== undefined) {
       expressPayload.latitude = updates.coordinates ? updates.coordinates.lat : null;
@@ -447,7 +458,7 @@ export async function addAlumniToHostinger(
 ): Promise<{ success: boolean; id?: string; message?: string }> {
   try {
     const isPutri = newAlumni.gender === 'P';
-    const expressGender = isPutri ? 'putri' : 'putra';
+    const expressGender = isPutri ? 'Putri' : 'Putra';
     const finalAnak = newAlumni.anak_ke ?? newAlumni.urutanAnak ?? 1;
     const finalSaudara = newAlumni.dari_bersaudara ?? newAlumni.jumlahSaudara ?? 1;
 
@@ -456,7 +467,13 @@ export async function addAlumniToHostinger(
       id: newAlumni.id,
       nis: newAlumni.nis || '',
       nama: newAlumni.name || '',
+      username: newAlumni.username || '',
       gender: expressGender,
+      jenis_kelamin: expressGender,
+      jk: expressGender,
+      tanggal_masuk: newAlumni.entryDate || null,
+      tanggal_keluar: newAlumni.gradDate || null,
+      tahun_masuk: newAlumni.entryDate ? newAlumni.entryDate.slice(0, 4) : newAlumni.entryYear,
       tempat_lahir: newAlumni.tempatLahir || '',
       tanggal_lahir: newAlumni.tanggalLahir || null,
       anak_ke: finalAnak,

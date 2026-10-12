@@ -213,6 +213,7 @@ export const EditAlumniModal: React.FC<EditAlumniModalProps> = ({
                 max={25}
                 value={anakKe}
                 onFocus={(e) => e.target.select()}
+                onClick={(e) => e.currentTarget.select()}
                 onChange={(e) => {
                   const raw = e.target.value;
                   if (raw === '') {
@@ -238,6 +239,7 @@ export const EditAlumniModal: React.FC<EditAlumniModalProps> = ({
                 max={25}
                 value={dariBersaudara}
                 onFocus={(e) => e.target.select()}
+                onClick={(e) => e.currentTarget.select()}
                 onChange={(e) => {
                   const raw = e.target.value;
                   if (raw === '') {

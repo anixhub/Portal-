@@ -204,6 +204,7 @@ if ($action === 'update_alumni' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         $fields[] = "status_keanggotaan = 'Alumni'";
 
         // Biodata Santri
+        if (isset($input['nis'])) { $fields[] = "nis = :nis"; $params[':nis'] = $input['nis']; }
         if (isset($input['name'])) { $fields[] = "nama = :name"; $params[':name'] = $input['name']; }
         if (isset($input['username'])) { $fields[] = "username = :username"; $params[':username'] = $input['username']; }
         if (isset($input['gender'])) { $fields[] = "gender = :gender"; $params[':gender'] = ($input['gender'] === 'P') ? 'Putri' : 'Putra'; }
@@ -251,9 +252,16 @@ if ($action === 'update_alumni' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         if (isset($input['isPasswordChanged'])) { $fields[] = "is_password_changed = :is_pwd"; $params[':is_pwd'] = $input['isPasswordChanged'] ? 1 : 0; }
         if (isset($input['shareContact'])) { $fields[] = "share_contact = :share_contact"; $params[':share_contact'] = $input['shareContact'] ? 1 : 0; }
 
-        // Riwayat Keluar / Tahun Lulus
+        // Riwayat Pondok & Tanggal Masuk/Keluar
+        if (isset($input['entryDate']) || isset($input['tanggal_masuk'])) { 
+            $fields[] = "tanggal_masuk = :entryDate"; 
+            $params[':entryDate'] = $input['entryDate'] ?? $input['tanggal_masuk']; 
+        }
         if (isset($input['gradYear'])) { $fields[] = "tahun_lulus = :gradYear"; $params[':gradYear'] = $input['gradYear']; }
-        if (isset($input['gradDate'])) { $fields[] = "tanggal_keluar = :gradDate"; $params[':gradDate'] = $input['gradDate']; }
+        if (isset($input['gradDate']) || isset($input['tanggal_keluar'])) { 
+            $fields[] = "tanggal_keluar = :gradDate"; 
+            $params[':gradDate'] = $input['gradDate'] ?? $input['tanggal_keluar']; 
+        }
 
         if (isset($input['coordinates'])) {
             $coords = $input['coordinates'];
@@ -285,17 +293,17 @@ if ($action === 'add_alumni' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     try {
         $id = $input['id'] ?? ('alm-' . time());
         $sql = "INSERT INTO santri (
-            id, nis, nama, nik, no_kk, gender, tempat_lahir, tanggal_lahir, 
+            id, nis, nama, username, nik, no_kk, gender, tempat_lahir, tanggal_lahir, 
             alamat, desa, kecamatan, kabupaten, provinsi, no_hp, email,
-            pekerjaan, instansi, status_keanggotaan, tahun_lulus, kamar,
+            pekerjaan, instansi, status_keanggotaan, tahun_lulus, tanggal_masuk, tanggal_keluar, kamar,
             password, is_password_changed, latitude, longitude,
             nama_ayah, nik_ayah, pekerjaan_ayah, pendidikan_ayah,
             nama_ibu, nik_ibu, pekerjaan_ibu, pendidikan_ibu,
             anak_ke, dari_bersaudara, created_at
         ) VALUES (
-            :id, :nis, :nama, :nik, :no_kk, :gender, :tempat_lahir, :tanggal_lahir,
+            :id, :nis, :nama, :username, :nik, :no_kk, :gender, :tempat_lahir, :tanggal_lahir,
             :alamat, :desa, :kecamatan, :kabupaten, :provinsi, :no_hp, :email,
-            :pekerjaan, :instansi, 'Alumni', :tahun_lulus, :kamar,
+            :pekerjaan, :instansi, 'Alumni', :tahun_lulus, :tanggal_masuk, :tanggal_keluar, :kamar,
             :password, 0, :lat, :lng,
             :nama_ayah, :nik_ayah, :pekerjaan_ayah, :pendidikan_ayah,
             :nama_ibu, :nik_ibu, :pekerjaan_ibu, :pendidikan_ibu,
@@ -308,6 +316,7 @@ if ($action === 'add_alumni' && $_SERVER['REQUEST_METHOD'] === 'POST') {
             ':id' => $id,
             ':nis' => $input['nis'] ?? '',
             ':nama' => $input['name'] ?? '',
+            ':username' => $input['username'] ?? '',
             ':nik' => $input['nik'] ?? '',
             ':no_kk' => $input['noKk'] ?? '',
             ':gender' => ($input['gender'] === 'P') ? 'Putri' : 'Putra',
@@ -323,6 +332,8 @@ if ($action === 'add_alumni' && $_SERVER['REQUEST_METHOD'] === 'POST') {
             ':pekerjaan' => $input['occupation'] ?? '',
             ':instansi' => $input['institution'] ?? '',
             ':tahun_lulus' => $input['gradYear'] ?? date('Y'),
+            ':tanggal_masuk' => $input['entryDate'] ?? ($input['tanggal_masuk'] ?? null),
+            ':tanggal_keluar' => $input['gradDate'] ?? ($input['tanggal_keluar'] ?? null),
             ':kamar' => $input['asramaDulu'] ?? '',
             ':password' => $input['password'] ?? '1234',
             ':lat' => $coords ? $coords['lat'] : null,

@@ -4300,6 +4300,99 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
         </div>
       )}
 
+      {/* ================= MODAL LENGKAPI TANGGAL MASUK UNTUK GENERATE KTA & NIS ================= */}
+      {showGenerateKtaNisModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-xs animate-in fade-in"
+          onClick={() => setShowGenerateKtaNisModal(false)}
+        >
+          <div
+            className="w-full max-w-sm bg-white rounded-3xl p-6 space-y-4 shadow-2xl border border-slate-100 animate-in zoom-in-95"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex justify-between items-center pb-2 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-full bg-sky-50 text-sky-600 flex items-center justify-center">
+                  <IdCard className="w-4 h-4" />
+                </div>
+                <h3 className="font-bold text-sm text-slate-900">Aktivasi KTA Digital</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowGenerateKtaNisModal(false)}
+                className="text-slate-400 hover:text-slate-600 cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-3 text-xs">
+              <p className="text-slate-600 leading-relaxed">
+                Nomor Induk Santri (NIS) Anda belum tersedia. Silakan isi <strong>Tanggal Masuk Pondok</strong> sebagai acuan resmi generate NIS (Tahun + 3 digit nomor urut santri) untuk menerbitkan KTA resmi Anda.
+              </p>
+
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">
+                  Tanggal Masuk Pondok <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="date"
+                  value={ktaEntryDateInput}
+                  onChange={(e) => setKtaEntryDateInput(e.target.value)}
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-medium focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500 text-xs text-slate-900"
+                />
+              </div>
+
+              {ktaEntryDateInput && (
+                <div className="p-3 bg-sky-50 rounded-2xl border border-sky-200/70 text-[11px] text-sky-800 space-y-1">
+                  <p className="font-bold">Estimasi NIS Resmi:</p>
+                  <p className="font-mono text-sm font-bold text-sky-700">
+                    {generateNisFromEntryDate(ktaEntryDateInput, allAlumni, alumni.id) || '2021001'}
+                  </p>
+                  <p className="text-[10px] text-sky-600">
+                    NIS ini akan tertera pada KTA dan digunakan untuk scan QR presensi.
+                  </p>
+                </div>
+              )}
+            </div>
+
+            <div className="flex gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowGenerateKtaNisModal(false)}
+                className="flex-1 py-2.5 rounded-xl border border-slate-200 text-slate-600 font-semibold text-xs cursor-pointer hover:bg-slate-50"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                disabled={!ktaEntryDateInput || isGeneratingKta}
+                onClick={async () => {
+                  if (!ktaEntryDateInput) return;
+                  setIsGeneratingKta(true);
+                  const generatedNis = generateNisFromEntryDate(ktaEntryDateInput, allAlumni, alumni.id);
+                  const entryYear = ktaEntryDateInput.slice(0, 4);
+
+                  onUpdateProfile({
+                    entryDate: ktaEntryDateInput,
+                    entryYear,
+                    nis: generatedNis,
+                  });
+
+                  setIsGeneratingKta(false);
+                  setShowGenerateKtaNisModal(false);
+                  setShowKtaCardModal(true);
+                  triggerToast('Tanggal masuk tersimpan & KTA berhasil diterbitkan!');
+                }}
+                className="flex-1 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs transition-colors cursor-pointer disabled:opacity-50 flex items-center justify-center gap-1.5"
+              >
+                {isGeneratingKta ? 'Memproses...' : 'Buat KTA Sekarang'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ================= MODAL MENU UTAMA (QURAN, MAJMUAH, MAULID, AUROD) ================= */}
       {activeIslamicMenu && (
         <div
@@ -4475,15 +4568,9 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
               </button>
             </div>
 
-            <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 inline-block shadow-inner">
-              {/* Simulated QR Code matrix */}
-              <div className="w-40 h-40 bg-white p-2 rounded-xl border border-slate-300 flex flex-col items-center justify-center relative">
-                <QrCode className="w-32 h-32 text-slate-900" />
-                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                  <div className="w-7 h-7 bg-sky-600 rounded-md flex items-center justify-center text-white text-[9px] font-bold border-2 border-white shadow-sm">
-                    TRQ
-                  </div>
-                </div>
+            <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200 inline-block shadow-inner">
+              <div className="w-44 h-44 bg-white p-2 rounded-xl border border-slate-300 flex flex-col items-center justify-center relative shadow-xs">
+                <RealQrCode value={alumni.nis || ''} size={156} />
               </div>
             </div>
 
@@ -4910,21 +4997,7 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
             <div className="w-10 h-1 bg-slate-300 rounded-full mx-auto mb-2" />
 
             <div className="space-y-1">
-              {/* 1. Bagikan */}
-              <button
-                type="button"
-                onClick={() => {
-                  const ann = activeMenuAnnouncement;
-                  setActiveMenuAnnouncement(null);
-                  handleShareAnnouncement(ann);
-                }}
-                className="w-full flex items-center gap-3.5 px-4 py-3 rounded-2xl hover:bg-slate-50 text-slate-800 font-semibold text-sm transition-colors cursor-pointer text-left"
-              >
-                <Share2 className="w-5 h-5 text-slate-700 shrink-0" />
-                <span>Bagikan Pengumuman</span>
-              </button>
-
-              {/* 2. Salin Teks */}
+              {/* 1. Salin Teks */}
               <button
                 type="button"
                 onClick={() => {
