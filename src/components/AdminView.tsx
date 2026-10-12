@@ -1568,12 +1568,16 @@ export const AdminView: React.FC<AdminViewProps> = ({
                         {item.name}
                       </h4>
                       <div className="flex items-center gap-1.5 mt-0.5 text-xs text-slate-500">
-                        {item.gradYear && (
+                        {item.gradYear ? (
                           <span className="font-medium text-slate-600 shrink-0">
                             Boyong {item.gradYear}
                           </span>
+                        ) : (
+                          <span className="font-medium text-amber-600 shrink-0">
+                            Belum Boyong
+                          </span>
                         )}
-                        {item.gradYear && addressText && (
+                        {addressText && (
                           <span className="text-slate-300">•</span>
                         )}
                         <p className="truncate capitalize text-slate-500">

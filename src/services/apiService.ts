@@ -84,24 +84,23 @@ export function normalizeSingleAlumni(item: any): AlumniRecord {
   const tempatLahir = item.tempatLahir || item.tempat_lahir || item.tmp_lahir || item.tmplahir || item.kota_lahir || '';
   const tanggalLahir = item.tanggalLahir || item.tanggal_lahir || item.tgl_lahir || item.tgllahir || item.tglLahir || '';
 
-  // Tahun boyong / lulus & masuk
-  const gradYear = String(
-    item.gradYear ||
-    item.tahun_lulus ||
-    item.thn_lulus ||
-    item.tahun_boyong ||
-    item.thn_boyong ||
-    item.boyong ||
-    item.lulus ||
-    (item.tanggal_keluar ? String(item.tanggal_keluar).slice(0, 4) : '2022')
-  );
-  const entryYear = String(
-    item.entryYear ||
-    item.tahun_masuk ||
-    item.thn_masuk ||
-    item.masuk ||
-    (item.tanggal_masuk ? String(item.tanggal_masuk).slice(0, 4) : '2016')
-  );
+  // Tanggal & Tahun Keluar (Boyong) - Tanpa nilai palsu default 2022
+  const rawGradDate = item.gradDate || item.grad_date || item.tgl_lulus || item.tanggal_keluar || '';
+  const cleanGradDate = rawGradDate && rawGradDate !== 'null' && rawGradDate !== '0000-00-00' ? String(rawGradDate).trim() : '';
+
+  const rawGradYear = item.gradYear || item.tahun_lulus || item.thn_lulus || item.tahun_boyong || item.thn_boyong || item.boyong || item.lulus || '';
+  const cleanGradYear = rawGradYear && rawGradYear !== 'null' && rawGradYear !== '0000'
+    ? String(rawGradYear).trim()
+    : (cleanGradDate ? cleanGradDate.slice(0, 4) : '');
+
+  // Tanggal & Tahun Masuk - Tanpa nilai palsu default 2016
+  const rawEntryDate = item.entryDate || item.entry_date || item.tgl_masuk || item.tanggal_masuk || '';
+  const cleanEntryDate = rawEntryDate && rawEntryDate !== 'null' && rawEntryDate !== '0000-00-00' ? String(rawEntryDate).trim() : '';
+
+  const rawEntryYear = item.entryYear || item.tahun_masuk || item.thn_masuk || item.masuk || '';
+  const cleanEntryYear = rawEntryYear && rawEntryYear !== 'null' && rawEntryYear !== '0000'
+    ? String(rawEntryYear).trim()
+    : (cleanEntryDate ? cleanEntryDate.slice(0, 4) : '');
 
   // Alamat
   const desa = item.desa || item.kelurahan || item.desa_kelurahan || item.nama_desa || '';
@@ -134,10 +133,10 @@ export function normalizeSingleAlumni(item: any): AlumniRecord {
     nikIbu: item.nikIbu || item.nik_ibu || '',
     pekerjaanIbu: item.pekerjaanIbu || item.pekerjaan_ibu || '',
     pendidikanIbu: item.pendidikanIbu || item.pendidikan_ibu || '',
-    gradYear,
-    entryYear,
-    entryDate: item.entryDate || item.entry_date || item.tgl_masuk || item.tanggal_masuk || '',
-    gradDate: item.gradDate || item.grad_date || item.tgl_lulus || item.tanggal_keluar || '',
+    gradYear: cleanGradYear,
+    entryYear: cleanEntryYear,
+    entryDate: cleanEntryDate,
+    gradDate: cleanGradDate,
     jenjang: item.jenjang || 'Madrasah Aliyah Keagamaan (MAK)',
     asramaDulu: item.asramaDulu || item.asrama || item.komplek || item.kamar || 'Komplek Santri',
     email: item.email || '',
@@ -168,15 +167,16 @@ export function normalizeSingleAlumni(item: any): AlumniRecord {
 /**
  * Mengambil seluruh data santri/alumni dari database Hostinger (tabel santri)
  */
-export async function fetchAlumniFromHostinger(): Promise<{
+export async function fetchAlumniFromHostinger(forceFresh: boolean = false): Promise<{
   success: boolean;
   data: AlumniRecord[];
   isLive: boolean;
   message?: string;
 }> {
+  const freshParam = forceFresh ? '?fresh=true' : '';
   const endpointsToTry = [
-    '/api/db/santri',
-    `${HOSTINGER_EXPRESS_DB_URL}/santri`,
+    `/api/db/santri${freshParam}`,
+    `${HOSTINGER_EXPRESS_DB_URL}/santri${freshParam}`,
     'https://attaroqqy.com/api/db/santri',
     'https://api.allorigins.win/raw?url=https%3A%2F%2Fattaroqqy.com%2Fapi%2Fdb%2Fsantri',
     `${HOSTINGER_API_URL}?action=get_alumni`,
@@ -268,36 +268,60 @@ export async function fetchAlumniFromHostinger(): Promise<{
 }
 
 /**
- * Menyimpan pembaruan data alumni ke database Hostinger secara realtime
- * Mensinkronisasikan ke:
- * 1. Express backend (/api/db/santri/:id) yang digunakan oleh aplikasi lama (SmartSantri)
- * 2. PHP backend (/api_alumni.php?action=update_alumni)
+ * Upload file base64 ke server Hostinger attaroqqy.com (/api/upload)
+ * Mengembalikan path file relatif di server (misal: /api/uploads/dokumen/...)
+ */
+export async function uploadFileToHostinger(
+  fileBase64: string,
+  fileName: string = 'foto_alumni.jpg'
+): Promise<string> {
+  if (!fileBase64 || !fileBase64.startsWith('data:')) return fileBase64;
+
+  const endpoints = ['/api/upload', 'https://attaroqqy.com/api/upload'];
+  for (const ep of endpoints) {
+    try {
+      const res = await fetch(ep, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fileName, fileBase64 }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data && (data.path || data.publicUrl)) {
+          return data.path || data.publicUrl;
+        }
+      }
+    } catch (e) {
+      console.warn('Upload to Hostinger failed via', ep, e);
+    }
+  }
+  return fileBase64;
+}
+
+/**
+ * Memperbarui data alumni di database Hostinger & Express SmartSantri
  */
 export async function updateAlumniInHostinger(
   id: string,
   updates: Partial<AlumniRecord>
 ): Promise<{ success: boolean; message?: string }> {
   try {
-    // Tentukan gender standar
-    let rawGender: string | undefined = undefined;
-    let expressGender: 'Putra' | 'Putri' | undefined = undefined;
-    let standardGender: 'L' | 'P' | undefined = undefined;
+    const rawGender = updates.gender;
+    const isPutri =
+      rawGender === 'P' ||
+      rawGender === 'Putri' ||
+      rawGender?.toLowerCase() === 'putri' ||
+      rawGender?.toLowerCase() === 'perempuan';
+    const standardGender = rawGender !== undefined ? (isPutri ? 'P' : 'L') : undefined;
+    const expressGender = rawGender !== undefined ? (isPutri ? 'Putri' : 'Putra') : undefined;
 
-    if (updates.gender !== undefined) {
-      const g = String(updates.gender).trim().toLowerCase();
-      const isPutri = g === 'p' || g === 'putri' || g.startsWith('perem') || g === 'wanita' || g === 'female' || g === '2';
-      standardGender = isPutri ? 'P' : 'L';
-      rawGender = isPutri ? 'Putri' : 'Putra';
-      expressGender = isPutri ? 'Putri' : 'Putra';
-    }
+    const finalAnakKe = updates.anak_ke !== undefined
+      ? Number(updates.anak_ke)
+      : (updates.urutanAnak !== undefined ? Number(updates.urutanAnak) : undefined);
 
-    const finalAnakKe = updates.anak_ke !== undefined || updates.urutanAnak !== undefined
-      ? (updates.anak_ke ?? updates.urutanAnak)
-      : undefined;
-
-    const finalJumlahSaudara = updates.dari_bersaudara !== undefined || updates.jumlahSaudara !== undefined
-      ? (updates.dari_bersaudara ?? updates.jumlahSaudara)
-      : undefined;
+    const finalJumlahSaudara = updates.dari_bersaudara !== undefined
+      ? Number(updates.dari_bersaudara)
+      : (updates.jumlahSaudara !== undefined ? Number(updates.jumlahSaudara) : undefined);
 
     // 1. Siapkan payload untuk Express SmartSantri API (/api/db/santri/:id)
     // yang digunakan oleh aplikasi lama
@@ -345,12 +369,25 @@ export async function updateAlumniInHostinger(
     if (updates.occupation !== undefined) expressPayload.pekerjaan = updates.occupation;
     if (updates.institution !== undefined) expressPayload.instansi = updates.institution;
     if (updates.bio !== undefined) expressPayload.bio = updates.bio;
+
+    // Sinkronisasi Foto: Upload base64 ke server agar aplikasi lama dan aplikasi ini mengakses file yang sama persis
     if (updates.photoUrl !== undefined || (updates as any).avatarUrl !== undefined) {
       const rawPhoto = updates.photoUrl ?? (updates as any).avatarUrl;
-      expressPayload.file_pas_foto = formatPhotoUrlForHostinger(rawPhoto);
+      if (rawPhoto && rawPhoto.startsWith('data:image/')) {
+        const uploadedPath = await uploadFileToHostinger(rawPhoto, `pas_foto_${id}_${Date.now()}.jpg`);
+        expressPayload.file_pas_foto = uploadedPath;
+      } else {
+        expressPayload.file_pas_foto = formatPhotoUrlForHostinger(rawPhoto);
+      }
     }
     if (updates.coverPhotoUrl !== undefined) {
-      expressPayload.foto_sampul = formatPhotoUrlForHostinger(updates.coverPhotoUrl);
+      const rawCover = updates.coverPhotoUrl;
+      if (rawCover && rawCover.startsWith('data:image/')) {
+        const uploadedCover = await uploadFileToHostinger(rawCover, `sampul_${id}_${Date.now()}.jpg`);
+        expressPayload.foto_sampul = uploadedCover;
+      } else {
+        expressPayload.foto_sampul = formatPhotoUrlForHostinger(rawCover);
+      }
     }
     if (updates.password !== undefined) expressPayload.password = updates.password;
     if (updates.isPasswordChanged !== undefined) {
@@ -362,15 +399,23 @@ export async function updateAlumniInHostinger(
     if (updates.shareContact !== undefined) {
       expressPayload.share_contact = updates.shareContact ? 1 : 0;
     }
-    if (updates.gradYear !== undefined) expressPayload.tahun_lulus = updates.gradYear;
+
+    // Sinkronisasi tanggal keluar / lulus (boyong) secara konsisten
     if (updates.gradDate !== undefined) {
-      expressPayload.tanggal_keluar = updates.gradDate;
-      expressPayload.tahun_lulus = updates.gradDate.slice(0, 4);
+      expressPayload.tanggal_keluar = updates.gradDate ? updates.gradDate : null;
+      expressPayload.tahun_lulus = updates.gradDate ? updates.gradDate.slice(0, 4) : (updates.gradYear || null);
+    } else if (updates.gradYear !== undefined) {
+      expressPayload.tahun_lulus = updates.gradYear || null;
     }
+
+    // Sinkronisasi tanggal masuk
     if (updates.entryDate !== undefined) {
-      expressPayload.tanggal_masuk = updates.entryDate;
-      expressPayload.tahun_masuk = updates.entryDate.slice(0, 4);
+      expressPayload.tanggal_masuk = updates.entryDate ? updates.entryDate : null;
+      expressPayload.tahun_masuk = updates.entryDate ? updates.entryDate.slice(0, 4) : (updates.entryYear || null);
+    } else if (updates.entryYear !== undefined) {
+      expressPayload.tahun_masuk = updates.entryYear || null;
     }
+
     if (updates.asramaDulu !== undefined) expressPayload.kamar = updates.asramaDulu;
     if (updates.coordinates !== undefined) {
       expressPayload.latitude = updates.coordinates ? updates.coordinates.lat : null;

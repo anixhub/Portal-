@@ -7,7 +7,6 @@ interface LoginScreenProps {
   alumniList: AlumniRecord[];
   adminAccount: AdminUser;
   onLoginSuccess: (role: UserRole, alumniData?: AlumniRecord, adminData?: AdminUser) => void;
-  onOpenRegister?: () => void;
   onOpenForgotPassword: () => void;
   isDbLoading?: boolean;
   isDbConnected?: boolean;
@@ -46,7 +45,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
     if (!inputVal) {
       setErrorMessage(
         selectedRole === 'alumni'
-          ? 'Silakan masukkan NIK atau Username alumni Anda.'
+          ? 'Silakan masukkan username alumni Anda.'
           : 'Silakan masukkan username admin.'
       );
       return;
@@ -198,7 +197,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
           {/* KOTAK 1: IDENTITAS ALUMNI / ADMIN */}
           <div>
             <label className="block text-xs font-bold text-slate-700 mb-1">
-              {selectedRole === 'alumni' ? 'NIK atau Username' : 'Username Admin'}
+              Username
             </label>
             <div className="relative">
               <div className="absolute left-3.5 top-1/2 -translate-y-1/2 text-sky-600">
@@ -209,7 +208,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
                 required
                 placeholder={
                   selectedRole === 'alumni'
-                    ? 'Masukkan NIK atau Username alumni'
+                    ? 'Masukkan Username alumni'
                     : 'Contoh: @admin_pusat'
                 }
                 value={username}

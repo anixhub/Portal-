@@ -1117,6 +1117,7 @@ export const WilayahAddressFilter: React.FC<WilayahAddressFilterProps> = ({
       )}
 
       {/* 4. KOTAK PREVIEW PETA & TAG LOKASI (PALING BAWAH) */}
+      {/* 5. BOX PETA TITIK LOKASI RUMAH */}
       {showLocationTag && (
         <div
           onClick={(e) => {
@@ -1131,52 +1132,36 @@ export const WilayahAddressFilter: React.FC<WilayahAddressFilterProps> = ({
             }
             setIsMapModalOpen(true);
           }}
-          className="group relative w-full h-36 sm:h-40 rounded-2xl overflow-hidden border border-slate-300 shadow-xs hover:shadow-md hover:border-sky-500 transition-all cursor-pointer bg-slate-100 z-0"
-          title={hasCoords ? "Klik untuk membuka peta layar penuh dan memindah titik" : "Titik lokasi rumah belum diatur"}
+          className="group relative w-full h-40 sm:h-44 rounded-2xl overflow-hidden border border-slate-300 shadow-xs hover:shadow-md hover:border-sky-500 transition-all cursor-pointer bg-slate-100 z-0"
+          title="Klik untuk membuka peta dan mengatur titik lokasi rumah"
         >
-          {/* Layer Peta Preview Leaflet (Blur jika belum diatur) */}
+          {/* Layer Peta Preview Leaflet */}
           <div
             ref={previewMapRef}
-            className={`w-full h-full pointer-events-none transition-all ${
-              !hasCoords ? 'filter blur-[3px] opacity-60' : ''
-            }`}
+            className="w-full h-full pointer-events-none transition-all"
           />
 
-          {/* Overlay jika belum ada titik lokasi rumah yang diatur */}
-          {!hasCoords && (
-            <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-slate-900/35 backdrop-blur-2xs p-3 text-center">
-              <div className="w-10 h-10 rounded-full bg-white/95 shadow-md flex items-center justify-center text-slate-700 mb-2">
-                <MapPin className="w-5 h-5 text-rose-500" />
-              </div>
-              <p className="text-white font-bold text-xs sm:text-sm drop-shadow-sm mb-2.5">
-                Titik lokasi rumah belum diatur
-              </p>
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setCachedCenter(null);
-                  if (miniMapInstanceRef.current) {
-                    setCachedZoom(miniMapInstanceRef.current.getZoom());
-                  }
-                  setIsMapModalOpen(true);
-                }}
-                className="px-4 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs flex items-center gap-1.5 shadow-lg shadow-sky-950/40 active:scale-95 cursor-pointer transition-all"
-              >
-                <MapPin className="w-3.5 h-3.5 fill-white" />
-                <span>Atur Pin Lokasi Rumah</span>
-              </button>
-            </div>
-          )}
+          {/* Overlay tombol di pojok jika belum ada titik lokasi atau untuk ubah titik */}
+          <div className="absolute top-2.5 right-2.5 z-20 flex items-center gap-1.5">
+            <span className="px-3 py-1.5 rounded-xl bg-white/95 hover:bg-white text-sky-700 text-xs font-bold shadow-md border border-slate-200/90 flex items-center gap-1.5 backdrop-blur-md transition-all active:scale-95">
+              <MapPin className="w-3.5 h-3.5 text-rose-500 fill-rose-500" />
+              <span>{hasCoords ? 'Ubah Titik Peta' : 'Atur Titik Peta'}</span>
+            </span>
+          </div>
 
-          {/* Tag Lokasi (Hanya muncul jika koordinat sudah diatur) */}
-          {hasCoords && (
-            <div className="absolute top-2.5 left-2.5 z-20 flex items-center gap-1.5 px-3 py-1.5 bg-white/95 backdrop-blur-md rounded-full shadow-md border border-slate-200/90 text-xs font-bold text-slate-800 pointer-events-none">
-              <MapPin className="w-4 h-4 text-rose-600 fill-rose-600 shrink-0 animate-pulse" />
-              <span>Tag Lokasi</span>
+          {/* Tag Lokasi Koordinat (Jika sudah diatur) */}
+          {hasCoords ? (
+            <div className="absolute bottom-2.5 left-2.5 z-20 flex items-center gap-1.5 px-3 py-1.5 bg-white/95 backdrop-blur-md rounded-xl shadow-md border border-slate-200/90 text-xs font-bold text-slate-800 pointer-events-none">
+              <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+              <span>Lokasi Terpasang</span>
               <span className="text-[10px] font-mono text-slate-500 font-normal ml-0.5">
                 ({coordinates!.lat.toFixed(4)}, {coordinates!.lng.toFixed(4)})
               </span>
+            </div>
+          ) : (
+            <div className="absolute bottom-2.5 left-2.5 z-20 flex items-center gap-1.5 px-3 py-1.5 bg-slate-900/75 backdrop-blur-md rounded-xl text-xs font-semibold text-white pointer-events-none">
+              <MapPin className="w-3.5 h-3.5 text-amber-400" />
+              <span>Ketuk kotak peta untuk menentukan titik rumah</span>
             </div>
           )}
         </div>
@@ -1189,11 +1174,26 @@ export const WilayahAddressFilter: React.FC<WilayahAddressFilterProps> = ({
           initialCoordinates={coordinates?.lat && coordinates?.lng ? coordinates : null}
           initialZoom={cachedZoom || 15}
           currentAddressLabel={[alamatLengkap, desa, kecamatan, city, province].filter(Boolean).join(', ')}
-          onClose={() => setIsMapModalOpen(false)}
-          onSelectLocation={handleLocationPicked}
+          onClose={() => {
+            setIsMapModalOpen(false);
+            setTimeout(() => {
+              miniMapInstanceRef.current?.invalidateSize();
+            }, 120);
+          }}
+          onSelectLocation={(coords, hint) => {
+            handleLocationPicked(coords, hint);
+            setIsMapModalOpen(false);
+            setTimeout(() => {
+              miniMapInstanceRef.current?.invalidateSize();
+            }, 120);
+          }}
           onDeleteLocation={() => {
             setCachedCenter(null);
             handleLocationPicked(null, undefined);
+            setIsMapModalOpen(false);
+            setTimeout(() => {
+              miniMapInstanceRef.current?.invalidateSize();
+            }, 120);
           }}
         />
       )}

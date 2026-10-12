@@ -7,89 +7,43 @@ interface DeviceFrameProps {
 
 export const DeviceFrame: React.FC<DeviceFrameProps> = ({ children }) => {
   const [isMobileMode, setIsMobileMode] = useState(true);
-  const [showNotes, setShowNotes] = useState(false);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-200 via-sky-100 to-slate-200 flex flex-col items-center justify-center p-3 sm:p-6 text-slate-800">
       {/* Top Controller Bar */}
-      <div className="w-full max-w-md sm:max-w-2xl mb-3 flex items-center justify-between bg-white/80 backdrop-blur-md px-4 py-2.5 rounded-2xl shadow-xs border border-white/60 text-xs">
+      <div className="w-full max-w-md sm:max-w-2xl mb-3 flex items-center justify-between bg-white/80 backdrop-blur-md px-4 py-2 rounded-2xl shadow-xs border border-white/60 text-xs">
         <div className="flex items-center gap-2">
           <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
           <span className="font-semibold text-slate-700 hidden sm:inline">Portal Alumni At-taroqqy</span>
           <span className="font-semibold text-slate-700 sm:hidden">Portal Alumni</span>
         </div>
 
-        <div className="flex items-center gap-1.5">
+        {/* Toggle View Mode */}
+        <div className="flex items-center p-0.5 bg-slate-100 rounded-xl">
           <button
-            onClick={() => setShowNotes(!showNotes)}
-            className="flex items-center gap-1 px-2.5 py-1 rounded-xl text-sky-700 hover:bg-sky-50 transition-colors cursor-pointer"
-            title="Catatan Desain"
+            onClick={() => setIsMobileMode(true)}
+            className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium transition-all cursor-pointer ${
+              isMobileMode
+                ? 'bg-white text-sky-700 shadow-xs font-semibold'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
           >
-            <Info className="w-3.5 h-3.5" />
-            <span className="font-medium">Catatan Desain</span>
+            <Smartphone className="w-3.5 h-3.5" />
+            <span>Mobile</span>
           </button>
-
-          <div className="h-4 w-[1px] bg-slate-200 mx-1" />
-
-          {/* Toggle View Mode */}
-          <div className="flex items-center p-0.5 bg-slate-100 rounded-xl">
-            <button
-              onClick={() => setIsMobileMode(true)}
-              className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium transition-all cursor-pointer ${
-                isMobileMode
-                  ? 'bg-white text-sky-700 shadow-xs font-semibold'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              <Smartphone className="w-3.5 h-3.5" />
-              <span>Mobile</span>
-            </button>
-            <button
-              onClick={() => setIsMobileMode(false)}
-              className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium transition-all cursor-pointer ${
-                !isMobileMode
-                  ? 'bg-white text-sky-700 shadow-xs font-semibold'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              <Monitor className="w-3.5 h-3.5" />
-              <span>Layar Lebar</span>
-            </button>
-          </div>
+          <button
+            onClick={() => setIsMobileMode(false)}
+            className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium transition-all cursor-pointer ${
+              !isMobileMode
+                ? 'bg-white text-sky-700 shadow-xs font-semibold'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <Monitor className="w-3.5 h-3.5" />
+            <span>Layar Lebar</span>
+          </button>
         </div>
       </div>
-
-      {/* Design notes expandable panel */}
-      {showNotes && (
-        <div className="w-full max-w-md sm:max-w-xl mb-4 bg-white/95 rounded-2xl p-4 shadow-lg border border-sky-100 text-xs text-slate-700 space-y-2 animate-in fade-in duration-200">
-          <div className="flex items-center justify-between pb-1 border-b border-slate-100">
-            <span className="font-bold text-sky-900 flex items-center gap-1.5">
-              <CheckCircle className="w-4 h-4 text-emerald-600" />
-              Penyesuaian Sesuai Permintaan:
-            </span>
-            <button
-              onClick={() => setShowNotes(false)}
-              className="text-slate-400 hover:text-slate-600 cursor-pointer font-bold px-1"
-            >
-              ✕
-            </button>
-          </div>
-          <ul className="space-y-1.5 list-disc pl-4 text-slate-600">
-            <li>
-              <strong>Judul Baru:</strong> Baris 1 <code className="text-sky-700 bg-sky-50 px-1 py-0.5 rounded">Portal Alumni</code>, Baris 2 <code className="text-sky-700 bg-sky-50 px-1 py-0.5 rounded">At-taroqqy</code>.
-            </li>
-            <li>
-              <strong>Form Pengganti Fast Menu:</strong> Mengganti fast menu 4 ikon dengan 2 kotak tersusun vertikal: <strong>Email</strong> dan <strong>Kata Sandi</strong>.
-            </li>
-            <li>
-              <strong>Tombol Login:</strong> Tombol Login dibuat penuh (full-width) tanpa tombol fingerprint di sampingnya.
-            </li>
-            <li>
-              <strong>Teks Bawah:</strong> Menambahkan teks kecil di bawah tombol: <code className="text-sky-700 bg-sky-50 px-1 py-0.5 rounded">Belum punya akun? Daftar .</code> yang interaktif membuka formulir registrasi.
-            </li>
-          </ul>
-        </div>
-      )}
 
       {/* Main Container */}
       {isMobileMode ? (

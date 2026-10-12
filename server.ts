@@ -10,7 +10,7 @@ const __dirname = path.dirname(__filename);
 // In-memory cache for live santri data
 let cachedSantriData: any = null;
 let lastCacheTime = 0;
-const CACHE_TTL_MS = 60 * 1000; // 60 seconds
+const CACHE_TTL_MS = 5 * 1000; // 5 seconds for fast 2-way sync with Hostinger
 
 // Load local fallback snapshot if available
 let localSnapshot: any = null;
@@ -38,9 +38,9 @@ try {
 }
 
 // Function to fetch live santri data with timeout and fallback
-async function getSantriData(): Promise<any> {
+async function getSantriData(forceFresh: boolean = false): Promise<any> {
   const now = Date.now();
-  if (cachedSantriData && now - lastCacheTime < CACHE_TTL_MS) {
+  if (!forceFresh && cachedSantriData && now - lastCacheTime < CACHE_TTL_MS) {
     return cachedSantriData;
   }
 
@@ -133,10 +133,32 @@ async function startServer() {
     }
   });
 
+  // Photo & Document Upload API Proxy to attaroqqy.com
+  app.post('/api/upload', async (req, res) => {
+    try {
+      console.log('[Server] Proxying /api/upload to attaroqqy.com, fileName:', req.body?.fileName);
+      const remoteRes = await fetch('https://attaroqqy.com/api/upload', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+        },
+        body: JSON.stringify(req.body),
+      });
+
+      const responseData = await remoteRes.json().catch(() => ({ success: remoteRes.ok }));
+      res.status(remoteRes.status).json(responseData);
+    } catch (err: any) {
+      console.warn('[Server] Error proxying /api/upload:', err?.message);
+      res.status(500).json({ success: false, message: err?.message });
+    }
+  });
+
   // Santri API: GET
   app.get('/api/db/santri', async (req, res) => {
     try {
-      const data = await getSantriData();
+      const isFresh = req.query.fresh === 'true' || req.query.force === 'true';
+      const data = await getSantriData(isFresh);
       res.setHeader('Content-Type', 'application/json');
       res.json(data);
     } catch (err: any) {

@@ -458,7 +458,6 @@ export default function App() {
           alumniList={alumniList}
           adminAccount={adminAccount}
           onLoginSuccess={handleLoginSuccess}
-          onOpenRegister={() => setIsRegisterOpen(true)}
           onOpenForgotPassword={() => setIsForgotPasswordOpen(true)}
           isDbLoading={isDbLoading}
           isDbConnected={isDbConnected}

@@ -543,7 +543,7 @@ export const AlumniDetailAdminModal: React.FC<AlumniDetailAdminModalProps> = ({
                     <div className="min-w-0">
                       <p className="text-[11px] text-slate-400 font-medium leading-tight">Tanggal Keluar (Boyong)</p>
                       <p className="text-sm font-semibold text-slate-800 truncate mt-0.5">
-                        {editGradDate || 'Belum diisi'}
+                        {editGradDate || (alumni.gradYear ? `Tahun ${alumni.gradYear}` : 'Belum diisi')}
                       </p>
                     </div>
                   </div>
@@ -1240,7 +1240,7 @@ export const AlumniDetailAdminModal: React.FC<AlumniDetailAdminModalProps> = ({
             <div className="flex gap-2 pt-2">
               <button type="button" onClick={() => setActiveEditModal(null)} className="flex-1 py-2.5 rounded-xl border border-slate-200 text-slate-600 font-semibold text-xs cursor-pointer hover:bg-slate-50">Batal</button>
               <button type="button" onClick={() => {
-                const year = editGradDate ? editGradDate.substring(0, 4) : alumni.gradYear;
+                const year = editGradDate ? editGradDate.substring(0, 4) : '';
                 handleUpdate({ gradDate: editGradDate, gradYear: year });
                 setActiveEditModal(null);
               }} className="flex-1 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs cursor-pointer shadow-xs">Simpan Tanggal</button>
