@@ -77,26 +77,37 @@ Kolom-kolom di tabel `santri` MySQL:
 
 ---
 
-### 4. API Endpoints Sinkronisasi
-Sistem menggunakan sinkronisasi ganda (dual-sync) agar perubahan data di Portal Alumni seketika langsung terbaca di aplikasi manajemen pesantren lama (SmartSantri):
+### 4. Struktur Tabel Database Fitur Lengkap (`database_portal_alumni_schema.sql`)
+Seluruh query pembuatan dan pembaruan tabel telah dirangkum dalam file `database_portal_alumni_schema.sql`:
 
-1. **Express Backend API (Digunakan SmartSantri / Aplikasi Lama)**:
-   * **`GET https://attaroqqy.com/api/db/santri`**: Membaca seluruh data santri dan cache memory Express.
-   * **`PUT https://attaroqqy.com/api/db/santri/:id`**: Memperbarui santri di database dan cache Express secara realtime. Gender dikirim dalam format `'putra'` atau `'putri'`.
-   * **`POST https://attaroqqy.com/api/db/santri`**: Menambahkan santri baru.
-   * **`DELETE https://attaroqqy.com/api/db/santri/:id`**: Menghapus santri.
-
-2. **PHP Hostinger API (`api_alumni.php`)**:
-   * **GET `?action=get_alumni`**: Mengambil seluruh data santri yang berstatus `'Alumni'`.
-   * **POST `?action=update_alumni`**: Memperbarui biodata alumni.
-   * **POST `?action=add_alumni`**: Menambahkan alumni baru.
-   * **POST `?action=delete_alumni`**: Menghapus alumni.
+1. **`santri`** (Master data santri & alumni Ponpes At-Taroqqy)
+2. **`admin_users`** (Akun administrator & pengurus alumni se-Indonesia)
+3. **`events`** (Agenda reuni, haul masyayikh, kajian, dan korda)
+4. **`event_rsvps`** (Data konfirmasi kehadiran alumni pada event: hadir, belum pasti, tidak hadir)
+5. **`announcements`** (Maklumat resmi pengasuh, kabar santri asuh, beasiswa, dan agenda)
+6. **`post_comments`** (Diskusi & tanggapan komentar postingan maklumat dan event)
+7. **`post_likes`** (Sistem like/suka postingan)
+8. **`attendance_sessions`** (Sesi presensi kehadiran acara / pertemuan)
+9. **`attendance_attendees`** (Peserta yang telah check-in presensi via QR Scanner atau manual)
+10. **`alumni_bills`** (Iuran alumni, syahriyah, dan wakaf pembangunan)
+11. **`notifications`** (Pemberitahuan sistem & notifikasi balasan akun)
 
 ---
 
-### 5. File Frontend Terkait
-* `src/services/apiService.ts`: Modul pemanggil API Hostinger (Fetch API).
-* `src/components/AlumniView.tsx`: Tampilan portal untuk akun alumni mandiri.
-* `src/components/AdminView.tsx`: Tampilan dashboard pengurus/admin pesantren.
-* `src/components/admin/AlumniDetailAdminModal.tsx`: Modal detail & edit alumni oleh admin.
-* `public/api_alumni.php`: Salinan file PHP backend siap pakai.
+### 5. API Endpoints Sinkronisasi Lengkap (`api_alumni.php`)
+Sistem menyediakan endpoint lengkap:
+* **Migrasi Database Otomatis Satu Klik:**
+  `GET https://attaroqqy.com/api_alumni.php?action=migrate_db` -> Otomatis membuat seluruh tabel di atas jika belum ada di database Hostinger.
+* **Alumni:** `?action=get_alumni`, `?action=update_alumni`, `?action=add_alumni`, `?action=delete_alumni`
+* **Agenda / Events:** `?action=get_events`, `?action=save_event`, `?action=delete_event`
+* **Maklumat / Announcements:** `?action=get_announcements`, `?action=save_announcement`, `?action=delete_announcement`
+* **Kelola Akun Admin:** `?action=get_admin_users`, `?action=save_admin_user`, `?action=delete_admin_user`
+* **Presensi QR Scanner:** `?action=get_attendance_sessions`, `?action=checkin_attendee`
+
+---
+
+### 6. File Terkait di Codebase
+* `/database_portal_alumni_schema.sql`: Berkas query SQL murni lengkap yang siap diimpor ke phpMyAdmin.
+* `/api_alumni.php` & `/public/api_alumni.php`: Salinan script PHP backend dengan auto-migrator siap pakai.
+* `src/services/apiService.ts`: Modul pemanggil API Hostinger & Express.
+* `server.ts`: Server backend lokal dan proxy API.
