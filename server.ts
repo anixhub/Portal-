@@ -78,7 +78,16 @@ async function getSantriData(): Promise<any> {
 
 async function startServer() {
   const app = express();
-  const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
+
+  // Port resolution: Dev server must run on port 3000
+  let port = 3000;
+  const portArgIndex = process.argv.indexOf('--port');
+  if (portArgIndex !== -1 && process.argv[portArgIndex + 1]) {
+    port = parseInt(process.argv[portArgIndex + 1], 10);
+  } else if (process.env.NODE_ENV === 'production' && process.env.PORT) {
+    port = parseInt(process.env.PORT, 10);
+  }
+  const PORT = port;
 
   // Middleware
   app.use(express.json({ limit: '10mb' }));

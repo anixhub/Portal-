@@ -8,22 +8,26 @@ import {
   AlertCircle,
   User,
   GraduationCap,
-  MapPin
+  MapPin,
+  Calendar
 } from 'lucide-react';
 import { AlumniRecord } from '../../types';
 import { WilayahAddressFilter } from '../common/WilayahAddressFilter';
 import { LocationCoordinates } from '../common/FullscreenLocationMapModal';
+import { generateNisFromEntryDate, generateUniqueUsername } from '../../utils/alumniIdentityUtils';
 
 interface AddAlumniModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSave: (newAlumni: AlumniRecord) => void;
+  existingAlumni?: AlumniRecord[];
 }
 
 export const AddAlumniModal: React.FC<AddAlumniModalProps> = ({
   isOpen,
   onClose,
   onSave,
+  existingAlumni = [],
 }) => {
   const [currentStep, setCurrentStep] = useState<1 | 2 | 3>(1);
 
@@ -34,11 +38,11 @@ export const AddAlumniModal: React.FC<AddAlumniModalProps> = ({
   const [anakKe, setAnakKe] = useState<number>(1);
   const [dariBersaudara, setDariBersaudara] = useState<number>(1);
 
-  // Form State - Step 2: Pendidikan Pondok
-  const [gradYear, setGradYear] = useState('2024');
-  const [entryYear, setEntryYear] = useState('2018');
-  const [jenjang, setJenjang] = useState('Madrasah Aliyah Keagamaan (MAK)');
-  const [asramaDulu, setAsramaDulu] = useState('Komplek Al-Ghazali');
+  // Form State - Step 2: Riwayat Tanggal Pondok
+  // Jenjang & kamar dulu dihapus sesuai permintaan
+  // Diganti tanggal masuk & tanggal keluar
+  const [entryDate, setEntryDate] = useState('');
+  const [gradDate, setGradDate] = useState('');
 
   // Form State - Step 3: Kontak & Domisili
   const [phone, setPhone] = useState('');
@@ -75,10 +79,7 @@ export const AddAlumniModal: React.FC<AddAlumniModalProps> = ({
     }
 
     if (currentStep === 2) {
-      if (!jenjang.trim()) {
-        setError('Jenjang pendidikan pondok wajib diisi.');
-        return;
-      }
+      // Tanggal masuk boleh diisi atau dilewati, namun jika ingin langsung generate NIS disarankan diisi
       setCurrentStep(3);
       return;
     }
@@ -90,29 +91,50 @@ export const AddAlumniModal: React.FC<AddAlumniModalProps> = ({
     if (currentStep === 3) setCurrentStep(2);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
+  const handleSubmit = (e?: React.FormEvent) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    // Mencegah submit jika belum sampai langkah 3 (menghindari auto-save saat pindah tab)
+    if (currentStep !== 3) {
+      return;
+    }
+    if (isSubmitting) return;
 
+    setError(null);
     setIsSubmitting(true);
-    const generatedNis = `TRQ-${gradYear}-${Math.floor(100 + Math.random() * 900)}`;
+
+    // Hitung NIS berdasarkan Tanggal Masuk (4 digit tahun + 3 digit nomor urut santri)
+    // Apabila belum mengisi tanggal masuk maka NIS belum ada (string kosong)
+    const generatedNis = entryDate.trim()
+      ? generateNisFromEntryDate(entryDate.trim(), existingAlumni)
+      : '';
+
+    // Generate Username unik sesuai nama (ganti spasi underscore, label angka pembeda jika duplikat)
+    const generatedUsername = generateUniqueUsername(name.trim(), existingAlumni);
+
+    const calculatedEntryYear = entryDate.trim() ? entryDate.trim().slice(0, 4) : '';
+    const calculatedGradYear = gradDate.trim() ? gradDate.trim().slice(0, 4) : '';
 
     const newRecord: AlumniRecord = {
       id: 'alm-man-' + Date.now(),
       nik: nik.trim(),
       nis: generatedNis,
       name: name.trim(),
-      username: '',
+      username: generatedUsername,
       gender,
       anak_ke: anakKe,
       dari_bersaudara: dariBersaudara,
       urutanAnak: anakKe,
       jumlahSaudara: dariBersaudara,
-      gradYear,
-      entryYear,
-      jenjang: jenjang.trim(),
-      asramaDulu: asramaDulu.trim() || 'Komplek Utama',
-      email: email.trim() || `${name.toLowerCase().replace(/[^a-z]/g, '')}@alumni.attaroqqy.id`,
+      entryDate: entryDate.trim() || undefined,
+      gradDate: gradDate.trim() || undefined,
+      entryYear: calculatedEntryYear,
+      gradYear: calculatedGradYear,
+      jenjang: 'Madrasah Aliyah Keagamaan (MAK)',
+      asramaDulu: 'Komplek Utama',
+      email: email.trim() || `${generatedUsername}@alumni.attaroqqy.id`,
       phone: phone.trim() || '08123456789',
       city: city.trim(),
       province: province.trim(),
@@ -137,13 +159,13 @@ export const AddAlumniModal: React.FC<AddAlumniModalProps> = ({
         onSave(newRecord);
         setIsSuccess(false);
         onClose();
-      }, 1000);
-    }, 600);
+      }, 900);
+    }, 500);
   };
 
   const steps = [
     { num: 1, title: 'Identitas Diri', icon: User },
-    { num: 2, title: 'Riwayat Pondok', icon: GraduationCap },
+    { num: 2, title: 'Tanggal Pondok', icon: GraduationCap },
     { num: 3, title: 'Domisili & Kontak', icon: MapPin },
   ];
 
@@ -220,7 +242,8 @@ export const AddAlumniModal: React.FC<AddAlumniModalProps> = ({
               </div>
             </div>
           ) : (
-            <form onSubmit={currentStep === 3 ? handleSubmit : (e) => { e.preventDefault(); handleNext(); }} className="space-y-5">
+            // Form strictly ignores accidental submits; transitions and saves are controlled by buttons
+            <form onSubmit={(e) => e.preventDefault()} className="space-y-5">
               {error && (
                 <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-2xl text-rose-700 text-xs flex items-center gap-2.5 animate-in fade-in">
                   <AlertCircle className="w-4 h-4 shrink-0" />
@@ -269,8 +292,8 @@ export const AddAlumniModal: React.FC<AddAlumniModalProps> = ({
                       onChange={(e) => setGender(e.target.value as 'L' | 'P')}
                       className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:ring-2 focus:ring-sky-600 focus:bg-white focus:outline-none"
                     >
-                      <option value="L">Laki-laki</option>
-                      <option value="P">Perempuan</option>
+                      <option value="L">Laki-laki (Ikhwan)</option>
+                      <option value="P">Perempuan (Akhwat)</option>
                     </select>
                   </div>
 
@@ -312,74 +335,52 @@ export const AddAlumniModal: React.FC<AddAlumniModalProps> = ({
                 </div>
               )}
 
-              {/* ================= STEP 2: RIWAYAT PONDOK ================= */}
+              {/* ================= STEP 2: TANGGAL PONDOK (JENJANG & KAMAR DIHAPUS) ================= */}
               {currentStep === 2 && (
                 <div className="bg-white rounded-3xl p-5 sm:p-6 border border-slate-200/90 shadow-2xs space-y-4">
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                        Tahun Masuk
-                      </label>
-                      <select
-                        value={entryYear}
-                        onChange={(e) => setEntryYear(e.target.value)}
-                        className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:ring-2 focus:ring-sky-600 focus:bg-white focus:outline-none"
-                      >
-                        {Array.from({ length: 40 }, (_, i) => 2026 - i).map((yr) => (
-                          <option key={yr} value={yr.toString()}>
-                            {yr}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                        Tahun Lulus (Angkatan)
-                      </label>
-                      <select
-                        value={gradYear}
-                        onChange={(e) => setGradYear(e.target.value)}
-                        className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:ring-2 focus:ring-sky-600 focus:bg-white focus:outline-none"
-                      >
-                        {Array.from({ length: 35 }, (_, i) => 2026 - i).map((yr) => (
-                          <option key={yr} value={yr.toString()}>
-                            {yr}
-                          </option>
-                        ))}
-                      </select>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      Tanggal Masuk Pondok
+                    </label>
+                    <p className="text-[11px] text-slate-500 mb-2">
+                      Tanggal masuk menjadi acuan generate NIS otomatis (Tahun + 3 digit urutan santri).
+                    </p>
+                    <div className="relative">
+                      <input
+                        type="date"
+                        value={entryDate}
+                        onChange={(e) => setEntryDate(e.target.value)}
+                        className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-900 focus:ring-2 focus:ring-sky-600 focus:bg-white focus:outline-none"
+                      />
                     </div>
                   </div>
 
                   <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                      Jenjang / Marhalah
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      Tanggal Keluar / Boyong (Opsional)
                     </label>
-                    <select
-                      value={jenjang}
-                      onChange={(e) => setJenjang(e.target.value)}
-                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:ring-2 focus:ring-sky-600 focus:bg-white focus:outline-none"
-                    >
-                      <option value="Madrasah Aliyah Keagamaan (MAK)">Madrasah Aliyah Keagamaan (MAK)</option>
-                      <option value="Madrasah Aliyah (MA)">Madrasah Aliyah (MA)</option>
-                      <option value="Madrasah Tsanawiyah (MTs)">Madrasah Tsanawiyah (MTs)</option>
-                      <option value="Kuliyyatul Muallimin (KMI)">Kuliyyatul Muallimin (KMI)</option>
-                      <option value="Tahfidzul Qur'an">Tahfidzul Qur'an</option>
-                    </select>
+                    <p className="text-[11px] text-slate-500 mb-2">
+                      Tanggal kelulusan atau peresmian status alumni.
+                    </p>
+                    <div className="relative">
+                      <input
+                        type="date"
+                        value={gradDate}
+                        onChange={(e) => setGradDate(e.target.value)}
+                        className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-900 focus:ring-2 focus:ring-sky-600 focus:bg-white focus:outline-none"
+                      />
+                    </div>
                   </div>
 
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                      Asrama / Kamar Dulu
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="Contoh: Komplek Al-Ghazali / Khodijah"
-                      value={asramaDulu}
-                      onChange={(e) => setAsramaDulu(e.target.value)}
-                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:ring-2 focus:ring-sky-600 focus:bg-white focus:outline-none"
-                    />
-                  </div>
+                  {entryDate && (
+                    <div className="p-3 bg-sky-50 border border-sky-200/70 rounded-2xl text-[11px] text-sky-800 flex items-start gap-2">
+                      <Calendar className="w-4 h-4 text-sky-600 shrink-0 mt-0.5" />
+                      <div>
+                        <span className="font-bold">Estimasi NIS Baru:</span>{' '}
+                        {generateNisFromEntryDate(entryDate, existingAlumni) || 'Akan digenerate otomatis'}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -498,7 +499,8 @@ export const AddAlumniModal: React.FC<AddAlumniModalProps> = ({
                   </button>
                 ) : (
                   <button
-                    type="submit"
+                    type="button"
+                    onClick={() => handleSubmit()}
                     disabled={isSubmitting}
                     className="ml-auto px-6 py-3 rounded-2xl bg-sky-600 hover:bg-sky-700 active:scale-95 text-white font-bold text-xs shadow-md shadow-sky-600/25 transition-all cursor-pointer flex items-center gap-1.5 disabled:opacity-60"
                   >

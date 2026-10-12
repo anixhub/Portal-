@@ -89,6 +89,8 @@ import { AlumniFinanceView } from './AlumniFinanceView';
 import { formatAuthorUsername, resolveAuthorAlumniRecord } from '../utils/authorUtils';
 import { useBackHandler } from '../utils/navigationHistory';
 import { getAlumniPhotoUrl } from '../utils/photoUtils';
+import { RealQrCode } from './common/RealQrCode';
+import { generateNisFromEntryDate } from '../utils/alumniIdentityUtils';
 import posterReuniImg from '../assets/images/poster_reuni_akbar_1790648045947.jpg';
 import logoPonpesImg from '../assets/images/logo_ponpes_attaroqqy_1790648746461.jpg';
 import bgMenuQuranImg from '../assets/images/bg_menu_alquran_1790822566925.jpg';
@@ -387,6 +389,19 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
   const [isCardFlipped, setIsCardFlipped] = useState(false);
   const [showQrModal, setShowQrModal] = useState(false);
   const [showKtaCardModal, setShowKtaCardModal] = useState(false);
+  const [showGenerateKtaNisModal, setShowGenerateKtaNisModal] = useState(false);
+  const [ktaEntryDateInput, setKtaEntryDateInput] = useState(alumni.entryDate || '');
+  const [isGeneratingKta, setIsGeneratingKta] = useState(false);
+
+  const handleOpenKta = () => {
+    // Apabila belum mengisi tanggal masuk maka nis belum ada dan apabila nis belum ada maka di halaman kta nanti ada popup untuk mengisi tanggal masuk untuk generate kta
+    if (!alumni.nis || !alumni.nis.trim() || !alumni.entryDate) {
+      setKtaEntryDateInput(alumni.entryDate || '');
+      setShowGenerateKtaNisModal(true);
+    } else {
+      setShowKtaCardModal(true);
+    }
+  };
   const [isDistributionMapOpen, setIsDistributionMapOpen] = useState(false);
   const [deviceGps, setDeviceGps] = useState<{ lat: number; lng: number } | null>(null);
 
@@ -856,6 +871,7 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
   useBackHandler(Boolean(selectedAlumniDetail), 'alumni-detail-card', () => setSelectedAlumniDetail(null));
   useBackHandler(showQrModal, 'alumni-qr-modal', () => setShowQrModal(false));
   useBackHandler(showKtaCardModal, 'alumni-kta-modal', () => setShowKtaCardModal(false));
+  useBackHandler(showGenerateKtaNisModal, 'alumni-generate-kta-nis-modal', () => setShowGenerateKtaNisModal(false));
   useBackHandler(isFilterSheetOpen, 'alumni-filter-sheet', () => setIsFilterSheetOpen(false));
   useBackHandler(isSortSheetOpen, 'alumni-sort-sheet', () => setIsSortSheetOpen(false));
   useBackHandler(Boolean(activeCommentsModalEvent), 'alumni-event-comments', () => setActiveCommentsModalEvent(null));
@@ -1472,7 +1488,7 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
 
             {/* 2. KTA DIGITAL SANTRI BANNER */}
             <div
-              onClick={() => setShowKtaCardModal(true)}
+              onClick={handleOpenKta}
               className="rounded-full bg-sky-600 text-white p-2.5 px-4 flex items-center justify-between shadow-md shadow-sky-600/20 cursor-pointer hover:bg-sky-700 transition-colors select-none"
             >
               <div className="flex items-center gap-3 min-w-0">
@@ -4172,7 +4188,7 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-3 my-auto">
+                  <div className="flex items-center gap-2.5 my-auto">
                     <div className="w-12 h-14 bg-white/10 border border-white/40 rounded-lg overflow-hidden flex items-center justify-center shrink-0">
                       {alumni.photoUrl ? (
                         <img src={alumni.photoUrl} alt={alumni.name} className="w-full h-full object-cover" />
@@ -4180,14 +4196,24 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
                         <span className="text-xl">👨‍🎓</span>
                       )}
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-[8px] font-mono text-sky-200">NO: {alumni.nis}</p>
+                    <div className="flex-1 min-w-0 pr-1">
+                      <p className="text-[8px] font-mono text-sky-200 font-bold">
+                        NIS: {alumni.nis || 'Belum Ada'}
+                      </p>
                       <h3 className="font-bold text-xs sm:text-sm leading-tight truncate text-white">
                         {alumni.name}
                       </h3>
-                      <p className="text-[9px] text-sky-100 truncate mt-0.5">{alumni.jenjang}</p>
-                      <p className="text-[9px] text-sky-200 truncate">{alumni.city}</p>
+                      <p className="text-[9px] text-sky-100 truncate mt-0.5">{alumni.jenjang || 'Santri Alumni'}</p>
+                      <p className="text-[9px] text-sky-200 truncate">{alumni.city || alumni.province}</p>
                     </div>
+                    {alumni.nis && (
+                      <div className="shrink-0 flex flex-col items-center bg-white p-1 rounded-lg border border-white/80 shadow-md">
+                        <RealQrCode value={alumni.nis} size={42} />
+                        <span className="text-[6.5px] text-slate-800 font-mono font-bold mt-0.5 leading-none">
+                          NIS SCAN
+                        </span>
+                      </div>
+                    )}
                   </div>
 
                   <div className="flex justify-between items-end pt-1.5 border-t border-white/20 text-[8px]">
@@ -4198,7 +4224,7 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
                         e.stopPropagation();
                         setShowQrModal(true);
                       }}
-                      className="flex items-center gap-1 bg-white/20 hover:bg-white/30 px-2 py-0.5 rounded border border-white/30 text-white cursor-pointer"
+                      className="flex items-center gap-1 bg-white/20 hover:bg-white/30 px-2 py-0.5 rounded border border-white/30 text-white cursor-pointer active:scale-95 transition-transform"
                     >
                       <QrCode className="w-3 h-3 text-amber-300" />
                       <span>QR Presensi</span>
@@ -4220,8 +4246,19 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
                   </div>
 
                   <div className="flex justify-between items-end pt-1 border-t border-white/20 text-[8px]">
-                    <p className="text-sky-300 font-mono">www.attaroqqy.ac.id</p>
-                    <p className="font-bold text-white">Pengasuh Pesantren</p>
+                    <div>
+                      <p className="text-sky-300 font-mono">www.attaroqqy.ac.id</p>
+                      <p className="font-bold text-white">Pengasuh Pesantren</p>
+                    </div>
+                    {alumni.nis && (
+                      <div className="flex items-center gap-1.5 bg-white/20 px-2 py-1 rounded-lg border border-white/30">
+                        <RealQrCode value={alumni.nis} size={28} />
+                        <div className="text-left font-mono text-[7px] text-sky-200 leading-tight">
+                          <div>QR PRESENSI</div>
+                          <div className="text-white font-bold">{alumni.nis}</div>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}

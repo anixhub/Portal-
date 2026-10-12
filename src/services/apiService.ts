@@ -1,6 +1,7 @@
 import { AlumniRecord } from '../types';
 import { INITIAL_ALUMNI } from '../data/mockData';
 import { getAlumniPhotoUrl, formatPhotoUrlForHostinger } from '../utils/photoUtils';
+import { ensureConsistentAlumniIdentities } from '../utils/alumniIdentityUtils';
 
 // URL Endpoint API di Hostinger
 export const HOSTINGER_API_URL =
@@ -214,7 +215,7 @@ export async function fetchAlumniFromHostinger(): Promise<{
         });
 
         const listToNormalize = alumniOnly.length > 0 ? alumniOnly : rawList;
-        const normalizedData: AlumniRecord[] = listToNormalize.map(normalizeSingleAlumni);
+        const normalizedData: AlumniRecord[] = ensureConsistentAlumniIdentities(listToNormalize.map(normalizeSingleAlumni));
 
         if (normalizedData.length > 0) {
           console.log(`[Database Hostinger] Berhasil memuat ${normalizedData.length} data alumni dari ${url}`);
@@ -242,7 +243,7 @@ export async function fetchAlumniFromHostinger(): Promise<{
         return status.includes('alumni') || !status;
       });
       const listToNormalize = alumniOnly.length > 0 ? alumniOnly : rawList;
-      const normalizedData: AlumniRecord[] = listToNormalize.map(normalizeSingleAlumni);
+      const normalizedData: AlumniRecord[] = ensureConsistentAlumniIdentities(listToNormalize.map(normalizeSingleAlumni));
       if (normalizedData.length > 0) {
         console.log(`[Database Snapshot] Memuat ${normalizedData.length} data alumni dari snapshot lokal`);
         return {
@@ -260,7 +261,7 @@ export async function fetchAlumniFromHostinger(): Promise<{
   console.warn('Gagal memuat data dari Hostinger API, menggunakan data lokal awal');
   return {
     success: false,
-    data: INITIAL_ALUMNI,
+    data: ensureConsistentAlumniIdentities(INITIAL_ALUMNI),
     isLive: false,
     message: 'Gagal tersambung ke database Hostinger',
   };

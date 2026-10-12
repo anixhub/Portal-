@@ -24,8 +24,8 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
   onRefreshData,
 }) => {
   const [selectedRole, setSelectedRole] = useState<UserRole>('alumni');
-  const [username, setUsername] = useState('1986001');
-  const [password, setPassword] = useState('1234');
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -34,30 +34,8 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
   const handleRoleChange = (role: UserRole) => {
     setSelectedRole(role);
     setErrorMessage(null);
-    if (role === 'alumni') {
-      setUsername('1986001');
-      setPassword('1234');
-    } else {
-      setUsername('@admin_pusat');
-      setPassword(adminAccount.password || '1997');
-    }
-  };
-
-  const handleQuickDemo = (type: 'sulaiman' | 'aminuddin' | 'admin') => {
-    setErrorMessage(null);
-    if (type === 'sulaiman') {
-      setSelectedRole('alumni');
-      setUsername('1986001');
-      setPassword('1234');
-    } else if (type === 'aminuddin') {
-      setSelectedRole('alumni');
-      setUsername('1993006');
-      setPassword('1234');
-    } else if (type === 'admin') {
-      setSelectedRole('admin');
-      setUsername('@admin_pusat');
-      setPassword(adminAccount.password || '1997');
-    }
+    setUsername('');
+    setPassword('');
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -68,7 +46,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
     if (!inputVal) {
       setErrorMessage(
         selectedRole === 'alumni'
-          ? 'Silakan masukkan NIS, nama lengkap, atau username alumni Anda.'
+          ? 'Silakan masukkan NIK atau Username alumni Anda.'
           : 'Silakan masukkan username admin.'
       );
       return;
@@ -103,39 +81,29 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
           onLoginSuccess('admin', undefined, adminAccount);
           return;
         } else {
-          setErrorMessage('Kredensial Admin tidak cocok. Gunakan username: @admin_pusat / sandi: 1997');
+          setErrorMessage('Kredensial Admin tidak cocok.');
           return;
         }
       }
 
-      // Role Alumni: Cari berdasarkan NIS, Nama Lengkap, Username, NIK, atau Email
+      // Role Alumni: Autentikasi hanya menggunakan NIK atau Username (dengan toleransi NIS)
       const cleanInput = inputVal.toLowerCase().replace(/^@/, '').trim();
       const matchedAlumni = alumniList.find((alm) => {
         const almUser = (alm.username || '').toLowerCase().replace(/^@/, '').trim();
-        const isUserMatch = almUser && (almUser === cleanInput || almUser.replace(/[^a-z0-9]/g, '') === cleanInput.replace(/[^a-z0-9]/g, ''));
+        const isUserMatch = Boolean(almUser && almUser === cleanInput);
         const isNikMatch = Boolean(alm.nik && alm.nik.trim() === inputVal.trim());
         const isNisMatch = Boolean(alm.nis && alm.nis.toLowerCase().trim() === inputVal.toLowerCase().trim());
-        const isEmailMatch = Boolean(alm.email && alm.email.toLowerCase().trim() === inputVal.toLowerCase().trim());
-        const isIdMatch = Boolean(alm.id && alm.id.toLowerCase() === cleanInput);
-        
-        // Pencarian cerdas nama alumni
-        const cleanName = (alm.name || '').toLowerCase().trim();
-        const isNameMatch = cleanName === cleanInput || cleanName.includes(cleanInput);
 
-        return isNisMatch || isNameMatch || isUserMatch || isNikMatch || isEmailMatch || isIdMatch;
+        return isNikMatch || isUserMatch || isNisMatch;
       });
 
       if (!matchedAlumni) {
-        setErrorMessage(
-          `Data "${inputVal}" tidak ditemukan di ${alumniList.length.toLocaleString('id-ID')} data alumni. Coba masukkan NIS (misal: 1986001) atau nama lengkap Anda.`
-        );
+        setErrorMessage('NIK atau Username tidak ditemukan.');
         return;
       }
 
       if (matchedAlumni.password !== password) {
-        setErrorMessage(
-          'Kata sandi salah. Jika belum pernah mengubah sandi, gunakan kata sandi awal: 1234.'
-        );
+        setErrorMessage('Kata sandi yang Anda masukkan salah.');
         return;
       }
 
@@ -218,76 +186,6 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
           </button>
         </div>
 
-        {/* DATABASE CONNECTION STATUS BADGE */}
-        <div className="mb-2.5 px-3 py-1.5 rounded-xl text-[11px] font-medium flex items-center justify-between border bg-slate-50 border-slate-200">
-          <div className="flex items-center gap-2">
-            <span
-              className={`w-2 h-2 rounded-full ${
-                isDbLoading
-                  ? 'bg-amber-400 animate-ping'
-                  : isDbConnected
-                  ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]'
-                  : 'bg-rose-400'
-              }`}
-            />
-            <span className="text-slate-600 font-semibold">
-              {isDbLoading
-                ? 'Sinkronisasi database Hostinger...'
-                : `Hostinger MySQL: ${alumniList.length.toLocaleString('id-ID')} Data Alumni Aktif`}
-            </span>
-          </div>
-          {onRefreshData && (
-            <button
-              type="button"
-              onClick={onRefreshData}
-              disabled={isDbLoading}
-              className="text-[10px] text-sky-600 hover:text-sky-800 font-bold hover:underline cursor-pointer disabled:opacity-50"
-            >
-              Segarkan
-            </button>
-          )}
-        </div>
-
-        {/* QUICK SHORTCUTS */}
-        <div className="mb-3.5 flex items-center justify-between text-[11px] bg-sky-50/70 px-2.5 py-1.5 rounded-xl border border-sky-100">
-          <span className="text-sky-800 font-medium text-[10px]">Coba Akun:</span>
-          <div className="flex gap-1">
-            <button
-              type="button"
-              onClick={() => handleQuickDemo('sulaiman')}
-              className={`px-2 py-0.5 rounded-lg border text-[10px] font-semibold cursor-pointer transition-colors ${
-                selectedRole === 'alumni' && username === '1986001'
-                  ? 'bg-sky-600 text-white border-sky-600'
-                  : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
-              }`}
-            >
-              NIS 1986001
-            </button>
-            <button
-              type="button"
-              onClick={() => handleQuickDemo('aminuddin')}
-              className={`px-2 py-0.5 rounded-lg border text-[10px] font-semibold cursor-pointer transition-colors ${
-                selectedRole === 'alumni' && username === '1993006'
-                  ? 'bg-sky-600 text-white border-sky-600'
-                  : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
-              }`}
-            >
-              NIS 1993006
-            </button>
-            <button
-              type="button"
-              onClick={() => handleQuickDemo('admin')}
-              className={`px-2 py-0.5 rounded-lg border text-[10px] font-semibold cursor-pointer transition-colors ${
-                selectedRole === 'admin' && username === '@admin_pusat'
-                  ? 'bg-sky-600 text-white border-sky-600'
-                  : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
-              }`}
-            >
-              @admin_pusat
-            </button>
-          </div>
-        </div>
-
         {/* Error notification */}
         {errorMessage && (
           <div className="mb-3 p-2.5 bg-rose-50 border border-rose-200 rounded-xl text-rose-700 text-xs flex items-center gap-2">
@@ -296,18 +194,13 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
           </div>
         )}
 
-        {/* FORM LOGIN: USERNAME & KATA SANDI */}
+        {/* FORM LOGIN: NIK / USERNAME & KATA SANDI */}
         <form onSubmit={handleSubmit} className="space-y-3">
           {/* KOTAK 1: IDENTITAS ALUMNI / ADMIN */}
           <div>
-            <div className="flex items-center justify-between mb-1">
-              <label className="block text-xs font-bold text-slate-700">
-                {selectedRole === 'alumni' ? 'NIS / Nama Lengkap / Username' : 'Username Admin'}
-              </label>
-              {selectedRole === 'alumni' && (
-                <span className="text-[10px] text-slate-400">Default sandi: 1234</span>
-              )}
-            </div>
+            <label className="block text-xs font-bold text-slate-700 mb-1">
+              {selectedRole === 'alumni' ? 'NIK atau Username' : 'Username Admin'}
+            </label>
             <div className="relative">
               <div className="absolute left-3.5 top-1/2 -translate-y-1/2 text-sky-600">
                 <User className="w-4 h-4" />
@@ -317,7 +210,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
                 required
                 placeholder={
                   selectedRole === 'alumni'
-                    ? 'Masukkan NIS (cth: 1986001) atau nama lengkap'
+                    ? 'Masukkan NIK atau Username alumni'
                     : 'Contoh: @admin_pusat'
                 }
                 value={username}
@@ -350,11 +243,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
               <input
                 type={showPassword ? 'text' : 'password'}
                 required
-                placeholder={
-                  selectedRole === 'alumni'
-                    ? 'Kata sandi (default: 1234)'
-                    : 'Kata sandi admin'
-                }
+                placeholder="Masukkan kata sandi"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 className="w-full pl-10 pr-10 py-2.5 sm:py-3 bg-slate-50 border border-slate-200 rounded-2xl text-xs sm:text-sm font-medium text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#0284c7] focus:bg-white focus:border-transparent transition-all shadow-2xs"

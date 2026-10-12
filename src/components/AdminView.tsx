@@ -2035,6 +2035,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
         <AddAlumniModal
           isOpen={isAddModalOpen}
           onClose={() => setIsAddModalOpen(false)}
+          existingAlumni={alumniList}
           onSave={(data) => {
             onAddAlumni(data);
             triggerToast('Data alumni berhasil ditambahkan');
