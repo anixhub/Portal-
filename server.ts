@@ -44,29 +44,39 @@ async function getSantriData(forceFresh: boolean = false): Promise<any> {
     return cachedSantriData;
   }
 
-  try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 6000);
+  const urlsToTry = [
+    'https://attaroqqy.com/api_alumni.php?action=get_alumni',
+    'https://attaroqqy.com/api/db/santri',
+  ];
 
-    const response = await fetch('https://attaroqqy.com/api/db/santri', {
-      headers: {
-        Accept: 'application/json',
-      },
-      signal: controller.signal,
-    });
-    clearTimeout(timeout);
+  for (const url of urlsToTry) {
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 6000);
 
-    if (response.ok) {
-      const data = await response.json();
-      if (data && (Array.isArray(data) || Array.isArray(data.data))) {
-        cachedSantriData = data;
-        lastCacheTime = Date.now();
-        console.log('[Server] Fetched fresh santri data from attaroqqy.com (', data.data?.length || data.length, 'records )');
-        return cachedSantriData;
+      const response = await fetch(url, {
+        headers: {
+          Accept: 'application/json',
+        },
+        signal: controller.signal,
+      });
+      clearTimeout(timeout);
+
+      if (response.ok) {
+        const contentType = response.headers.get('content-type') || '';
+        if (!contentType.includes('application/json')) continue;
+
+        const data = await response.json();
+        if (data && (Array.isArray(data) || Array.isArray(data.data))) {
+          cachedSantriData = data;
+          lastCacheTime = Date.now();
+          console.log(`[Server] Fetched fresh santri data from ${url} (`, data.data?.length || data.length, 'records )');
+          return cachedSantriData;
+        }
       }
+    } catch (err: any) {
+      console.warn(`[Server] Failed to fetch from ${url}:`, err?.message);
     }
-  } catch (err: any) {
-    console.warn('[Server] Failed to fetch live data from attaroqqy.com:', err?.message);
   }
 
   // Fallback to cache or snapshot
@@ -235,6 +245,156 @@ async function startServer() {
       console.warn(`[Server] Error proxying DELETE for ${id}:`, err?.message);
       res.status(500).json({ success: false, message: err?.message });
     }
+  });
+
+  // In-memory cache for events & announcements in dev/fallback
+  let cachedEvents: any[] = [];
+  let cachedAnnouncements: any[] = [];
+
+  // Events API: GET
+  app.get('/api/events', async (req, res) => {
+    try {
+      const remoteRes = await fetch('https://attaroqqy.com/api_alumni.php?action=get_events', {
+        headers: { Accept: 'application/json' },
+        signal: AbortSignal.timeout(4000),
+      });
+      const contentType = remoteRes.headers.get('content-type') || '';
+      if (remoteRes.ok && contentType.includes('application/json')) {
+        const text = await remoteRes.text();
+        if (text.trim().startsWith('{') || text.trim().startsWith('[')) {
+          const data = JSON.parse(text);
+          const list = Array.isArray(data) ? data : (Array.isArray(data?.data) ? data.data : []);
+          if (list.length > 0) {
+            cachedEvents = list;
+            return res.json({ success: true, data: list });
+          }
+        }
+      }
+    } catch (err: any) {
+      // Ignore network/remote formatting errors safely
+    }
+    res.json({ success: true, data: cachedEvents });
+  });
+
+  // Events API: POST (save/create)
+  app.post('/api/events', async (req, res) => {
+    const event = req.body;
+    if (event && event.id) {
+      const idx = cachedEvents.findIndex((e: any) => e.id === event.id);
+      if (idx >= 0) cachedEvents[idx] = event;
+      else cachedEvents.unshift(event);
+    }
+    try {
+      fetch('https://attaroqqy.com/api_alumni.php?action=save_event', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+        },
+        body: JSON.stringify(req.body),
+        signal: AbortSignal.timeout(4000),
+      }).catch(() => {});
+    } catch (err: any) {}
+    res.json({ success: true, id: req.body?.id });
+  });
+
+  // Events API: DELETE
+  app.delete('/api/events/:id', async (req, res) => {
+    const { id } = req.params;
+    cachedEvents = cachedEvents.filter((e: any) => e.id !== id);
+    try {
+      fetch('https://attaroqqy.com/api_alumni.php?action=delete_event', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+        },
+        body: JSON.stringify({ id }),
+        signal: AbortSignal.timeout(4000),
+      }).catch(() => {});
+    } catch (err: any) {}
+    res.json({ success: true });
+  });
+
+  // Events API: RSVP
+  app.post('/api/events/rsvp', async (req, res) => {
+    try {
+      fetch('https://attaroqqy.com/api_alumni.php?action=save_rsvp', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+        },
+        body: JSON.stringify(req.body),
+        signal: AbortSignal.timeout(4000),
+      }).catch(() => {});
+    } catch (err: any) {}
+    res.json({ success: true });
+  });
+
+  // Announcements API: GET
+  app.get('/api/announcements', async (req, res) => {
+    try {
+      const remoteRes = await fetch('https://attaroqqy.com/api_alumni.php?action=get_announcements', {
+        headers: { Accept: 'application/json' },
+        signal: AbortSignal.timeout(4000),
+      });
+      const contentType = remoteRes.headers.get('content-type') || '';
+      if (remoteRes.ok && contentType.includes('application/json')) {
+        const text = await remoteRes.text();
+        if (text.trim().startsWith('{') || text.trim().startsWith('[')) {
+          const data = JSON.parse(text);
+          const list = Array.isArray(data) ? data : (Array.isArray(data?.data) ? data.data : []);
+          if (list.length > 0) {
+            cachedAnnouncements = list;
+            return res.json({ success: true, data: list });
+          }
+        }
+      }
+    } catch (err: any) {
+      // Ignore network/remote formatting errors safely
+    }
+    res.json({ success: true, data: cachedAnnouncements });
+  });
+
+  // Announcements API: POST (save/create)
+  app.post('/api/announcements', async (req, res) => {
+    const ann = req.body;
+    if (ann && ann.id) {
+      const idx = cachedAnnouncements.findIndex((a: any) => a.id === ann.id);
+      if (idx >= 0) cachedAnnouncements[idx] = ann;
+      else cachedAnnouncements.unshift(ann);
+    }
+    try {
+      fetch('https://attaroqqy.com/api_alumni.php?action=save_announcement', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+        },
+        body: JSON.stringify(req.body),
+        signal: AbortSignal.timeout(4000),
+      }).catch(() => {});
+    } catch (err: any) {}
+    res.json({ success: true, id: req.body?.id });
+  });
+
+  // Announcements API: DELETE
+  app.delete('/api/announcements/:id', async (req, res) => {
+    const { id } = req.params;
+    cachedAnnouncements = cachedAnnouncements.filter((a: any) => a.id !== id);
+    try {
+      fetch('https://attaroqqy.com/api_alumni.php?action=delete_announcement', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+        },
+        body: JSON.stringify({ id }),
+        signal: AbortSignal.timeout(4000),
+      }).catch(() => {});
+    } catch (err: any) {}
+    res.json({ success: true });
   });
 
   // Wilayah API In-Memory Cache

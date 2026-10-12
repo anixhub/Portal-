@@ -1,5 +1,5 @@
-import { AlumniRecord } from '../types';
-import { INITIAL_ALUMNI } from '../data/mockData';
+import { AlumniRecord, EventAgenda, AnnouncementItem } from '../types';
+import { INITIAL_ALUMNI, INITIAL_EVENTS, INITIAL_ANNOUNCEMENTS } from '../data/mockData';
 import { getAlumniPhotoUrl, formatPhotoUrlForHostinger } from '../utils/photoUtils';
 import { ensureConsistentAlumniIdentities } from '../utils/alumniIdentityUtils';
 
@@ -35,16 +35,33 @@ export function normalizeSingleAlumni(item: any): AlumniRecord {
     ''
   ).trim().toLowerCase();
 
+  const isPutra =
+    rawGender === 'l' ||
+    rawGender === '1' ||
+    rawGender === 'putra' ||
+    rawGender === 'pria' ||
+    rawGender === 'laki-laki' ||
+    rawGender === 'laki' ||
+    rawGender === 'ikhwan' ||
+    rawGender === 'male' ||
+    rawGender.startsWith('laki') ||
+    rawGender.startsWith('pria') ||
+    rawGender.startsWith('putra');
+
   const isPutri = 
     rawGender === 'p' ||
     rawGender === 'f' ||
     rawGender === '2' ||
+    rawGender === 'putri' ||
+    rawGender === 'wanita' ||
+    rawGender === 'perempuan' ||
+    rawGender === 'akhwat' ||
+    rawGender === 'female' ||
     rawGender.startsWith('perem') ||
     rawGender.startsWith('putri') ||
-    rawGender === 'wanita' ||
-    rawGender === 'female';
+    rawGender.startsWith('wanita');
 
-  const gender: 'L' | 'P' = isPutri ? 'P' : 'L';
+  const gender: 'L' | 'P' = (isPutri && !isPutra) ? 'P' : 'L';
 
   // Urutan anak (anak ke - database field: anak_ke)
   const rawAnakKe = 
@@ -175,11 +192,11 @@ export async function fetchAlumniFromHostinger(forceFresh: boolean = false): Pro
 }> {
   const freshParam = forceFresh ? '?fresh=true' : '';
   const endpointsToTry = [
+    `${HOSTINGER_API_URL}?action=get_alumni`,
+    'https://attaroqqy.com/api_alumni.php?action=get_alumni',
     `/api/db/santri${freshParam}`,
     `${HOSTINGER_EXPRESS_DB_URL}/santri${freshParam}`,
     'https://attaroqqy.com/api/db/santri',
-    'https://api.allorigins.win/raw?url=https%3A%2F%2Fattaroqqy.com%2Fapi%2Fdb%2Fsantri',
-    `${HOSTINGER_API_URL}?action=get_alumni`,
   ];
 
   for (const url of endpointsToTry) {
@@ -643,3 +660,229 @@ export async function resetAlumniPasswordInHostinger(
     isPasswordChanged: false,
   });
 }
+
+/**
+ * ==========================================
+ * EVENT & AGENDA CRUD API (HOSTINGER & DB)
+ * ==========================================
+ */
+
+export async function fetchEventsFromHostinger(): Promise<{ success: boolean; data: EventAgenda[] }> {
+  const endpoints = [
+    '/api/events',
+    `${HOSTINGER_API_URL}?action=get_events`,
+    'https://attaroqqy.com/api_alumni.php?action=get_events',
+  ];
+
+  for (const ep of endpoints) {
+    try {
+      const res = await fetch(ep, {
+        headers: { Accept: 'application/json' },
+        signal: AbortSignal.timeout(5000),
+      });
+      const contentType = res.headers.get('content-type') || '';
+      if (res.ok && contentType.includes('application/json')) {
+        const text = await res.text();
+        if (text.trim().startsWith('{') || text.trim().startsWith('[')) {
+          const json = JSON.parse(text);
+          const list = Array.isArray(json) ? json : (Array.isArray(json?.data) ? json.data : []);
+          if (list && list.length > 0) {
+            return { success: true, data: list };
+          }
+        }
+      }
+    } catch (e) {
+      // Continue to next endpoint
+    }
+  }
+
+  // Fallback to local cache
+  try {
+    const cached = localStorage.getItem('attaroqqy_events_cache_v1');
+    if (cached) {
+      const parsed = JSON.parse(cached);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return { success: true, data: parsed };
+      }
+    }
+  } catch (e) {}
+
+  return { success: false, data: INITIAL_EVENTS };
+}
+
+export async function saveEventToHostinger(event: EventAgenda): Promise<{ success: boolean; id?: string }> {
+  try {
+    const endpoints = [
+      '/api/events',
+      `${HOSTINGER_API_URL}?action=save_event`,
+      'https://attaroqqy.com/api_alumni.php?action=save_event',
+    ];
+
+    let success = false;
+    for (const ep of endpoints) {
+      try {
+        const res = await fetch(ep, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+          body: JSON.stringify(event),
+          signal: AbortSignal.timeout(6000),
+        });
+        if (res.ok) {
+          success = true;
+          break;
+        }
+      } catch (e) {}
+    }
+
+    return { success, id: event.id };
+  } catch (error: any) {
+    console.warn('Gagal menyimpan event ke Hostinger:', error?.message);
+    return { success: false };
+  }
+}
+
+export async function deleteEventFromHostinger(id: string): Promise<{ success: boolean }> {
+  const endpoints = [
+    `/api/events/${encodeURIComponent(id)}`,
+    `${HOSTINGER_API_URL}?action=delete_event`,
+    'https://attaroqqy.com/api_alumni.php?action=delete_event',
+  ];
+
+  for (const ep of endpoints) {
+    try {
+      await fetch(ep, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id }),
+      });
+    } catch (e) {}
+  }
+
+  return { success: true };
+}
+
+export async function saveRsvpToHostinger(
+  eventId: string,
+  alumniId: string,
+  status: 'hadir' | 'belum_pasti' | 'tidak_hadir',
+  note?: string
+): Promise<{ success: boolean }> {
+  const endpoints = [
+    '/api/events/rsvp',
+    `${HOSTINGER_API_URL}?action=save_rsvp`,
+    'https://attaroqqy.com/api_alumni.php?action=save_rsvp',
+  ];
+
+  for (const ep of endpoints) {
+    try {
+      await fetch(ep, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ eventId, alumniId, status, note }),
+      });
+    } catch (e) {}
+  }
+
+  return { success: true };
+}
+
+/**
+ * ==========================================
+ * ANNOUNCEMENT CRUD API (HOSTINGER & DB)
+ * ==========================================
+ */
+
+export async function fetchAnnouncementsFromHostinger(): Promise<{ success: boolean; data: AnnouncementItem[] }> {
+  const endpoints = [
+    '/api/announcements',
+    `${HOSTINGER_API_URL}?action=get_announcements`,
+    'https://attaroqqy.com/api_alumni.php?action=get_announcements',
+  ];
+
+  for (const ep of endpoints) {
+    try {
+      const res = await fetch(ep, {
+        headers: { Accept: 'application/json' },
+        signal: AbortSignal.timeout(5000),
+      });
+      const contentType = res.headers.get('content-type') || '';
+      if (res.ok && contentType.includes('application/json')) {
+        const text = await res.text();
+        if (text.trim().startsWith('{') || text.trim().startsWith('[')) {
+          const json = JSON.parse(text);
+          const list = Array.isArray(json) ? json : (Array.isArray(json?.data) ? json.data : []);
+          if (list && list.length > 0) {
+            return { success: true, data: list };
+          }
+        }
+      }
+    } catch (e) {}
+  }
+
+  // Fallback to local cache
+  try {
+    const cached = localStorage.getItem('attaroqqy_announcements_cache_v1');
+    if (cached) {
+      const parsed = JSON.parse(cached);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return { success: true, data: parsed };
+      }
+    }
+  } catch (e) {}
+
+  return { success: false, data: INITIAL_ANNOUNCEMENTS };
+}
+
+export async function saveAnnouncementToHostinger(
+  announcement: AnnouncementItem
+): Promise<{ success: boolean; id?: string }> {
+  try {
+    const endpoints = [
+      '/api/announcements',
+      `${HOSTINGER_API_URL}?action=save_announcement`,
+      'https://attaroqqy.com/api_alumni.php?action=save_announcement',
+    ];
+
+    let success = false;
+    for (const ep of endpoints) {
+      try {
+        const res = await fetch(ep, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+          body: JSON.stringify(announcement),
+          signal: AbortSignal.timeout(6000),
+        });
+        if (res.ok) {
+          success = true;
+          break;
+        }
+      } catch (e) {}
+    }
+
+    return { success, id: announcement.id };
+  } catch (error: any) {
+    console.warn('Gagal menyimpan pengumuman ke Hostinger:', error?.message);
+    return { success: false };
+  }
+}
+
+export async function deleteAnnouncementFromHostinger(id: string): Promise<{ success: boolean }> {
+  const endpoints = [
+    `/api/announcements/${encodeURIComponent(id)}`,
+    `${HOSTINGER_API_URL}?action=delete_announcement`,
+    'https://attaroqqy.com/api_alumni.php?action=delete_announcement',
+  ];
+
+  for (const ep of endpoints) {
+    try {
+      await fetch(ep, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id }),
+      });
+    } catch (e) {}
+  }
+
+  return { success: true };
+}
+

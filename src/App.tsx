@@ -19,6 +19,13 @@ import {
   addAlumniToHostinger,
   deleteAlumniFromHostinger,
   resetAlumniPasswordInHostinger,
+  fetchEventsFromHostinger,
+  saveEventToHostinger,
+  deleteEventFromHostinger,
+  saveRsvpToHostinger,
+  fetchAnnouncementsFromHostinger,
+  saveAnnouncementToHostinger,
+  deleteAnnouncementFromHostinger,
 } from './services/apiService';
 
 export default function App() {
@@ -62,11 +69,67 @@ export default function App() {
   const handleDeleteAdminUser = (adminId: string) => {
     setAdminList((prev) => prev.filter((a) => a.id !== adminId));
   };
-  const [events, setEvents] = useState<EventAgenda[]>(INITIAL_EVENTS);
-  const [announcements, setAnnouncements] = useState<AnnouncementItem[]>(INITIAL_ANNOUNCEMENTS);
 
-  // Current session
-  const [currentSession, setCurrentSession] = useState<ActiveSession | null>(null);
+  // Events & Announcements dengan persistensi lokal dan sinkronisasi database
+  const [events, setEvents] = useState<EventAgenda[]>(() => {
+    try {
+      const saved = localStorage.getItem('attaroqqy_events_cache_v1');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) {}
+    return INITIAL_EVENTS;
+  });
+
+  const [announcements, setAnnouncements] = useState<AnnouncementItem[]>(() => {
+    try {
+      const saved = localStorage.getItem('attaroqqy_announcements_cache_v1');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) {}
+    return INITIAL_ANNOUNCEMENTS;
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('attaroqqy_events_cache_v1', JSON.stringify(events));
+    } catch (e) {}
+  }, [events]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('attaroqqy_announcements_cache_v1', JSON.stringify(announcements));
+    } catch (e) {}
+  }, [announcements]);
+
+  // Current session dengan persistensi localStorage agar tidak logout saat refresh
+  const [currentSession, setCurrentSession] = useState<ActiveSession | null>(() => {
+    try {
+      const saved = localStorage.getItem('attaroqqy_active_session_v1');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed && (parsed.role === 'admin' || parsed.role === 'alumni')) {
+          return parsed;
+        }
+      }
+    } catch (e) {
+      console.warn('Gagal memuat sesi tersimpan:', e);
+    }
+    return null;
+  });
+
+  useEffect(() => {
+    try {
+      if (currentSession) {
+        localStorage.setItem('attaroqqy_active_session_v1', JSON.stringify(currentSession));
+      } else {
+        localStorage.removeItem('attaroqqy_active_session_v1');
+      }
+    } catch (e) {}
+  }, [currentSession]);
 
   // Security prompt for first-time login alumni
   const [showFirstLoginModal, setShowFirstLoginModal] = useState(false);
@@ -84,15 +147,41 @@ export default function App() {
   const loadData = async () => {
     setIsDbLoading(true);
     try {
-      const res = await fetchAlumniFromHostinger();
-      if (res.success && res.data && res.data.length > 0) {
-        setAlumniList(res.data);
+      const [alumniRes, eventsRes, annRes] = await Promise.all([
+        fetchAlumniFromHostinger(),
+        fetchEventsFromHostinger(),
+        fetchAnnouncementsFromHostinger(),
+      ]);
+
+      if (alumniRes.success && alumniRes.data && alumniRes.data.length > 0) {
+        setAlumniList(alumniRes.data);
         setIsDbConnected(true);
+
+        // Perbarui data sesi alumni yang sedang aktif agar selalu sinkron dengan database
+        setCurrentSession((prev) => {
+          if (prev?.role === 'alumni' && prev.alumniData) {
+            const freshMe = alumniRes.data.find(
+              (a) => a.id === prev.alumniData!.id || (a.nik && a.nik === prev.alumniData!.nik)
+            );
+            if (freshMe) {
+              return { ...prev, alumniData: freshMe };
+            }
+          }
+          return prev;
+        });
       } else {
         setIsDbConnected(false);
       }
+
+      if (eventsRes.success && eventsRes.data && eventsRes.data.length > 0) {
+        setEvents(eventsRes.data);
+      }
+
+      if (annRes.success && annRes.data && annRes.data.length > 0) {
+        setAnnouncements(annRes.data);
+      }
     } catch (err) {
-      console.warn('Gagal memuat data alumni dari Hostinger:', err);
+      console.warn('Gagal memuat data dari Hostinger:', err);
       setIsDbConnected(false);
     } finally {
       setIsDbLoading(false);
@@ -373,7 +462,7 @@ export default function App() {
     );
   };
 
-  const handleRsvpEvent = (
+  const handleRsvpEvent = async (
     eventId: string,
     rsvp: 'hadir' | 'belum_pasti' | 'tidak_hadir',
     note?: string
@@ -402,24 +491,43 @@ export default function App() {
         };
       })
     );
+
+    if (currentSession?.alumniData?.id) {
+      await saveRsvpToHostinger(eventId, currentSession.alumniData.id, rsvp, note);
+    }
   };
 
-  const handleAddEvent = (newEvent: EventAgenda) => {
+  const handleAddEvent = async (newEvent: EventAgenda) => {
     setEvents((prev) => [newEvent, ...prev]);
+    // Simpan permanen ke database Hostinger
+    await saveEventToHostinger(newEvent);
   };
 
-  const handleAddAnnouncement = (newAnn: AnnouncementItem) => {
+  const handleAddAnnouncement = async (newAnn: AnnouncementItem) => {
     setAnnouncements((prev) => [newAnn, ...prev]);
+    // Simpan permanen ke database Hostinger
+    await saveAnnouncementToHostinger(newAnn);
   };
 
-  const handleUpdateAnnouncement = (id: string, updated: Partial<AnnouncementItem>) => {
+  const handleUpdateAnnouncement = async (id: string, updated: Partial<AnnouncementItem>) => {
+    let targetAnn: AnnouncementItem | null = null;
     setAnnouncements((prev) =>
-      prev.map((item) => (item.id === id ? { ...item, ...updated } : item))
+      prev.map((item) => {
+        if (item.id === id) {
+          targetAnn = { ...item, ...updated };
+          return targetAnn;
+        }
+        return item;
+      })
     );
+    if (targetAnn) {
+      await saveAnnouncementToHostinger(targetAnn);
+    }
   };
 
-  const handleDeleteAnnouncement = (id: string) => {
+  const handleDeleteAnnouncement = async (id: string) => {
     setAnnouncements((prev) => prev.filter((item) => item.id !== id));
+    await deleteAnnouncementFromHostinger(id);
   };
 
   const handleRegisterSuccess = (data: { email: string; name: string }) => {

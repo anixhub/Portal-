@@ -42,8 +42,146 @@ try {
 $action = $_GET['action'] ?? 'get_alumni';
 
 // ==========================================
-// FUNGSI BANTUAN NORMALISASI & UPLOAD FOTO
+// FUNGSI BANTUAN NORMALISASI, GENDER & TABEL
 // ==========================================
+function ensureTablesExist($pdo) {
+    static $checked = false;
+    if ($checked) return;
+    try {
+        $pdo->exec("
+            CREATE TABLE IF NOT EXISTS events (
+                id VARCHAR(64) NOT NULL PRIMARY KEY,
+                title VARCHAR(255) NOT NULL,
+                date VARCHAR(80) NOT NULL,
+                time VARCHAR(80) DEFAULT NULL,
+                location VARCHAR(255) NOT NULL,
+                category VARCHAR(50) NOT NULL DEFAULT 'reuni',
+                description TEXT DEFAULT NULL,
+                poster_url TEXT DEFAULT NULL,
+                images LONGTEXT DEFAULT NULL,
+                author_name VARCHAR(150) DEFAULT NULL,
+                author_handle VARCHAR(80) DEFAULT NULL,
+                author_avatar TEXT DEFAULT NULL,
+                target_gender VARCHAR(20) DEFAULT 'semua',
+                target_region_scope VARCHAR(20) DEFAULT 'semua',
+                target_province_name VARCHAR(80) DEFAULT NULL,
+                target_regency_name VARCHAR(80) DEFAULT NULL,
+                target_district_name VARCHAR(80) DEFAULT NULL,
+                target_village_name VARCHAR(80) DEFAULT NULL,
+                attendees_count INT(11) DEFAULT 0,
+                absent_count INT(11) DEFAULT 0,
+                posted_at VARCHAR(80) DEFAULT NULL,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+        ");
+        $pdo->exec("
+            CREATE TABLE IF NOT EXISTS announcements (
+                id VARCHAR(64) NOT NULL PRIMARY KEY,
+                title VARCHAR(255) NOT NULL,
+                date VARCHAR(80) NOT NULL,
+                category VARCHAR(50) NOT NULL DEFAULT 'maklumat',
+                content LONGTEXT NOT NULL,
+                author_name VARCHAR(150) NOT NULL,
+                author_handle VARCHAR(80) DEFAULT NULL,
+                author_avatar TEXT DEFAULT NULL,
+                author_role VARCHAR(150) DEFAULT NULL,
+                is_important TINYINT(1) DEFAULT 0,
+                images LONGTEXT DEFAULT NULL,
+                target_gender VARCHAR(20) DEFAULT 'semua',
+                target_region_scope VARCHAR(20) DEFAULT 'semua',
+                target_province_name VARCHAR(80) DEFAULT NULL,
+                target_regency_name VARCHAR(80) DEFAULT NULL,
+                target_district_name VARCHAR(80) DEFAULT NULL,
+                target_village_name VARCHAR(80) DEFAULT NULL,
+                likes_count INT(11) DEFAULT 0,
+                comments_count INT(11) DEFAULT 0,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+        ");
+        $pdo->exec("
+            CREATE TABLE IF NOT EXISTS event_rsvps (
+                id VARCHAR(64) NOT NULL PRIMARY KEY,
+                event_id VARCHAR(64) NOT NULL,
+                alumni_id VARCHAR(64) NOT NULL,
+                status VARCHAR(30) NOT NULL DEFAULT 'hadir',
+                note TEXT DEFAULT NULL,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                UNIQUE KEY uk_event_alumni (event_id, alumni_id)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+        ");
+        $pdo->exec("
+            CREATE TABLE IF NOT EXISTS admin_users (
+                id VARCHAR(64) NOT NULL PRIMARY KEY,
+                name VARCHAR(150) NOT NULL,
+                username VARCHAR(80) NOT NULL UNIQUE,
+                email VARCHAR(120) DEFAULT NULL,
+                password VARCHAR(255) NOT NULL DEFAULT '1997',
+                role VARCHAR(50) NOT NULL DEFAULT 'pengurus_pondok',
+                jabatan VARCHAR(150) NOT NULL DEFAULT 'Pengurus Ikatan Alumni',
+                region_level VARCHAR(50) NOT NULL DEFAULT 'pusat',
+                avatar TEXT DEFAULT NULL,
+                cover_photo_url TEXT DEFAULT NULL,
+                bio TEXT DEFAULT NULL,
+                phone VARCHAR(30) DEFAULT NULL,
+                province VARCHAR(80) DEFAULT 'Jawa Timur',
+                city VARCHAR(80) DEFAULT NULL,
+                kecamatan VARCHAR(80) DEFAULT NULL,
+                desa VARCHAR(80) DEFAULT NULL,
+                alamat_lengkap TEXT DEFAULT NULL,
+                latitude DECIMAL(10, 8) DEFAULT NULL,
+                longitude DECIMAL(11, 8) DEFAULT NULL,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+        ");
+        $checked = true;
+    } catch (Exception $e) {
+        // Silent catch
+    }
+}
+
+/**
+ * Normalisasi Jenis Kelamin (Gender)
+ * PENTING: Jangan memakai stripos($raw, 'p') === 0 karena "Putra" dan "Pria" juga diawali huruf P!
+ */
+function parseSantriGender($raw) {
+    if (empty($raw)) return 'L';
+    $raw = strtolower(trim((string)$raw));
+    
+    // Indikator Laki-laki / Putra / Pria
+    $isPutra = (
+        $raw === 'l' ||
+        $raw === '1' ||
+        $raw === 'putra' ||
+        $raw === 'pria' ||
+        $raw === 'laki-laki' ||
+        $raw === 'laki' ||
+        $raw === 'ikhwan' ||
+        $raw === 'male' ||
+        strpos($raw, 'putra') !== false ||
+        strpos($raw, 'pria') !== false ||
+        strpos($raw, 'laki') !== false
+    );
+    
+    // Indikator Perempuan / Putri / Wanita
+    $isPutri = (
+        $raw === 'p' ||
+        $raw === '2' ||
+        $raw === 'putri' ||
+        $raw === 'wanita' ||
+        $raw === 'perempuan' ||
+        $raw === 'akhwat' ||
+        $raw === 'female' ||
+        strpos($raw, 'putri') !== false ||
+        strpos($raw, 'wanita') !== false ||
+        strpos($raw, 'perem') !== false
+    );
+
+    if ($isPutri && !$isPutra) {
+        return 'P';
+    }
+    return 'L';
+}
+
 function normalizePhotoUrlForOutput($path) {
     if (empty($path)) return '';
     $path = trim($path);
@@ -113,8 +251,8 @@ if ($action === 'get_alumni') {
 
         $alumni = [];
         foreach ($rows as $row) {
-            $rawGender = trim($row['gender'] ?? '');
-            $isPutri = (stripos($rawGender, 'putri') !== false || stripos($rawGender, 'p') === 0 || stripos($rawGender, 'perempuan') !== false);
+            $rawGender = trim($row['gender'] ?? $row['jenis_kelamin'] ?? $row['jk'] ?? $row['sex'] ?? '');
+            $gender = parseSantriGender($rawGender);
 
             $alumni[] = [
                 'id' => (string)($row['id'] ?? ''),
@@ -125,7 +263,7 @@ if ($action === 'get_alumni') {
                 'nisn' => $row['nisn'] ?? '',
                 'name' => $row['nama'] ?? '',
                 'username' => !empty($row['username']) ? $row['username'] : (strtolower(str_replace(' ', '_', $row['nama'] ?? '')) ?: 'santri_' . $row['id']),
-                'gender' => $isPutri ? 'P' : 'L',
+                'gender' => $gender,
                 'tempatLahir' => $row['tempat_lahir'] ?? '',
                 'tanggalLahir' => $row['tanggal_lahir'] ?? '',
                 'urutanAnak' => (!empty($row['anak_ke']) && is_numeric($row['anak_ke'])) ? (int)$row['anak_ke'] : null,
@@ -588,10 +726,45 @@ if ($action === 'migrate_db') {
 // 6. ENDPOINTS FITUR EVENTS (AGENDA)
 // ==========================================
 if ($action === 'get_events') {
+    ensureTablesExist($pdo);
     try {
         $stmt = $pdo->query("SELECT * FROM events ORDER BY id DESC");
-        $events = $stmt->fetchAll();
-        echo json_encode(['success' => true, 'data' => $events]);
+        $rawEvents = $stmt->fetchAll();
+        $events = [];
+        foreach ($rawEvents as $ev) {
+            $images = [];
+            if (!empty($ev['images'])) {
+                $decoded = json_decode($ev['images'], true);
+                if (is_array($decoded)) $images = $decoded;
+            }
+            $targetAudience = [
+                'gender' => $ev['target_gender'] ?? 'semua',
+                'regionScope' => $ev['target_region_scope'] ?? 'semua',
+                'provinceName' => $ev['target_province_name'] ?? null,
+                'regencyName' => $ev['target_regency_name'] ?? null,
+                'districtName' => $ev['target_district_name'] ?? null,
+                'villageName' => $ev['target_village_name'] ?? null,
+            ];
+            $events[] = [
+                'id' => (string)$ev['id'],
+                'title' => $ev['title'] ?? '',
+                'date' => $ev['date'] ?? '',
+                'time' => $ev['time'] ?? '',
+                'location' => $ev['location'] ?? '',
+                'category' => $ev['category'] ?? 'reuni',
+                'description' => $ev['description'] ?? '',
+                'attendeesCount' => (int)($ev['attendees_count'] ?? 0),
+                'absentCount' => (int)($ev['absent_count'] ?? 0),
+                'posterUrl' => $ev['poster_url'] ?? '',
+                'images' => $images,
+                'authorName' => $ev['author_name'] ?? '',
+                'authorHandle' => $ev['author_handle'] ?? '',
+                'authorAvatar' => $ev['author_avatar'] ?? '',
+                'postedAt' => $ev['posted_at'] ?? $ev['created_at'] ?? '',
+                'targetAudience' => $targetAudience,
+            ];
+        }
+        echo json_encode(['success' => true, 'data' => $events], JSON_UNESCAPED_UNICODE);
     } catch (Exception $e) {
         http_response_code(500);
         echo json_encode(['success' => false, 'message' => $e->getMessage()]);
@@ -600,6 +773,7 @@ if ($action === 'get_events') {
 }
 
 if ($action === 'save_event' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    ensureTablesExist($pdo);
     $input = json_decode(file_get_contents('php://input'), true);
     $id = $input['id'] ?? ('ev-' . time());
     try {
@@ -655,6 +829,7 @@ if ($action === 'save_event' && $_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 if ($action === 'delete_event' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    ensureTablesExist($pdo);
     $input = json_decode(file_get_contents('php://input'), true);
     $id = $input['id'] ?? '';
     try {
@@ -668,14 +843,73 @@ if ($action === 'delete_event' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     exit;
 }
 
+if ($action === 'save_rsvp' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    ensureTablesExist($pdo);
+    $input = json_decode(file_get_contents('php://input'), true);
+    $eventId = $input['eventId'] ?? $input['event_id'] ?? '';
+    $alumniId = $input['alumniId'] ?? $input['alumni_id'] ?? '';
+    $status = $input['status'] ?? 'hadir';
+    $note = $input['note'] ?? '';
+    if ($eventId && $alumniId) {
+        try {
+            $id = 'rsvp-' . md5($eventId . '_' . $alumniId);
+            $stmt = $pdo->prepare("INSERT INTO event_rsvps (id, event_id, alumni_id, status, note, updated_at) 
+                VALUES (:id, :eid, :aid, :st, :nt, NOW()) 
+                ON DUPLICATE KEY UPDATE status = VALUES(status), note = VALUES(note), updated_at = NOW()");
+            $stmt->execute([':id' => $id, ':eid' => $eventId, ':aid' => $alumniId, ':st' => $status, ':nt' => $note]);
+            echo json_encode(['success' => true, 'message' => 'RSVP berhasil disimpan']);
+        } catch (Exception $e) {
+            http_response_code(500);
+            echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+        }
+        exit;
+    }
+    http_response_code(400);
+    echo json_encode(['success' => false, 'message' => 'eventId dan alumniId wajib']);
+    exit;
+}
+
 // ==========================================
 // 7. ENDPOINTS FITUR ANNOUNCEMENTS (MAKLUMAT)
 // ==========================================
 if ($action === 'get_announcements') {
+    ensureTablesExist($pdo);
     try {
         $stmt = $pdo->query("SELECT * FROM announcements ORDER BY is_important DESC, id DESC");
-        $announcements = $stmt->fetchAll();
-        echo json_encode(['success' => true, 'data' => $announcements]);
+        $rawAnn = $stmt->fetchAll();
+        $announcements = [];
+        foreach ($rawAnn as $ann) {
+            $images = [];
+            if (!empty($ann['images'])) {
+                $decoded = json_decode($ann['images'], true);
+                if (is_array($decoded)) $images = $decoded;
+            }
+            $targetAudience = [
+                'gender' => $ann['target_gender'] ?? 'semua',
+                'regionScope' => $ann['target_region_scope'] ?? 'semua',
+                'provinceName' => $ann['target_province_name'] ?? null,
+                'regencyName' => $ann['target_regency_name'] ?? null,
+                'districtName' => $ann['target_district_name'] ?? null,
+                'villageName' => $ann['target_village_name'] ?? null,
+            ];
+            $announcements[] = [
+                'id' => (string)$ann['id'],
+                'title' => $ann['title'] ?? '',
+                'date' => $ann['date'] ?? '',
+                'category' => $ann['category'] ?? 'maklumat',
+                'content' => $ann['content'] ?? '',
+                'authorName' => $ann['author_name'] ?? '',
+                'authorHandle' => $ann['author_handle'] ?? '',
+                'authorAvatar' => $ann['author_avatar'] ?? '',
+                'authorRole' => $ann['author_role'] ?? 'Pengurus',
+                'isImportant' => (bool)($ann['is_important'] ?? 0),
+                'images' => $images,
+                'targetAudience' => $targetAudience,
+                'likesCount' => (int)($ann['likes_count'] ?? 0),
+                'commentsCount' => (int)($ann['comments_count'] ?? 0),
+            ];
+        }
+        echo json_encode(['success' => true, 'data' => $announcements], JSON_UNESCAPED_UNICODE);
     } catch (Exception $e) {
         http_response_code(500);
         echo json_encode(['success' => false, 'message' => $e->getMessage()]);
@@ -684,6 +918,7 @@ if ($action === 'get_announcements') {
 }
 
 if ($action === 'save_announcement' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    ensureTablesExist($pdo);
     $input = json_decode(file_get_contents('php://input'), true);
     $id = $input['id'] ?? ('ann-' . time());
     try {
@@ -737,6 +972,7 @@ if ($action === 'save_announcement' && $_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 if ($action === 'delete_announcement' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    ensureTablesExist($pdo);
     $input = json_decode(file_get_contents('php://input'), true);
     $id = $input['id'] ?? '';
     try {

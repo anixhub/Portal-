@@ -23,6 +23,7 @@ import {
 import { AlumniRecord } from '../../types';
 import { WilayahAddressFilter } from '../common/WilayahAddressFilter';
 import { FullscreenPhotoViewerModal } from '../common/FullscreenPhotoViewerModal';
+import { LocationCoordinates } from '../common/FullscreenLocationMapModal';
 import { useBackHandler } from '../../utils/navigationHistory';
 import { getAlumniPhotoUrl } from '../../utils/photoUtils';
 import { generateNisFromEntryDate, isUsernameTaken, formatBaseUsername } from '../../utils/alumniIdentityUtils';
