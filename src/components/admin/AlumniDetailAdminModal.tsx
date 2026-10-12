@@ -21,6 +21,8 @@ import {
 import { AlumniRecord } from '../../types';
 import { WilayahAddressFilter } from '../common/WilayahAddressFilter';
 import { FullscreenPhotoViewerModal } from '../common/FullscreenPhotoViewerModal';
+import { useBackHandler } from '../../utils/navigationHistory';
+import { getAlumniPhotoUrl } from '../../utils/photoUtils';
 
 interface AlumniDetailAdminModalProps {
   isOpen: boolean;
@@ -45,6 +47,12 @@ export const AlumniDetailAdminModal: React.FC<AlumniDetailAdminModalProps> = ({
   const [activeEditModal, setActiveEditModal] = useState<string | null>(null);
   const [showFullscreenPhoto, setShowFullscreenPhoto] = useState(false);
   const [showDeleteConfirmModal, setShowDeleteConfirmModal] = useState(false);
+
+  // Penanganan tombol fisik kembali (Android hardware back & swipe back)
+  useBackHandler(Boolean(showFullscreenPhoto), 'detail-admin-fullscreen-photo', () => setShowFullscreenPhoto(false));
+  useBackHandler(Boolean(showDeleteConfirmModal), 'detail-admin-delete-modal', () => setShowDeleteConfirmModal(false));
+  useBackHandler(Boolean(activeEditModal), 'detail-admin-edit-submodal', () => setActiveEditModal(null));
+  useBackHandler(isOpen, 'detail-admin-root-modal', onClose);
 
   // Form edit states
   const [editPhotoUrl, setEditPhotoUrl] = useState(alumni.photoUrl || '');
@@ -212,19 +220,19 @@ export const AlumniDetailAdminModal: React.FC<AlumniDetailAdminModalProps> = ({
                 <button
                   type="button"
                   onClick={() => setShowFullscreenPhoto(true)}
-                  className="w-22 h-22 sm:w-24 sm:h-24 rounded-full ring-4 ring-white shadow-lg overflow-hidden bg-slate-200 flex items-center justify-center cursor-pointer group transition-transform active:scale-95"
+                  className="relative w-22 h-22 sm:w-24 sm:h-24 rounded-full ring-4 ring-white shadow-lg overflow-hidden bg-slate-200 flex items-center justify-center cursor-pointer group transition-transform active:scale-95"
                   title="Klik untuk melihat foto profil layar penuh"
                 >
-                  {editPhotoUrl ? (
+                  <div className="w-full h-full bg-gradient-to-tr from-sky-600 to-indigo-600 text-white font-bold text-3xl flex items-center justify-center">
+                    {(editName || alumni.name).charAt(0)}
+                  </div>
+                  {editPhotoUrl && (
                     <img
-                      src={editPhotoUrl}
+                      src={getAlumniPhotoUrl(editPhotoUrl)}
                       alt={editName || alumni.name}
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                      onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                      className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform"
                     />
-                  ) : (
-                    <div className="w-full h-full bg-gradient-to-tr from-sky-600 to-indigo-600 text-white font-bold text-3xl flex items-center justify-center">
-                      {(editName || alumni.name).charAt(0)}
-                    </div>
                   )}
                 </button>
 

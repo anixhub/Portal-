@@ -1,6 +1,8 @@
 import React, { useState, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Trash2 } from 'lucide-react';
+import { useBackHandler } from '../../utils/navigationHistory';
+import { getAlumniPhotoUrl } from '../../utils/photoUtils';
 
 interface FullscreenPhotoViewerModalProps {
   photoUrl?: string;
@@ -15,6 +17,8 @@ export const FullscreenPhotoViewerModal: React.FC<FullscreenPhotoViewerModalProp
   onClose,
   onDelete,
 }) => {
+  useBackHandler(true, 'fullscreen-photo-viewer', onClose);
+
   const [scale, setScale] = useState(1);
   const [position, setPosition] = useState({ x: 0, y: 0 });
   const touchStartRef = useRef<{ dist: number; scale: number; x: number; y: number; posX: number; posY: number }>({ 
@@ -151,8 +155,9 @@ export const FullscreenPhotoViewerModal: React.FC<FullscreenPhotoViewerModalProp
       >
         {photoUrl ? (
           <img
-            src={photoUrl}
+            src={getAlumniPhotoUrl(photoUrl)}
             alt={name}
+            onError={(e) => { e.currentTarget.style.display = 'none'; }}
             className="w-full h-full object-contain pointer-events-none"
             draggable={false}
           />

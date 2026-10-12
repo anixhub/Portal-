@@ -1,5 +1,6 @@
 import { AlumniRecord } from '../types';
 import { INITIAL_ALUMNI } from '../data/mockData';
+import { getAlumniPhotoUrl, formatPhotoUrlForHostinger } from '../utils/photoUtils';
 
 // URL Endpoint API di Hostinger
 export const HOSTINGER_API_URL =
@@ -147,8 +148,8 @@ export function normalizeSingleAlumni(item: any): AlumniRecord {
     province,
     occupation: item.occupation || item.pekerjaan || item.profesi || '',
     institution: item.institution || item.instansi || item.perusahaan || item.kampus || '',
-    photoUrl: item.avatarUrl || item.photoUrl || item.foto || item.foto_url || item.file_pas_foto || '',
-    coverPhotoUrl: item.coverPhotoUrl || item.foto_sampul || item.sampul || '',
+    photoUrl: getAlumniPhotoUrl(item.avatarUrl || item.photoUrl || item.foto || item.foto_url || item.file_pas_foto || ''),
+    coverPhotoUrl: getAlumniPhotoUrl(item.coverPhotoUrl || item.foto_sampul || item.sampul || ''),
     bio: item.bio || '',
     coordinates: item.coordinates || (item.latitude && item.longitude ? { lat: Number(item.latitude), lng: Number(item.longitude) } : undefined),
     password: String(item.password || '1234'),
@@ -339,9 +340,12 @@ export async function updateAlumniInHostinger(
     if (updates.institution !== undefined) expressPayload.instansi = updates.institution;
     if (updates.bio !== undefined) expressPayload.bio = updates.bio;
     if (updates.photoUrl !== undefined || (updates as any).avatarUrl !== undefined) {
-      expressPayload.file_pas_foto = updates.photoUrl ?? (updates as any).avatarUrl;
+      const rawPhoto = updates.photoUrl ?? (updates as any).avatarUrl;
+      expressPayload.file_pas_foto = formatPhotoUrlForHostinger(rawPhoto);
     }
-    if (updates.coverPhotoUrl !== undefined) expressPayload.foto_sampul = updates.coverPhotoUrl;
+    if (updates.coverPhotoUrl !== undefined) {
+      expressPayload.foto_sampul = formatPhotoUrlForHostinger(updates.coverPhotoUrl);
+    }
     if (updates.password !== undefined) expressPayload.password = updates.password;
     if (updates.isPasswordChanged !== undefined) {
       expressPayload.is_password_changed = updates.isPasswordChanged ? 1 : 0;

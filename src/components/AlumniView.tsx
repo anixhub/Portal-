@@ -87,6 +87,8 @@ import { PostMediaCarousel } from './common/PostMediaCarousel';
 import { formatAudienceSummary } from './common/AudienceTargetModal';
 import { AlumniFinanceView } from './AlumniFinanceView';
 import { formatAuthorUsername, resolveAuthorAlumniRecord } from '../utils/authorUtils';
+import { useBackHandler } from '../utils/navigationHistory';
+import { getAlumniPhotoUrl } from '../utils/photoUtils';
 import posterReuniImg from '../assets/images/poster_reuni_akbar_1790648045947.jpg';
 import logoPonpesImg from '../assets/images/logo_ponpes_attaroqqy_1790648746461.jpg';
 import bgMenuQuranImg from '../assets/images/bg_menu_alquran_1790822566925.jpg';
@@ -848,6 +850,19 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
   const [filterCity, setFilterCity] = useState('');
   const [filterKecamatan, setFilterKecamatan] = useState('');
   const [filterDesa, setFilterDesa] = useState('');
+
+  // Penanganan tombol fisik kembali (Android hardware back & swipe back) di Tampilan Alumni
+  useBackHandler(isDistributionMapOpen, 'alumni-distribution-map', () => setIsDistributionMapOpen(false));
+  useBackHandler(Boolean(selectedAlumniDetail), 'alumni-detail-card', () => setSelectedAlumniDetail(null));
+  useBackHandler(showQrModal, 'alumni-qr-modal', () => setShowQrModal(false));
+  useBackHandler(showKtaCardModal, 'alumni-kta-modal', () => setShowKtaCardModal(false));
+  useBackHandler(isFilterSheetOpen, 'alumni-filter-sheet', () => setIsFilterSheetOpen(false));
+  useBackHandler(isSortSheetOpen, 'alumni-sort-sheet', () => setIsSortSheetOpen(false));
+  useBackHandler(Boolean(activeCommentsModalEvent), 'alumni-event-comments', () => setActiveCommentsModalEvent(null));
+  useBackHandler(Boolean(activeIslamicMenu), 'alumni-islamic-menu', () => setActiveIslamicMenu(null));
+  useBackHandler(Boolean(fullscreenPosterUrl), 'alumni-fullscreen-poster', () => setFullscreenPosterUrl(null));
+  // Jika sedang berada di tab selain Home/Direktori, tekan tombol fisik kembali ke tab Beranda
+  useBackHandler(activeTab !== 'home', 'alumni-tab-home', () => setActiveTab('home'));
 
   // Quick Location Filter Tags: 'nearby' | 'kecamatan' | 'city' | 'province' | null
   type QuickLocationTag = 'nearby' | 'kecamatan' | 'city' | 'province' | null;
@@ -2065,19 +2080,9 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
                   >
                     {/* Foto / Avatar */}
                     <div className="relative shrink-0">
-                      {item.photoUrl ? (
-                        <img
-                          src={item.photoUrl}
-                          alt={item.name}
-                          className={`w-12 h-12 rounded-full object-cover border-2 transition-all ${
-                            item.gender === 'P'
-                              ? 'border-pink-300 ring-2 ring-pink-100 group-hover:ring-pink-200'
-                              : 'border-sky-300 ring-2 ring-sky-100 group-hover:ring-sky-200'
-                          }`}
-                        />
-                      ) : (
+                      <div className="relative w-12 h-12 rounded-full overflow-hidden shrink-0">
                         <div
-                          className={`w-12 h-12 rounded-full flex items-center justify-center font-display font-bold text-base shadow-2xs border-2 transition-all ${
+                          className={`w-full h-full rounded-full flex items-center justify-center font-display font-bold text-base shadow-2xs border-2 transition-all ${
                             item.gender === 'P'
                               ? 'border-pink-300 ring-2 ring-pink-100 bg-pink-50 text-pink-600'
                               : 'border-sky-300 ring-2 ring-sky-100 bg-sky-50 text-sky-700'
@@ -2085,7 +2090,19 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
                         >
                           {item.name.charAt(0)}
                         </div>
-                      )}
+                        {item.photoUrl && (
+                          <img
+                            src={getAlumniPhotoUrl(item.photoUrl)}
+                            alt={item.name}
+                            onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                            className={`absolute inset-0 w-full h-full rounded-full object-cover border-2 transition-all ${
+                              item.gender === 'P'
+                                ? 'border-pink-300 ring-2 ring-pink-100 group-hover:ring-pink-200'
+                                : 'border-sky-300 ring-2 ring-sky-100 group-hover:ring-sky-200'
+                            }`}
+                          />
+                        )}
+                      </div>
                     </div>
 
                     {/* Informasi: Nama & Alamat (Desa, Kecamatan, Kabupaten) */}

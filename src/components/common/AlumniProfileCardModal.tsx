@@ -13,6 +13,8 @@ import {
 import L from 'leaflet';
 import { AlumniRecord } from '../../types';
 import { CleanMediaPreviewModal } from './CleanMediaPreviewModal';
+import { useBackHandler } from '../../utils/navigationHistory';
+import { getAlumniPhotoUrl } from '../../utils/photoUtils';
 
 interface AlumniProfileCardModalProps {
   isOpen: boolean;
@@ -43,6 +45,10 @@ export const AlumniProfileCardModal: React.FC<AlumniProfileCardModalProps> = ({
   const displayAlumni = (currentUser && alumni && alumni.id === currentUser.id)
     ? { ...alumni, ...currentUser }
     : alumni;
+
+  // Penanganan tombol fisik kembali (Android hardware back & swipe back)
+  useBackHandler(Boolean(fullscreenMedia), 'profile-card-fullscreen-media', () => setFullscreenMedia(null));
+  useBackHandler(isOpen, 'profile-card-modal-root', onClose);
 
   const hasLocationTag = Boolean(
     displayAlumni?.shareLocationTag !== false && displayAlumni?.coordinates?.lat && displayAlumni?.coordinates?.lng
@@ -217,31 +223,32 @@ export const AlumniProfileCardModal: React.FC<AlumniProfileCardModalProps> = ({
           {/* Avatar Bulat (Bisa diklik untuk preview full screen bersih) */}
           <div 
             onClick={() => {
+              const resolvedPhoto = getAlumniPhotoUrl(displayAlumni.photoUrl);
               setFullscreenMedia({
-                url: displayAlumni.photoUrl,
+                url: resolvedPhoto,
                 initial: displayAlumni.name,
                 isFemale: displayAlumni.gender === 'P',
               });
             }}
-            className="w-22 h-22 rounded-full border-4 border-white shadow-md overflow-hidden bg-sky-100 shrink-0 cursor-pointer group hover:ring-2 hover:ring-sky-400 transition-all"
+            className="relative w-22 h-22 rounded-full border-4 border-white shadow-md overflow-hidden bg-sky-100 shrink-0 cursor-pointer group hover:ring-2 hover:ring-sky-400 transition-all"
             title="Klik untuk melihat foto profil layar penuh"
           >
-            {displayAlumni.photoUrl ? (
+            <div
+              className={`w-full h-full flex items-center justify-center font-bold text-2xl text-white group-hover:scale-105 transition-transform duration-300 ${
+                displayAlumni.gender === 'P'
+                  ? 'bg-gradient-to-br from-rose-400 to-pink-500'
+                  : 'bg-gradient-to-br from-sky-500 to-blue-600'
+              }`}
+            >
+              {displayAlumni.name.charAt(0)}
+            </div>
+            {displayAlumni.photoUrl && (
               <img 
-                src={displayAlumni.photoUrl} 
+                src={getAlumniPhotoUrl(displayAlumni.photoUrl)} 
                 alt={displayAlumni.name} 
-                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" 
+                onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" 
               />
-            ) : (
-              <div
-                className={`w-full h-full flex items-center justify-center font-bold text-2xl text-white group-hover:scale-105 transition-transform duration-300 ${
-                  displayAlumni.gender === 'P'
-                    ? 'bg-gradient-to-br from-rose-400 to-pink-500'
-                    : 'bg-gradient-to-br from-sky-500 to-blue-600'
-                }`}
-              >
-                {displayAlumni.name.charAt(0)}
-              </div>
             )}
           </div>
 

@@ -12,6 +12,7 @@ import { RegisterModal } from './components/RegisterModal';
 import { ForgotPasswordModal } from './components/ForgotPasswordModal';
 import { INITIAL_ALUMNI, INITIAL_ADMIN, INITIAL_EVENTS, INITIAL_ANNOUNCEMENTS } from './data/mockData';
 import { AlumniRecord, AdminUser, EventAgenda, UserRole, ActiveSession, AnnouncementItem } from './types';
+import { useBackHandler } from './utils/navigationHistory';
 import {
   fetchAlumniFromHostinger,
   updateAlumniInHostinger,
@@ -62,6 +63,43 @@ export default function App() {
 
   useEffect(() => {
     loadData();
+
+    // Auto-refresh sinkronisasi data saat user kembali membuka tab/layar browser
+    const handleWindowFocus = () => {
+      fetchAlumniFromHostinger()
+        .then((res) => {
+          if (res.success && res.data && res.data.length > 0) {
+            setAlumniList(res.data);
+            setIsDbConnected(true);
+          }
+        })
+        .catch(() => {});
+    };
+
+    window.addEventListener('focus', handleWindowFocus);
+    return () => {
+      window.removeEventListener('focus', handleWindowFocus);
+    };
+  }, []);
+
+  // Penanganan tombol fisik kembali untuk modal-modal di layer Login/Auth
+  useBackHandler(isRegisterOpen, 'login-register-modal', () => setIsRegisterOpen(false));
+  useBackHandler(isForgotPasswordOpen, 'login-forgot-pwd-modal', () => setIsForgotPasswordOpen(false));
+  useBackHandler(showFirstLoginModal, 'login-first-time-modal', () => setShowFirstLoginModal(false));
+
+  // Toast petunjuk saat tombol fisik ditekan di halaman utama (Double back to exit)
+  const [exitToastMessage, setExitToastMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    const handleExitHint = (e: any) => {
+      setExitToastMessage(e.detail?.message || 'Tekan sekali lagi untuk keluar dari website');
+      setTimeout(() => setExitToastMessage(null), 2200);
+    };
+
+    window.addEventListener('app-back-exit-hint', handleExitHint);
+    return () => {
+      window.removeEventListener('app-back-exit-hint', handleExitHint);
+    };
   }, []);
 
   const handleLoginSuccess = (
@@ -453,6 +491,15 @@ export default function App() {
           isOpen={isForgotPasswordOpen}
           onClose={() => setIsForgotPasswordOpen(false)}
         />
+      )}
+
+      {/* TOAST PETUNJUK TOMBOL KEMBALI KELUAR */}
+      {exitToastMessage && (
+        <div className="fixed bottom-20 inset-x-0 flex justify-center z-[999999] pointer-events-none px-4 animate-in fade-in slide-in-from-bottom-2 duration-150">
+          <div className="bg-slate-900/90 text-white text-xs font-semibold px-4 py-2.5 rounded-full shadow-2xl backdrop-blur-xs border border-white/10 text-center max-w-xs">
+            {exitToastMessage}
+          </div>
+        </div>
       )}
     </div>
   );

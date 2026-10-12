@@ -42,6 +42,60 @@ try {
 $action = $_GET['action'] ?? 'get_alumni';
 
 // ==========================================
+// FUNGSI BANTUAN NORMALISASI & UPLOAD FOTO
+// ==========================================
+function normalizePhotoUrlForOutput($path) {
+    if (empty($path)) return '';
+    $path = trim($path);
+    if (strpos($path, 'http://') === 0 || strpos($path, 'https://') === 0 || strpos($path, 'data:') === 0) {
+        return $path;
+    }
+    if (strpos($path, '/') === 0) {
+        return 'https://attaroqqy.com' . $path;
+    }
+    return 'https://attaroqqy.com/api/uploads/pas_foto/' . $path;
+}
+
+function processIncomingPhoto($photoData, $prefix = 'filePasFoto') {
+    if (empty($photoData)) return null;
+    $photoData = trim($photoData);
+
+    // Jika berupa base64 Data URL, coba simpan sebagai file fisik
+    if (strpos($photoData, 'data:image/') === 0) {
+        if (preg_match('/data:image\/([a-zA-Z0-9]+);base64,(.+)/', $photoData, $matches)) {
+            $ext = strtolower($matches[1]);
+            if ($ext === 'jpeg') $ext = 'jpg';
+            $decoded = base64_decode($matches[2]);
+            if ($decoded) {
+                $filename = $prefix . '_' . round(microtime(true) * 1000) . '_' . substr(md5(uniqid()), 0, 5) . '.' . $ext;
+                $possibleDirs = [
+                    __DIR__ . '/api/uploads/pas_foto/',
+                    __DIR__ . '/uploads/pas_foto/',
+                    dirname(__DIR__) . '/public_html/api/uploads/pas_foto/',
+                ];
+                foreach ($possibleDirs as $dir) {
+                    if (!is_dir($dir)) {
+                        @mkdir($dir, 0755, true);
+                    }
+                    if (is_dir($dir) && is_writable($dir)) {
+                        if (@file_put_contents($dir . $filename, $decoded)) {
+                            return '/api/uploads/pas_foto/' . $filename;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Jika mengarah ke domain attaroqqy.com, normalkan kembali ke path relatif untuk database
+    if (strpos($photoData, 'https://attaroqqy.com/') === 0) {
+        return str_replace('https://attaroqqy.com', '', $photoData);
+    }
+
+    return $photoData;
+}
+
+// ==========================================
 // 1. AMBIL DATA SANTRI YANG BERSTATUS 'Alumni'
 // ==========================================
 if ($action === 'get_alumni') {
@@ -102,8 +156,8 @@ if ($action === 'get_alumni') {
                 'province' => $row['provinsi'] ?? '',
                 'occupation' => $row['pekerjaan'] ?? '',
                 'institution' => $row['instansi'] ?? '',
-                'avatarUrl' => $row['file_pas_foto'] ?? '',
-                'coverPhotoUrl' => $row['foto_sampul'] ?? '',
+                'avatarUrl' => normalizePhotoUrlForOutput($row['file_pas_foto'] ?? ''),
+                'coverPhotoUrl' => normalizePhotoUrlForOutput($row['foto_sampul'] ?? ''),
                 'bio' => $row['bio'] ?? '',
                 'coordinates' => (!empty($row['latitude']) && !empty($row['longitude'])) ? [
                     'lat' => (float)$row['latitude'],
@@ -183,10 +237,16 @@ if ($action === 'update_alumni' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         if (isset($input['institution'])) { $fields[] = "instansi = :institution"; $params[':institution'] = $input['institution']; }
         if (isset($input['bio'])) { $fields[] = "bio = :bio"; $params[':bio'] = $input['bio']; }
         if (isset($input['avatarUrl']) || isset($input['photoUrl'])) { 
+            $rawPhotoVal = $input['avatarUrl'] ?? $input['photoUrl'];
+            $processed = processIncomingPhoto($rawPhotoVal, 'filePasFoto');
             $fields[] = "file_pas_foto = :avatarUrl"; 
-            $params[':avatarUrl'] = $input['avatarUrl'] ?? $input['photoUrl']; 
+            $params[':avatarUrl'] = $processed; 
         }
-        if (isset($input['coverPhotoUrl'])) { $fields[] = "foto_sampul = :coverPhotoUrl"; $params[':coverPhotoUrl'] = $input['coverPhotoUrl']; }
+        if (isset($input['coverPhotoUrl'])) { 
+            $processedCover = processIncomingPhoto($input['coverPhotoUrl'], 'fotoSampul');
+            $fields[] = "foto_sampul = :coverPhotoUrl"; 
+            $params[':coverPhotoUrl'] = $processedCover; 
+        }
         if (isset($input['password'])) { $fields[] = "password = :password"; $params[':password'] = $input['password']; }
         if (isset($input['isPasswordChanged'])) { $fields[] = "is_password_changed = :is_pwd"; $params[':is_pwd'] = $input['isPasswordChanged'] ? 1 : 0; }
         if (isset($input['shareContact'])) { $fields[] = "share_contact = :share_contact"; $params[':share_contact'] = $input['shareContact'] ? 1 : 0; }

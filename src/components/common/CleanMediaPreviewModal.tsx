@@ -1,6 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { X, ZoomIn, ZoomOut, RotateCcw } from 'lucide-react';
+import { useBackHandler } from '../../utils/navigationHistory';
+import { getAlumniPhotoUrl } from '../../utils/photoUtils';
 
 interface CleanMediaPreviewModalProps {
   isOpen: boolean;
@@ -17,6 +19,8 @@ export const CleanMediaPreviewModal: React.FC<CleanMediaPreviewModalProps> = ({
   isFemale = false,
   onClose,
 }) => {
+  useBackHandler(isOpen, 'clean-media-preview-modal', onClose);
+
   const [scale, setScale] = useState(1);
   const [position, setPosition] = useState({ x: 0, y: 0 });
   const isDraggingRef = useRef(false);
@@ -264,8 +268,9 @@ export const CleanMediaPreviewModal: React.FC<CleanMediaPreviewModalProps> = ({
       >
         {imageUrl ? (
           <img
-            src={imageUrl}
+            src={getAlumniPhotoUrl(imageUrl)}
             alt="Preview"
+            onError={(e) => { e.currentTarget.style.display = 'none'; }}
             className="w-full h-full object-contain pointer-events-none"
             draggable={false}
           />

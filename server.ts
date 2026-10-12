@@ -105,6 +105,25 @@ async function startServer() {
     });
   });
 
+  // Media / Photo Uploads Proxy to attaroqqy.com
+  app.use('/api/uploads', async (req, res) => {
+    try {
+      const remoteUrl = `https://attaroqqy.com/api/uploads${req.url}`;
+      const remoteRes = await fetch(remoteUrl);
+      if (!remoteRes.ok) {
+        return res.status(remoteRes.status).end();
+      }
+      const contentType = remoteRes.headers.get('content-type');
+      if (contentType) res.setHeader('Content-Type', contentType);
+      res.setHeader('Cache-Control', 'public, max-age=86400');
+      const buffer = await remoteRes.arrayBuffer();
+      res.send(Buffer.from(buffer));
+    } catch (err: any) {
+      console.warn('[Server] Error proxying upload media:', err?.message);
+      res.status(404).end();
+    }
+  });
+
   // Santri API: GET
   app.get('/api/db/santri', async (req, res) => {
     try {

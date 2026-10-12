@@ -19,6 +19,8 @@ import { AlumniRecord, AdminUser } from '../../types';
 import { AlumniProfileCardModal } from './AlumniProfileCardModal';
 import { FullscreenLocationMapModal, LocationCoordinates } from './FullscreenLocationMapModal';
 import { resolveAuthorAlumniRecord } from '../../utils/authorUtils';
+import { useBackHandler } from '../../utils/navigationHistory';
+import { getAlumniPhotoUrl } from '../../utils/photoUtils';
 
 interface AlumniDistributionMapModalProps {
   isOpen: boolean;
@@ -179,6 +181,15 @@ export const AlumniDistributionMapModal: React.FC<AlumniDistributionMapModalProp
       ? true
       : (currentUser?.coordinates?.lat && currentUser?.coordinates?.lng)
   );
+
+  // Penanganan tombol fisik kembali (Android hardware back & swipe back)
+  useBackHandler(Boolean(detailModalAlumni), 'map-detail-modal', () => setDetailModalAlumni(null));
+  useBackHandler(isLocationPickerOpen, 'map-location-picker', () => setIsLocationPickerOpen(false));
+  useBackHandler(isProfileBottomSheetOpen, 'map-profile-sheet', () => setIsProfileBottomSheetOpen(false));
+  useBackHandler(isSearchOverlayOpen, 'map-search-overlay', () => setIsSearchOverlayOpen(false));
+  useBackHandler(bottomSheetState !== 'hidden', 'map-bottom-sheet', () => setBottomSheetState('hidden'));
+  useBackHandler(Boolean(selectedAlumni), 'map-selected-alumni', () => setSelectedAlumni(null));
+  useBackHandler(isOpen, 'map-distribution-modal-root', onClose);
 
   const handleTriggerDisabledLocationTag = () => {
     setShowLocationNotSetPopup(true);
@@ -632,8 +643,16 @@ export const AlumniDistributionMapModal: React.FC<AlumniDistributionMapModalProp
       const lat = alumni.coordinates.lat;
       const lng = alumni.coordinates.lng;
 
-      const photoHtml = alumni.photoUrl
-        ? `<img src="${alumni.photoUrl}" alt="${alumni.name}" style="width: 100%; height: 100%; object-fit: cover; border-radius: 9999px;" />`
+      const resolvedPhoto = getAlumniPhotoUrl(alumni.photoUrl);
+      const photoHtml = resolvedPhoto
+        ? `<div style="width: 100%; height: 100%; position: relative; border-radius: 9999px; overflow: hidden; background: ${
+            alumni.gender === 'P' ? '#fdf2f8' : '#f0f9ff'
+          };">
+            <div style="position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 13px; color: ${
+              alumni.gender === 'P' ? '#db2777' : '#0284c7'
+            };">${alumni.name.charAt(0)}</div>
+            <img src="${resolvedPhoto}" alt="${alumni.name}" onerror="this.style.display='none'" style="position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; border-radius: 9999px;" />
+          </div>`
         : `<div style="width: 100%; height: 100%; border-radius: 9999px; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 13px; color: white; background: ${
             alumni.gender === 'P'
               ? 'linear-gradient(135deg, #f43f5e, #ec4899)'
@@ -1164,23 +1183,23 @@ export const AlumniDistributionMapModal: React.FC<AlumniDistributionMapModalProp
             >
               <div className="bg-white rounded-3xl p-3.5 shadow-2xl border border-slate-200/95 flex flex-col gap-2.5">
                 <div className="flex items-center gap-3 min-w-0">
-                  <div className="w-12 h-12 rounded-2xl overflow-hidden bg-sky-100 shrink-0 border border-slate-200 shadow-xs">
-                    {selectedAlumni.photoUrl ? (
+                  <div className="relative w-12 h-12 rounded-2xl overflow-hidden bg-sky-100 shrink-0 border border-slate-200 shadow-xs">
+                    <div
+                      className={`w-full h-full flex items-center justify-center font-bold text-base text-white ${
+                        selectedAlumni.gender === 'P'
+                          ? 'bg-gradient-to-br from-rose-400 to-pink-500'
+                          : 'bg-gradient-to-br from-sky-500 to-blue-600'
+                      }`}
+                    >
+                      {selectedAlumni.name.charAt(0)}
+                    </div>
+                    {selectedAlumni.photoUrl && (
                       <img
-                        src={selectedAlumni.photoUrl}
+                        src={getAlumniPhotoUrl(selectedAlumni.photoUrl)}
                         alt={selectedAlumni.name}
-                        className="w-full h-full object-cover"
+                        onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                        className="absolute inset-0 w-full h-full object-cover"
                       />
-                    ) : (
-                      <div
-                        className={`w-full h-full flex items-center justify-center font-bold text-base text-white ${
-                          selectedAlumni.gender === 'P'
-                            ? 'bg-gradient-to-br from-rose-400 to-pink-500'
-                            : 'bg-gradient-to-br from-sky-500 to-blue-600'
-                        }`}
-                      >
-                        {selectedAlumni.name.charAt(0)}
-                      </div>
                     )}
                   </div>
 
@@ -1283,23 +1302,23 @@ export const AlumniDistributionMapModal: React.FC<AlumniDistributionMapModalProp
         >
           <div className="bg-white rounded-3xl p-4 shadow-2xl border border-slate-200/90 flex flex-col gap-3">
             <div className="flex items-center gap-3 min-w-0">
-              <div className="w-13 h-13 rounded-2xl overflow-hidden bg-sky-100 shrink-0 border border-slate-200 shadow-xs">
-                {selectedAlumni.photoUrl ? (
+              <div className="relative w-13 h-13 rounded-2xl overflow-hidden bg-sky-100 shrink-0 border border-slate-200 shadow-xs">
+                <div
+                  className={`w-full h-full flex items-center justify-center font-bold text-lg text-white ${
+                    selectedAlumni.gender === 'P'
+                      ? 'bg-gradient-to-br from-rose-400 to-pink-500'
+                      : 'bg-gradient-to-br from-sky-500 to-blue-600'
+                  }`}
+                >
+                  {selectedAlumni.name.charAt(0)}
+                </div>
+                {selectedAlumni.photoUrl && (
                   <img
-                    src={selectedAlumni.photoUrl}
+                    src={getAlumniPhotoUrl(selectedAlumni.photoUrl)}
                     alt={selectedAlumni.name}
-                    className="w-full h-full object-cover"
+                    onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                    className="absolute inset-0 w-full h-full object-cover"
                   />
-                ) : (
-                  <div
-                    className={`w-full h-full flex items-center justify-center font-bold text-lg text-white ${
-                      selectedAlumni.gender === 'P'
-                        ? 'bg-gradient-to-br from-rose-400 to-pink-500'
-                        : 'bg-gradient-to-br from-sky-500 to-blue-600'
-                    }`}
-                  >
-                    {selectedAlumni.name.charAt(0)}
-                  </div>
                 )}
               </div>
 

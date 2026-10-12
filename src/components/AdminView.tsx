@@ -60,6 +60,8 @@ import { AudienceTargetModal, formatAudienceSummary } from './common/AudienceTar
 import { INITIAL_EVENT_COMMENTS, INITIAL_ANNOUNCEMENTS } from '../data/mockData';
 import { formatAuthorUsername, resolveAuthorAlumniRecord } from '../utils/authorUtils';
 import { shareMediaWithCaption } from '../utils/shareUtils';
+import { useBackHandler } from '../utils/navigationHistory';
+import { getAlumniPhotoUrl } from '../utils/photoUtils';
 import logoPonpesImg from '../assets/images/logo_ponpes_attaroqqy_1790648746461.jpg';
 import posterReuniImg from '../assets/images/poster_reuni_akbar_1790648045947.jpg';
 
@@ -717,6 +719,25 @@ export const AdminView: React.FC<AdminViewProps> = ({
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [passwordError, setPasswordError] = useState<string | null>(null);
+
+  // Penanganan tombol fisik kembali (Android hardware back & swipe back) di Dashboard Admin
+  useBackHandler(isDistributionMapOpen, 'admin-distribution-map', () => setIsDistributionMapOpen(false));
+  useBackHandler(Boolean(detailAlumni), 'admin-detail-alumni', () => setDetailAlumni(null));
+  useBackHandler(Boolean(selectedAuthorProfile), 'admin-author-profile', () => setSelectedAuthorProfile(null));
+  useBackHandler(isAddModalOpen, 'admin-add-modal', () => setIsAddModalOpen(false));
+  useBackHandler(isAddEventOpen, 'admin-add-event', () => setIsAddEventOpen(false));
+  useBackHandler(isAdminCreateAnnouncementOpen, 'admin-create-announcement', () => setIsAdminCreateAnnouncementOpen(false));
+  useBackHandler(isScannerOpen, 'admin-scanner-modal', () => setIsScannerOpen(false));
+  useBackHandler(Boolean(activeCommentsModalEvent), 'admin-event-comments', () => setActiveCommentsModalEvent(null));
+  useBackHandler(Boolean(fullscreenPosterUrl), 'admin-fullscreen-poster', () => setFullscreenPosterUrl(null));
+  useBackHandler(isPasswordModalOpen, 'admin-pwd-modal', () => setIsPasswordModalOpen(false));
+  useBackHandler(isEditNameModalOpen, 'admin-edit-name', () => setIsEditNameModalOpen(false));
+  useBackHandler(isEditUsernameModalOpen, 'admin-edit-username', () => setIsEditUsernameModalOpen(false));
+  useBackHandler(isEditJabatanModalOpen, 'admin-edit-jabatan', () => setIsEditJabatanModalOpen(false));
+  useBackHandler(isEditBioModalOpen, 'admin-edit-bio', () => setIsEditBioModalOpen(false));
+  useBackHandler(isEditAddressModalOpen, 'admin-edit-address', () => setIsEditAddressModalOpen(false));
+  // Jika sedang berada di tab Agenda, Pengumuman, atau Profil Admin, tekan tombol fisik kembali ke Kelola Alumni
+  useBackHandler(activeTab !== 'alumni', 'admin-tab-alumni', () => setActiveTab('alumni'));
 
   // Counts for status labels
   const activeCount = alumniList.filter((item) => item.hasLoggedIn === true || item.isPasswordChanged === true).length;
@@ -1524,19 +1545,9 @@ export const AdminView: React.FC<AdminViewProps> = ({
                     className="bg-white rounded-2xl p-3.5 border border-slate-200/80 hover:border-sky-400 hover:shadow-md transition-all cursor-pointer flex items-center gap-3.5 group relative"
                   >
                     <div className="relative shrink-0">
-                      {item.photoUrl ? (
-                        <img
-                          src={item.photoUrl}
-                          alt={item.name}
-                          className={`w-12 h-12 rounded-full object-cover border-2 transition-all ${
-                            item.gender === 'P'
-                              ? 'border-pink-300 ring-2 ring-pink-100 group-hover:ring-pink-200'
-                              : 'border-sky-300 ring-2 ring-sky-100 group-hover:ring-sky-200'
-                          }`}
-                        />
-                      ) : (
+                      <div className="relative w-12 h-12 rounded-full overflow-hidden shrink-0">
                         <div
-                          className={`w-12 h-12 rounded-full flex items-center justify-center font-display font-bold text-base shadow-2xs border-2 transition-all ${
+                          className={`w-full h-full rounded-full flex items-center justify-center font-display font-bold text-base shadow-2xs border-2 transition-all ${
                             item.gender === 'P'
                               ? 'border-pink-300 ring-2 ring-pink-100 bg-pink-50 text-pink-600'
                               : 'border-sky-300 ring-2 ring-sky-100 bg-sky-50 text-sky-700'
@@ -1544,7 +1555,19 @@ export const AdminView: React.FC<AdminViewProps> = ({
                         >
                           {item.name.charAt(0)}
                         </div>
-                      )}
+                        {item.photoUrl && (
+                          <img
+                            src={getAlumniPhotoUrl(item.photoUrl)}
+                            alt={item.name}
+                            onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                            className={`absolute inset-0 w-full h-full rounded-full object-cover border-2 transition-all ${
+                              item.gender === 'P'
+                                ? 'border-pink-300 ring-2 ring-pink-100 group-hover:ring-pink-200'
+                                : 'border-sky-300 ring-2 ring-sky-100 group-hover:ring-sky-200'
+                            }`}
+                          />
+                        )}
+                      </div>
                     </div>
 
                     <div className="flex-1 min-w-0">
