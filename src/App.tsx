@@ -10,7 +10,7 @@ import { AdminView } from './components/AdminView';
 import { FirstLoginModal } from './components/FirstLoginModal';
 import { RegisterModal } from './components/RegisterModal';
 import { ForgotPasswordModal } from './components/ForgotPasswordModal';
-import { INITIAL_ALUMNI, INITIAL_ADMIN, INITIAL_EVENTS, INITIAL_ANNOUNCEMENTS } from './data/mockData';
+import { INITIAL_ALUMNI, INITIAL_ADMIN, INITIAL_ADMIN_LIST, INITIAL_EVENTS, INITIAL_ANNOUNCEMENTS } from './data/mockData';
 import { AlumniRecord, AdminUser, EventAgenda, UserRole, ActiveSession, AnnouncementItem } from './types';
 import { useBackHandler } from './utils/navigationHistory';
 import {
@@ -23,7 +23,45 @@ import {
 
 export default function App() {
   const [alumniList, setAlumniList] = useState<AlumniRecord[]>(INITIAL_ALUMNI);
-  const [adminAccount, setAdminAccount] = useState<AdminUser>(INITIAL_ADMIN);
+  const [adminList, setAdminList] = useState<AdminUser[]>(() => {
+    try {
+      const saved = localStorage.getItem('attaroqqy_admin_list_v1');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) {}
+    return INITIAL_ADMIN_LIST;
+  });
+  const [adminAccount, setAdminAccount] = useState<AdminUser>(adminList[0] || INITIAL_ADMIN);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('attaroqqy_admin_list_v1', JSON.stringify(adminList));
+    } catch (e) {}
+    if (adminList[0]) {
+      setAdminAccount(adminList[0]);
+    }
+  }, [adminList]);
+
+  const handleAddAdminUser = (newAdmin: AdminUser) => {
+    setAdminList((prev) => [...prev, newAdmin]);
+  };
+
+  const handleUpdateAdminUser = (updatedAdmin: AdminUser) => {
+    setAdminList((prev) =>
+      prev.map((a) => (a.id === updatedAdmin.id ? updatedAdmin : a))
+    );
+    if (currentSession?.adminData?.id === updatedAdmin.id) {
+      setCurrentSession((prev) =>
+        prev ? { ...prev, adminData: updatedAdmin } : null
+      );
+    }
+  };
+
+  const handleDeleteAdminUser = (adminId: string) => {
+    setAdminList((prev) => prev.filter((a) => a.id !== adminId));
+  };
   const [events, setEvents] = useState<EventAgenda[]>(INITIAL_EVENTS);
   const [announcements, setAnnouncements] = useState<AnnouncementItem[]>(INITIAL_ANNOUNCEMENTS);
 
@@ -434,6 +472,7 @@ export default function App() {
         <AdminView
           admin={currentSession.adminData}
           alumniList={alumniList}
+          adminList={adminList}
           events={events}
           announcements={announcements}
           onLogout={handleLogout}
@@ -443,6 +482,9 @@ export default function App() {
           onResetPassword={handleResetAlumniPassword}
           onAddEvent={handleAddEvent}
           onUpdateAdmin={handleUpdateAdmin}
+          onAddAdminUser={handleAddAdminUser}
+          onUpdateAdminUser={handleUpdateAdminUser}
+          onDeleteAdminUser={handleDeleteAdminUser}
           onAddAnnouncement={handleAddAnnouncement}
           onUpdateAnnouncement={handleUpdateAnnouncement}
           onDeleteAnnouncement={handleDeleteAnnouncement}
@@ -457,6 +499,7 @@ export default function App() {
         <LoginScreen
           alumniList={alumniList}
           adminAccount={adminAccount}
+          adminAccounts={adminList}
           onLoginSuccess={handleLoginSuccess}
           onOpenForgotPassword={() => setIsForgotPasswordOpen(true)}
           isDbLoading={isDbLoading}

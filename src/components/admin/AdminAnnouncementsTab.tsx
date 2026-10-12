@@ -121,17 +121,19 @@ Diterbitkan oleh: ${ann.authorName || 'Pondok Pesantren At-taroqqy'}`;
         />
       )}
 
-      {/* 3. CAPTION & DETAIL INFORMASI PENGUMUMAN (TANPA USERNAME @) */}
+      {/* 3. CAPTION & DETAIL INFORMASI PENGUMUMAN (JUDUL DAN CAPTION BEDA BARIS) */}
       <div className="px-4 py-3 space-y-2 text-xs">
         <div className="text-slate-800 text-xs">
-          <p 
+          <div 
             onClick={() => setIsExpanded(!isExpanded)}
-            className={`leading-relaxed cursor-pointer select-none ${isExpanded ? '' : 'line-clamp-2'}`}
+            className="cursor-pointer select-none"
             title={isExpanded ? "Klik untuk menyembunyikan" : "Klik untuk membaca selengkapnya"}
           >
-            <span className="font-bold text-slate-900 mr-1.5">{ann.title}</span>
-            <span className="text-slate-600 whitespace-pre-line">{ann.content}</span>
-          </p>
+            <h4 className="font-bold text-slate-900 text-sm leading-snug">{ann.title}</h4>
+            <p className={`text-slate-600 mt-1 leading-relaxed whitespace-pre-line ${isExpanded ? '' : 'line-clamp-2'}`}>
+              {ann.content}
+            </p>
+          </div>
 
           <button
             type="button"

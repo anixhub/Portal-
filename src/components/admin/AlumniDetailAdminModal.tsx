@@ -97,6 +97,8 @@ export const AlumniDetailAdminModal: React.FC<AlumniDetailAdminModalProps> = ({
   const [editNisn, setEditNisn] = useState(alumni.nisn || '');
   const [editEntryDate, setEditEntryDate] = useState(alumni.entryDate || '');
   const [editGradDate, setEditGradDate] = useState(alumni.gradDate || '');
+  const [tempEntryDate, setTempEntryDate] = useState(alumni.entryDate || '');
+  const [tempGradDate, setTempGradDate] = useState(alumni.gradDate || '');
 
   // Parents
   const [editNamaAyah, setEditNamaAyah] = useState(alumni.namaAyah || '');
@@ -149,6 +151,8 @@ export const AlumniDetailAdminModal: React.FC<AlumniDetailAdminModalProps> = ({
     setEditNisn(alumni.nisn || '');
     setEditEntryDate(alumni.entryDate || '');
     setEditGradDate(alumni.gradDate || '');
+    setTempEntryDate(alumni.entryDate || '');
+    setTempGradDate(alumni.gradDate || '');
     setEditNamaAyah(alumni.namaAyah || '');
     setEditNikAyah(alumni.nikAyah || '');
     setEditPekerjaanAyah(alumni.pekerjaanAyah || '');
@@ -514,7 +518,10 @@ export const AlumniDetailAdminModal: React.FC<AlumniDetailAdminModalProps> = ({
 
                 {/* 4. Tanggal Masuk */}
                 <div
-                  onClick={() => setActiveEditModal('tanggal_masuk')}
+                  onClick={() => {
+                    setTempEntryDate(editEntryDate || '');
+                    setActiveEditModal('tanggal_masuk');
+                  }}
                   className="flex items-center justify-between py-3.5 cursor-pointer hover:bg-slate-50/70 -mx-3 px-3 rounded-2xl transition-colors group"
                 >
                   <div className="flex items-center gap-4 min-w-0 pr-2">
@@ -533,7 +540,10 @@ export const AlumniDetailAdminModal: React.FC<AlumniDetailAdminModalProps> = ({
 
                 {/* 5. Tanggal Keluar */}
                 <div
-                  onClick={() => setActiveEditModal('tanggal_keluar')}
+                  onClick={() => {
+                    setTempGradDate(editGradDate || '');
+                    setActiveEditModal('tanggal_keluar');
+                  }}
                   className="flex items-center justify-between py-3.5 cursor-pointer hover:bg-slate-50/70 -mx-3 px-3 rounded-2xl transition-colors group"
                 >
                   <div className="flex items-center gap-4 min-w-0 pr-2">
@@ -1199,8 +1209,8 @@ export const AlumniDetailAdminModal: React.FC<AlumniDetailAdminModalProps> = ({
             </div>
             <div className="bg-slate-50 rounded-2xl border border-slate-200/90 p-2.5">
               <DateWheelPicker
-                value={editEntryDate || '2021-07-15'}
-                onChange={(val) => setEditEntryDate(val)}
+                value={tempEntryDate || '2021-07-15'}
+                onChange={(val) => setTempEntryDate(val)}
                 minYear={1980}
                 maxYear={2035}
               />
@@ -1208,12 +1218,13 @@ export const AlumniDetailAdminModal: React.FC<AlumniDetailAdminModalProps> = ({
             <div className="flex gap-2 pt-2">
               <button type="button" onClick={() => setActiveEditModal(null)} className="flex-1 py-2.5 rounded-xl border border-slate-200 text-slate-600 font-semibold text-xs cursor-pointer hover:bg-slate-50">Batal</button>
               <button type="button" onClick={() => {
-                const year = editEntryDate ? editEntryDate.substring(0, 4) : '';
-                const calculatedNis = editEntryDate.trim()
-                  ? generateNisFromEntryDate(editEntryDate.trim(), existingAlumni, alumni.id)
+                const year = tempEntryDate ? tempEntryDate.substring(0, 4) : '';
+                const calculatedNis = tempEntryDate.trim()
+                  ? generateNisFromEntryDate(tempEntryDate.trim(), existingAlumni, alumni.id)
                   : '';
+                setEditEntryDate(tempEntryDate);
                 setEditNis(calculatedNis);
-                handleUpdate({ entryDate: editEntryDate, entryYear: year, nis: calculatedNis });
+                handleUpdate({ entryDate: tempEntryDate, entryYear: year, nis: calculatedNis });
                 setActiveEditModal(null);
               }} className="flex-1 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs cursor-pointer shadow-xs">Simpan Tanggal</button>
             </div>
@@ -1221,18 +1232,18 @@ export const AlumniDetailAdminModal: React.FC<AlumniDetailAdminModalProps> = ({
         </div>
       )}
 
-      {/* 12. EDIT TANGGAL KELUAR */}
+      {/* 12. EDIT TANGGAL KELUAR (MODAL PERSIS TANGGAL MASUK) */}
       {activeEditModal === 'tanggal_keluar' && (
-        <div className="fixed inset-0 z-[100010] bg-black/60 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4 animate-in fade-in" onClick={() => setActiveEditModal(null)}>
-          <div className="bg-white rounded-t-3xl sm:rounded-3xl p-5 w-full max-w-sm space-y-4 shadow-2xl border border-slate-100 animate-in slide-in-from-bottom sm:zoom-in-95 duration-200" onClick={(e) => e.stopPropagation()}>
+        <div className="fixed inset-0 z-[100010] bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in" onClick={() => setActiveEditModal(null)}>
+          <div className="bg-white rounded-3xl p-5 w-full max-w-sm space-y-4 shadow-2xl border border-slate-100" onClick={(e) => e.stopPropagation()}>
             <div className="flex justify-between items-center border-b border-slate-100 pb-2.5">
               <h3 className="font-bold text-sm text-slate-900 text-center">Ubah Tanggal Keluar (Boyong)</h3>
               <button type="button" onClick={() => setActiveEditModal(null)} className="text-slate-400 hover:text-slate-600 cursor-pointer"><X className="w-4 h-4" /></button>
             </div>
             <div className="bg-slate-50 rounded-2xl border border-slate-200/90 p-2.5">
               <DateWheelPicker
-                value={editGradDate || '2024-05-20'}
-                onChange={(val) => setEditGradDate(val)}
+                value={tempGradDate || '2024-05-20'}
+                onChange={(val) => setTempGradDate(val)}
                 minYear={1980}
                 maxYear={2035}
               />
@@ -1240,8 +1251,9 @@ export const AlumniDetailAdminModal: React.FC<AlumniDetailAdminModalProps> = ({
             <div className="flex gap-2 pt-2">
               <button type="button" onClick={() => setActiveEditModal(null)} className="flex-1 py-2.5 rounded-xl border border-slate-200 text-slate-600 font-semibold text-xs cursor-pointer hover:bg-slate-50">Batal</button>
               <button type="button" onClick={() => {
-                const year = editGradDate ? editGradDate.substring(0, 4) : '';
-                handleUpdate({ gradDate: editGradDate, gradYear: year });
+                const year = tempGradDate ? tempGradDate.substring(0, 4) : '';
+                setEditGradDate(tempGradDate);
+                handleUpdate({ gradDate: tempGradDate, gradYear: year });
                 setActiveEditModal(null);
               }} className="flex-1 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs cursor-pointer shadow-xs">Simpan Tanggal</button>
             </div>

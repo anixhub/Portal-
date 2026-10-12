@@ -6,6 +6,7 @@ import alumniIllustrationImg from '../assets/images/alumni_highfive_illustration
 interface LoginScreenProps {
   alumniList: AlumniRecord[];
   adminAccount: AdminUser;
+  adminAccounts?: AdminUser[];
   onLoginSuccess: (role: UserRole, alumniData?: AlumniRecord, adminData?: AdminUser) => void;
   onOpenForgotPassword: () => void;
   isDbLoading?: boolean;
@@ -16,6 +17,7 @@ interface LoginScreenProps {
 export const LoginScreen: React.FC<LoginScreenProps> = ({
   alumniList,
   adminAccount,
+  adminAccounts,
   onLoginSuccess,
   onOpenForgotPassword,
   isDbLoading = false,
@@ -62,22 +64,25 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
       setIsLoading(false);
 
       if (selectedRole === 'admin') {
-        const expectedUsername = (adminAccount.username || '@admin_pusat').toLowerCase();
-        const cleanExpected = expectedUsername.replace(/^@/, '');
-        const expectedPassword = adminAccount.password || '1997';
-
+        const allAdmins = adminAccounts && adminAccounts.length > 0 ? adminAccounts : [adminAccount];
         const inputId = inputVal.toLowerCase();
-        const cleanInput = inputId.replace(/^@/, '');
+        const cleanInput = inputId.replace(/^@/, '').trim();
 
-        const isMatch =
-          cleanInput === cleanExpected ||
-          inputId === expectedUsername ||
-          cleanInput === 'admin_pusat' ||
-          cleanInput === 'superadmin' ||
-          cleanInput === 'admin';
+        const matchedAdmin = allAdmins.find((adm) => {
+          const expectedUsername = (adm.username || '@admin_pusat').toLowerCase();
+          const cleanExpected = expectedUsername.replace(/^@/, '').trim();
+          const expectedPassword = adm.password || '1997';
 
-        if (isMatch && password === expectedPassword) {
-          onLoginSuccess('admin', undefined, adminAccount);
+          const isMatch =
+            cleanInput === cleanExpected ||
+            inputId === expectedUsername ||
+            (cleanExpected === 'admin_pusat' && (cleanInput === 'superadmin' || cleanInput === 'admin'));
+
+          return isMatch && password === expectedPassword;
+        });
+
+        if (matchedAdmin) {
+          onLoginSuccess('admin', undefined, matchedAdmin);
           return;
         } else {
           setErrorMessage('Kredensial Admin tidak cocok.');

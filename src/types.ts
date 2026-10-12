@@ -54,6 +54,8 @@ export interface AlumniRecord {
   pendidikanIbu?: string;
 }
 
+export type AdminRegionLevel = 'pusat' | 'provinsi' | 'kota' | 'kecamatan';
+
 export interface AdminUser {
   id: string;
   name: string;
@@ -61,6 +63,7 @@ export interface AdminUser {
   email?: string;
   role: 'super_admin' | 'pengurus_pondok';
   jabatan: string;
+  regionLevel?: AdminRegionLevel; // 'pusat' | 'provinsi' | 'kota' | 'kecamatan'
   avatar?: string;
   coverPhotoUrl?: string;
   password?: string;
@@ -72,6 +75,7 @@ export interface AdminUser {
   desa?: string;
   alamatLengkap?: string;
   coordinates?: { lat: number; lng: number } | null;
+  createdAt?: string;
 }
 
 export interface AudienceTarget {

@@ -1877,14 +1877,16 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
                     <div className="px-4 py-3 space-y-2.5 text-xs">
                       {/* Judul & Caption Deskripsi Ala Instagram (Default Terpotong, Cukup Klik Caption atau Tombol untuk Membuka/Menyembunyikan Selengkapnya) */}
                       <div className="text-slate-800 text-xs">
-                        <p 
+                        <div 
                           onClick={() => toggleCaption(ev.id)}
-                          className={`leading-relaxed cursor-pointer select-none ${expandedCaptions[ev.id] ? '' : 'line-clamp-2'}`}
+                          className="cursor-pointer select-none"
                           title={expandedCaptions[ev.id] ? "Klik untuk menyembunyikan" : "Klik untuk membaca selengkapnya"}
                         >
-                          <span className="font-bold text-slate-900 mr-1.5">{ev.title}</span>
-                          <span className="text-slate-600">{ev.description}</span>
-                        </p>
+                          <h4 className="font-bold text-slate-900 text-sm leading-snug">{ev.title}</h4>
+                          <p className={`text-slate-600 mt-1 leading-relaxed ${expandedCaptions[ev.id] ? '' : 'line-clamp-2'}`}>
+                            {ev.description}
+                          </p>
+                        </div>
 
                         {/* Tombol 'selengkapnya' (Persis Screenshot 1) */}
                         {!expandedCaptions[ev.id] && (
@@ -2139,12 +2141,10 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
                         ) : null}
                       </div>
                       <div className="flex items-center gap-1.5 mt-0.5 text-xs text-slate-500">
-                        {item.gradYear && (
-                          <span className="font-medium text-slate-600 shrink-0">
-                            Boyong {item.gradYear}
-                          </span>
-                        )}
-                        {item.gradYear && addressText && (
+                        <span className="font-medium text-slate-600 shrink-0">
+                          {item.gradYear ? `Boyong ${item.gradYear}` : 'Boyong -'}
+                        </span>
+                        {addressText && (
                           <span className="text-slate-300">•</span>
                         )}
                         <p className="truncate capitalize text-slate-500">
@@ -3974,14 +3974,16 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
                   {/* 3. Caption & Detail Pengumuman */}
                   <div className="px-4 py-3 space-y-2 text-xs">
                     <div className="text-slate-800 text-xs">
-                      <p 
+                      <div 
                         onClick={() => toggleCaption(ann.id)}
-                        className={`leading-relaxed cursor-pointer select-none ${expandedCaptions[ann.id] ? '' : 'line-clamp-2'}`}
+                        className="cursor-pointer select-none"
                         title={expandedCaptions[ann.id] ? "Klik untuk menyembunyikan" : "Klik untuk membaca selengkapnya"}
                       >
-                        <span className="font-bold text-slate-900 mr-1.5">{ann.title}</span>
-                        <span className="text-slate-600 whitespace-pre-line">{ann.content}</span>
-                      </p>
+                        <h4 className="font-bold text-slate-900 text-sm leading-snug">{ann.title}</h4>
+                        <p className={`text-slate-600 mt-1 leading-relaxed whitespace-pre-line ${expandedCaptions[ann.id] ? '' : 'line-clamp-2'}`}>
+                          {ann.content}
+                        </p>
+                      </div>
 
                       <button
                         type="button"
