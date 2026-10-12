@@ -444,6 +444,18 @@ export async function updateAlumniInHostinger(
     const phpPayload: Record<string, any> = {
       id,
       ...updates,
+      nama: updates.name ?? (updates as any).nama,
+      name: updates.name ?? (updates as any).nama,
+      nik: updates.nik,
+      no_kk: updates.noKk ?? (updates as any).no_kk,
+      noKk: updates.noKk ?? (updates as any).no_kk,
+      kamar: updates.asramaDulu ?? (updates as any).kamar,
+      asramaDulu: updates.asramaDulu ?? (updates as any).kamar,
+      kelas: updates.jenjang ?? (updates as any).kelas,
+      jenjang: updates.jenjang ?? (updates as any).kelas,
+      tahun_lulus: updates.gradYear ?? (updates as any).tahun_lulus,
+      tanggal_masuk: updates.entryDate ?? (updates as any).tanggal_masuk,
+      tanggal_keluar: updates.gradDate ?? (updates as any).tanggal_keluar,
       ...(standardGender !== undefined
         ? {
             gender: standardGender,
@@ -669,25 +681,30 @@ export async function resetAlumniPasswordInHostinger(
 
 export async function fetchEventsFromHostinger(): Promise<{ success: boolean; data: EventAgenda[] }> {
   const endpoints = [
-    '/api/events',
     `${HOSTINGER_API_URL}?action=get_events`,
     'https://attaroqqy.com/api_alumni.php?action=get_events',
+    '/api/events',
   ];
 
   for (const ep of endpoints) {
     try {
       const res = await fetch(ep, {
         headers: { Accept: 'application/json' },
-        signal: AbortSignal.timeout(5000),
+        signal: AbortSignal.timeout(10000),
       });
       const contentType = res.headers.get('content-type') || '';
       if (res.ok && contentType.includes('application/json')) {
         const text = await res.text();
         if (text.trim().startsWith('{') || text.trim().startsWith('[')) {
           const json = JSON.parse(text);
-          const list = Array.isArray(json) ? json : (Array.isArray(json?.data) ? json.data : []);
-          if (list && list.length > 0) {
-            return { success: true, data: list };
+          const list = Array.isArray(json) ? json : (Array.isArray(json?.data) ? json.data : null);
+          if (Array.isArray(list)) {
+            if (list.length > 0) {
+              try {
+                localStorage.setItem('attaroqqy_events_cache_v1', JSON.stringify(list));
+              } catch (e) {}
+              return { success: true, data: list };
+            }
           }
         }
       }
@@ -696,7 +713,7 @@ export async function fetchEventsFromHostinger(): Promise<{ success: boolean; da
     }
   }
 
-  // Fallback to local cache
+  // Fallback to local cache if present
   try {
     const cached = localStorage.getItem('attaroqqy_events_cache_v1');
     if (cached) {
@@ -707,34 +724,41 @@ export async function fetchEventsFromHostinger(): Promise<{ success: boolean; da
     }
   } catch (e) {}
 
-  return { success: false, data: INITIAL_EVENTS };
+  return { success: true, data: INITIAL_EVENTS };
 }
 
 export async function saveEventToHostinger(event: EventAgenda): Promise<{ success: boolean; id?: string }> {
   try {
+    // 1. Simpan segera ke localStorage agar responsif
+    try {
+      const raw = localStorage.getItem('attaroqqy_events_cache_v1');
+      const list = raw ? JSON.parse(raw) : [...INITIAL_EVENTS];
+      const idx = list.findIndex((e: any) => e.id === event.id);
+      if (idx >= 0) list[idx] = event;
+      else list.unshift(event);
+      localStorage.setItem('attaroqqy_events_cache_v1', JSON.stringify(list));
+    } catch (e) {}
+
+    // 2. Kirim serentak ke Hostinger Database & server proxy
     const endpoints = [
-      '/api/events',
       `${HOSTINGER_API_URL}?action=save_event`,
       'https://attaroqqy.com/api_alumni.php?action=save_event',
+      '/api/events',
     ];
 
-    let success = false;
-    for (const ep of endpoints) {
-      try {
-        const res = await fetch(ep, {
+    const results = await Promise.allSettled(
+      endpoints.map((ep) =>
+        fetch(ep, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
           body: JSON.stringify(event),
-          signal: AbortSignal.timeout(6000),
-        });
-        if (res.ok) {
-          success = true;
-          break;
-        }
-      } catch (e) {}
-    }
+          signal: AbortSignal.timeout(12000),
+        }).then((res) => res.ok)
+      )
+    );
 
-    return { success, id: event.id };
+    const isSuccess = results.some((r) => r.status === 'fulfilled' && r.value === true);
+    return { success: isSuccess, id: event.id };
   } catch (error: any) {
     console.warn('Gagal menyimpan event ke Hostinger:', error?.message);
     return { success: false };
@@ -742,21 +766,32 @@ export async function saveEventToHostinger(event: EventAgenda): Promise<{ succes
 }
 
 export async function deleteEventFromHostinger(id: string): Promise<{ success: boolean }> {
-  const endpoints = [
-    `/api/events/${encodeURIComponent(id)}`,
-    `${HOSTINGER_API_URL}?action=delete_event`,
-    'https://attaroqqy.com/api_alumni.php?action=delete_event',
-  ];
-
-  for (const ep of endpoints) {
+  try {
     try {
-      await fetch(ep, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id }),
-      });
+      const raw = localStorage.getItem('attaroqqy_events_cache_v1');
+      if (raw) {
+        const list = JSON.parse(raw).filter((e: any) => e.id !== id);
+        localStorage.setItem('attaroqqy_events_cache_v1', JSON.stringify(list));
+      }
     } catch (e) {}
-  }
+
+    const endpoints = [
+      `${HOSTINGER_API_URL}?action=delete_event`,
+      'https://attaroqqy.com/api_alumni.php?action=delete_event',
+      `/api/events/${encodeURIComponent(id)}`,
+    ];
+
+    await Promise.allSettled(
+      endpoints.map((ep) =>
+        fetch(ep, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id }),
+          signal: AbortSignal.timeout(10000),
+        })
+      )
+    );
+  } catch (e) {}
 
   return { success: true };
 }
@@ -768,20 +803,21 @@ export async function saveRsvpToHostinger(
   note?: string
 ): Promise<{ success: boolean }> {
   const endpoints = [
-    '/api/events/rsvp',
     `${HOSTINGER_API_URL}?action=save_rsvp`,
     'https://attaroqqy.com/api_alumni.php?action=save_rsvp',
+    '/api/events/rsvp',
   ];
 
-  for (const ep of endpoints) {
-    try {
-      await fetch(ep, {
+  await Promise.allSettled(
+    endpoints.map((ep) =>
+      fetch(ep, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ eventId, alumniId, status, note }),
-      });
-    } catch (e) {}
-  }
+        signal: AbortSignal.timeout(10000),
+      })
+    )
+  );
 
   return { success: true };
 }
@@ -794,25 +830,30 @@ export async function saveRsvpToHostinger(
 
 export async function fetchAnnouncementsFromHostinger(): Promise<{ success: boolean; data: AnnouncementItem[] }> {
   const endpoints = [
-    '/api/announcements',
     `${HOSTINGER_API_URL}?action=get_announcements`,
     'https://attaroqqy.com/api_alumni.php?action=get_announcements',
+    '/api/announcements',
   ];
 
   for (const ep of endpoints) {
     try {
       const res = await fetch(ep, {
         headers: { Accept: 'application/json' },
-        signal: AbortSignal.timeout(5000),
+        signal: AbortSignal.timeout(10000),
       });
       const contentType = res.headers.get('content-type') || '';
       if (res.ok && contentType.includes('application/json')) {
         const text = await res.text();
         if (text.trim().startsWith('{') || text.trim().startsWith('[')) {
           const json = JSON.parse(text);
-          const list = Array.isArray(json) ? json : (Array.isArray(json?.data) ? json.data : []);
-          if (list && list.length > 0) {
-            return { success: true, data: list };
+          const list = Array.isArray(json) ? json : (Array.isArray(json?.data) ? json.data : null);
+          if (Array.isArray(list)) {
+            if (list.length > 0) {
+              try {
+                localStorage.setItem('attaroqqy_announcements_cache_v1', JSON.stringify(list));
+              } catch (e) {}
+              return { success: true, data: list };
+            }
           }
         }
       }
@@ -830,36 +871,43 @@ export async function fetchAnnouncementsFromHostinger(): Promise<{ success: bool
     }
   } catch (e) {}
 
-  return { success: false, data: INITIAL_ANNOUNCEMENTS };
+  return { success: true, data: INITIAL_ANNOUNCEMENTS };
 }
 
 export async function saveAnnouncementToHostinger(
   announcement: AnnouncementItem
 ): Promise<{ success: boolean; id?: string }> {
   try {
+    // 1. Simpan segera ke localStorage
+    try {
+      const raw = localStorage.getItem('attaroqqy_announcements_cache_v1');
+      const list = raw ? JSON.parse(raw) : [...INITIAL_ANNOUNCEMENTS];
+      const idx = list.findIndex((a: any) => a.id === announcement.id);
+      if (idx >= 0) list[idx] = announcement;
+      else list.unshift(announcement);
+      localStorage.setItem('attaroqqy_announcements_cache_v1', JSON.stringify(list));
+    } catch (e) {}
+
+    // 2. Kirim serentak ke Hostinger Database & server proxy
     const endpoints = [
-      '/api/announcements',
       `${HOSTINGER_API_URL}?action=save_announcement`,
       'https://attaroqqy.com/api_alumni.php?action=save_announcement',
+      '/api/announcements',
     ];
 
-    let success = false;
-    for (const ep of endpoints) {
-      try {
-        const res = await fetch(ep, {
+    const results = await Promise.allSettled(
+      endpoints.map((ep) =>
+        fetch(ep, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
           body: JSON.stringify(announcement),
-          signal: AbortSignal.timeout(6000),
-        });
-        if (res.ok) {
-          success = true;
-          break;
-        }
-      } catch (e) {}
-    }
+          signal: AbortSignal.timeout(12000),
+        }).then((res) => res.ok)
+      )
+    );
 
-    return { success, id: announcement.id };
+    const isSuccess = results.some((r) => r.status === 'fulfilled' && r.value === true);
+    return { success: isSuccess, id: announcement.id };
   } catch (error: any) {
     console.warn('Gagal menyimpan pengumuman ke Hostinger:', error?.message);
     return { success: false };
@@ -867,21 +915,32 @@ export async function saveAnnouncementToHostinger(
 }
 
 export async function deleteAnnouncementFromHostinger(id: string): Promise<{ success: boolean }> {
-  const endpoints = [
-    `/api/announcements/${encodeURIComponent(id)}`,
-    `${HOSTINGER_API_URL}?action=delete_announcement`,
-    'https://attaroqqy.com/api_alumni.php?action=delete_announcement',
-  ];
-
-  for (const ep of endpoints) {
+  try {
     try {
-      await fetch(ep, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id }),
-      });
+      const raw = localStorage.getItem('attaroqqy_announcements_cache_v1');
+      if (raw) {
+        const list = JSON.parse(raw).filter((a: any) => a.id !== id);
+        localStorage.setItem('attaroqqy_announcements_cache_v1', JSON.stringify(list));
+      }
     } catch (e) {}
-  }
+
+    const endpoints = [
+      `${HOSTINGER_API_URL}?action=delete_announcement`,
+      'https://attaroqqy.com/api_alumni.php?action=delete_announcement',
+      `/api/announcements/${encodeURIComponent(id)}`,
+    ];
+
+    await Promise.allSettled(
+      endpoints.map((ep) =>
+        fetch(ep, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id }),
+          signal: AbortSignal.timeout(10000),
+        })
+      )
+    );
+  } catch (e) {}
 
   return { success: true };
 }

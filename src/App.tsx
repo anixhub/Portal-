@@ -201,6 +201,22 @@ export default function App() {
           }
         })
         .catch(() => {});
+
+      fetchEventsFromHostinger()
+        .then((res) => {
+          if (res.success && res.data && res.data.length > 0) {
+            setEvents(res.data);
+          }
+        })
+        .catch(() => {});
+
+      fetchAnnouncementsFromHostinger()
+        .then((res) => {
+          if (res.success && res.data && res.data.length > 0) {
+            setAnnouncements(res.data);
+          }
+        })
+        .catch(() => {});
     };
 
     window.addEventListener('focus', handleWindowFocus);

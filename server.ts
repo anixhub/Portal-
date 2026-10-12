@@ -184,20 +184,23 @@ async function startServer() {
   app.put('/api/db/santri/:id', async (req, res) => {
     const { id } = req.params;
     try {
-      console.log(`[Server] Forwarding PUT update for santri ID: ${id}`);
-      const remoteRes = await fetch(`https://attaroqqy.com/api/db/santri/${encodeURIComponent(id)}`, {
-        method: 'PUT',
+      console.log(`[Server] Forwarding PUT update for santri ID: ${id} to api_alumni.php`);
+      const payload = { id, ...req.body };
+      const remoteRes = await fetch('https://attaroqqy.com/api_alumni.php?action=update_alumni', {
+        method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Accept: 'application/json',
         },
-        body: JSON.stringify(req.body),
+        body: JSON.stringify(payload),
+        signal: AbortSignal.timeout(12000),
       });
 
       const responseData = await remoteRes.json().catch(() => ({ success: remoteRes.ok }));
-      // Invalidate memory cache
+      // Invalidate memory cache so next GET fetches fresh data immediately
       cachedSantriData = null;
-      res.status(remoteRes.status).json(responseData);
+      lastCacheTime = 0;
+      res.status(remoteRes.status || 200).json(responseData);
     } catch (err: any) {
       console.warn(`[Server] Error proxying PUT for ${id}:`, err?.message);
       res.status(500).json({ success: false, message: err?.message });
@@ -207,19 +210,21 @@ async function startServer() {
   // Santri API: POST (create)
   app.post('/api/db/santri', async (req, res) => {
     try {
-      console.log('[Server] Forwarding POST new santri');
-      const remoteRes = await fetch('https://attaroqqy.com/api/db/santri', {
+      console.log('[Server] Forwarding POST new santri to api_alumni.php');
+      const remoteRes = await fetch('https://attaroqqy.com/api_alumni.php?action=add_alumni', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Accept: 'application/json',
         },
         body: JSON.stringify(req.body),
+        signal: AbortSignal.timeout(12000),
       });
 
       const responseData = await remoteRes.json().catch(() => ({ success: remoteRes.ok }));
       cachedSantriData = null;
-      res.status(remoteRes.status).json(responseData);
+      lastCacheTime = 0;
+      res.status(remoteRes.status || 200).json(responseData);
     } catch (err: any) {
       console.warn('[Server] Error proxying POST santri:', err?.message);
       res.status(500).json({ success: false, message: err?.message });
@@ -230,17 +235,21 @@ async function startServer() {
   app.delete('/api/db/santri/:id', async (req, res) => {
     const { id } = req.params;
     try {
-      console.log(`[Server] Forwarding DELETE for santri ID: ${id}`);
-      const remoteRes = await fetch(`https://attaroqqy.com/api/db/santri/${encodeURIComponent(id)}`, {
-        method: 'DELETE',
+      console.log(`[Server] Forwarding DELETE for santri ID: ${id} to api_alumni.php`);
+      const remoteRes = await fetch('https://attaroqqy.com/api_alumni.php?action=delete_alumni', {
+        method: 'POST',
         headers: {
+          'Content-Type': 'application/json',
           Accept: 'application/json',
         },
+        body: JSON.stringify({ id }),
+        signal: AbortSignal.timeout(12000),
       });
 
       const responseData = await remoteRes.json().catch(() => ({ success: remoteRes.ok }));
       cachedSantriData = null;
-      res.status(remoteRes.status).json(responseData);
+      lastCacheTime = 0;
+      res.status(remoteRes.status || 200).json(responseData);
     } catch (err: any) {
       console.warn(`[Server] Error proxying DELETE for ${id}:`, err?.message);
       res.status(500).json({ success: false, message: err?.message });
@@ -256,15 +265,15 @@ async function startServer() {
     try {
       const remoteRes = await fetch('https://attaroqqy.com/api_alumni.php?action=get_events', {
         headers: { Accept: 'application/json' },
-        signal: AbortSignal.timeout(4000),
+        signal: AbortSignal.timeout(10000),
       });
       const contentType = remoteRes.headers.get('content-type') || '';
       if (remoteRes.ok && contentType.includes('application/json')) {
         const text = await remoteRes.text();
         if (text.trim().startsWith('{') || text.trim().startsWith('[')) {
           const data = JSON.parse(text);
-          const list = Array.isArray(data) ? data : (Array.isArray(data?.data) ? data.data : []);
-          if (list.length > 0) {
+          const list = Array.isArray(data) ? data : (Array.isArray(data?.data) ? data.data : null);
+          if (Array.isArray(list)) {
             cachedEvents = list;
             return res.json({ success: true, data: list });
           }
@@ -285,17 +294,21 @@ async function startServer() {
       else cachedEvents.unshift(event);
     }
     try {
-      fetch('https://attaroqqy.com/api_alumni.php?action=save_event', {
+      const remoteRes = await fetch('https://attaroqqy.com/api_alumni.php?action=save_event', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Accept: 'application/json',
         },
         body: JSON.stringify(req.body),
-        signal: AbortSignal.timeout(4000),
-      }).catch(() => {});
-    } catch (err: any) {}
-    res.json({ success: true, id: req.body?.id });
+        signal: AbortSignal.timeout(12000),
+      });
+      const data = await remoteRes.json().catch(() => null);
+      return res.json(data || { success: true, id: req.body?.id });
+    } catch (err: any) {
+      console.warn('[Server] Error proxying save_event to Hostinger:', err?.message);
+      return res.json({ success: true, id: req.body?.id, note: 'Saved locally' });
+    }
   });
 
   // Events API: DELETE
@@ -303,14 +316,14 @@ async function startServer() {
     const { id } = req.params;
     cachedEvents = cachedEvents.filter((e: any) => e.id !== id);
     try {
-      fetch('https://attaroqqy.com/api_alumni.php?action=delete_event', {
+      await fetch('https://attaroqqy.com/api_alumni.php?action=delete_event', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Accept: 'application/json',
         },
         body: JSON.stringify({ id }),
-        signal: AbortSignal.timeout(4000),
+        signal: AbortSignal.timeout(10000),
       }).catch(() => {});
     } catch (err: any) {}
     res.json({ success: true });
@@ -319,14 +332,14 @@ async function startServer() {
   // Events API: RSVP
   app.post('/api/events/rsvp', async (req, res) => {
     try {
-      fetch('https://attaroqqy.com/api_alumni.php?action=save_rsvp', {
+      await fetch('https://attaroqqy.com/api_alumni.php?action=save_rsvp', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Accept: 'application/json',
         },
         body: JSON.stringify(req.body),
-        signal: AbortSignal.timeout(4000),
+        signal: AbortSignal.timeout(10000),
       }).catch(() => {});
     } catch (err: any) {}
     res.json({ success: true });
@@ -337,15 +350,15 @@ async function startServer() {
     try {
       const remoteRes = await fetch('https://attaroqqy.com/api_alumni.php?action=get_announcements', {
         headers: { Accept: 'application/json' },
-        signal: AbortSignal.timeout(4000),
+        signal: AbortSignal.timeout(10000),
       });
       const contentType = remoteRes.headers.get('content-type') || '';
       if (remoteRes.ok && contentType.includes('application/json')) {
         const text = await remoteRes.text();
         if (text.trim().startsWith('{') || text.trim().startsWith('[')) {
           const data = JSON.parse(text);
-          const list = Array.isArray(data) ? data : (Array.isArray(data?.data) ? data.data : []);
-          if (list.length > 0) {
+          const list = Array.isArray(data) ? data : (Array.isArray(data?.data) ? data.data : null);
+          if (Array.isArray(list)) {
             cachedAnnouncements = list;
             return res.json({ success: true, data: list });
           }
@@ -366,17 +379,21 @@ async function startServer() {
       else cachedAnnouncements.unshift(ann);
     }
     try {
-      fetch('https://attaroqqy.com/api_alumni.php?action=save_announcement', {
+      const remoteRes = await fetch('https://attaroqqy.com/api_alumni.php?action=save_announcement', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Accept: 'application/json',
         },
         body: JSON.stringify(req.body),
-        signal: AbortSignal.timeout(4000),
-      }).catch(() => {});
-    } catch (err: any) {}
-    res.json({ success: true, id: req.body?.id });
+        signal: AbortSignal.timeout(12000),
+      });
+      const data = await remoteRes.json().catch(() => null);
+      return res.json(data || { success: true, id: req.body?.id });
+    } catch (err: any) {
+      console.warn('[Server] Error proxying save_announcement to Hostinger:', err?.message);
+      return res.json({ success: true, id: req.body?.id, note: 'Saved locally' });
+    }
   });
 
   // Announcements API: DELETE
@@ -384,14 +401,14 @@ async function startServer() {
     const { id } = req.params;
     cachedAnnouncements = cachedAnnouncements.filter((a: any) => a.id !== id);
     try {
-      fetch('https://attaroqqy.com/api_alumni.php?action=delete_announcement', {
+      await fetch('https://attaroqqy.com/api_alumni.php?action=delete_announcement', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Accept: 'application/json',
         },
         body: JSON.stringify({ id }),
-        signal: AbortSignal.timeout(4000),
+        signal: AbortSignal.timeout(10000),
       }).catch(() => {});
     } catch (err: any) {}
     res.json({ success: true });

@@ -11,6 +11,10 @@ header('Content-Type: application/json; charset=utf-8');
 header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type, Authorization, X-API-KEY');
+header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+header('Cache-Control: post-check=0, pre-check=0', false);
+header('Pragma: no-cache');
+header('Expires: 0');
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     http_response_code(200);
@@ -133,6 +137,15 @@ function ensureTablesExist($pdo) {
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
         ");
+        // Ensure columns in events and announcements can hold large images if created as TEXT earlier
+        try {
+            $pdo->exec("ALTER TABLE events MODIFY COLUMN poster_url LONGTEXT DEFAULT NULL;");
+            $pdo->exec("ALTER TABLE events MODIFY COLUMN images LONGTEXT DEFAULT NULL;");
+            $pdo->exec("ALTER TABLE announcements MODIFY COLUMN images LONGTEXT DEFAULT NULL;");
+        } catch (Exception $alterEx) {
+            // Already altered or non-fatal
+        }
+
         $checked = true;
     } catch (Exception $e) {
         // Silent catch
@@ -342,14 +355,47 @@ if ($action === 'update_alumni' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         $fields[] = "status_keanggotaan = 'Alumni'";
 
         // Biodata Santri
+        $namaVal = $input['nama'] ?? $input['name'] ?? null;
+        if ($namaVal !== null) { $fields[] = "nama = :name"; $params[':name'] = $namaVal; }
         if (isset($input['nis'])) { $fields[] = "nis = :nis"; $params[':nis'] = $input['nis']; }
-        if (isset($input['name'])) { $fields[] = "nama = :name"; $params[':name'] = $input['name']; }
+        if (isset($input['nik'])) { $fields[] = "nik = :nik"; $params[':nik'] = $input['nik']; }
+        if (isset($input['no_kk']) || isset($input['noKk'])) { 
+            $fields[] = "no_kk = :noKk"; 
+            $params[':noKk'] = $input['no_kk'] ?? $input['noKk']; 
+        }
         if (isset($input['username'])) { $fields[] = "username = :username"; $params[':username'] = $input['username']; }
-        if (isset($input['gender'])) { $fields[] = "gender = :gender"; $params[':gender'] = ($input['gender'] === 'P') ? 'Putri' : 'Putra'; }
-        if (isset($input['tempatLahir'])) { $fields[] = "tempat_lahir = :tempatLahir"; $params[':tempatLahir'] = $input['tempatLahir']; }
-        if (isset($input['tanggalLahir'])) { $fields[] = "tanggal_lahir = :tanggalLahir"; $params[':tanggalLahir'] = $input['tanggalLahir']; }
-        if (isset($input['urutanAnak'])) { $fields[] = "anak_ke = :anakKe"; $params[':anakKe'] = $input['urutanAnak']; }
-        if (isset($input['jumlahSaudara'])) { $fields[] = "dari_bersaudara = :saudara"; $params[':saudara'] = $input['jumlahSaudara']; }
+        
+        $genderInput = $input['gender'] ?? $input['jenis_kelamin'] ?? $input['raw_gender'] ?? $input['jk'] ?? null;
+        if ($genderInput !== null) { 
+            $parsedG = parseSantriGender($genderInput);
+            $genderVal = ($parsedG === 'P') ? 'Putri' : 'Putra';
+            $fields[] = "gender = :gender"; 
+            $params[':gender'] = $genderVal;
+        }
+
+        if (isset($input['tempatLahir']) || isset($input['tempat_lahir'])) { 
+            $fields[] = "tempat_lahir = :tempatLahir"; 
+            $params[':tempatLahir'] = $input['tempatLahir'] ?? $input['tempat_lahir']; 
+        }
+        if (isset($input['tanggalLahir']) || isset($input['tanggal_lahir'])) { 
+            $fields[] = "tanggal_lahir = :tanggalLahir"; 
+            $params[':tanggalLahir'] = $input['tanggalLahir'] ?? $input['tanggal_lahir']; 
+        }
+        
+        $anakVal = $input['anak_ke'] ?? $input['urutanAnak'] ?? $input['anakKe'] ?? null;
+        if ($anakVal !== null) { $fields[] = "anak_ke = :anakKe"; $params[':anakKe'] = $anakVal; }
+
+        $saudaraVal = $input['dari_bersaudara'] ?? $input['jumlahSaudara'] ?? $input['dariBersaudara'] ?? null;
+        if ($saudaraVal !== null) { $fields[] = "dari_bersaudara = :saudara"; $params[':saudara'] = $saudaraVal; }
+
+        if (isset($input['kamar']) || isset($input['asramaDulu'])) {
+            $fields[] = "kamar = :kamar";
+            $params[':kamar'] = $input['kamar'] ?? $input['asramaDulu'];
+        }
+        if (isset($input['kelas']) || isset($input['jenjang'])) {
+            $fields[] = "kelas = :kelas";
+            $params[':kelas'] = $input['kelas'] ?? $input['jenjang'];
+        }
 
         // Data Orang Tua
         if (isset($input['namaAyah'])) { $fields[] = "nama_ayah = :namaAyah"; $params[':namaAyah'] = $input['namaAyah']; }
@@ -796,6 +842,13 @@ if ($action === 'save_event' && $_SERVER['REQUEST_METHOD'] === 'POST') {
 
         $stmt = $pdo->prepare($sql);
         $target = $input['targetAudience'] ?? [];
+        $processedPoster = !empty($input['posterUrl']) ? processIncomingPhoto($input['posterUrl'], 'event_poster') : '';
+        $processedImages = [];
+        if (!empty($input['images']) && is_array($input['images'])) {
+            foreach ($input['images'] as $img) {
+                $processedImages[] = processIncomingPhoto($img, 'event_img');
+            }
+        }
         $stmt->execute([
             ':id' => $id,
             ':title' => $input['title'] ?? '',
@@ -804,8 +857,8 @@ if ($action === 'save_event' && $_SERVER['REQUEST_METHOD'] === 'POST') {
             ':location' => $input['location'] ?? '',
             ':category' => $input['category'] ?? 'reuni',
             ':description' => $input['description'] ?? '',
-            ':poster_url' => $input['posterUrl'] ?? '',
-            ':images' => !empty($input['images']) ? json_encode($input['images']) : null,
+            ':poster_url' => $processedPoster,
+            ':images' => !empty($processedImages) ? json_encode($processedImages) : null,
             ':author_name' => $input['authorName'] ?? 'Pengurus Pusat',
             ':author_handle' => $input['authorHandle'] ?? '@admin_pusat',
             ':author_avatar' => $input['authorAvatar'] ?? '',
@@ -941,6 +994,12 @@ if ($action === 'save_announcement' && $_SERVER['REQUEST_METHOD'] === 'POST') {
 
         $stmt = $pdo->prepare($sql);
         $target = $input['targetAudience'] ?? [];
+        $processedImages = [];
+        if (!empty($input['images']) && is_array($input['images'])) {
+            foreach ($input['images'] as $img) {
+                $processedImages[] = processIncomingPhoto($img, 'ann_img');
+            }
+        }
         $stmt->execute([
             ':id' => $id,
             ':title' => $input['title'] ?? '',
@@ -952,7 +1011,7 @@ if ($action === 'save_announcement' && $_SERVER['REQUEST_METHOD'] === 'POST') {
             ':author_avatar' => $input['authorAvatar'] ?? '',
             ':author_role' => $input['authorRole'] ?? 'Pengurus',
             ':is_important' => !empty($input['isImportant']) ? 1 : 0,
-            ':images' => !empty($input['images']) ? json_encode($input['images']) : null,
+            ':images' => !empty($processedImages) ? json_encode($processedImages) : null,
             ':target_gender' => $target['gender'] ?? 'semua',
             ':target_region_scope' => $target['regionScope'] ?? 'semua',
             ':target_province_name' => $target['provinceName'] ?? null,
