@@ -36,7 +36,9 @@ import {
   Globe,
   ArrowUpDown,
   Briefcase,
-  FileText
+  FileText,
+  RotateCw,
+  BookOpen
 } from 'lucide-react';
 import { AlumniRecord, AdminUser, EventAgenda, EventComment, EventCommentReply, AnnouncementItem, AttendanceSession, AttendanceAttendee, AudienceTarget } from '../types';
 import { AddAlumniModal } from './admin/AddAlumniModal';
@@ -64,6 +66,7 @@ import { formatAuthorUsername, resolveAuthorAlumniRecord } from '../utils/author
 import { shareMediaWithCaption } from '../utils/shareUtils';
 import { useBackHandler } from '../utils/navigationHistory';
 import { getAlumniPhotoUrl } from '../utils/photoUtils';
+import { QuranView } from './QuranView';
 import logoPonpesImg from '../assets/images/logo_ponpes_attaroqqy_1790648746461.jpg';
 import posterReuniImg from '../assets/images/poster_reuni_akbar_1790648045947.jpg';
 
@@ -170,6 +173,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
   const [announcementList, setAnnouncementList] = useState<AnnouncementItem[]>(
     announcements || INITIAL_ANNOUNCEMENTS
   );
+  const [isQuranViewOpen, setIsQuranViewOpen] = useState(false);
 
   // Admin Profile Edit State
   const [adminUser, setAdminUser] = useState<AdminUser>(admin);
@@ -1483,6 +1487,23 @@ export const AdminView: React.FC<AdminViewProps> = ({
                 >
                   <Filter className="w-4 h-4" />
                 </button>
+
+                {/* Tombol Segarkan Data Realtime dari Hostinger */}
+                {onRefreshData && (
+                  <button
+                    type="button"
+                    onClick={onRefreshData}
+                    disabled={isDbLoading}
+                    className={`p-2.5 rounded-xl border transition-all cursor-pointer flex items-center justify-center shrink-0 ${
+                      isDbLoading
+                        ? 'bg-sky-50 text-sky-600 border-sky-200'
+                        : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+                    }`}
+                    title="Segarkan Sinkronisasi Realtime Database Hostinger"
+                  >
+                    <RotateCw className={`w-4 h-4 ${isDbLoading ? 'animate-spin text-sky-600' : ''}`} />
+                  </button>
+                )}
               </div>
 
               {/* Filter Label Gender: Semua, Putra, Putri */}
@@ -1962,8 +1983,28 @@ export const AdminView: React.FC<AdminViewProps> = ({
                   </div>
                 </div>
 
+                {/* Tombol Akses Al-Qur'an Digital */}
+                <div className="pt-4">
+                  <button
+                    type="button"
+                    onClick={() => setIsQuranViewOpen(true)}
+                    className="w-full py-3.5 px-4 bg-emerald-50 hover:bg-emerald-100/80 text-emerald-900 font-bold rounded-2xl flex items-center justify-between border border-emerald-200/80 transition-all cursor-pointer text-sm shadow-2xs active:scale-[0.99] group"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-xl bg-emerald-600 text-white flex items-center justify-center shadow-xs shrink-0">
+                        <BookOpen className="w-5 h-5" />
+                      </div>
+                      <div className="text-left">
+                        <p className="font-bold text-sm text-emerald-950">Al-Qur'an Digital 30 Juz</p>
+                        <p className="text-[11px] font-normal text-emerald-700">Mushaf lengkap, terjemahan & audio murottal</p>
+                      </div>
+                    </div>
+                    <ChevronRight className="w-4 h-4 text-emerald-600 group-hover:translate-x-0.5 transition-transform" />
+                  </button>
+                </div>
+
                 {/* Tombol Keluar dari Akun Admin */}
-                <div className="pt-6">
+                <div className="pt-4">
                   <button
                     type="button"
                     onClick={onLogout}
@@ -3468,6 +3509,12 @@ export const AdminView: React.FC<AdminViewProps> = ({
           onClose={() => setSelectedAuthorProfile(null)}
         />
       )}
+
+      {/* ================= AL-QUR'AN DIGITAL 30 JUZ ================= */}
+      <QuranView
+        isOpen={isQuranViewOpen}
+        onClose={() => setIsQuranViewOpen(false)}
+      />
     </div>
   );
 };

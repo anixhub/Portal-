@@ -26,6 +26,7 @@ import {
   fetchAnnouncementsFromHostinger,
   saveAnnouncementToHostinger,
   deleteAnnouncementFromHostinger,
+  syncChannel,
 } from './services/apiService';
 
 export default function App() {
@@ -143,12 +144,12 @@ export default function App() {
   const [isDbLoading, setIsDbLoading] = useState(true);
   const [isDbConnected, setIsDbConnected] = useState(false);
 
-  // Load real data from Hostinger MySQL database on mount & support manual refresh
-  const loadData = async () => {
-    setIsDbLoading(true);
+  // Load real data from Hostinger MySQL database on mount & support manual refresh and background polling
+  const loadData = async (silent: boolean = false) => {
+    if (!silent) setIsDbLoading(true);
     try {
       const [alumniRes, eventsRes, annRes] = await Promise.all([
-        fetchAlumniFromHostinger(),
+        fetchAlumniFromHostinger(true),
         fetchEventsFromHostinger(),
         fetchAnnouncementsFromHostinger(),
       ]);
@@ -170,7 +171,7 @@ export default function App() {
           return prev;
         });
       } else {
-        setIsDbConnected(false);
+        if (!silent) setIsDbConnected(false);
       }
 
       if (eventsRes.success && eventsRes.data && eventsRes.data.length > 0) {
@@ -182,46 +183,54 @@ export default function App() {
       }
     } catch (err) {
       console.warn('Gagal memuat data dari Hostinger:', err);
-      setIsDbConnected(false);
+      if (!silent) setIsDbConnected(false);
     } finally {
-      setIsDbLoading(false);
+      if (!silent) setIsDbLoading(false);
     }
   };
 
   useEffect(() => {
-    loadData();
+    loadData(false);
 
-    // Auto-refresh sinkronisasi data saat user kembali membuka tab/layar browser
+    // 1. Sinkronisasi otomatis setiap 8 detik (Polling 2-arah realtime)
+    const pollInterval = setInterval(() => {
+      loadData(true);
+    }, 8000);
+
+    // 2. Auto-refresh saat jendela browser mendapatkan fokus kembali atau kembali online
     const handleWindowFocus = () => {
-      fetchAlumniFromHostinger()
-        .then((res) => {
-          if (res.success && res.data && res.data.length > 0) {
-            setAlumniList(res.data);
-            setIsDbConnected(true);
-          }
-        })
-        .catch(() => {});
-
-      fetchEventsFromHostinger()
-        .then((res) => {
-          if (res.success && res.data && res.data.length > 0) {
-            setEvents(res.data);
-          }
-        })
-        .catch(() => {});
-
-      fetchAnnouncementsFromHostinger()
-        .then((res) => {
-          if (res.success && res.data && res.data.length > 0) {
-            setAnnouncements(res.data);
-          }
-        })
-        .catch(() => {});
+      loadData(true);
     };
 
     window.addEventListener('focus', handleWindowFocus);
+    window.addEventListener('online', handleWindowFocus);
+
+    // 3. Sinkronisasi instan via BroadcastChannel (antar-tab & antar-window)
+    const handleBroadcastMessage = (event: MessageEvent) => {
+      console.log('[Realtime Sync] Sinyal update diterima:', event.data);
+      loadData(true);
+    };
+
+    if (syncChannel) {
+      syncChannel.addEventListener('message', handleBroadcastMessage);
+    }
+
+    // 4. Fallback sinkronisasi via Storage Event jika BroadcastChannel tidak aktif
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'attaroqqy_sync_pulse') {
+        loadData(true);
+      }
+    };
+    window.addEventListener('storage', handleStorageChange);
+
     return () => {
+      clearInterval(pollInterval);
       window.removeEventListener('focus', handleWindowFocus);
+      window.removeEventListener('online', handleWindowFocus);
+      if (syncChannel) {
+        syncChannel.removeEventListener('message', handleBroadcastMessage);
+      }
+      window.removeEventListener('storage', handleStorageChange);
     };
   }, []);
 
@@ -588,6 +597,9 @@ export default function App() {
           onUpdateProfile={handleUpdateAlumniProfile}
           onRsvpEvent={handleRsvpEvent}
           onAddAnnouncement={handleAddAnnouncement}
+          isDbLoading={isDbLoading}
+          isDbConnected={isDbConnected}
+          onRefreshData={() => loadData(false)}
         />
       )}
 

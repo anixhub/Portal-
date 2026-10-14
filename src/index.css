@@ -92,3 +92,7 @@
   animation: gpsPulse 2s infinite cubic-bezier(0.2, 0.6, 0.35, 1);
 }
 
+.font-arabic {
+  font-family: 'Amiri Quran', 'Scheherazade New', 'Traditional Arabic', serif;
+}
+

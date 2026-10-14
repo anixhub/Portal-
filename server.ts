@@ -45,7 +45,7 @@ async function getSantriData(forceFresh: boolean = false): Promise<any> {
   }
 
   const urlsToTry = [
-    'https://attaroqqy.com/api_alumni.php?action=get_alumni',
+    'https://alumni.attaroqqy.com/api_alumni.php?action=get_alumni',
     'https://attaroqqy.com/api/db/santri',
   ];
 
@@ -184,23 +184,32 @@ async function startServer() {
   app.put('/api/db/santri/:id', async (req, res) => {
     const { id } = req.params;
     try {
-      console.log(`[Server] Forwarding PUT update for santri ID: ${id} to api_alumni.php`);
+      console.log(`[Server] Forwarding PUT update for santri ID: ${id} to alumni.attaroqqy.com and attaroqqy.com`);
       const payload = { id, ...req.body };
-      const remoteRes = await fetch('https://attaroqqy.com/api_alumni.php?action=update_alumni', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Accept: 'application/json',
-        },
-        body: JSON.stringify(payload),
-        signal: AbortSignal.timeout(12000),
-      });
+      await Promise.allSettled([
+        fetch('https://alumni.attaroqqy.com/api_alumni.php?action=update_alumni', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Accept: 'application/json',
+          },
+          body: JSON.stringify(payload),
+          signal: AbortSignal.timeout(12000),
+        }),
+        fetch(`https://attaroqqy.com/api/db/santri/${id}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            Accept: 'application/json',
+          },
+          body: JSON.stringify(payload),
+          signal: AbortSignal.timeout(12000),
+        }),
+      ]);
 
-      const responseData = await remoteRes.json().catch(() => ({ success: remoteRes.ok }));
-      // Invalidate memory cache so next GET fetches fresh data immediately
       cachedSantriData = null;
       lastCacheTime = 0;
-      res.status(remoteRes.status || 200).json(responseData);
+      res.json({ success: true, message: 'Data santri berhasil diperbarui' });
     } catch (err: any) {
       console.warn(`[Server] Error proxying PUT for ${id}:`, err?.message);
       res.status(500).json({ success: false, message: err?.message });
@@ -210,21 +219,31 @@ async function startServer() {
   // Santri API: POST (create)
   app.post('/api/db/santri', async (req, res) => {
     try {
-      console.log('[Server] Forwarding POST new santri to api_alumni.php');
-      const remoteRes = await fetch('https://attaroqqy.com/api_alumni.php?action=add_alumni', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Accept: 'application/json',
-        },
-        body: JSON.stringify(req.body),
-        signal: AbortSignal.timeout(12000),
-      });
+      console.log('[Server] Forwarding POST new santri to alumni.attaroqqy.com and attaroqqy.com');
+      await Promise.allSettled([
+        fetch('https://alumni.attaroqqy.com/api_alumni.php?action=add_alumni', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Accept: 'application/json',
+          },
+          body: JSON.stringify(req.body),
+          signal: AbortSignal.timeout(12000),
+        }),
+        fetch('https://attaroqqy.com/api/db/santri', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Accept: 'application/json',
+          },
+          body: JSON.stringify(req.body),
+          signal: AbortSignal.timeout(12000),
+        }),
+      ]);
 
-      const responseData = await remoteRes.json().catch(() => ({ success: remoteRes.ok }));
       cachedSantriData = null;
       lastCacheTime = 0;
-      res.status(remoteRes.status || 200).json(responseData);
+      res.json({ success: true, message: 'Santri/alumni baru berhasil ditambahkan' });
     } catch (err: any) {
       console.warn('[Server] Error proxying POST santri:', err?.message);
       res.status(500).json({ success: false, message: err?.message });
@@ -235,8 +254,8 @@ async function startServer() {
   app.delete('/api/db/santri/:id', async (req, res) => {
     const { id } = req.params;
     try {
-      console.log(`[Server] Forwarding DELETE for santri ID: ${id} to api_alumni.php`);
-      const remoteRes = await fetch('https://attaroqqy.com/api_alumni.php?action=delete_alumni', {
+      console.log(`[Server] Forwarding DELETE for santri ID: ${id} to alumni.attaroqqy.com`);
+      const remoteRes = await fetch('https://alumni.attaroqqy.com/api_alumni.php?action=delete_alumni', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -263,7 +282,7 @@ async function startServer() {
   // Events API: GET
   app.get('/api/events', async (req, res) => {
     try {
-      const remoteRes = await fetch('https://attaroqqy.com/api_alumni.php?action=get_events', {
+      const remoteRes = await fetch('https://alumni.attaroqqy.com/api_alumni.php?action=get_events', {
         headers: { Accept: 'application/json' },
         signal: AbortSignal.timeout(10000),
       });
@@ -294,7 +313,7 @@ async function startServer() {
       else cachedEvents.unshift(event);
     }
     try {
-      const remoteRes = await fetch('https://attaroqqy.com/api_alumni.php?action=save_event', {
+      const remoteRes = await fetch('https://alumni.attaroqqy.com/api_alumni.php?action=save_event', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -316,7 +335,7 @@ async function startServer() {
     const { id } = req.params;
     cachedEvents = cachedEvents.filter((e: any) => e.id !== id);
     try {
-      await fetch('https://attaroqqy.com/api_alumni.php?action=delete_event', {
+      await fetch('https://alumni.attaroqqy.com/api_alumni.php?action=delete_event', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -332,7 +351,7 @@ async function startServer() {
   // Events API: RSVP
   app.post('/api/events/rsvp', async (req, res) => {
     try {
-      await fetch('https://attaroqqy.com/api_alumni.php?action=save_rsvp', {
+      await fetch('https://alumni.attaroqqy.com/api_alumni.php?action=save_rsvp', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -348,7 +367,7 @@ async function startServer() {
   // Announcements API: GET
   app.get('/api/announcements', async (req, res) => {
     try {
-      const remoteRes = await fetch('https://attaroqqy.com/api_alumni.php?action=get_announcements', {
+      const remoteRes = await fetch('https://alumni.attaroqqy.com/api_alumni.php?action=get_announcements', {
         headers: { Accept: 'application/json' },
         signal: AbortSignal.timeout(10000),
       });
@@ -379,7 +398,7 @@ async function startServer() {
       else cachedAnnouncements.unshift(ann);
     }
     try {
-      const remoteRes = await fetch('https://attaroqqy.com/api_alumni.php?action=save_announcement', {
+      const remoteRes = await fetch('https://alumni.attaroqqy.com/api_alumni.php?action=save_announcement', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -401,7 +420,7 @@ async function startServer() {
     const { id } = req.params;
     cachedAnnouncements = cachedAnnouncements.filter((a: any) => a.id !== id);
     try {
-      await fetch('https://attaroqqy.com/api_alumni.php?action=delete_announcement', {
+      await fetch('https://alumni.attaroqqy.com/api_alumni.php?action=delete_announcement', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

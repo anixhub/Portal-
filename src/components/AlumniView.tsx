@@ -88,6 +88,7 @@ import { formatAudienceSummary } from './common/AudienceTargetModal';
 import { AlumniFinanceView } from './AlumniFinanceView';
 import { formatAuthorUsername, resolveAuthorAlumniRecord } from '../utils/authorUtils';
 import { useBackHandler } from '../utils/navigationHistory';
+import { QuranView } from './QuranView';
 import { getAlumniPhotoUrl } from '../utils/photoUtils';
 import { RealQrCode } from './common/RealQrCode';
 import { generateNisFromEntryDate } from '../utils/alumniIdentityUtils';
@@ -162,6 +163,9 @@ interface AlumniViewProps {
   onUpdateProfile: (updated: Partial<AlumniRecord>) => void;
   onRsvpEvent: (eventId: string, rsvp: 'hadir' | 'belum_pasti' | 'tidak_hadir', note?: string) => void;
   onAddAnnouncement?: (newAnn: AnnouncementItem) => void;
+  isDbLoading?: boolean;
+  isDbConnected?: boolean;
+  onRefreshData?: () => void;
 }
 
 type TabType = 'home' | 'events' | 'directory' | 'finance' | 'profile' | 'notifications' | 'announcements';
@@ -384,6 +388,9 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
   onUpdateProfile,
   onRsvpEvent,
   onAddAnnouncement,
+  isDbLoading = false,
+  isDbConnected = true,
+  onRefreshData,
 }) => {
   const [activeTab, setActiveTab] = useState<TabType>('home');
   const [isCardFlipped, setIsCardFlipped] = useState(false);
@@ -417,6 +424,8 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
     }
   }, []);
   const [activeIslamicMenu, setActiveIslamicMenu] = useState<'quran' | 'majmuah' | 'maulid' | 'aurod' | null>(null);
+  const [isQuranViewOpen, setIsQuranViewOpen] = useState(false);
+  const [selectedQuranSurah, setSelectedQuranSurah] = useState<number | undefined>(undefined);
   const [fullscreenPosterUrl, setFullscreenPosterUrl] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
@@ -484,16 +493,8 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
   const [editTempatLahir, setEditTempatLahir] = useState(alumni.tempatLahir || '');
   const [editTanggalLahir, setEditTanggalLahir] = useState(alumni.tanggalLahir || '');
   const [editGender, setEditGender] = useState<'L' | 'P'>((alumni.gender as 'L' | 'P') || 'L');
-  const [editUrutanAnak, setEditUrutanAnak] = useState<number | string>(
-    alumni.anak_ke !== undefined && alumni.anak_ke !== null
-      ? Number(alumni.anak_ke)
-      : (alumni.urutanAnak !== undefined && alumni.urutanAnak !== null ? Number(alumni.urutanAnak) : 1)
-  );
-  const [editJumlahSaudara, setEditJumlahSaudara] = useState<number | string>(
-    alumni.dari_bersaudara !== undefined && alumni.dari_bersaudara !== null
-      ? Number(alumni.dari_bersaudara)
-      : (alumni.jumlahSaudara !== undefined && alumni.jumlahSaudara !== null ? Number(alumni.jumlahSaudara) : 0)
-  );
+  const [editUrutanAnak, setEditUrutanAnak] = useState<number>(Number(alumni.anak_ke ?? alumni.urutanAnak) || 1);
+  const [editJumlahSaudara, setEditJumlahSaudara] = useState<number>(Number(alumni.dari_bersaudara ?? alumni.jumlahSaudara) || 1);
   const [editUsername, setEditUsername] = useState(alumni.username || '');
   const [editPhone, setEditPhone] = useState(alumni.phone);
   const [editEmail, setEditEmail] = useState(alumni.email);
@@ -746,16 +747,8 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
     setEditTempatLahir(alumni.tempatLahir || '');
     setEditTanggalLahir(alumni.tanggalLahir || '');
     setEditGender((alumni.gender as 'L' | 'P') || 'L');
-    setEditUrutanAnak(
-      alumni.anak_ke !== undefined && alumni.anak_ke !== null
-        ? Number(alumni.anak_ke)
-        : (alumni.urutanAnak !== undefined && alumni.urutanAnak !== null ? Number(alumni.urutanAnak) : 1)
-    );
-    setEditJumlahSaudara(
-      alumni.dari_bersaudara !== undefined && alumni.dari_bersaudara !== null
-        ? Number(alumni.dari_bersaudara)
-        : (alumni.jumlahSaudara !== undefined && alumni.jumlahSaudara !== null ? Number(alumni.jumlahSaudara) : 0)
-    );
+    setEditUrutanAnak(Number(alumni.anak_ke ?? alumni.urutanAnak) || 1);
+    setEditJumlahSaudara(Number(alumni.dari_bersaudara ?? alumni.jumlahSaudara) || 1);
     setEditUsername(alumni.username || '');
     setEditPhone(alumni.phone);
     setEditEmail(alumni.email);
@@ -1469,6 +1462,19 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
                   )}
                 </button>
 
+                {/* Tombol Segarkan Data Realtime */}
+                {onRefreshData && (
+                  <button
+                    type="button"
+                    onClick={onRefreshData}
+                    disabled={isDbLoading}
+                    className="w-11 h-11 rounded-full bg-white border border-slate-200/80 shadow-xs flex items-center justify-center relative cursor-pointer hover:bg-slate-50 transition-colors disabled:opacity-50"
+                    title="Segarkan Data Realtime Hostinger"
+                  >
+                    <RotateCw className={`w-4 h-4 text-slate-800 ${isDbLoading ? 'animate-spin text-sky-600' : ''}`} />
+                  </button>
+                )}
+
                 {/* Tombol Lonceng Notifikasi */}
                 <button
                   type="button"
@@ -1512,7 +1518,10 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
               <div className="grid grid-cols-2 gap-3 select-none">
                 {/* 1. Alquran */}
                 <div
-                  onClick={() => setActiveIslamicMenu('quran')}
+                  onClick={() => {
+                    setSelectedQuranSurah(undefined);
+                    setIsQuranViewOpen(true);
+                  }}
                   className="relative rounded-[26px] overflow-hidden shadow-sm flex flex-col justify-between h-36 cursor-pointer hover:shadow-md transition-all active:scale-[0.98] group select-none border border-sky-100"
                 >
                   <img
@@ -2925,20 +2934,9 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
                           min={1}
                           max={25}
                           value={editUrutanAnak}
-                          onFocus={(e) => e.target.select()}
                           onChange={(e) => {
-                            const raw = e.target.value;
-                            if (raw === '') {
-                              setEditUrutanAnak('');
-                              return;
-                            }
-                            const val = parseInt(raw, 10);
-                            setEditUrutanAnak(isNaN(val) ? '' : val);
-                          }}
-                          onBlur={() => {
-                            if (editUrutanAnak === '' || Number(editUrutanAnak) < 1) {
-                              setEditUrutanAnak(1);
-                            }
+                            const val = Math.max(1, parseInt(e.target.value) || 1);
+                            setEditUrutanAnak(val);
                           }}
                           className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-medium focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500 text-xs"
                         />
@@ -2950,20 +2948,9 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
                           min={0}
                           max={25}
                           value={editJumlahSaudara}
-                          onFocus={(e) => e.target.select()}
                           onChange={(e) => {
-                            const raw = e.target.value;
-                            if (raw === '') {
-                              setEditJumlahSaudara('');
-                              return;
-                            }
-                            const val = parseInt(raw, 10);
-                            setEditJumlahSaudara(isNaN(val) ? '' : Math.max(0, val));
-                          }}
-                          onBlur={() => {
-                            if (editJumlahSaudara === '' || Number(editJumlahSaudara) < 0) {
-                              setEditJumlahSaudara(0);
-                            }
+                            const val = Math.max(0, parseInt(e.target.value) || 0);
+                            setEditJumlahSaudara(val);
                           }}
                           className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-medium focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500 text-xs"
                         />
@@ -2975,12 +2962,8 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
                     <button 
                       type="button" 
                       onClick={() => { 
-                        const finalAnak = typeof editUrutanAnak === 'number'
-                          ? Math.max(1, editUrutanAnak)
-                          : (parseInt(String(editUrutanAnak), 10) || 1);
-                        const finalSaudara = typeof editJumlahSaudara === 'number'
-                          ? Math.max(0, editJumlahSaudara)
-                          : (parseInt(String(editJumlahSaudara), 10) || 0);
+                        const finalAnak = Math.max(1, editUrutanAnak);
+                        const finalSaudara = Math.max(0, editJumlahSaudara);
                         setEditUrutanAnak(finalAnak);
                         setEditJumlahSaudara(finalSaudara);
                         onUpdateProfile({ 
@@ -4442,6 +4425,18 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
             <div className="flex-1 overflow-y-auto space-y-2 pr-1 no-scrollbar text-xs">
               {activeIslamicMenu === 'quran' && (
                 <div className="space-y-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedQuranSurah(undefined);
+                      setActiveIslamicMenu(null);
+                      setIsQuranViewOpen(true);
+                    }}
+                    className="w-full mb-3 py-3 px-4 bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-800 text-white rounded-2xl font-bold text-xs flex items-center justify-center gap-2 shadow-sm active:scale-[0.98] transition-all cursor-pointer"
+                  >
+                    <BookOpen className="w-4 h-4 text-emerald-100" />
+                    <span>Buka Mushaf Lengkap (30 Juz • 114 Surah)</span>
+                  </button>
                   {[
                     { no: 1, name: 'Al-Fatihah', meaning: 'Pembukaan', verses: 7, arabic: 'الفاتحة' },
                     { no: 36, name: 'Yasin', meaning: 'Jantung Al-Qur’an', verses: 83, arabic: 'يس' },
@@ -4455,15 +4450,19 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
                   ].map((s) => (
                     <div
                       key={s.no}
-                      onClick={() => triggerToast(`Membuka Surah ${s.name}`)}
-                      className="p-3 rounded-2xl border border-slate-100 hover:border-sky-300 hover:bg-sky-50/50 transition-colors flex items-center justify-between cursor-pointer"
+                      onClick={() => {
+                        setSelectedQuranSurah(s.no);
+                        setActiveIslamicMenu(null);
+                        setIsQuranViewOpen(true);
+                      }}
+                      className="p-3 rounded-2xl border border-slate-100 hover:border-emerald-300 hover:bg-emerald-50/50 transition-colors flex items-center justify-between cursor-pointer group"
                     >
                       <div className="flex items-center gap-3">
-                        <div className="w-7 h-7 rounded-lg bg-sky-100 text-sky-700 font-bold text-xs flex items-center justify-center">
+                        <div className="w-7 h-7 rounded-lg bg-emerald-100 text-emerald-700 font-bold text-xs flex items-center justify-center group-hover:bg-emerald-600 group-hover:text-white transition-colors">
                           {s.no}
                         </div>
                         <div>
-                          <p className="font-bold text-slate-800 text-xs">{s.name}</p>
+                          <p className="font-bold text-slate-800 text-xs group-hover:text-emerald-800 transition-colors">{s.name}</p>
                           <p className="text-[11px] text-slate-400">{s.meaning} • {s.verses} Ayat</p>
                         </div>
                       </div>
@@ -5141,6 +5140,13 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
           onClose={() => setPreviewPhotoUrl(null)}
         />
       )}
+
+      {/* ================= AL-QUR'AN DIGITAL 30 JUZ ================= */}
+      <QuranView
+        isOpen={isQuranViewOpen}
+        onClose={() => setIsQuranViewOpen(false)}
+        initialSurah={selectedQuranSurah}
+      />
     </div>
   );
 };

@@ -283,6 +283,26 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
               )}
             </button>
           </div>
+
+          {/* STATUS KONEKSI DATABASE REALTIME */}
+          <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
+            <div className="flex items-center gap-1.5">
+              <span className={`w-2 h-2 rounded-full ${isDbConnected ? 'bg-emerald-500 animate-pulse' : 'bg-amber-400'}`} />
+              <span className="font-medium text-slate-600">
+                {isDbConnected ? 'Database Hostinger Terhubung' : 'Sedang Menghubungkan...'}
+              </span>
+            </div>
+            {onRefreshData && (
+              <button
+                type="button"
+                onClick={onRefreshData}
+                disabled={isDbLoading}
+                className="text-sky-600 hover:text-sky-700 font-semibold cursor-pointer disabled:opacity-50 flex items-center gap-1"
+              >
+                <span>{isDbLoading ? 'Sinkron...' : 'Segarkan'}</span>
+              </button>
+            )}
+          </div>
         </form>
       </div>
     </div>
