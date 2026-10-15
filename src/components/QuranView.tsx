@@ -2,7 +2,6 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { 
   ArrowLeft, 
   BookOpen, 
-  Sliders, 
   Settings,
   Play, 
   Pause, 
@@ -25,6 +24,7 @@ import {
 } from 'lucide-react';
 import { useBackHandler } from '../utils/navigationHistory';
 import { BismillahCalligraphy } from './BismillahCalligraphy';
+import { LPMQ_AYAH_CIRCLE_PATH } from './lpmqAyahCirclePath';
 
 const API = 'https://api.quran.com/api/v4';
 const TRANSLATION_ID: Record<string, number> = { en: 20, id: 33 }; // 33 = Kemenag RI, 20 = Saheeh Int
@@ -236,37 +236,42 @@ function cleanHtml(s: string): string {
 
 export const AyahEndCircle: React.FC<{
   num: number;
+  fontSize?: number;
   isLastRead?: boolean;
   bookmarkColor?: string;
-}> = ({ num, isLastRead, bookmarkColor }) => {
+  className?: string;
+}> = ({ num, fontSize, isLastRead, bookmarkColor, className = '' }) => {
   return (
     <span
-      className="inline-flex items-center justify-center relative align-middle mx-1 select-none shrink-0"
+      className={`inline-flex items-center justify-center relative select-none shrink-0 whitespace-nowrap mx-1 align-baseline ${className}`}
       dir="ltr"
-      style={{ verticalAlign: 'middle', lineHeight: 1 }}
+      style={{ 
+        width: '1.24em',
+        height: '1.24em',
+        verticalAlign: '-0.52em',
+        lineHeight: 1,
+        ...(fontSize ? { fontSize: `${fontSize}px` } : {})
+      }}
       role="img"
       aria-label={`Ayat ${num}`}
     >
-      {/* Authentic U+06DD (۝) End of Ayah Glyph with font LPMQ Isep Misbah */}
-      <span
-        className="font-arabic leading-none select-none pointer-events-none inline-block text-amber-950/85"
-        style={{
-          fontFamily: "'LPMQ Isep Misbah', 'Amiri Quran', serif",
-          fontSize: '1.45em',
-          lineHeight: 1,
-        }}
+      {/* Authentic U+06DD End of Ayah Rosette Medallion with font LPMQ Isep Misbah */}
+      <svg 
+        viewBox="0 0 2000 2000" 
+        className="w-full h-full text-amber-950/85 pointer-events-none select-none overflow-visible"
+        aria-hidden="true"
       >
-        &#x06DD;
-      </span>
+        <use href="#lpmq-ayah-circle-glyph" fill="currentColor" />
+      </svg>
 
-      {/* Centered Arabic Numeral strictly inside the U+06DD circle */}
+      {/* Centered Arabic Numeral strictly inside the middle of the LPMQ circle */}
       <span
-        className="absolute inset-0 flex items-center justify-center font-arabic font-bold text-slate-950 pointer-events-none select-none"
+        className="absolute inset-0 flex items-center justify-center font-bold text-slate-950 pointer-events-none select-none"
         style={{
-          fontSize: num > 99 ? '0.40em' : num > 9 ? '0.48em' : '0.56em',
-          transform: 'translateY(-0.5px)',
-          fontFamily: "'LPMQ Isep Misbah', 'Amiri Quran', serif",
+          fontFamily: "'LPMQ Isep Misbah', sans-serif",
+          fontSize: num > 99 ? '0.38em' : num > 9 ? '0.46em' : '0.52em',
           lineHeight: 1,
+          transform: 'translateY(0.01em)',
         }}
       >
         {arDigits(num)}
@@ -275,14 +280,14 @@ export const AyahEndCircle: React.FC<{
       {/* Last read badge dot */}
       {isLastRead && (
         <span
-          className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-emerald-600 ring-1 ring-white shadow-xs z-10"
+          className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-600 ring-1 ring-white shadow-xs z-10"
           title="Terakhir dibaca"
         />
       )}
       {/* Bookmark badge dot */}
       {bookmarkColor && (
         <span
-          className="absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full ring-1 ring-white shadow-xs z-10"
+          className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full ring-1 ring-white shadow-xs z-10"
           style={{ backgroundColor: bookmarkColor }}
           title="Penanda"
         />
@@ -431,14 +436,17 @@ const MushafPageContent: React.FC<MushafPageContentProps> = ({
                 </div>
               )}
 
-              {/* Verses in Digital Arabic Text - Justify */}
+              {/* Verses in Digital Arabic Text - Justify with last line aligned to right */}
               <div 
-                className="font-arabic text-slate-900 text-justify [text-align:justify] [text-justify:inter-word] [text-align-last:center] leading-[2.6] sm:leading-[2.85] tracking-normal quran-interactive-text select-none px-1"
+                className="font-arabic text-slate-900 quran-mushaf-page-text leading-[2.6] sm:leading-[2.85] tracking-normal quran-interactive-text select-none px-1"
                 dir="rtl"
                 onContextMenu={(e) => e.preventDefault()}
                 style={{ 
                   fontSize: `${currentFontSize}px`,
-                  fontFamily: activeFontConfig.css
+                  fontFamily: activeFontConfig.css,
+                  textAlign: 'justify',
+                  textJustify: 'inter-word',
+                  textAlignLast: 'right',
                 }}
               >
                 {section.verses.map((v) => {
@@ -473,6 +481,7 @@ const MushafPageContent: React.FC<MushafPageContentProps> = ({
                       {/* Ayah End Rosette Medallion Symbol */}
                       <AyahEndCircle
                         num={v.verseNum}
+                        fontSize={currentFontSize}
                         isLastRead={isLastRead}
                         bookmarkColor={activeBookmarks.length > 0 ? (COLORS[activeBookmarks[0]] || '#1e88e5') : undefined}
                       />
@@ -798,7 +807,7 @@ export const QuranView: React.FC<QuranViewProps> = ({ isOpen, onClose, initialSu
     const threshold = Math.min(100, Math.max(45, containerWidth * 0.16));
 
     if (currentOffset < -threshold && curPage < 604) {
-      // Dragged left past threshold -> Slide over to Next Page (curPage + 1)
+      // Swiped LEFT past threshold -> Slide over to Next Page (curPage + 1) in RTL (Hal. 1 -> Hal. 2)
       setIsAnimatingPage(true);
       setDragOffset(-containerWidth);
       dragOffsetRef.current = -containerWidth;
@@ -809,7 +818,7 @@ export const QuranView: React.FC<QuranViewProps> = ({ isOpen, onClose, initialSu
         dragOffsetRef.current = 0;
       }, 260);
     } else if (currentOffset > threshold && curPage > 1) {
-      // Dragged right past threshold -> Slide over to Prev Page (curPage - 1)
+      // Swiped RIGHT past threshold -> Slide over to Prev Page (curPage - 1) in RTL (Hal. 2 -> Hal. 1)
       setIsAnimatingPage(true);
       setDragOffset(containerWidth);
       dragOffsetRef.current = containerWidth;
@@ -861,9 +870,9 @@ export const QuranView: React.FC<QuranViewProps> = ({ isOpen, onClose, initialSu
 
     if (dragDirectionRef.current === 'horizontal') {
       let adjustedDx = dx;
-      if (curPage <= 1 && dx > 0) {
+      if (curPage >= 604 && dx < 0) {
         adjustedDx = dx * 0.22;
-      } else if (curPage >= 604 && dx < 0) {
+      } else if (curPage <= 1 && dx > 0) {
         adjustedDx = dx * 0.22;
       }
       dragOffsetRef.current = adjustedDx;
@@ -904,9 +913,9 @@ export const QuranView: React.FC<QuranViewProps> = ({ isOpen, onClose, initialSu
 
     if (dragDirectionRef.current === 'horizontal') {
       let adjustedDx = dx;
-      if (curPage <= 1 && dx > 0) {
+      if (curPage >= 604 && dx < 0) {
         adjustedDx = dx * 0.22;
-      } else if (curPage >= 604 && dx < 0) {
+      } else if (curPage <= 1 && dx > 0) {
         adjustedDx = dx * 0.22;
       }
       dragOffsetRef.current = adjustedDx;
@@ -1594,7 +1603,7 @@ export const QuranView: React.FC<QuranViewProps> = ({ isOpen, onClose, initialSu
         </button>
       </header>
 
-      {/* SVG Definition for Surah Cartouche Pill (Shared across both Mushaf & WBW modes) */}
+      {/* SVG Definition for Surah Cartouche Pill & LPMQ Ayah Circle Rosette */}
       <svg width="0" height="0" className="absolute w-0 h-0 overflow-hidden" aria-hidden="true">
         <defs>
           <symbol id="surah-cartouche-symbol" viewBox="-2 -2 304 68">
@@ -1605,6 +1614,9 @@ export const QuranView: React.FC<QuranViewProps> = ({ isOpen, onClose, initialSu
               strokeWidth="1.8" 
               strokeLinejoin="miter"
             />
+          </symbol>
+          <symbol id="lpmq-ayah-circle-glyph" viewBox="0 0 2000 2000">
+            <path d={LPMQ_AYAH_CIRCLE_PATH} />
           </symbol>
         </defs>
       </svg>
@@ -1919,8 +1931,9 @@ export const QuranView: React.FC<QuranViewProps> = ({ isOpen, onClose, initialSu
 
                         {/* Words Flow (RTL - flows naturally from Right to Left) */}
                         <div 
-                          className="flex flex-wrap items-center justify-start gap-x-2.5 gap-y-3.5 my-3"
+                          className="flex flex-wrap items-center justify-start gap-x-2 gap-y-3.5 my-3"
                           dir="rtl"
+                          style={{ fontSize: `${currentFontSize}px` }}
                         >
                           {v.w.map((w, idx) => {
                             const wordKey = `${surahId}:${v.n}:${idx}`;
@@ -1930,10 +1943,16 @@ export const QuranView: React.FC<QuranViewProps> = ({ isOpen, onClose, initialSu
                               <div
                                 key={wordKey}
                                 onClick={() => w[2] && playWordAudio(w[2], wordKey)}
-                                className={`flex flex-col items-center gap-1 px-1.5 py-1 rounded-lg border-b-2 transition-all cursor-pointer ${
-                                  isWordPlaying
-                                    ? 'bg-[#c9e1c9] border-[#4f9a50] shadow-xs'
-                                    : 'border-slate-200/80 hover:bg-emerald-50/60'
+                                className={`flex flex-col items-center gap-1 transition-all cursor-pointer ${
+                                  settings.showWord 
+                                    ? `px-1.5 py-1 rounded-lg border-b-2 ${
+                                        isWordPlaying
+                                          ? 'bg-[#c9e1c9] border-[#4f9a50] shadow-xs'
+                                          : 'border-slate-200/80 hover:bg-emerald-50/60'
+                                      }`
+                                    : `px-1 py-0.5 rounded ${
+                                        isWordPlaying ? 'bg-[#c9e1c9]' : 'hover:bg-emerald-50/60'
+                                      }`
                                 }`}
                                 title="Klik untuk mendengarkan lafadz kata"
                               >
@@ -1962,14 +1981,18 @@ export const QuranView: React.FC<QuranViewProps> = ({ isOpen, onClose, initialSu
                             );
                           })}
 
-                          {/* Lingkaran Ayat di Mode Daftar sama seperti Mode Mushaf */}
+                          {/* Lingkaran Ayat di Mode Daftar sama persis seperti Mode Mushaf (U+06DD Font LPMQ Isep Misbah) */}
                           <div 
-                            className="inline-flex items-center justify-center self-center cursor-pointer my-1 select-none"
+                            className={`inline-flex items-center justify-center cursor-pointer select-none ${
+                              settings.showWord ? 'self-start pt-1' : 'self-center my-0.5'
+                            }`}
                             onClick={() => setActiveVerseSheet({ surahId, verseNum: v.n })}
                             title={`Menu Ayat ${v.n}`}
+                            style={{ fontSize: `${currentFontSize}px` }}
                           >
                             <AyahEndCircle
                               num={v.n}
+                              fontSize={currentFontSize}
                               isLastRead={isLastRead}
                               bookmarkColor={activeBookmarks.length > 0 ? (COLORS[activeBookmarks[0]] || '#1e88e5') : undefined}
                             />
@@ -1991,11 +2014,14 @@ export const QuranView: React.FC<QuranViewProps> = ({ isOpen, onClose, initialSu
               {/* Verses for this Surah: Mushaf / Reading Mode */}
               {settings.mode === 'read' && surahVerses.length > 0 && (
                 <div 
-                  className="p-4 sm:p-5 text-justify [text-align:justify] [text-justify:inter-word] [text-align-last:center] leading-[2.8] font-arabic text-slate-900 border-b border-slate-100"
+                  className="p-4 sm:p-5 quran-mushaf-page-text leading-[2.8] font-arabic text-slate-900 border-b border-slate-100"
                   dir="rtl"
                   style={{ 
                     fontSize: `${currentFontSize + 2}px`,
-                    fontFamily: activeFontConfig.css
+                    fontFamily: activeFontConfig.css,
+                    textAlign: 'justify',
+                    textJustify: 'inter-word',
+                    textAlignLast: 'right',
                   }}
                 >
                   {surahVerses.map((v) => {
@@ -2019,8 +2045,9 @@ export const QuranView: React.FC<QuranViewProps> = ({ isOpen, onClose, initialSu
                           className="inline-flex items-center cursor-pointer mx-1 select-none"
                           title={`Menu Ayat ${v.n}`}
                           dir="ltr"
+                          style={{ fontSize: `${currentFontSize}px` }}
                         >
-                          <AyahEndCircle num={v.n} />
+                          <AyahEndCircle num={v.n} fontSize={currentFontSize} />
                         </span>
                         {' '}
                       </span>
@@ -2054,65 +2081,130 @@ export const QuranView: React.FC<QuranViewProps> = ({ isOpen, onClose, initialSu
       )}
 
       {/* ================= 4. BOTTOM ACTION CONTROL BAR ================= */}
-      {/* Display mode button is located here at the bottom */}
-      <footer className={`bg-[#4f9a50] text-white flex items-center justify-between px-4 sm:px-6 shrink-0 shadow-lg z-30 transition-all duration-300 ease-in-out ${
+      {/* Terdiri dari strip pengatur bacaan (aA, Terjemah, Per Kata di bawah semua) & strip aksi (Mode, Gir Pengaturan, Murottal) */}
+      <footer className={`bg-[#458e46] text-white shrink-0 shadow-lg z-30 transition-all duration-300 ease-in-out border-t border-emerald-600/50 ${
         isCleanReading 
           ? 'h-0 py-0 opacity-0 pointer-events-none overflow-hidden' 
-          : 'h-14 pb-safe opacity-100'
+          : 'opacity-100 pb-safe'
       }`}>
-        {/* Left Action: Font size cycler in WBW mode, or empty spacer in read mode */}
-        {settings.mode === 'wbw' ? (
+        {/* Strip Atas: Pengatur Ukuran Font 'aA' (Di Mode Apapun Ada) & Tombol Pengatur Terjemah / Per Kata di Bawah Semua */}
+        <div className="flex items-center justify-between px-3 sm:px-4 py-1.5 border-b border-white/15 bg-black/10 backdrop-blur-xs">
+          {/* Tombol Pengatur Ukuran Font 'aA' (Ada di Mode Apapun) */}
           <button
             type="button"
-            onClick={() => {
-              const nextIdx = (settings.size + 1) % SIZES.length;
-              setSettings((prev) => {
-                const next = { ...prev, size: nextIdx };
-                saveSettings(next);
-                return next;
-              });
-              showToast(`${t('size')}: ${SIZES[nextIdx]}px`);
-            }}
-            className="w-10 h-10 rounded-full flex items-center justify-center hover:bg-white/20 active:bg-white/30 transition-colors cursor-pointer"
-            title={t('arSize')}
+            onClick={() => setIsFontSizeModalOpen(true)}
+            className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/20 hover:bg-white/30 active:bg-white/40 text-white font-medium transition-all cursor-pointer border border-white/25 shadow-2xs"
+            title="Atur Ukuran Huruf (aA) - Tersedia di semua mode"
+            aria-label="Atur Ukuran Huruf aA"
           >
-            <span className="font-bold text-base">A</span>
-            <span className="text-[10px] font-semibold -mt-2">±</span>
+            <span className="font-serif font-black tracking-tight text-xs bg-white/25 px-1.5 py-0.5 rounded">
+              aA
+            </span>
+            <span className="text-[11px] font-semibold">{currentFontSize}px</span>
           </button>
-        ) : (
-          <div className="w-10" />
-        )}
 
-        {/* Display Mode Switcher (Mode Kata per Kata vs Mode Baca Mushaf Pojok) */}
-        <button
-          type="button"
-          onClick={toggleDisplayMode}
-          className="flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/20 hover:bg-white/30 active:bg-white/35 text-white font-medium text-xs transition-all cursor-pointer border border-white/25 shadow-2xs"
-          title={settings.mode === 'wbw' ? 'Beralih ke Mode Mushaf Pojok' : 'Beralih ke Mode Kata per Kata'}
-        >
-          {settings.mode === 'wbw' ? (
-            <>
-              <BookOpen className="w-4 h-4 text-white" />
-              <span>Mushaf Pojok</span>
-            </>
-          ) : (
-            <>
-              <FileText className="w-4 h-4 text-white" />
-              <span>Mode Per Kata</span>
-            </>
-          )}
-        </button>
+          {/* Tombol Pengatur Terjemah dan Terjemah Per Kata di Bawah Semua */}
+          <div className="flex items-center gap-1.5">
+            {/* Tombol Terjemah */}
+            <button
+              type="button"
+              onClick={() => {
+                const nextVal = !settings.showTr;
+                setSettings((prev) => {
+                  const next = { 
+                    ...prev, 
+                    showTr: nextVal,
+                    ...(nextVal && prev.mode === 'read' ? { mode: 'wbw' as const } : {})
+                  };
+                  saveSettings(next);
+                  return next;
+                });
+                showToast(nextVal ? 'Terjemahan diaktifkan' : 'Terjemahan disembunyikan');
+              }}
+              className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer border ${
+                settings.showTr
+                  ? 'bg-white text-emerald-800 border-white shadow-xs'
+                  : 'bg-white/10 text-white/75 hover:text-white border-white/20 hover:bg-white/20'
+              }`}
+              title="Aktif/Nonaktifkan Terjemahan Lengkap Kemenag RI"
+            >
+              {settings.showTr && <Check className="w-3.5 h-3.5 text-emerald-700 stroke-[3]" />}
+              <span>Terjemah</span>
+            </button>
 
-        {/* Play / Pause Reciter Audio */}
-        <button
-          type="button"
-          onClick={togglePlay}
-          className="flex items-center gap-1.5 px-4 h-9 rounded-full bg-white text-[#4f9a50] font-bold text-xs shadow-md hover:bg-slate-50 active:scale-95 transition-all cursor-pointer"
-          title={isPlaying ? 'Jeda Audio Murottal' : 'Putar Audio Murottal'}
-        >
-          {isPlaying ? <Pause className="w-4 h-4 fill-current" /> : <Play className="w-4 h-4 fill-current ml-0.5" />}
-          <span>{isPlaying ? 'Jeda' : 'Murottal'}</span>
-        </button>
+            {/* Tombol Terjemah Per Kata */}
+            <button
+              type="button"
+              onClick={() => {
+                const nextVal = !settings.showWord;
+                setSettings((prev) => {
+                  const next = { 
+                    ...prev, 
+                    showWord: nextVal,
+                    ...(nextVal && prev.mode === 'read' ? { mode: 'wbw' as const } : {})
+                  };
+                  saveSettings(next);
+                  return next;
+                });
+                showToast(nextVal ? 'Terjemah per kata diaktifkan' : 'Terjemah per kata disembunyikan');
+              }}
+              className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer border ${
+                settings.showWord
+                  ? 'bg-white text-emerald-800 border-white shadow-xs'
+                  : 'bg-white/10 text-white/75 hover:text-white border-white/20 hover:bg-white/20'
+              }`}
+              title="Aktif/Nonaktifkan Makna Tafsir Per Kata"
+            >
+              {settings.showWord && <Check className="w-3.5 h-3.5 text-emerald-700 stroke-[3]" />}
+              <span>Per Kata</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Strip Bawah: Pilihan Mode, Gir Pengaturan, & Audio Murottal */}
+        <div className="flex items-center justify-between px-3 sm:px-4 h-12">
+          {/* Display Mode Switcher (Mode Mushaf Pojok vs Mode Daftar) */}
+          <button
+            type="button"
+            onClick={toggleDisplayMode}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/20 hover:bg-white/30 active:bg-white/35 text-white font-medium text-xs transition-all cursor-pointer border border-white/25 shadow-2xs"
+            title={settings.mode === 'wbw' ? 'Beralih ke Mode Mushaf Pojok' : 'Beralih ke Mode Daftar'}
+          >
+            {settings.mode === 'wbw' ? (
+              <>
+                <BookOpen className="w-3.5 h-3.5 text-white" />
+                <span>Mode Mushaf</span>
+              </>
+            ) : (
+              <>
+                <FileText className="w-3.5 h-3.5 text-white" />
+                <span>Mode Daftar</span>
+              </>
+            )}
+          </button>
+
+          {/* Icon Pengaturan Jadi Gir */}
+          <button
+            type="button"
+            onClick={() => setIsSettingsSheetOpen(true)}
+            className="w-9 h-9 rounded-full flex items-center justify-center hover:bg-white/20 active:bg-white/30 transition-colors cursor-pointer text-white"
+            title="Pengaturan Al-Qur'an (Gir)"
+            aria-label="Pengaturan"
+          >
+            <Settings className="w-4.5 h-4.5" />
+          </button>
+
+          {/* Play / Pause Reciter Audio */}
+          <button
+            type="button"
+            onClick={togglePlay}
+            className="flex items-center gap-1.5 px-4 h-8 rounded-full bg-white text-emerald-800 font-bold text-xs shadow-md hover:bg-slate-50 active:scale-95 transition-all cursor-pointer"
+            title={isPlaying ? 'Jeda Audio Murottal' : 'Putar Audio Murottal'}
+          >
+            {isPlaying ? <Pause className="w-3.5 h-3.5 fill-current" /> : <Play className="w-3.5 h-3.5 fill-current ml-0.5" />}
+            <span>{isPlaying ? 'Jeda' : 'Murottal'}</span>
+          </button>
+        </div>
       </footer>
 
       {/* ================= TOAST NOTIFICATION ================= */}
@@ -2551,6 +2643,157 @@ export const QuranView: React.FC<QuranViewProps> = ({ isOpen, onClose, initialSu
                 </div>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ================= MODAL PENGATUR UKURAN FONT 'aA' (TERSEDIA DI SEMUA MODE) ================= */}
+      {isFontSizeModalOpen && (
+        <div 
+          className="fixed inset-0 z-[100065] bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in"
+          onClick={() => setIsFontSizeModalOpen(false)}
+        >
+          <div 
+            className="bg-white rounded-3xl w-full max-w-sm max-h-[85vh] flex flex-col shadow-2xl border border-slate-100 overflow-hidden animate-in zoom-in-95 duration-200 p-5 space-y-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2">
+                <span className="w-8 h-8 rounded-full bg-emerald-100 text-emerald-800 flex items-center justify-center font-serif font-black text-sm">
+                  aA
+                </span>
+                <div>
+                  <h3 className="font-bold text-sm text-slate-900">Ukuran & Huruf Arab</h3>
+                  <p className="text-[11px] text-slate-400">Atur kenyamanan membaca Al-Qur'an</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsFontSizeModalOpen(false)}
+                className="w-8 h-8 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-100 cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Live Arabic Font Size Preview */}
+            <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200 text-center">
+              <div className="flex items-center justify-between mb-1.5 px-0.5">
+                <p className="text-[11px] text-slate-400 font-semibold">Pratinjau ({currentFontSize}px)</p>
+                <span className="text-[10px] font-bold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-full border border-emerald-200">
+                  {activeFontConfig.name}
+                </span>
+              </div>
+              <div 
+                className="font-arabic text-slate-900 leading-relaxed text-center py-2 select-none"
+                dir="rtl"
+                style={{ 
+                  fontSize: `${currentFontSize}px`,
+                  fontFamily: activeFontConfig.css
+                }}
+              >
+                بِسْمِ ٱللَّهِ ٱلرَّحْمَٰنِ ٱلرَّحِيمِ
+              </div>
+            </div>
+
+            {/* Quick Preset Buttons */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-slate-700 block">Pilihan Ukuran Cepat:</label>
+              <div className="grid grid-cols-5 gap-1.5">
+                {SIZES.map((sz, idx) => {
+                  const isCurrent = settings.size === idx;
+                  return (
+                    <button
+                      key={`sz-preset-${sz}`}
+                      type="button"
+                      onClick={() => {
+                        setSettings((prev) => {
+                          const next = { ...prev, size: idx };
+                          saveSettings(next);
+                          return next;
+                        });
+                        showToast(`Ukuran diubah ke ${sz}px`);
+                      }}
+                      className={`py-2 rounded-xl text-center font-bold text-xs border transition-all cursor-pointer ${
+                        isCurrent 
+                          ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs' 
+                          : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                      }`}
+                    >
+                      <div>{sz}</div>
+                      <div className={`text-[9px] font-normal ${isCurrent ? 'text-emerald-100' : 'text-slate-400'}`}>
+                        {idx === 0 ? 'Kecil' : idx === 1 ? 'Standar' : idx === 2 ? 'Sedang' : idx === 3 ? 'Besar' : 'Ekstra'}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Slider */}
+            <div className="space-y-1.5 pt-2 border-t border-slate-100">
+              <div className="flex justify-between text-xs font-semibold text-slate-700">
+                <span>Geser Ukuran:</span>
+                <span className="text-emerald-700 font-bold">{currentFontSize} px</span>
+              </div>
+              <input
+                type="range"
+                min="0"
+                max={SIZES.length - 1}
+                step="1"
+                value={settings.size}
+                onChange={(e) => {
+                  const idx = parseInt(e.target.value, 10);
+                  setSettings((prev) => {
+                    const next = { ...prev, size: idx };
+                    saveSettings(next);
+                    return next;
+                  });
+                }}
+                className="w-full accent-emerald-600 cursor-pointer"
+              />
+            </div>
+
+            {/* Font Selection */}
+            <div className="space-y-1.5 pt-2 border-t border-slate-100">
+              <label className="text-xs font-semibold text-slate-700 block">Pilihan Jenis Font Arab:</label>
+              <div className="grid grid-cols-3 gap-1.5">
+                {QURAN_FONTS.map((font) => {
+                  const isSelected = (settings.fontFamily || 'lpmq') === font.id;
+                  return (
+                    <button
+                      key={`font-picker-${font.id}`}
+                      type="button"
+                      onClick={() => {
+                        setSettings((prev) => {
+                          const next = { ...prev, fontFamily: font.id };
+                          saveSettings(next);
+                          return next;
+                        });
+                        showToast(`Font: ${font.name}`);
+                      }}
+                      className={`p-2 rounded-xl border text-center transition-all cursor-pointer ${
+                        isSelected
+                          ? 'bg-emerald-50 border-emerald-500 text-emerald-800 font-bold shadow-xs'
+                          : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                      }`}
+                    >
+                      <div className="text-[11px] truncate">{font.name.split(' ')[0]}</div>
+                      <div className="text-[9px] text-slate-400 truncate">{font.badge || 'Standar'}</div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setIsFontSizeModalOpen(false)}
+              className="w-full py-2.5 rounded-xl bg-emerald-600 text-white font-bold text-xs shadow-md hover:bg-emerald-700 transition-colors cursor-pointer"
+            >
+              Selesai
+            </button>
           </div>
         </div>
       )}
