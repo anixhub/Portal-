@@ -529,6 +529,9 @@ async function startServer() {
     return res.status(500).json([]);
   });
 
+  // Serve static assets from public directory
+  app.use(express.static(path.resolve(__dirname, 'public')));
+
   // In production, serve built frontend assets
   const isProduction = process.env.NODE_ENV === 'production';
   if (isProduction && fs.existsSync(path.resolve(__dirname, 'dist'))) {

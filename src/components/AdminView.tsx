@@ -38,7 +38,8 @@ import {
   Briefcase,
   FileText,
   RotateCw,
-  BookOpen
+  BookOpen,
+  Scroll
 } from 'lucide-react';
 import { AlumniRecord, AdminUser, EventAgenda, EventComment, EventCommentReply, AnnouncementItem, AttendanceSession, AttendanceAttendee, AudienceTarget } from '../types';
 import { AddAlumniModal } from './admin/AddAlumniModal';
@@ -67,6 +68,7 @@ import { shareMediaWithCaption } from '../utils/shareUtils';
 import { useBackHandler } from '../utils/navigationHistory';
 import { getAlumniPhotoUrl } from '../utils/photoUtils';
 import { QuranView } from './QuranView';
+import { MaulidView } from './MaulidView';
 import logoPonpesImg from '../assets/images/logo_ponpes_attaroqqy_1790648746461.jpg';
 import posterReuniImg from '../assets/images/poster_reuni_akbar_1790648045947.jpg';
 
@@ -174,6 +176,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
     announcements || INITIAL_ANNOUNCEMENTS
   );
   const [isQuranViewOpen, setIsQuranViewOpen] = useState(false);
+  const [isMaulidViewOpen, setIsMaulidViewOpen] = useState(false);
 
   // Admin Profile Edit State
   const [adminUser, setAdminUser] = useState<AdminUser>(admin);
@@ -2003,6 +2006,26 @@ export const AdminView: React.FC<AdminViewProps> = ({
                   </button>
                 </div>
 
+                {/* Tombol Akses Kitab Maulid Nabi */}
+                <div className="pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsMaulidViewOpen(true)}
+                    className="w-full py-3.5 px-4 bg-amber-50 hover:bg-amber-100/80 text-amber-950 font-bold rounded-2xl flex items-center justify-between border border-amber-200/80 transition-all cursor-pointer text-sm shadow-2xs active:scale-[0.99] group"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-xl bg-amber-600 text-white flex items-center justify-center shadow-xs shrink-0">
+                        <Scroll className="w-5 h-5" />
+                      </div>
+                      <div className="text-left">
+                        <p className="font-bold text-sm text-amber-950">Kitab Maulid Nabi</p>
+                        <p className="text-[11px] font-normal text-amber-700">Simtudduror, Diba'i, Al-Barzanji & Burdah</p>
+                      </div>
+                    </div>
+                    <ChevronRight className="w-4 h-4 text-amber-600 group-hover:translate-x-0.5 transition-transform" />
+                  </button>
+                </div>
+
                 {/* Tombol Keluar dari Akun Admin */}
                 <div className="pt-4">
                   <button
@@ -3514,6 +3537,12 @@ export const AdminView: React.FC<AdminViewProps> = ({
       <QuranView
         isOpen={isQuranViewOpen}
         onClose={() => setIsQuranViewOpen(false)}
+      />
+
+      {/* ================= KITAB MAULID NABI ================= */}
+      <MaulidView
+        isOpen={isMaulidViewOpen}
+        onClose={() => setIsMaulidViewOpen(false)}
       />
     </div>
   );

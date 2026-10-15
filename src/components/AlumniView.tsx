@@ -89,6 +89,7 @@ import { AlumniFinanceView } from './AlumniFinanceView';
 import { formatAuthorUsername, resolveAuthorAlumniRecord } from '../utils/authorUtils';
 import { useBackHandler } from '../utils/navigationHistory';
 import { QuranView } from './QuranView';
+import { MaulidView } from './MaulidView';
 import { getAlumniPhotoUrl } from '../utils/photoUtils';
 import { RealQrCode } from './common/RealQrCode';
 import { generateNisFromEntryDate } from '../utils/alumniIdentityUtils';
@@ -426,6 +427,8 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
   const [activeIslamicMenu, setActiveIslamicMenu] = useState<'quran' | 'majmuah' | 'maulid' | 'aurod' | null>(null);
   const [isQuranViewOpen, setIsQuranViewOpen] = useState(false);
   const [selectedQuranSurah, setSelectedQuranSurah] = useState<number | undefined>(undefined);
+  const [isMaulidViewOpen, setIsMaulidViewOpen] = useState(false);
+  const [selectedMaulidBookId, setSelectedMaulidBookId] = useState<string | undefined>(undefined);
   const [fullscreenPosterUrl, setFullscreenPosterUrl] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
@@ -1569,7 +1572,10 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
 
                 {/* 3. Maulid */}
                 <div
-                  onClick={() => setActiveIslamicMenu('maulid')}
+                  onClick={() => {
+                    setSelectedMaulidBookId(undefined);
+                    setIsMaulidViewOpen(true);
+                  }}
                   className="relative rounded-[26px] overflow-hidden shadow-sm flex flex-col justify-between h-36 cursor-pointer hover:shadow-md transition-all active:scale-[0.98] group select-none border border-sky-100"
                 >
                   <img
@@ -4498,24 +4504,48 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
 
               {activeIslamicMenu === 'maulid' && (
                 <div className="space-y-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedMaulidBookId(undefined);
+                      setActiveIslamicMenu(null);
+                      setIsMaulidViewOpen(true);
+                    }}
+                    className="w-full mb-3 py-3 px-4 bg-gradient-to-r from-emerald-700 via-emerald-800 to-teal-800 hover:from-emerald-800 hover:to-teal-900 text-white rounded-2xl font-bold text-xs flex items-center justify-center gap-2 shadow-sm active:scale-[0.98] transition-all cursor-pointer"
+                  >
+                    <Scroll className="w-4 h-4 text-emerald-200" />
+                    <span>Buka Kumpulan Kitab Maulid Lengkap (5 Kitab)</span>
+                  </button>
                   {[
-                    { title: 'Maulid Simtudduror', author: 'Al-Habib Ali bin Muhammad Al-Habsyi', rawi: 'Lengkap 15 Rawi & Mahalul Qiyam' },
-                    { title: 'Maulid Ad-Diba’i', author: 'Al-Imam Abdurrahman Ad-Diba’i', rawi: 'Bait qasidah & sholawat pembuka' },
-                    { title: 'Maulid Al-Barzanji', author: 'Sayyid Ja’far bin Hasan Al-Barzanji', rawi: 'Nasab mulia & akhlak Rasulullah SAW' },
-                    { title: 'Maulid Dhiyaul Lami’', author: 'Al-Habib Umar bin Hafidz', rawi: 'Untaian cahaya maulid zaman kini' },
-                    { title: 'Qashidah Burdah', author: 'Imam Al-Bushiri', rawi: '10 Fasal syair kecintaan kpd Nabi' },
-                  ].map((m, idx) => (
+                    { id: 's', title: 'Maulid Simtudduror', author: 'Al-Habib Ali bin Muhammad Al-Habsyi', rawi: 'Lengkap 15 Rawi & Mahalul Qiyam', arabic: 'سِمْطُ الدُّرَرِ' },
+                    { id: 'a', title: 'Maulid Ad-Diba’i', author: 'Al-Imam Abdurrahman Ad-Diba’i', rawi: 'Bait qasidah & sholawat pembuka', arabic: 'مَوْلِدُ الدِّيبَعِيِّ' },
+                    { id: 'b', title: 'Maulid Al-Barzanji', author: 'Sayyid Ja’far bin Hasan Al-Barzanji', rawi: 'Nasab mulia & akhlak Rasulullah SAW', arabic: 'عِقْدُ الْجَوْهَرِ' },
+                    { id: 'd', title: 'Maulid Dhiyaul Lami’', author: 'Al-Habib Umar bin Hafidz', rawi: 'Untaian cahaya maulid zaman kini', arabic: 'الضِّيَاءُ اللَّامِعُ' },
+                    { id: 'q', title: 'Qashidah Burdah', author: 'Imam Al-Bushiri', rawi: '10 Fasal syair kecintaan kpd Nabi', arabic: 'قَصِيدَةُ الْبُرْدَةِ' },
+                  ].map((m) => (
                     <div
-                      key={idx}
-                      onClick={() => triggerToast(`Membuka ${m.title}`)}
-                      className="p-3 rounded-2xl border border-slate-100 hover:border-emerald-300 hover:bg-emerald-50/50 transition-colors flex items-center justify-between cursor-pointer"
+                      key={m.id}
+                      onClick={() => {
+                        setSelectedMaulidBookId(m.id);
+                        setActiveIslamicMenu(null);
+                        setIsMaulidViewOpen(true);
+                      }}
+                      className="p-3 rounded-2xl border border-slate-100 hover:border-emerald-300 hover:bg-emerald-50/50 transition-colors flex items-center justify-between cursor-pointer group"
                     >
-                      <div>
-                        <p className="font-bold text-slate-800 text-xs">{m.title}</p>
-                        <p className="text-[11px] text-slate-500 font-medium">{m.author}</p>
-                        <p className="text-[10px] text-slate-400">{m.rawi}</p>
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-800 font-bold text-xs flex items-center justify-center group-hover:bg-emerald-700 group-hover:text-white transition-colors shrink-0">
+                          <Scroll className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <p className="font-bold text-slate-800 text-xs group-hover:text-emerald-800 transition-colors">{m.title}</p>
+                          <p className="text-[11px] text-slate-500 font-medium">{m.author}</p>
+                          <p className="text-[10px] text-slate-400">{m.rawi}</p>
+                        </div>
                       </div>
-                      <ChevronRight className="w-4 h-4 text-slate-400" />
+                      <div className="text-right flex items-center gap-2">
+                        <span className="font-arabic text-sm text-slate-700 hidden sm:inline" style={{ fontFamily: "'Amiri Quran', serif" }}>{m.arabic}</span>
+                        <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-emerald-600 transition-colors" />
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -5146,6 +5176,13 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
         isOpen={isQuranViewOpen}
         onClose={() => setIsQuranViewOpen(false)}
         initialSurah={selectedQuranSurah}
+      />
+
+      {/* ================= KITAB MAULID NABI ================= */}
+      <MaulidView
+        isOpen={isMaulidViewOpen}
+        onClose={() => setIsMaulidViewOpen(false)}
+        initialBookId={selectedMaulidBookId}
       />
     </div>
   );
