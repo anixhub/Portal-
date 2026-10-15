@@ -92,8 +92,18 @@
   animation: gpsPulse 2s infinite cubic-bezier(0.2, 0.6, 0.35, 1);
 }
 
+/* Font Mushaf Standar Indonesia: LPMQ Isep Misbah (Lajnah Pentashihan Mushaf Al-Qur'an Kemenag RI) */
+@font-face {
+  font-family: 'LPMQ Isep Misbah';
+  src: url('/fonts/lpmq-isep-misbah.woff2') format('woff2'),
+       url('/fonts/lpmq-isep-misbah.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
 .font-arabic {
-  font-family: 'Amiri Quran', 'Scheherazade New', 'Traditional Arabic', serif;
+  font-family: 'LPMQ Isep Misbah', 'Amiri Quran', 'Scheherazade New', 'Traditional Arabic', serif;
 }
 
 /* Pembatas Surat (Surah Cartouche Banner) - Quranic Universal Library (Tarteel) */
@@ -214,6 +224,17 @@
 }
 .surah-name {
   font-family: 'surah-name-v4-icon', 'Aref Ruqaa', 'Amiri Quran', serif;
+}
+
+/* Quran verse anti-browser-callout & custom selection bypass */
+.quran-interactive-text {
+  -webkit-touch-callout: none !important;
+  -webkit-user-select: none !important;
+  -khtml-user-select: none !important;
+  -moz-user-select: none !important;
+  -ms-user-select: none !important;
+  user-select: none !important;
+  -webkit-tap-highlight-color: transparent !important;
 }
 
 
