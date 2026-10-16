@@ -244,7 +244,7 @@
 .quran-mushaf-page-text {
   direction: rtl !important;
   text-align: justify !important;
-  text-justify: inter-word !important;
+  text-justify: auto !important;
   text-align-last: right !important;
   -webkit-text-align-last: right !important;
   -moz-text-align-last: right !important;

@@ -271,6 +271,17 @@ function cleanHtml(s: string): string {
     .trim();
 }
 
+export function cleanArabicVerseText(text: string): string {
+  if (!text) return '';
+  return text
+    // Normalize spaces
+    .replace(/[ \t]+/g, ' ')
+    // Replace any normal space before Quranic waqf marks with NBSP (\u00A0)
+    // so they never break onto a new line alone and never stretch out in text-justify
+    .replace(/ ([\u06D6-\u06ED])/g, '\u00A0$1')
+    .trim();
+}
+
 export const AyahEndCircle: React.FC<{
   num: number;
   fontSize?: number;
@@ -281,14 +292,13 @@ export const AyahEndCircle: React.FC<{
 }> = ({ num, fontSize, isLastRead, isBookmarked, className = '' }) => {
   return (
     <span
-      className={`inline-flex items-center justify-center relative select-none shrink-0 whitespace-nowrap mx-1 align-baseline ${className}`}
+      className={`inline-flex items-center justify-center relative select-none shrink-0 whitespace-nowrap mx-0.5 align-baseline ${className}`}
       dir="rtl"
       style={{ 
         width: '1.24em',
         height: '1.24em',
         verticalAlign: '-0.52em',
         lineHeight: 1,
-        unicodeBidi: 'isolate',
         ...(fontSize ? { fontSize: `${fontSize}px` } : {})
       }}
       role="img"
@@ -490,7 +500,7 @@ const MushafPageContent: React.FC<MushafPageContentProps> = ({
                     fontFamily: activeFontConfig.css,
                     direction: 'rtl',
                     textAlign: 'justify',
-                    textJustify: 'inter-word',
+                    textJustify: 'auto',
                     textAlignLast: 'right',
                   }}
                 >
@@ -514,16 +524,16 @@ const MushafPageContent: React.FC<MushafPageContentProps> = ({
                         onMouseDown={isInteractive && onVerseMouseDown ? (e) => onVerseMouseDown(v.surahId, v.verseNum, v.verseKey, e) : undefined}
                         onMouseMove={isInteractive && onVerseMouseMove ? onVerseMouseMove : undefined}
                         onMouseUp={isInteractive && onVerseMouseUp ? onVerseMouseUp : undefined}
-                        className={`inline transition-all rounded-none py-1 px-1 my-0.5 [box-decoration-break:clone] [-webkit-box-decoration-break:clone] ${
+                        className={`inline transition-all rounded-none py-0.5 px-0.5 my-0.5 [box-decoration-break:clone] [-webkit-box-decoration-break:clone] ${
                           isInteractive ? 'cursor-pointer' : 'cursor-default pointer-events-none'
                         } ${
                           isVersePlaying
-                            ? 'bg-[#bbf7d0]/80 border border-emerald-400'
+                            ? 'bg-[#bbf7d0]/80 outline outline-1 outline-emerald-400'
                             : isSelected
-                            ? 'bg-[#fef08a] border border-dashed border-amber-500'
+                            ? 'bg-[#fef08a] outline outline-1 outline-dashed outline-amber-500'
                             : isLastRead
-                            ? 'bg-[#dcfce7]/90 border border-dashed border-emerald-500'
-                            : 'border border-transparent'
+                            ? 'bg-[#dcfce7]/90 outline outline-1 outline-dashed outline-emerald-500'
+                            : ''
                         }`}
                       >
                         {v.words.map((w, wIdx) => {
@@ -549,7 +559,7 @@ const MushafPageContent: React.FC<MushafPageContentProps> = ({
                                     textAlignLast: 'center',
                                   }}
                                 >
-                                  {w[0]}
+                                  {cleanArabicVerseText(w[0])}
                                 </span>
 
                                 {/* Word-by-word meaning (LTR) - center vertical & center horizontal if multiple lines */}
@@ -620,6 +630,7 @@ const MushafPageContent: React.FC<MushafPageContentProps> = ({
                     fontFamily: activeFontConfig.css,
                     direction: 'rtl',
                     textAlign: 'justify',
+                    textJustify: 'auto',
                     textAlignLast: 'right',
                   }}
                 >
@@ -634,7 +645,6 @@ const MushafPageContent: React.FC<MushafPageContentProps> = ({
                         key={`mushaf-${page}-${v.verseKey}`}
                         data-verse-key={v.verseKey}
                         dir="rtl"
-                        style={{ unicodeBidi: 'isolate' }}
                         onClick={isInteractive ? onVerseClick : undefined}
                         onContextMenu={isInteractive && onVerseContextMenu ? (e) => onVerseContextMenu(v.surahId, v.verseNum, v.verseKey, e) : undefined}
                         onTouchStart={isInteractive && onVerseTouchStart ? (e) => onVerseTouchStart(v.surahId, v.verseNum, v.verseKey, e) : undefined}
@@ -644,18 +654,18 @@ const MushafPageContent: React.FC<MushafPageContentProps> = ({
                         onMouseDown={isInteractive && onVerseMouseDown ? (e) => onVerseMouseDown(v.surahId, v.verseNum, v.verseKey, e) : undefined}
                         onMouseMove={isInteractive && onVerseMouseMove ? onVerseMouseMove : undefined}
                         onMouseUp={isInteractive && onVerseMouseUp ? onVerseMouseUp : undefined}
-                        className={`inline rounded-none px-1 py-0.5 mx-0 transition-colors duration-150 ${isInteractive ? 'cursor-pointer' : 'cursor-default pointer-events-none'} select-none quran-interactive-text outline-none ring-0 [box-decoration-break:clone] [-webkit-box-decoration-break:clone] ${
+                        className={`inline rounded-none py-0.5 px-0.5 transition-colors duration-150 ${isInteractive ? 'cursor-pointer' : 'cursor-default pointer-events-none'} select-none quran-interactive-text outline-none [box-decoration-break:clone] [-webkit-box-decoration-break:clone] ${
                           isVersePlaying
-                            ? 'bg-[#bbf7d0] text-slate-950 font-normal border border-emerald-400'
+                            ? 'bg-[#bbf7d0] text-slate-950 font-normal outline outline-1 outline-emerald-400'
                             : isSelected
-                            ? 'bg-[#fef08a] border border-dashed border-amber-500 text-slate-950 font-normal'
+                            ? 'bg-[#fef08a] outline outline-1 outline-dashed outline-amber-500 text-slate-950 font-normal'
                             : isLastRead
-                            ? 'bg-[#dcfce7]/90 border border-dashed border-emerald-500 text-slate-950'
-                            : 'hover:bg-yellow-100/40 text-slate-900 border border-transparent'
+                            ? 'bg-[#dcfce7]/90 outline outline-1 outline-dashed outline-emerald-500 text-slate-950'
+                            : 'hover:bg-yellow-100/40 text-slate-900'
                         }`}
                         title={isInteractive ? `QS. ${section.chapter?.name || v.surahId} : ${v.verseNum} • Sentuh lama untuk opsi ayat` : undefined}
                       >
-                        <span dir="rtl">{v.arabicText}</span>
+                        <span dir="rtl">{cleanArabicVerseText(v.arabicText)}</span>
                         <AyahEndCircle
                           num={v.verseNum}
                           fontSize={currentFontSize}
@@ -944,9 +954,10 @@ export const QuranView: React.FC<QuranViewProps> = ({ isOpen, onClose, initialSu
         const sId = parseInt(sStr, 10);
         const vNum = parseInt(vStr, 10);
         const nonEndWords = (v.words || []).filter((w: any) => w.char_type_name !== 'end');
-        const arabicText = nonEndWords.map((w: any) => w.text_uthmani || '').join(' ') || v.text_uthmani || '';
+        const rawArabic = nonEndWords.map((w: any) => w.text_uthmani || '').join(' ') || v.text_uthmani || '';
+        const arabicText = cleanArabicVerseText(rawArabic);
         const words: [string, string, string][] = nonEndWords.map((w: any) => [
-          w.text_uthmani || '',
+          cleanArabicVerseText(w.text_uthmani || ''),
           w.translation?.text || '',
           w.audio_url || ''
         ]);
