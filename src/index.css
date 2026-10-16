@@ -155,7 +155,9 @@
   border: 2px solid var(--line);
   padding: 3px 14px;
   margin: 0 auto 14px auto;
-  width: 90%;
+  width: 100%;
+  box-sizing: border-box;
+  border-radius: 4px;
   font-size: 14px;
   font-family: system-ui, -apple-system, sans-serif;
   color: var(--text);
@@ -247,5 +249,18 @@
   -webkit-text-align-last: right !important;
   -moz-text-align-last: right !important;
 }
+
+/* Pastikan elemen kata dan terjemahan per kata di mode mushaf & daftar selalu rata tengah sempurna */
+.quran-mushaf-page-text .quran-wbw-word-card,
+.quran-mushaf-page-text .quran-wbw-word-meaning,
+.quran-wbw-word-card,
+.quran-wbw-word-meaning {
+  text-align: center !important;
+  text-align-last: center !important;
+  -webkit-text-align-last: center !important;
+  -moz-text-align-last: center !important;
+  text-justify: none !important;
+}
+
 
 
