@@ -282,22 +282,14 @@ export const AyahEndCircle: React.FC<{
         {arDigits(num)}
       </span>
 
-      {/* Small Bookmark Icon badge above the circle in mushaf mode */}
+      {/* Small Bookmark Icon badge above the circle */}
       {isBookmarked && (
         <span
-          className="absolute -top-3.5 left-1/2 -translate-x-1/2 z-10 flex items-center justify-center text-amber-500 pointer-events-none"
+          className="absolute -top-3.5 left-1/2 -translate-x-1/2 z-20 flex items-center justify-center pointer-events-none"
           title="Ayat Ditandai"
         >
-          <Bookmark className="w-3.5 h-3.5 fill-amber-500 stroke-amber-600 drop-shadow-xs" />
+          <Bookmark className="w-3.5 h-3.5 fill-amber-500 text-amber-600 drop-shadow-xs" />
         </span>
-      )}
-
-      {/* Last read badge dot */}
-      {isLastRead && (
-        <span
-          className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-600 ring-1 ring-white shadow-xs z-10"
-          title="Terakhir dibaca"
-        />
       )}
     </span>
   );
@@ -313,6 +305,7 @@ interface MushafPageContentProps {
   activeFontConfig: any;
   playingInfo: { surahId: number; verseNum: number } | null;
   selectedVerseKey: string | null;
+  activeVerseSheet?: { surahId: number; verseNum: number } | null;
   settings: QuranSettings;
   isCleanReading: boolean;
   isInteractive?: boolean;
@@ -337,6 +330,7 @@ const MushafPageContent: React.FC<MushafPageContentProps> = ({
   activeFontConfig,
   playingInfo,
   selectedVerseKey,
+  activeVerseSheet,
   settings,
   isCleanReading,
   isInteractive = true,
@@ -436,7 +430,14 @@ const MushafPageContent: React.FC<MushafPageContentProps> = ({
 
                   {/* Authentic Quranic Bismillah Calligraphy Vector (unless Surah 1 Al-Fatihah or Surah 9 At-Tawbah) */}
                   {section.chapter.bis && section.surahId !== 1 && section.surahId !== 9 && (
-                    <div className="py-1">
+                    <div 
+                      className={`py-1 my-1 transition-all rounded-none ${
+                        playingInfo?.surahId === section.surahId && playingInfo?.verseNum === 0
+                          ? 'bg-[#bbf7d0]/80 border border-dashed border-emerald-500'
+                          : ''
+                      }`}
+                      data-verse-key={`${section.surahId}:0`}
+                    >
                       <BismillahCalligraphy />
                     </div>
                   )}
@@ -461,7 +462,7 @@ const MushafPageContent: React.FC<MushafPageContentProps> = ({
                 >
                   {section.verses.map((v) => {
                     const isVersePlaying = playingInfo?.surahId === v.surahId && playingInfo?.verseNum === v.verseNum;
-                    const isSelected = selectedVerseKey === v.verseKey;
+                    const isSelected = Boolean(activeVerseSheet && selectedVerseKey === v.verseKey);
                     const isLastRead = settings.lr?.s === v.surahId && settings.lr?.v === v.verseNum;
                     const isBookmarked = Boolean(settings.bm[v.verseKey]?.length);
 
@@ -479,15 +480,15 @@ const MushafPageContent: React.FC<MushafPageContentProps> = ({
                         onMouseDown={isInteractive && onVerseMouseDown ? (e) => onVerseMouseDown(v.surahId, v.verseNum, v.verseKey, e) : undefined}
                         onMouseMove={isInteractive && onVerseMouseMove ? onVerseMouseMove : undefined}
                         onMouseUp={isInteractive && onVerseMouseUp ? onVerseMouseUp : undefined}
-                        className={`inline transition-all rounded-xl py-1 px-1 my-0.5 [box-decoration-break:clone] [-webkit-box-decoration-break:clone] ${
+                        className={`inline transition-all rounded-none py-1 px-1 my-0.5 [box-decoration-break:clone] [-webkit-box-decoration-break:clone] ${
                           isInteractive ? 'cursor-pointer' : 'cursor-default pointer-events-none'
                         } ${
                           isVersePlaying
-                            ? 'bg-[#bbf7d0]/80 ring-1 ring-emerald-400'
+                            ? 'bg-[#bbf7d0]/80 border border-emerald-400'
                             : isSelected
-                            ? 'bg-[#fef08a] ring-1 ring-amber-300'
+                            ? 'bg-[#fef08a] border border-dashed border-amber-500'
                             : isLastRead
-                            ? 'bg-[#dcfce7] border border-dashed border-emerald-500'
+                            ? 'bg-[#dcfce7]/90 border border-dashed border-emerald-500'
                             : ''
                         }`}
                       >
@@ -497,11 +498,11 @@ const MushafPageContent: React.FC<MushafPageContentProps> = ({
                           return (
                             <React.Fragment key={wordKey}>
                               <span
-                                className="inline-flex flex-col items-center justify-center gap-1 transition-all px-1.5 py-1 rounded-lg border-b-2 border-slate-300/60 bg-white/40 my-1 mx-0.5 align-middle h-auto text-center"
+                                className="inline-flex flex-col items-center justify-start gap-1 bg-transparent border-0 shadow-none my-1 mx-0.5 align-top text-center"
                               >
-                                {/* Arabic word */}
+                                {/* Arabic word - sejajar lurus */}
                                 <span
-                                  className="font-arabic leading-relaxed whitespace-nowrap text-slate-900 text-center"
+                                  className="font-arabic leading-tight whitespace-nowrap text-slate-900 text-center flex items-center justify-center min-h-[1.5em]"
                                   dir="rtl"
                                   style={{ 
                                     fontSize: `${currentFontSize}px`,
@@ -511,10 +512,11 @@ const MushafPageContent: React.FC<MushafPageContentProps> = ({
                                   {w[0]}
                                 </span>
 
-                                {/* Word-by-word meaning (LTR) */}
+                                {/* Word-by-word meaning (LTR) - center vertical & center horizontal if multiple lines */}
                                 <span 
-                                  className="text-[11px] leading-tight text-slate-600 text-center max-w-[96px] break-words font-medium mt-0.5"
+                                  className="text-[11px] leading-tight text-slate-600 text-center w-full max-w-[96px] min-h-[28px] break-words font-medium flex items-center justify-center self-center"
                                   dir="ltr"
+                                  style={{ textAlign: 'center' }}
                                 >
                                   {w[1]}
                                 </span>
@@ -524,16 +526,30 @@ const MushafPageContent: React.FC<MushafPageContentProps> = ({
                           );
                         })}
 
-                        {/* Medallion Nomor Ayat */}
+                        {/* Medallion Nomor Ayat - Hanya keluar opsi jika diklik lama, klik biasa tidak memunculkan opsi */}
                         <span 
                           className="inline-flex items-center justify-center align-middle my-1 mx-0.5 cursor-pointer select-none"
-                          onClick={(e) => {
+                          onTouchStart={(e) => isInteractive && onVerseTouchStart && onVerseTouchStart(v.surahId, v.verseNum, v.verseKey, e)}
+                          onTouchMove={isInteractive && onVerseTouchMove ? onVerseTouchMove : undefined}
+                          onTouchEnd={isInteractive && onVerseTouchEnd ? onVerseTouchEnd : undefined}
+                          onTouchCancel={isInteractive && onVerseTouchEnd ? onVerseTouchEnd : undefined}
+                          onMouseDown={(e) => isInteractive && onVerseMouseDown && onVerseMouseDown(v.surahId, v.verseNum, v.verseKey, e)}
+                          onMouseMove={isInteractive && onVerseMouseMove ? onVerseMouseMove : undefined}
+                          onMouseUp={isInteractive && onVerseMouseUp ? onVerseMouseUp : undefined}
+                          onContextMenu={(e) => {
+                            e.preventDefault();
                             e.stopPropagation();
                             if (isInteractive && onVerseContextMenu) {
                               onVerseContextMenu(v.surahId, v.verseNum, v.verseKey, e);
                             }
                           }}
-                          title={`Menu Ayat ${v.verseNum}`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (isInteractive && onVerseClick) {
+                              onVerseClick(e);
+                            }
+                          }}
+                          title={`Ayat ${v.verseNum} • Sentuh lama untuk opsi ayat`}
                         >
                           <AyahEndCircle 
                             num={v.verseNum} 
@@ -563,7 +579,7 @@ const MushafPageContent: React.FC<MushafPageContentProps> = ({
                 >
                   {section.verses.map((v) => {
                     const isVersePlaying = playingInfo?.surahId === v.surahId && playingInfo?.verseNum === v.verseNum;
-                    const isSelected = selectedVerseKey === v.verseKey;
+                    const isSelected = Boolean(activeVerseSheet && selectedVerseKey === v.verseKey);
                     const isLastRead = settings.lr?.s === v.surahId && settings.lr?.v === v.verseNum;
                     const isBookmarked = Boolean(settings.bm[v.verseKey]?.length);
 
@@ -582,13 +598,13 @@ const MushafPageContent: React.FC<MushafPageContentProps> = ({
                         onMouseDown={isInteractive && onVerseMouseDown ? (e) => onVerseMouseDown(v.surahId, v.verseNum, v.verseKey, e) : undefined}
                         onMouseMove={isInteractive && onVerseMouseMove ? onVerseMouseMove : undefined}
                         onMouseUp={isInteractive && onVerseMouseUp ? onVerseMouseUp : undefined}
-                        className={`inline rounded-none px-0.5 py-0.5 mx-0 transition-colors duration-150 ${isInteractive ? 'cursor-pointer' : 'cursor-default pointer-events-none'} select-none quran-interactive-text border-0 outline-none ring-0 [box-decoration-break:clone] [-webkit-box-decoration-break:clone] ${
+                        className={`inline rounded-none px-1 py-0.5 mx-0 transition-colors duration-150 ${isInteractive ? 'cursor-pointer' : 'cursor-default pointer-events-none'} select-none quran-interactive-text border-0 outline-none ring-0 [box-decoration-break:clone] [-webkit-box-decoration-break:clone] ${
                           isVersePlaying
                             ? 'bg-[#bbf7d0] text-slate-950 font-normal'
                             : isSelected
-                            ? 'bg-[#fef08a] text-slate-950 font-normal'
+                            ? 'bg-[#fef08a] border border-dashed border-amber-500 text-slate-950 font-normal'
                             : isLastRead
-                            ? 'bg-[#dcfce7] border border-dashed border-emerald-500 text-slate-950 rounded-xs'
+                            ? 'bg-[#dcfce7]/90 border border-dashed border-emerald-500 text-slate-950'
                             : 'hover:bg-yellow-100/40 text-slate-900'
                         }`}
                         title={isInteractive ? `QS. ${section.chapter?.name || v.surahId} : ${v.verseNum} • Sentuh lama untuk opsi ayat` : undefined}
@@ -921,6 +937,35 @@ export const QuranView: React.FC<QuranViewProps> = ({ isOpen, onClose, initialSu
     }
   }, [curPage, fetchPageVerses]);
 
+  // Target page when auto-flipping with slide animation
+  const [animatingTargetPage, setAnimatingTargetPage] = useState<number | null>(null);
+
+  // Smooth sliding transition to target page (auto-geser halaman saat audio berganti)
+  const slideToPage = useCallback((targetPage: number) => {
+    const safeTarget = Math.max(1, Math.min(604, targetPage));
+    if (safeTarget === curPage) return;
+
+    fetchPageVerses(safeTarget);
+    setAnimatingTargetPage(safeTarget);
+
+    const containerWidth = pageContainerRef.current?.clientWidth || window.innerWidth || 360;
+    // In RTL Mushaf: next page (higher number) is to the right (dragOffset > 0), previous page is to the left (dragOffset < 0)
+    const isNext = safeTarget > curPage;
+    const targetOffset = isNext ? containerWidth : -containerWidth;
+
+    setIsAnimatingPage(true);
+    setDragOffset(targetOffset);
+    dragOffsetRef.current = targetOffset;
+
+    setTimeout(() => {
+      goToPage(safeTarget);
+      setIsAnimatingPage(false);
+      setDragOffset(0);
+      dragOffsetRef.current = 0;
+      setAnimatingTargetPage(null);
+    }, 280);
+  }, [curPage, goToPage, fetchPageVerses]);
+
   // Pastikan posisi scroll halaman mushaf selalu mulai dari paling atas saat halaman berganti
   useEffect(() => {
     if (activePageScrollerRef.current) {
@@ -1088,11 +1133,22 @@ export const QuranView: React.FC<QuranViewProps> = ({ isOpen, onClose, initialSu
     return (T_LANG[settings.lang] || T_LANG.id)[key] || key;
   }, [settings.lang]);
 
-  // Stop audio on close
+  // Close verse options sheet & un-highlight selected verse
+  const closeVerseSheet = useCallback(() => {
+    setActiveVerseSheet(null);
+    setSelectedVerseKey(null);
+  }, []);
+
+  // Stop audio and pause mediaSession
   const stopAudio = useCallback(() => {
     if (audioRef.current) {
       audioRef.current.pause();
-      audioRef.current = null;
+      audioRef.current.currentTime = 0;
+    }
+    if ('mediaSession' in navigator) {
+      try {
+        navigator.mediaSession.playbackState = 'paused';
+      } catch (_) {}
     }
     setPlayingInfo(null);
   }, []);
@@ -1101,9 +1157,10 @@ export const QuranView: React.FC<QuranViewProps> = ({ isOpen, onClose, initialSu
   useBackHandler(Boolean(isOpen && isBookmarksViewOpen), 'quran-bookmarks-view', () => setIsBookmarksViewOpen(false));
   useBackHandler(Boolean(isOpen && isJumpModalOpen), 'quran-jump-modal', () => setIsJumpModalOpen(false));
   useBackHandler(Boolean(isOpen && isSurahSheetOpen), 'quran-surah-sheet', () => setIsSurahSheetOpen(false));
-  useBackHandler(Boolean(isOpen && isFontSizeModalOpen), 'quran-font-size-modal', () => setIsFontSizeModalOpen(false));
-  useBackHandler(Boolean(isOpen && activeVerseSheet !== null), 'quran-verse-sheet', () => setActiveVerseSheet(null));
-  useBackHandler(Boolean(isOpen && !isBookmarksViewOpen && !isJumpModalOpen && !isSurahSheetOpen && !isFontSizeModalOpen && activeVerseSheet === null), 'quran-main-page', () => {
+  useBackHandler(Boolean(isOpen && isFontSizeSliderOpen), 'quran-font-size-slider', () => setIsFontSizeSliderOpen(false));
+  useBackHandler(Boolean(isOpen && confirmLastReadData !== null), 'quran-confirm-last-read', () => setConfirmLastReadData(null));
+  useBackHandler(Boolean(isOpen && activeVerseSheet !== null), 'quran-verse-sheet', closeVerseSheet);
+  useBackHandler(Boolean(isOpen && !isBookmarksViewOpen && !isJumpModalOpen && !isSurahSheetOpen && !isFontSizeSliderOpen && confirmLastReadData === null && activeVerseSheet === null), 'quran-main-page', () => {
     stopAudio();
     onClose();
   });
@@ -1131,21 +1188,6 @@ export const QuranView: React.FC<QuranViewProps> = ({ isOpen, onClose, initialSu
     if (curPage + 1 <= 604) fetchPageVerses(curPage + 1);
     if (curPage - 1 >= 1) fetchPageVerses(curPage - 1);
   }, [isOpen, curPage, settings.mode, fetchPageVerses]);
-
-  // Desktop keyboard arrows navigation (Left = Next page, Right = Previous page in RTL Quran)
-  useEffect(() => {
-    if (!isOpen || settings.mode !== 'read') return;
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (isBookmarksViewOpen || isJumpModalOpen || isSurahSheetOpen || activeVerseSheet !== null) return;
-      if (e.key === 'ArrowLeft') {
-        goToPage(curPage + 1);
-      } else if (e.key === 'ArrowRight') {
-        goToPage(curPage - 1);
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, settings.mode, curPage, isBookmarksViewOpen, isJumpModalOpen, isSurahSheetOpen, activeVerseSheet, goToPage]);
 
   // Target verse to scroll to (for resuming last read)
   const [targetScrollVerse, setTargetScrollVerse] = useState<{ s: number; v: number } | null>(() => {
@@ -1444,26 +1486,49 @@ export const QuranView: React.FC<QuranViewProps> = ({ isOpen, onClose, initialSu
     const chapter = chapters.find((c) => c.id === surahId);
     if (!chapter) return;
 
-    if (audioRef.current) {
-      audioRef.current.pause();
+    const isBismillah = num === 0;
+
+    // Safety: Surah 9 (At-Tawbah) has no Bismillah; in Surah 1, Ayah 1 is already Bismillah
+    if (isBismillah && (surahId === 9 || surahId === 1)) {
+      playVerse(surahId, 1);
+      return;
     }
 
     setPlayingInfo({ surahId, verseNum: num });
 
-    const surahPadded = pad(surahId, 3);
-    const versePadded = pad(num, 3);
+    // Audio URL: for Bismillah, use Surah 1 Ayah 1 (001001.mp3)
+    const surahPadded = isBismillah ? '001' : pad(surahId, 3);
+    const versePadded = isBismillah ? '001' : pad(num, 3);
     const audioUrl = `${AUDIO_VERSE}${surahPadded}${versePadded}.mp3`;
 
-    const audio = new Audio(audioUrl);
-    audioRef.current = audio;
+    // Reuse persistent audio element so background tab / lock screen playback continues uninterrupted
+    let audio = audioRef.current;
+    if (!audio) {
+      audio = new Audio();
+      audioRef.current = audio;
+    } else {
+      audio.pause();
+    }
+
+    audio.src = audioUrl;
+    audio.preload = 'auto';
 
     audio.onended = () => {
-      if (num < chapter.count) {
+      if (isBismillah) {
+        // After Bismillah finishes, play Ayah 1
+        playVerse(surahId, 1);
+      } else if (num < chapter.count) {
+        // Next verse in same surah
         playVerse(surahId, num + 1);
       } else if (surahId < 114) {
-        // Automatically progress to next surah in continuous mode!
-        setLoadedSurahIds((prev) => prev.includes(surahId + 1) ? prev : [...prev, surahId + 1]);
-        playVerse(surahId + 1, 1);
+        // Automatically progress to next surah
+        const nextSurahId = surahId + 1;
+        setLoadedSurahIds((prev) => (prev.includes(nextSurahId) ? prev : [...prev, nextSurahId]));
+        if (nextSurahId !== 9 && nextSurahId !== 1) {
+          playVerse(nextSurahId, 0); // Play Bismillah for next surah
+        } else {
+          playVerse(nextSurahId, 1);
+        }
       } else {
         stopAudio();
       }
@@ -1479,12 +1544,61 @@ export const QuranView: React.FC<QuranViewProps> = ({ isOpen, onClose, initialSu
       showToast(t('noAudio'));
     });
 
-    // In mushaf mode: auto-flip page if the playing verse is on another page
+    // MediaSession for background lock-screen controls & preventing sleep
+    if ('mediaSession' in navigator) {
+      try {
+        navigator.mediaSession.metadata = new MediaMetadata({
+          title: isBismillah
+            ? `Bismillah - ${chapter.name}`
+            : `${chapter.name} : Ayat ${num}`,
+          artist: 'Misyari Rasyid Al-Afasy',
+          album: "Al-Qur'an Al-Karim (Ponpes Attaroqqy)",
+          artwork: [
+            { src: '/src/assets/images/logo_ponpes_attaroqqy_1790648746461.jpg', sizes: '192x192', type: 'image/jpeg' },
+            { src: '/src/assets/images/logo_ponpes_attaroqqy_1790648746461.jpg', sizes: '512x512', type: 'image/jpeg' },
+          ],
+        });
+        navigator.mediaSession.playbackState = 'playing';
+
+        navigator.mediaSession.setActionHandler('play', () => {
+          audioRef.current?.play().catch(() => {});
+          if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'playing';
+        });
+        navigator.mediaSession.setActionHandler('pause', () => {
+          audioRef.current?.pause();
+          if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'paused';
+        });
+        navigator.mediaSession.setActionHandler('stop', () => {
+          stopAudio();
+        });
+        navigator.mediaSession.setActionHandler('previoustrack', () => {
+          if (num > 1) {
+            playVerse(surahId, num - 1);
+          } else if (surahId > 1) {
+            const prevCh = chapters.find((c) => c.id === surahId - 1);
+            if (prevCh) playVerse(surahId - 1, prevCh.count);
+          }
+        });
+        navigator.mediaSession.setActionHandler('nexttrack', () => {
+          if (isBismillah) {
+            playVerse(surahId, 1);
+          } else if (num < chapter.count) {
+            playVerse(surahId, num + 1);
+          } else if (surahId < 114) {
+            const nextSurahId = surahId + 1;
+            playVerse(nextSurahId, nextSurahId !== 9 && nextSurahId !== 1 ? 0 : 1);
+          }
+        });
+      } catch (_) {}
+    }
+
+    // In mushaf mode: auto-geser (smooth slide) page if the playing verse is on another page
     if (settings.mode === 'read') {
-      let versePage: number | undefined = versesBySurah[surahId]?.find((v) => v.n === num)?.p;
+      const targetVerseNum = isBismillah ? 1 : num;
+      let versePage: number | undefined = versesBySurah[surahId]?.find((v) => v.n === targetVerseNum)?.p;
       if (!versePage) {
         for (const pStr in pageVersesCacheRef.current) {
-          const found = pageVersesCacheRef.current[Number(pStr)]?.find((pv) => pv.surahId === surahId && pv.verseNum === num);
+          const found = pageVersesCacheRef.current[Number(pStr)]?.find((pv) => pv.surahId === surahId && pv.verseNum === targetVerseNum);
           if (found) {
             versePage = Number(pStr);
             break;
@@ -1493,31 +1607,34 @@ export const QuranView: React.FC<QuranViewProps> = ({ isOpen, onClose, initialSu
       }
       if (!versePage) {
         const curVerses = pageVersesCacheRef.current[curPage] || [];
-        const isCur = curVerses.some((pv) => pv.surahId === surahId && pv.verseNum === num);
+        const isCur = curVerses.some((pv) => pv.surahId === surahId && pv.verseNum === targetVerseNum);
         if (isCur) {
           versePage = curPage;
         } else if (curVerses.length > 0) {
           const lastV = curVerses[curVerses.length - 1];
-          if (surahId > lastV.surahId || (surahId === lastV.surahId && num > lastV.verseNum)) {
+          if (surahId > lastV.surahId || (surahId === lastV.surahId && targetVerseNum > lastV.verseNum)) {
             versePage = Math.min(604, curPage + 1);
           }
         }
       }
+      if (!versePage) {
+        versePage = CHAPTER_PAGE_RANGES[surahId - 1]?.[0];
+      }
       if (versePage && versePage !== curPage) {
-        goToPage(versePage);
+        slideToPage(versePage);
       } else if (!versePage) {
-        fetch(`${API}/verses/by_key/${surahId}:${num}?fields=page_number`)
+        fetch(`${API}/verses/by_key/${surahId}:${targetVerseNum}?fields=page_number`)
           .then((r) => r.json())
           .then((d) => {
             const p = d.verse?.page_number;
             if (p && p !== curPage) {
-              goToPage(p);
+              slideToPage(p);
             }
           })
           .catch(() => {});
       }
     }
-  }, [chapters, settings.mode, curPage, versesBySurah, goToPage, stopAudio, showToast, t]);
+  }, [chapters, settings.mode, curPage, versesBySurah, slideToPage, stopAudio, showToast, t]);
 
   // Auto-center playing verse on screen in both mushaf and daftar mode (Stabilo mengikuti dan memusatkan layar)
   useEffect(() => {
@@ -1562,13 +1679,13 @@ export const QuranView: React.FC<QuranViewProps> = ({ isOpen, onClose, initialSu
   const togglePlay = () => {
     if (!playingInfo) {
       const startSurahId = activeSurahId;
-      const startNum = 1;
-      playVerse(startSurahId, startNum);
-    } else {
-      if (audioRef.current) {
-        audioRef.current.pause();
+      if (startSurahId !== 1 && startSurahId !== 9) {
+        playVerse(startSurahId, 0); // Start with Bismillah
+      } else {
+        playVerse(startSurahId, 1);
       }
-      setPlayingInfo(null);
+    } else {
+      stopAudio();
     }
   };
 
@@ -1934,19 +2051,89 @@ export const QuranView: React.FC<QuranViewProps> = ({ isOpen, onClose, initialSu
     }
   };
 
-  // Display mode switcher
+  // Helper to get currently visible verse in viewport for seamless mode switching
+  const getCurrentVisibleVerse = useCallback((): { surahId: number; verseNum: number; page: number } => {
+    if (settings.mode === 'read') {
+      const scroller = activePageScrollerRef.current;
+      if (scroller) {
+        const containerTop = scroller.getBoundingClientRect().top;
+        const verseEls = scroller.querySelectorAll<HTMLElement>('[data-verse-key]');
+        for (let i = 0; i < verseEls.length; i++) {
+          const el = verseEls[i];
+          const rect = el.getBoundingClientRect();
+          if (rect.bottom > containerTop + 30) {
+            const key = el.dataset.verseKey;
+            if (key) {
+              const [sId, vNum] = key.split(':').map((x) => parseInt(x, 10));
+              return { surahId: sId, verseNum: vNum, page: curPage };
+            }
+          }
+        }
+      }
+      const pageVerses = pageVersesCache[curPage] || [];
+      if (pageVerses.length > 0) {
+        return { surahId: pageVerses[0].surahId, verseNum: pageVerses[0].verseNum, page: curPage };
+      }
+      const sId = getChapterIdFromPage(curPage);
+      return { surahId: sId, verseNum: 1, page: curPage };
+    } else {
+      const scroller = scrollerRef.current;
+      if (scroller) {
+        const containerTop = scroller.getBoundingClientRect().top;
+        const verseEls = scroller.querySelectorAll<HTMLElement>('[data-verse-key]');
+        for (let i = 0; i < verseEls.length; i++) {
+          const el = verseEls[i];
+          const rect = el.getBoundingClientRect();
+          if (rect.bottom > containerTop + 30) {
+            const key = el.dataset.verseKey;
+            if (key) {
+              const [sId, vNum] = key.split(':').map((x) => parseInt(x, 10));
+              const v = versesBySurah[sId]?.find((x) => x.n === vNum);
+              const pNum = v?.p || CHAPTER_PAGE_RANGES[sId - 1]?.[0] || 1;
+              return { surahId: sId, verseNum: vNum, page: pNum };
+            }
+          }
+        }
+      }
+      return { 
+        surahId: activeSurahId, 
+        verseNum: 1, 
+        page: CHAPTER_PAGE_RANGES[activeSurahId - 1]?.[0] || 1 
+      };
+    }
+  }, [settings.mode, curPage, pageVersesCache, versesBySurah, activeSurahId]);
+
+  // Display mode switcher with auto-sync location
   const toggleDisplayMode = () => {
     const nextMode: 'wbw' | 'read' = settings.mode === 'wbw' ? 'read' : 'wbw';
-    
+    const loc = getCurrentVisibleVerse();
+
     if (nextMode === 'read') {
-      const [startP, endP] = CHAPTER_PAGE_RANGES[activeSurahId - 1] || [1, 1];
-      if (curPage < startP || curPage > endP) {
-        goToPage(startP);
+      let targetP = loc.page;
+      if (!targetP || targetP < 1) {
+        targetP = CHAPTER_PAGE_RANGES[loc.surahId - 1]?.[0] || 1;
       }
+      goToPage(targetP);
+      setSelectedVerseKey(`${loc.surahId}:${loc.verseNum}`);
+      setTimeout(() => {
+        const el = activePageScrollerRef.current?.querySelector<HTMLElement>(`[data-verse-key="${loc.surahId}:${loc.verseNum}"]`);
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      }, 200);
     } else {
-      const surahFromCurrentPage = getChapterIdFromPage(curPage);
-      setActiveSurahId(surahFromCurrentPage);
-      setLoadedSurahIds([surahFromCurrentPage]);
+      setActiveSurahId(loc.surahId);
+      if (!loadedSurahIds.includes(loc.surahId)) {
+        setLoadedSurahIds([loc.surahId]);
+      }
+      setTargetScrollVerse({ s: loc.surahId, v: loc.verseNum });
+      setSelectedVerseKey(`${loc.surahId}:${loc.verseNum}`);
+      setTimeout(() => {
+        const el = scrollerRef.current?.querySelector<HTMLElement>(`[data-verse-key="${loc.surahId}:${loc.verseNum}"]`);
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      }, 250);
     }
 
     setSettings((prev) => {
@@ -1954,7 +2141,7 @@ export const QuranView: React.FC<QuranViewProps> = ({ isOpen, onClose, initialSu
       saveSettings(updated);
       return updated;
     });
-    showToast(nextMode === 'read' ? 'Mode Mushaf Pojok (1 Layar = 1 Halaman)' : 'Mode Kata per Kata');
+    showToast(nextMode === 'read' ? 'Mode Mushaf Pojok' : 'Mode Daftar Ayat');
   };
 
   if (!isOpen) return null;
@@ -2090,35 +2277,39 @@ export const QuranView: React.FC<QuranViewProps> = ({ isOpen, onClose, initialSu
               }
             }}
           >
-            {/* 1. Next Page in RTL (curPage + 1 berada di sebelah KIRI, ditarik saat digeser ke kanan) */}
-            {(dragOffset > 0 || (isAnimatingPage && dragOffset > 0)) && curPage < 604 && (
-              <div
-                key={`mushaf-next-page-${curPage + 1}`}
-                ref={nextPageScrollerRef}
-                className="absolute inset-y-0 w-full overflow-y-auto flex flex-col items-center justify-start overscroll-contain bg-[#fbf9f2] pointer-events-none"
-                style={{
-                  left: '-100%',
-                  transform: `translateX(${dragOffset}px)`,
-                  transition: isAnimatingPage ? 'transform 260ms cubic-bezier(0.2, 0.9, 0.3, 1)' : 'none',
-                  willChange: 'transform'
-                }}
-              >
-                <MushafPageContent
-                  page={curPage + 1}
-                  verses={pageVersesCache[curPage + 1] || []}
-                  isLoading={isPageLoading && !(pageVersesCache[curPage + 1]?.length)}
-                  chapters={chapters}
-                  isSurahFontLoaded={isSurahFontLoaded}
-                  currentFontSize={currentFontSize}
-                  activeFontConfig={activeFontConfig}
-                  playingInfo={playingInfo}
-                  selectedVerseKey={null}
-                  settings={settings}
-                  isCleanReading={isCleanReading}
-                  isInteractive={false}
-                />
-              </div>
-            )}
+            {/* 1. Next Page in RTL (curPage + 1 atau animatingTargetPage berada di sebelah KIRI, ditarik saat digeser ke kanan) */}
+            {(dragOffset > 0 || (isAnimatingPage && dragOffset > 0)) && curPage < 604 && (() => {
+              const displayPage = animatingTargetPage && animatingTargetPage > curPage ? animatingTargetPage : curPage + 1;
+              return (
+                <div
+                  key={`mushaf-next-page-${displayPage}`}
+                  ref={nextPageScrollerRef}
+                  className="absolute inset-y-0 w-full overflow-y-auto flex flex-col items-center justify-start overscroll-contain bg-[#fbf9f2] pointer-events-none"
+                  style={{
+                    left: '-100%',
+                    transform: `translateX(${dragOffset}px)`,
+                    transition: isAnimatingPage ? 'transform 260ms cubic-bezier(0.2, 0.9, 0.3, 1)' : 'none',
+                    willChange: 'transform'
+                  }}
+                >
+                  <MushafPageContent
+                    page={displayPage}
+                    verses={pageVersesCache[displayPage] || []}
+                    isLoading={isPageLoading && !(pageVersesCache[displayPage]?.length)}
+                    chapters={chapters}
+                    isSurahFontLoaded={isSurahFontLoaded}
+                    currentFontSize={currentFontSize}
+                    activeFontConfig={activeFontConfig}
+                    playingInfo={playingInfo}
+                    selectedVerseKey={null}
+                    activeVerseSheet={null}
+                    settings={settings}
+                    isCleanReading={isCleanReading}
+                    isInteractive={false}
+                  />
+                </div>
+              );
+            })()}
 
             {/* 2. Current Active Page (1 Layar Penuh = 1 Halaman Baku, terdorong halus saat digeser) */}
             <div
@@ -2141,6 +2332,7 @@ export const QuranView: React.FC<QuranViewProps> = ({ isOpen, onClose, initialSu
                 activeFontConfig={activeFontConfig}
                 playingInfo={playingInfo}
                 selectedVerseKey={selectedVerseKey}
+                activeVerseSheet={activeVerseSheet}
                 settings={settings}
                 isCleanReading={isCleanReading}
                 isInteractive={true}
@@ -2156,35 +2348,39 @@ export const QuranView: React.FC<QuranViewProps> = ({ isOpen, onClose, initialSu
               />
             </div>
 
-            {/* 3. Previous Page in RTL (curPage - 1 berada di sebelah KANAN, ditarik saat digeser ke kiri) */}
-            {(dragOffset < 0 || (isAnimatingPage && dragOffset < 0)) && curPage > 1 && (
-              <div
-                key={`mushaf-prev-page-${curPage - 1}`}
-                ref={prevPageScrollerRef}
-                className="absolute inset-y-0 w-full overflow-y-auto flex flex-col items-center justify-start overscroll-contain bg-[#fbf9f2] pointer-events-none"
-                style={{
-                  left: '100%',
-                  transform: `translateX(${dragOffset}px)`,
-                  transition: isAnimatingPage ? 'transform 260ms cubic-bezier(0.2, 0.9, 0.3, 1)' : 'none',
-                  willChange: 'transform'
-                }}
-              >
-                <MushafPageContent
-                  page={curPage - 1}
-                  verses={pageVersesCache[curPage - 1] || []}
-                  isLoading={isPageLoading && !(pageVersesCache[curPage - 1]?.length)}
-                  chapters={chapters}
-                  isSurahFontLoaded={isSurahFontLoaded}
-                  currentFontSize={currentFontSize}
-                  activeFontConfig={activeFontConfig}
-                  playingInfo={playingInfo}
-                  selectedVerseKey={null}
-                  settings={settings}
-                  isCleanReading={isCleanReading}
-                  isInteractive={false}
-                />
-              </div>
-            )}
+            {/* 3. Previous Page in RTL (curPage - 1 atau animatingTargetPage berada di sebelah KANAN, ditarik saat digeser ke kiri) */}
+            {(dragOffset < 0 || (isAnimatingPage && dragOffset < 0)) && curPage > 1 && (() => {
+              const displayPage = animatingTargetPage && animatingTargetPage < curPage ? animatingTargetPage : curPage - 1;
+              return (
+                <div
+                  key={`mushaf-prev-page-${displayPage}`}
+                  ref={prevPageScrollerRef}
+                  className="absolute inset-y-0 w-full overflow-y-auto flex flex-col items-center justify-start overscroll-contain bg-[#fbf9f2] pointer-events-none"
+                  style={{
+                    left: '100%',
+                    transform: `translateX(${dragOffset}px)`,
+                    transition: isAnimatingPage ? 'transform 260ms cubic-bezier(0.2, 0.9, 0.3, 1)' : 'none',
+                    willChange: 'transform'
+                  }}
+                >
+                  <MushafPageContent
+                    page={displayPage}
+                    verses={pageVersesCache[displayPage] || []}
+                    isLoading={isPageLoading && !(pageVersesCache[displayPage]?.length)}
+                    chapters={chapters}
+                    isSurahFontLoaded={isSurahFontLoaded}
+                    currentFontSize={currentFontSize}
+                    activeFontConfig={activeFontConfig}
+                    playingInfo={playingInfo}
+                    selectedVerseKey={null}
+                    activeVerseSheet={null}
+                    settings={settings}
+                    isCleanReading={isCleanReading}
+                    isInteractive={false}
+                  />
+                </div>
+              );
+            })()}
           </div>
         </div>
       )}
@@ -2295,9 +2491,18 @@ export const QuranView: React.FC<QuranViewProps> = ({ isOpen, onClose, initialSu
                   </span>
                 </div>
 
-                {/* Authentic Quranic Bismillah Calligraphy Vector */}
-                {chapter.bis && (
-                  <BismillahCalligraphy />
+                {/* Authentic Quranic Bismillah Calligraphy Vector (unless Surah 1 Al-Fatihah or Surah 9 At-Tawbah) */}
+                {chapter.bis && surahId !== 1 && surahId !== 9 && (
+                  <div 
+                    className={`py-2 px-3 my-2 transition-all rounded-none ${
+                      playingInfo?.surahId === surahId && playingInfo?.verseNum === 0
+                        ? 'bg-[#bbf7d0]/80 border border-dashed border-emerald-500'
+                        : ''
+                    }`}
+                    data-verse-key={`${surahId}:0`}
+                  >
+                    <BismillahCalligraphy />
+                  </div>
                 )}
               </div>
 
@@ -2307,6 +2512,7 @@ export const QuranView: React.FC<QuranViewProps> = ({ isOpen, onClose, initialSu
                   {surahVerses.map((v) => {
                     const isVersePlaying = playingInfo?.surahId === surahId && playingInfo?.verseNum === v.n;
                     const verseKey = `${surahId}:${v.n}`;
+                    const isSelected = Boolean(activeVerseSheet && selectedVerseKey === verseKey);
                     const activeBookmarks = settings.bm[verseKey] || [];
                     const isLastRead = settings.lr?.s === surahId && settings.lr?.v === v.n;
 
@@ -2317,55 +2523,32 @@ export const QuranView: React.FC<QuranViewProps> = ({ isOpen, onClose, initialSu
                         data-verse-num={v.n}
                         data-verse-key={verseKey}
                         onClick={() => {
-                          if (!isLongPressActiveRef.current) {
-                            toggleCleanMode();
-                          }
+                          toggleCleanMode();
                         }}
-                        onContextMenu={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          openVerseMenu(surahId, v.n, verseKey);
-                        }}
-                        onTouchStart={(e) => handleVerseTouchStart(surahId, v.n, verseKey, e)}
-                        onTouchMove={handleVerseTouchMove}
-                        onTouchEnd={handleVerseTouchEnd}
-                        onTouchCancel={handleVerseTouchEnd}
-                        className={`p-4 transition-colors select-none quran-interactive-text cursor-pointer ${
+                        className={`p-4 transition-all select-none quran-interactive-text cursor-pointer rounded-none mx-0 my-1.5 ${
                           isVersePlaying 
-                            ? 'bg-[#bbf7d0]/80' 
+                            ? 'bg-[#bbf7d0]/80 border border-emerald-400' 
+                            : isSelected
+                            ? 'bg-[#fef08a] border border-dashed border-amber-500'
                             : isLastRead
-                            ? 'bg-[#dcfce7] border-y border-dashed border-emerald-500'
+                            ? 'bg-[#dcfce7]/90 border border-dashed border-emerald-500'
                             : 'bg-[#fbf9f2] hover:bg-amber-50/40'
                         }`}
                       >
-                        {/* Verse Header: Titik Tiga Vertikal di Kiri Atas (tanpa kotak angka) */}
+                        {/* Verse Header: Titik Tiga Vertikal di Kiri Atas (Satu-satunya cara membuka opsi ayat di mode daftar) */}
                         <div className="flex items-center justify-between gap-2 min-h-7 mb-2">
                           <div className="flex items-center gap-1.5">
-                            {/* Titik tiga vertikal di sebelah kiri atas */}
                             <button
                               type="button"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                setActiveVerseSheet({ surahId, verseNum: v.n });
+                                openVerseMenu(surahId, v.n, verseKey);
                               }}
                               className="w-7 h-7 -ml-1 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-200/50 transition-colors cursor-pointer"
-                              title={`Menu Ayat ${v.n}`}
+                              title={`Menu Opsi Ayat ${v.n}`}
                             >
                               <MoreVertical className="w-4 h-4" />
                             </button>
-
-                            {/* Active Bookmarks & Last Read */}
-                            {isLastRead && (
-                              <span className="text-[#2e9e45] flex items-center gap-1 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200 text-[10px] font-bold" title={t('last')}>
-                                <Clock className="w-3.5 h-3.5" />
-                                <span>Terakhir Dibaca</span>
-                              </span>
-                            )}
-                            {activeBookmarks.length > 0 && (
-                              <span className="text-amber-600 flex items-center justify-center bg-amber-50 p-1 rounded-full border border-amber-200 text-[10px] font-bold" title="Ayat Ditandai">
-                                <Bookmark className="w-3.5 h-3.5 fill-current" />
-                              </span>
-                            )}
                           </div>
                         </div>
 
@@ -2381,15 +2564,11 @@ export const QuranView: React.FC<QuranViewProps> = ({ isOpen, onClose, initialSu
                             return (
                               <div
                                 key={wordKey}
-                                className={`flex flex-col items-center gap-1 transition-all ${
-                                  settings.showWord 
-                                    ? 'px-1.5 py-1 rounded-lg border-b-2 border-slate-300/60 bg-white/40'
-                                    : 'px-1 py-0.5 rounded'
-                                }`}
+                                className="inline-flex flex-col items-center justify-start gap-1 bg-transparent border-0 shadow-none my-1 mx-0.5 align-top text-center"
                               >
-                                {/* Arabic word */}
+                                {/* Arabic word - sejajar lurus */}
                                 <span
-                                  className="font-arabic leading-relaxed whitespace-nowrap text-slate-900 text-center"
+                                  className="font-arabic leading-tight whitespace-nowrap text-slate-900 text-center flex items-center justify-center min-h-[1.5em]"
                                   dir="rtl"
                                   style={{ 
                                     fontSize: `${currentFontSize}px`,
@@ -2399,11 +2578,12 @@ export const QuranView: React.FC<QuranViewProps> = ({ isOpen, onClose, initialSu
                                   {w[0]}
                                 </span>
 
-                                {/* Word-by-word meaning (LTR) */}
+                                {/* Word-by-word meaning (LTR) - center vertical & center horizontal if multiple lines */}
                                 {settings.showWord && (
                                   <span 
-                                    className="text-[11px] leading-tight text-slate-600 text-center max-w-[96px] break-words font-medium mt-0.5"
+                                    className="text-[11px] leading-tight text-slate-600 text-center w-full max-w-[96px] min-h-[28px] break-words font-medium flex items-center justify-center self-center"
                                     dir="ltr"
+                                    style={{ textAlign: 'center' }}
                                   >
                                     {w[1]}
                                   </span>
@@ -2412,13 +2592,11 @@ export const QuranView: React.FC<QuranViewProps> = ({ isOpen, onClose, initialSu
                             );
                           })}
 
-                          {/* Lingkaran Ayat di Mode Daftar sama persis seperti Mode Mushaf (U+06DD Font LPMQ Isep Misbah) */}
+                          {/* Lingkaran Ayat di Mode Daftar (Penanda bookmark ada di atas lingkaran ayat) */}
                           <div 
-                            className={`inline-flex items-center justify-center cursor-pointer select-none ${
+                            className={`inline-flex items-center justify-center select-none ${
                               settings.showWord ? 'self-start pt-1' : 'self-center my-0.5'
                             }`}
-                            onClick={() => setActiveVerseSheet({ surahId, verseNum: v.n })}
-                            title={`Menu Ayat ${v.n}`}
                             style={{ fontSize: `${currentFontSize}px` }}
                           >
                             <AyahEndCircle
@@ -2478,7 +2656,12 @@ export const QuranView: React.FC<QuranViewProps> = ({ isOpen, onClose, initialSu
                           dir="ltr"
                           style={{ fontSize: `${currentFontSize}px` }}
                         >
-                          <AyahEndCircle num={v.n} fontSize={currentFontSize} />
+                          <AyahEndCircle 
+                            num={v.n} 
+                            fontSize={currentFontSize} 
+                            isLastRead={settings.lr?.s === surahId && settings.lr?.v === v.n}
+                            isBookmarked={Boolean(settings.bm[verseKey]?.length)}
+                          />
                         </span>
                         {' '}
                       </span>
@@ -2518,6 +2701,48 @@ export const QuranView: React.FC<QuranViewProps> = ({ isOpen, onClose, initialSu
           ? 'h-0 py-0 opacity-0 pointer-events-none overflow-hidden' 
           : 'opacity-100 pb-safe'
       }`}>
+        {/* Slider Ukuran Huruf Mulus (Muncul di batas bilah bawah tanpa modal) */}
+        {isFontSizeSliderOpen && (
+          <div className="bg-[#387839] text-white px-4 py-2 border-b border-emerald-500/50 flex items-center justify-between gap-3 animate-in slide-in-from-bottom duration-150">
+            <span className="text-emerald-100 font-serif font-bold text-xs select-none shrink-0">
+              A-
+            </span>
+            <div className="flex-1 flex items-center gap-2.5">
+              <input
+                type="range"
+                min="18"
+                max="46"
+                step="1"
+                value={currentFontSize}
+                onChange={(e) => {
+                  const val = Number(e.target.value);
+                  setSettings((prev) => {
+                    const next = { ...prev, size: val };
+                    saveSettings(next);
+                    return next;
+                  });
+                }}
+                className="w-full h-1.5 bg-emerald-950/40 rounded-lg appearance-none cursor-pointer accent-white"
+                title={`Ukuran: ${currentFontSize}px`}
+              />
+            </div>
+            <span className="text-emerald-100 font-serif font-black text-sm select-none shrink-0">
+              A+
+            </span>
+            <span className="bg-emerald-950/50 text-emerald-100 font-mono font-bold text-[11px] px-2 py-0.5 rounded-full border border-emerald-400/30 shrink-0 min-w-[44px] text-center">
+              {currentFontSize}px
+            </span>
+            <button
+              type="button"
+              onClick={() => setIsFontSizeSliderOpen(false)}
+              className="w-6 h-6 rounded-full flex items-center justify-center text-emerald-200 hover:text-white hover:bg-white/20 transition-colors cursor-pointer shrink-0"
+              title="Tutup slider"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
+
         {/* Item lingkaran sempurna & tombol play panjang curve sempurna */}
         <div className="flex items-center justify-between gap-2 px-3 sm:px-4 h-14 max-w-lg mx-auto w-full">
           {/* 1. Mode Baca (Lingkaran Sempurna) */}
@@ -2538,8 +2763,12 @@ export const QuranView: React.FC<QuranViewProps> = ({ isOpen, onClose, initialSu
           {/* 2. Ukuran Font 'aA' (Lingkaran Sempurna) */}
           <button
             type="button"
-            onClick={() => setIsFontSizeModalOpen(true)}
-            className="w-10 h-10 rounded-full flex items-center justify-center bg-white/15 hover:bg-white/25 active:bg-white/35 text-white transition-all cursor-pointer border border-white/20 shadow-xs shrink-0"
+            onClick={() => setIsFontSizeSliderOpen((prev) => !prev)}
+            className={`w-10 h-10 rounded-full flex items-center justify-center transition-all cursor-pointer border shadow-xs shrink-0 ${
+              isFontSizeSliderOpen
+                ? 'bg-white text-emerald-800 border-white shadow-md'
+                : 'bg-white/15 hover:bg-white/25 active:bg-white/35 text-white border-white/20'
+            }`}
             title="Atur Ukuran Huruf (aA)"
             aria-label="Ukuran Huruf"
           >
@@ -2615,7 +2844,9 @@ export const QuranView: React.FC<QuranViewProps> = ({ isOpen, onClose, initialSu
             const isCurrentPlaying = isPlaying && playingInfo !== null;
             const playingChapter = isCurrentPlaying ? chapters.find((c) => c.id === playingInfo.surahId) : null;
             const labelText = isCurrentPlaying
-              ? `${playingChapter?.name || 'Surah'} : ${playingInfo?.verseNum || 1}`
+              ? playingInfo?.verseNum === 0
+                ? `${playingChapter?.name || 'Surah'} : Bismillah`
+                : `${playingChapter?.name || 'Surah'} : Ayat ${playingInfo?.verseNum || 1}`
               : `Putar QS. ${activeChapter?.name || 'Al-Qur\'an'}`;
 
             return (
@@ -2766,7 +2997,7 @@ export const QuranView: React.FC<QuranViewProps> = ({ isOpen, onClose, initialSu
         return (
           <div
             className="fixed inset-0 z-[100060] bg-black/60 backdrop-blur-xs flex flex-col justify-end animate-in fade-in"
-            onClick={() => setActiveVerseSheet(null)}
+            onClick={closeVerseSheet}
           >
             <div
               className="bg-white rounded-t-3xl max-h-[82vh] flex flex-col shadow-2xl border-t border-slate-100 animate-in slide-in-from-bottom duration-250 p-5 space-y-3 pb-safe"
@@ -2781,7 +3012,7 @@ export const QuranView: React.FC<QuranViewProps> = ({ isOpen, onClose, initialSu
                 </div>
                 <button
                   type="button"
-                  onClick={() => setActiveVerseSheet(null)}
+                  onClick={closeVerseSheet}
                   className="w-8 h-8 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-100 cursor-pointer"
                 >
                   <X className="w-4 h-4" />
@@ -2809,10 +3040,19 @@ export const QuranView: React.FC<QuranViewProps> = ({ isOpen, onClose, initialSu
                   );
                 })()}
 
-                {/* Mark Last Read */}
+                {/* Mark Last Read with Confirmation Popup */}
                 <button
                   type="button"
-                  onClick={() => markLastRead(activeVerseSheet.surahId, activeVerseSheet.verseNum)}
+                  onClick={() => {
+                    const sId = activeVerseSheet.surahId;
+                    const vNum = activeVerseSheet.verseNum;
+                    closeVerseSheet();
+                    if (settings.lr?.s === sId && settings.lr?.v === vNum) {
+                      showToast('Ayat ini sudah ditandai sebagai terakhir dibaca');
+                    } else {
+                      setConfirmLastReadData({ surahId: sId, verseNum: vNum });
+                    }
+                  }}
                   className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-slate-50 transition-colors cursor-pointer text-xs font-semibold text-slate-700"
                 >
                   <Clock className="w-4 h-4 text-[#2e9e45]" />
@@ -2822,7 +3062,10 @@ export const QuranView: React.FC<QuranViewProps> = ({ isOpen, onClose, initialSu
                 {/* Copy Verse */}
                 <button
                   type="button"
-                  onClick={() => copyVerseText(arabicText, translationText, chapter, activeVerseSheet.verseNum)}
+                  onClick={() => {
+                    copyVerseText(arabicText, translationText, chapter, activeVerseSheet.verseNum);
+                    closeVerseSheet();
+                  }}
                   className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-slate-50 transition-colors cursor-pointer text-xs font-semibold text-slate-700"
                 >
                   <Copy className="w-4 h-4 text-slate-600" />
@@ -2835,8 +3078,12 @@ export const QuranView: React.FC<QuranViewProps> = ({ isOpen, onClose, initialSu
                   onClick={() => {
                     const sId = activeVerseSheet.surahId;
                     const vNum = activeVerseSheet.verseNum;
-                    setActiveVerseSheet(null);
-                    playVerse(sId, vNum);
+                    closeVerseSheet();
+                    if (vNum === 1 && sId !== 1 && sId !== 9) {
+                      playVerse(sId, 0); // Plays Bismillah first
+                    } else {
+                      playVerse(sId, vNum);
+                    }
                   }}
                   className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-slate-50 transition-colors cursor-pointer text-xs font-semibold text-slate-700"
                 >
@@ -3107,124 +3354,79 @@ export const QuranView: React.FC<QuranViewProps> = ({ isOpen, onClose, initialSu
         );
       })()}
 
-      {/* ================= MODAL PENGATUR UKURAN FONT 'aA' (TERSEDIA DI SEMUA MODE) ================= */}
-      {isFontSizeModalOpen && (
-        <div 
-          className="fixed inset-0 z-[100065] bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in"
-          onClick={() => setIsFontSizeModalOpen(false)}
-        >
+      {/* ================= POPUP KONFIRMASI PEMINDAHAN TERAKHIR DIBACA ================= */}
+      {confirmLastReadData && (() => {
+        const targetChapter = chapters.find((c) => c.id === confirmLastReadData.surahId);
+        const oldChapter = settings.lr ? chapters.find((c) => c.id === settings.lr?.s) : null;
+
+        return (
           <div 
-            className="bg-white rounded-3xl w-full max-w-sm max-h-[85vh] flex flex-col shadow-2xl border border-slate-100 overflow-hidden animate-in zoom-in-95 duration-200 p-5 space-y-4"
-            onClick={(e) => e.stopPropagation()}
+            className="fixed inset-0 z-[100075] bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in"
+            onClick={() => setConfirmLastReadData(null)}
           >
-            {/* Modal Header */}
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <div className="flex items-center gap-2">
-                <span className="w-8 h-8 rounded-full bg-emerald-100 text-emerald-800 flex items-center justify-center font-serif font-black text-sm">
-                  aA
-                </span>
+            <div 
+              className="bg-white rounded-3xl w-full max-w-sm flex flex-col shadow-2xl border border-slate-100 overflow-hidden animate-in zoom-in-95 duration-200 p-5 space-y-4"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center gap-3 border-b border-slate-100 pb-3">
+                <div className="w-10 h-10 rounded-2xl bg-emerald-50 text-emerald-700 flex items-center justify-center shrink-0 border border-emerald-100">
+                  <Clock className="w-5 h-5" />
+                </div>
                 <div>
-                  <h3 className="font-bold text-sm text-slate-900">Ukuran Huruf Al-Qur'an</h3>
-                  <p className="text-[11px] text-slate-400">Atur kenyamanan ukuran teks ayat</p>
+                  <h3 className="font-bold text-sm text-slate-900 leading-tight">
+                    Pindahkan Terakhir Dibaca?
+                  </h3>
+                  <p className="text-[11px] text-slate-400">Konfirmasi pemindahan penanda bacaan</p>
                 </div>
               </div>
-              <button
-                type="button"
-                onClick={() => setIsFontSizeModalOpen(false)}
-                className="w-8 h-8 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-100 cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
 
-            {/* Live Arabic Font Size Preview */}
-            <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200 text-center">
-              <div className="flex items-center justify-between mb-1.5 px-0.5">
-                <p className="text-[11px] text-slate-400 font-semibold">Pratinjau</p>
-                <span className="text-[11px] font-bold text-emerald-800 bg-emerald-100 px-2.5 py-0.5 rounded-full border border-emerald-200">
-                  {currentFontSize} px
-                </span>
+              <div className="bg-slate-50 rounded-2xl p-3.5 border border-slate-200/80 space-y-2 text-xs">
+                {settings.lr ? (
+                  <>
+                    <div className="text-slate-500">
+                      Penanda saat ini: <span className="font-bold text-slate-700">QS. {oldChapter?.name || settings.lr.s} : Ayat {settings.lr.v}</span>
+                    </div>
+                    <div className="text-slate-800">
+                      Pindahkan ke: <span className="font-bold text-emerald-700">QS. {targetChapter?.name || confirmLastReadData.surahId} : Ayat {confirmLastReadData.verseNum}</span>
+                    </div>
+                  </>
+                ) : (
+                  <div className="text-slate-800">
+                    Tandai <span className="font-bold text-emerald-700">QS. {targetChapter?.name || confirmLastReadData.surahId} : Ayat {confirmLastReadData.verseNum}</span> sebagai terakhir dibaca?
+                  </div>
+                )}
               </div>
-              <div 
-                className="font-arabic text-slate-900 leading-relaxed text-center py-2 select-none"
-                dir="rtl"
-                style={{ 
-                  fontSize: `${currentFontSize}px`,
-                  fontFamily: activeFontConfig.css
-                }}
-              >
-                بِسْمِ ٱللَّهِ ٱلرَّحْمَٰنِ ٱلرَّحِيمِ
-              </div>
-            </div>
 
-            {/* Quick Preset Buttons */}
-            <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-slate-700 block">Pilihan Ukuran Cepat:</label>
-              <div className="grid grid-cols-5 gap-1.5">
-                {SIZES.map((sz, idx) => {
-                  const isCurrent = settings.size === idx;
-                  return (
-                    <button
-                      key={`sz-preset-${sz}`}
-                      type="button"
-                      onClick={() => {
-                        setSettings((prev) => {
-                          const next = { ...prev, size: idx };
-                          saveSettings(next);
-                          return next;
-                        });
-                        showToast(`Ukuran diubah ke ${sz}px`);
-                      }}
-                      className={`py-2 rounded-xl text-center font-bold text-xs border transition-all cursor-pointer ${
-                        isCurrent 
-                          ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs' 
-                          : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
-                      }`}
-                    >
-                      <div>{sz}</div>
-                      <div className={`text-[9px] font-normal ${isCurrent ? 'text-emerald-100' : 'text-slate-400'}`}>
-                        {idx === 0 ? 'Kecil' : idx === 1 ? 'Standar' : idx === 2 ? 'Sedang' : idx === 3 ? 'Besar' : 'Ekstra'}
-                      </div>
-                    </button>
-                  );
-                })}
+              <div className="flex items-center gap-2.5 pt-1">
+                <button
+                  type="button"
+                  onClick={() => setConfirmLastReadData(null)}
+                  className="flex-1 py-2.5 px-4 rounded-xl border border-slate-300 bg-white text-slate-700 font-semibold text-xs hover:bg-slate-50 active:bg-slate-100 transition-colors cursor-pointer text-center"
+                >
+                  Batal
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const { surahId, verseNum } = confirmLastReadData;
+                    setConfirmLastReadData(null);
+                    setSettings((prev) => {
+                      const next = { ...prev, lr: { s: surahId, v: verseNum } };
+                      saveSettings(next);
+                      return next;
+                    });
+                    const ch = chapters.find((c) => c.id === surahId);
+                    showToast(`Terakhir dibaca: QS. ${ch?.name || surahId} : ${verseNum}`);
+                  }}
+                  className="flex-1 py-2.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-semibold text-xs shadow-xs transition-colors cursor-pointer text-center"
+                >
+                  Ya, Pindahkan
+                </button>
               </div>
             </div>
-
-            {/* Slider */}
-            <div className="space-y-1.5 pt-2 border-t border-slate-100">
-              <div className="flex justify-between text-xs font-semibold text-slate-700">
-                <span>Geser Ukuran:</span>
-                <span className="text-emerald-700 font-bold">{currentFontSize} px</span>
-              </div>
-              <input
-                type="range"
-                min="0"
-                max={SIZES.length - 1}
-                step="1"
-                value={settings.size}
-                onChange={(e) => {
-                  const idx = parseInt(e.target.value, 10);
-                  setSettings((prev) => {
-                    const next = { ...prev, size: idx };
-                    saveSettings(next);
-                    return next;
-                  });
-                }}
-                className="w-full accent-emerald-600 cursor-pointer"
-              />
-            </div>
-
-            <button
-              type="button"
-              onClick={() => setIsFontSizeModalOpen(false)}
-              className="w-full py-2.5 rounded-xl bg-emerald-600 text-white font-bold text-xs shadow-md hover:bg-emerald-700 transition-colors cursor-pointer mt-2"
-            >
-              Selesai
-            </button>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* ================= 8. MODAL PERGI KE (SURAH, JUZ, HALAMAN) PERSIS SESUAI SCREENSHOT ================= */}
       {isJumpModalOpen && (
@@ -3292,7 +3494,13 @@ export const QuranView: React.FC<QuranViewProps> = ({ isOpen, onClose, initialSu
                         type="text"
                         value={surahPickerSearch}
                         placeholder="Ketik nama atau nomor surah..."
-                        onFocus={() => setIsSurahPickerOpen(true)}
+                        onFocus={(e) => {
+                          setIsSurahPickerOpen(true);
+                          e.currentTarget.select();
+                        }}
+                        onClick={(e) => {
+                          e.currentTarget.select();
+                        }}
                         onChange={(e) => {
                           setSurahPickerSearch(e.target.value);
                           setIsSurahPickerOpen(true);
@@ -3372,6 +3580,8 @@ export const QuranView: React.FC<QuranViewProps> = ({ isOpen, onClose, initialSu
                       max={totalAyat}
                       placeholder={`1 - ${totalAyat}`}
                       value={jumpAyahInput}
+                      onFocus={(e) => e.currentTarget.select()}
+                      onClick={(e) => e.currentTarget.select()}
                       onChange={(e) => setJumpAyahInput(e.target.value)}
                       onKeyDown={(e) => {
                         if (e.key === 'Enter') {
@@ -3416,6 +3626,8 @@ export const QuranView: React.FC<QuranViewProps> = ({ isOpen, onClose, initialSu
                     max="30"
                     placeholder="1 - 30"
                     value={jumpJuzInput}
+                    onFocus={(e) => e.currentTarget.select()}
+                    onClick={(e) => e.currentTarget.select()}
                     onChange={(e) => setJumpJuzInput(e.target.value)}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') {
@@ -3459,6 +3671,8 @@ export const QuranView: React.FC<QuranViewProps> = ({ isOpen, onClose, initialSu
                     max="604"
                     placeholder={`1 - 604 (saat ini Hal. ${curPage})`}
                     value={jumpPageInput}
+                    onFocus={(e) => e.currentTarget.select()}
+                    onClick={(e) => e.currentTarget.select()}
                     onChange={(e) => setJumpPageInput(e.target.value)}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') {

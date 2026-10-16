@@ -154,7 +154,8 @@
   background: var(--band);
   border: 2px solid var(--line);
   padding: 3px 14px;
-  margin: 0 0 14px;
+  margin: 0 auto 14px auto;
+  width: 90%;
   font-size: 14px;
   font-family: system-ui, -apple-system, sans-serif;
   color: var(--text);
@@ -171,7 +172,7 @@
 .cart {
   position: relative;
   flex: 0 0 auto;
-  width: min(270px, 64vw);
+  width: min(218px, 51.8vw);
   aspect-ratio: 304/68;
 }
 
@@ -190,7 +191,7 @@
   align-items: center;
   justify-content: center;
   font-family: 'surah-name-v4-icon', 'Aref Ruqaa', 'Amiri Quran', serif;
-  font-size: clamp(28px, 8vw, 44px);
+  font-size: clamp(25px, 7.2vw, 40px);
   color: var(--ink, #111);
   white-space: nowrap;
   line-height: 1;
