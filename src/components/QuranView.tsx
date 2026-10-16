@@ -449,6 +449,7 @@ const MushafPageContent: React.FC<MushafPageContentProps> = ({
                     fontFamily: activeFontConfig.css,
                     direction: 'rtl',
                     textAlign: 'justify',
+                    textJustify: 'inter-word',
                     textAlignLast: 'right',
                   }}
                 >
@@ -462,7 +463,6 @@ const MushafPageContent: React.FC<MushafPageContentProps> = ({
                         key={`mushaf-wbw-${page}-${v.verseKey}`}
                         data-verse-key={v.verseKey}
                         dir="rtl"
-                        style={{ unicodeBidi: 'isolate' }}
                         className={`inline rounded-none transition-colors duration-150 ${
                           isVersePlaying
                             ? 'bg-[#bbf7d0]/70'
@@ -484,34 +484,35 @@ const MushafPageContent: React.FC<MushafPageContentProps> = ({
                                     onWordClick(w[2], wordKey);
                                   }
                                 }}
-                                className={`inline-flex flex-col items-center justify-start mx-0.5 my-1 px-1 py-0.5 rounded-lg border-b transition-all ${
+                                className={`inline-block align-top my-1 mx-0.5 px-1 py-0.5 rounded-lg border-b transition-all text-center ${
                                   isInteractive ? 'cursor-pointer hover:bg-emerald-50/80 active:bg-emerald-100/80' : 'cursor-default'
                                 } ${
                                   isWordPlaying
                                     ? 'bg-[#c9e1c9] border-[#4f9a50] shadow-xs'
-                                    : 'border-slate-300/60'
+                                    : 'border-slate-300/60 bg-white/40'
                                 }`}
-                                style={{ verticalAlign: 'top', unicodeBidi: 'isolate' }}
                                 title={w[2] ? 'Klik untuk mendengarkan lafadz kata' : undefined}
                               >
-                                {/* Arabic word */}
-                                <span
-                                  className="font-arabic leading-relaxed whitespace-nowrap text-slate-900"
-                                  dir="rtl"
-                                  style={{ 
-                                    fontSize: `${currentFontSize}px`,
-                                    fontFamily: activeFontConfig.css
-                                  }}
-                                >
-                                  {w[0]}
-                                </span>
+                                <span className="flex flex-col items-center justify-start">
+                                  {/* Arabic word */}
+                                  <span
+                                    className="font-arabic leading-relaxed whitespace-nowrap text-slate-900"
+                                    dir="rtl"
+                                    style={{ 
+                                      fontSize: `${currentFontSize}px`,
+                                      fontFamily: activeFontConfig.css
+                                    }}
+                                  >
+                                    {w[0]}
+                                  </span>
 
-                                {/* Word-by-word meaning (LTR) */}
-                                <span 
-                                  className="text-[10px] sm:text-[11.5px] leading-tight text-slate-600 text-center max-w-[96px] break-words font-sans font-medium"
-                                  dir="ltr"
-                                >
-                                  {w[1]}
+                                  {/* Word-by-word meaning (LTR) */}
+                                  <span 
+                                    className="text-[10px] sm:text-[11.5px] leading-tight text-slate-600 text-center max-w-[96px] break-words font-sans font-medium"
+                                    dir="ltr"
+                                  >
+                                    {w[1]}
+                                  </span>
                                 </span>
                               </span>
                               {' '}
@@ -521,8 +522,7 @@ const MushafPageContent: React.FC<MushafPageContentProps> = ({
 
                         {/* Medallion Nomor Ayat */}
                         <span 
-                          className="inline-flex items-center justify-center cursor-pointer select-none mx-0.5 my-1"
-                          style={{ verticalAlign: 'top', unicodeBidi: 'isolate' }}
+                          className="inline-block align-top my-1 mx-0.5 cursor-pointer select-none"
                           onClick={(e) => {
                             e.stopPropagation();
                             if (isInteractive && onVerseContextMenu) {
@@ -676,6 +676,7 @@ export const QuranView: React.FC<QuranViewProps> = ({ isOpen, onClose, initialSu
   const [jumpPageInput, setJumpPageInput] = useState<string>('');
   const [jumpModalTab, setJumpModalTab] = useState<'surah' | 'juz' | 'page'>('surah');
   const [selectedJumpSurahId, setSelectedJumpSurahId] = useState<number>(1);
+  const [selectedJumpJuz, setSelectedJumpJuz] = useState<number>(1);
   const [jumpAyahInput, setJumpAyahInput] = useState<string>('');
   const [currentJuzInfo, setCurrentJuzInfo] = useState<{ juz: number | string; page: number | string }>(() => ({
     juz: getJuzFromPage(loadSettings().curPage || 1),
@@ -1747,6 +1748,113 @@ export const QuranView: React.FC<QuranViewProps> = ({ isOpen, onClose, initialSu
     showToast(`Membuka QS. ${c?.name || surahId} : ${verseNum}`);
   };
 
+  // Handle Jump Confirmation from "Pergi ke" Modal (Surah, Juz, Halaman)
+  const handleConfirmJumpSurah = async () => {
+    const targetSurahId = selectedJumpSurahId;
+    const targetChapter = chapters.find((c) => c.id === targetSurahId);
+    const maxAyah = targetChapter?.count || 1;
+    let targetAyah = parseInt(jumpAyahInput.trim(), 10);
+    if (isNaN(targetAyah) || targetAyah < 1) {
+      targetAyah = 1;
+    } else if (targetAyah > maxAyah) {
+      targetAyah = maxAyah;
+    }
+
+    setIsJumpModalOpen(false);
+
+    if (settings.mode === 'read') {
+      let targetPage = CHAPTER_PAGE_RANGES[targetSurahId - 1]?.[0] || 1;
+      if (targetAyah > 1) {
+        const inVerses = versesBySurah[targetSurahId]?.find((v) => v.n === targetAyah);
+        if (inVerses?.p) {
+          targetPage = inVerses.p;
+        } else {
+          try {
+            const cacheKey = `qwbw:verses:${targetSurahId}:${settings.lang}`;
+            const cached = localStorage.getItem(cacheKey);
+            if (cached) {
+              const list: CompactVerse[] = JSON.parse(cached);
+              const found = list.find((v) => v.n === targetAyah);
+              if (found?.p) targetPage = found.p;
+            }
+          } catch (_) {}
+
+          if (targetPage === CHAPTER_PAGE_RANGES[targetSurahId - 1]?.[0]) {
+            try {
+              const res = await fetch(`${API}/verses/by_key/${targetSurahId}:${targetAyah}?fields=page_number`);
+              if (res.ok) {
+                const data = await res.json();
+                if (data?.verse?.page_number) {
+                  targetPage = data.verse.page_number;
+                }
+              }
+            } catch (_) {}
+          }
+        }
+      }
+
+      goToPage(targetPage);
+      setSelectedVerseKey(`${targetSurahId}:${targetAyah}`);
+      showToast(`Menuju QS. ${targetChapter?.name || targetSurahId} : ${targetAyah} (Hal. ${targetPage})`);
+    } else {
+      setActiveSurahId(targetSurahId);
+      if (!loadedSurahIds.includes(targetSurahId)) {
+        setLoadedSurahIds([targetSurahId]);
+      }
+      setTargetScrollVerse({ s: targetSurahId, v: targetAyah });
+      if (versesBySurah[targetSurahId]) {
+        setTimeout(() => {
+          const el = scrollerRef.current?.querySelector(`[data-verse-key="${targetSurahId}:${targetAyah}"]`);
+          if (el) {
+            el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }
+        }, 150);
+      }
+      showToast(`Menuju QS. ${targetChapter?.name || targetSurahId} : ${targetAyah}`);
+    }
+  };
+
+  const handleConfirmJumpJuz = (juzNum: number) => {
+    setIsJumpModalOpen(false);
+    const safeJuz = Math.max(1, Math.min(30, juzNum));
+    const startPage = JUZ_START_PAGES[safeJuz - 1] || 1;
+    const sId = getChapterIdFromPage(startPage);
+    const chapter = chapters.find((c) => c.id === sId);
+
+    if (settings.mode === 'read') {
+      goToPage(startPage);
+      showToast(`Membuka Juz ${safeJuz} (Hal. ${startPage})`);
+    } else {
+      setActiveSurahId(sId);
+      setLoadedSurahIds([sId]);
+      setCurrentJuzInfo({ juz: safeJuz, page: startPage });
+      if (scrollerRef.current) scrollerRef.current.scrollTop = 0;
+      showToast(`Membuka Juz ${safeJuz} • QS. ${chapter?.name || sId}`);
+    }
+  };
+
+  const handleConfirmJumpPage = () => {
+    const pageNum = parseInt(jumpPageInput.trim(), 10);
+    if (isNaN(pageNum) || pageNum < 1 || pageNum > 604) {
+      showToast('Masukkan nomor halaman antara 1 s/d 604');
+      return;
+    }
+    setIsJumpModalOpen(false);
+    const sId = getChapterIdFromPage(pageNum);
+    const chapter = chapters.find((c) => c.id === sId);
+
+    if (settings.mode === 'read') {
+      goToPage(pageNum);
+      showToast(`Membuka Halaman ${pageNum} (Juz ${getJuzFromPage(pageNum)})`);
+    } else {
+      setActiveSurahId(sId);
+      setLoadedSurahIds([sId]);
+      setCurrentJuzInfo({ juz: getJuzFromPage(pageNum), page: pageNum });
+      if (scrollerRef.current) scrollerRef.current.scrollTop = 0;
+      showToast(`Membuka Hal. ${pageNum} • QS. ${chapter?.name || sId}`);
+    }
+  };
+
   // Display mode switcher
   const toggleDisplayMode = () => {
     const nextMode: 'wbw' | 'read' = settings.mode === 'wbw' ? 'read' : 'wbw';
@@ -1800,26 +1908,44 @@ export const QuranView: React.FC<QuranViewProps> = ({ isOpen, onClose, initialSu
           <ArrowLeft className="w-5 h-5" />
         </button>
 
-        {/* Surah Title Picker & Quick Page Jump Button */}
+        {/* Surah Title Picker & Quick Jump Button (Mode Baris: Nama Surat & Keterangan Juz di Bawahnya) */}
         <button
           type="button"
           onClick={() => {
             setSelectedJumpSurahId(activeSurahId);
+            setSelectedJumpJuz(
+              settings.mode === 'read'
+                ? getJuzFromPage(curPage)
+                : Number(currentJuzInfo.juz) || getJuzFromPage(CHAPTER_PAGE_RANGES[activeSurahId - 1]?.[0] || 1)
+            );
             setJumpAyahInput('');
+            setJumpPageInput('');
+            setJumpModalTab('surah');
             setIsJumpModalOpen(true);
           }}
           className="flex-1 flex items-center justify-between gap-1.5 px-3 py-1 bg-black/15 hover:bg-black/25 border border-white/20 rounded-xl transition-all cursor-pointer min-w-0 mx-2 text-left"
-          title="Pergi ke Surah, Juz, atau Halaman"
+          title="Pergi ke"
         >
           <div className="flex flex-col min-w-0 leading-tight">
-            <span className="font-bold text-sm sm:text-base text-white truncate tracking-wide">
-              {activeChapter ? `${activeChapter.id}. ${activeChapter.name}` : 'Al-Qur\'an'}
-            </span>
-            <span className="text-[11px] text-emerald-100/90 font-medium truncate">
-              {settings.mode === 'read' 
-                ? `Halaman ${curPage}, Juz ${getJuzFromPage(curPage)}` 
-                : `Juz ${currentJuzInfo.juz || 1} • Hal. ${currentJuzInfo.page || 1}`}
-            </span>
+            {settings.mode === 'read' ? (
+              <>
+                <span className="text-[11px] text-emerald-100/90 font-medium truncate">
+                  Halaman {curPage}, Juz {getJuzFromPage(curPage)}
+                </span>
+                <span className="font-bold text-sm sm:text-base text-white truncate tracking-wide">
+                  {activeChapter ? activeChapter.name : 'Al-Qur\'an'}
+                </span>
+              </>
+            ) : (
+              <>
+                <span className="font-bold text-sm sm:text-base text-white truncate tracking-wide">
+                  {activeChapter ? activeChapter.name : 'Al-Qur\'an'}
+                </span>
+                <span className="text-[11px] text-emerald-100/90 font-medium truncate">
+                  Juz {currentJuzInfo.juz || getJuzFromPage(CHAPTER_PAGE_RANGES[activeSurahId - 1]?.[0] || 1)}
+                </span>
+              </>
+            )}
           </div>
           <ChevronDown className="w-4 h-4 shrink-0 text-white/80 ml-1.5" />
         </button>
@@ -3043,175 +3169,243 @@ export const QuranView: React.FC<QuranViewProps> = ({ isOpen, onClose, initialSu
         </div>
       )}
 
-      {/* ================= 8. MODAL LOMPAT KE HALAMAN / JUZ (MUSHAF POJOK) ================= */}
+      {/* ================= 8. MODAL PERGI KE (SURAH, JUZ, HALAMAN) PERSIS SESUAI SCREENSHOT ================= */}
       {isJumpModalOpen && (
         <div 
           className="fixed inset-0 z-[100065] bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in"
           onClick={() => setIsJumpModalOpen(false)}
         >
           <div 
-            className="bg-white rounded-3xl w-full max-w-sm max-h-[85vh] flex flex-col shadow-2xl border border-slate-100 overflow-hidden animate-in zoom-in-95 duration-200"
+            className="bg-white rounded-2xl w-full max-w-sm flex flex-col shadow-2xl border border-slate-100 overflow-hidden animate-in zoom-in-95 duration-200 p-5 space-y-4"
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Header */}
-            <div className="flex items-center justify-between px-5 pt-4 pb-3 border-b border-slate-100">
-              <div className="flex items-center gap-2">
-                <BookOpen className="w-5 h-5 text-emerald-600" />
-                <h3 className="font-bold text-base text-slate-800">Lompat Halaman / Juz</h3>
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsJumpModalOpen(false)}
-                className="w-8 h-8 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-100"
-              >
-                <X className="w-4 h-4" />
-              </button>
+            {/* Judul: "Pergi ke" */}
+            <h3 className="font-bold text-lg text-slate-900 leading-tight">
+              Pergi ke
+            </h3>
+
+            {/* Navigasi Tab: Surah | Juz | Halaman */}
+            <div className="flex border-b border-slate-200/90 -mt-1">
+              {(['surah', 'juz', 'page'] as const).map((tab) => {
+                const label = tab === 'surah' ? 'Surah' : tab === 'juz' ? 'Juz' : 'Halaman';
+                const isActive = jumpModalTab === tab;
+                return (
+                  <button
+                    key={tab}
+                    type="button"
+                    onClick={() => setJumpModalTab(tab)}
+                    className={`flex-1 pb-2 text-center text-sm font-semibold transition-colors relative cursor-pointer ${
+                      isActive ? 'text-[#009688] font-bold' : 'text-slate-500 hover:text-slate-800'
+                    }`}
+                  >
+                    {label}
+                    {isActive && (
+                      <span className="absolute bottom-0 inset-x-4 h-0.5 bg-[#009688] rounded-full" />
+                    )}
+                  </button>
+                );
+              })}
             </div>
 
-            {/* Tabs */}
-            <div className="grid grid-cols-2 p-1.5 mx-4 mt-3 bg-slate-100 rounded-xl text-xs font-semibold">
-              <button
-                type="button"
-                onClick={() => setJumpModalTab('page')}
-                className={`py-1.5 rounded-lg transition-all ${
-                  jumpModalTab === 'page' ? 'bg-white text-emerald-700 shadow-xs' : 'text-slate-600 hover:text-slate-800'
-                }`}
-              >
-                Nomor Halaman (1-604)
-              </button>
-              <button
-                type="button"
-                onClick={() => setJumpModalTab('juz')}
-                className={`py-1.5 rounded-lg transition-all ${
-                  jumpModalTab === 'juz' ? 'bg-white text-emerald-700 shadow-xs' : 'text-slate-600 hover:text-slate-800'
-                }`}
-              >
-                Daftar Juz (1-30)
-              </button>
-            </div>
+            {/* TAB 1: SURAH (PILIH SURAH & MASUKKAN NOMOR AYAT) */}
+            {jumpModalTab === 'surah' && (() => {
+              const selectedCh = chapters.find((c) => c.id === selectedJumpSurahId) || chapters[0];
+              const totalAyat = selectedCh?.count || 286;
+              return (
+                <div className="space-y-4 pt-1">
+                  {/* Dropdown Pilih Surah */}
+                  <div className="space-y-1.5">
+                    <label className="block text-xs font-medium text-slate-600">
+                      Pilih Surah
+                    </label>
+                    <div className="relative">
+                      <select
+                        value={selectedJumpSurahId}
+                        onChange={(e) => {
+                          setSelectedJumpSurahId(parseInt(e.target.value, 10));
+                          setJumpAyahInput('');
+                        }}
+                        className="w-full appearance-none bg-white border border-slate-300 rounded-xl px-3.5 py-2.5 pr-10 text-sm font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#009688] focus:border-transparent cursor-pointer"
+                      >
+                        {chapters.map((c) => (
+                          <option key={c.id} value={c.id}>
+                            {c.id}. {c.name}
+                          </option>
+                        ))}
+                      </select>
+                      <ChevronDown className="w-5 h-5 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    </div>
+                  </div>
 
-            {/* Tab 1: Input Page & Slider & Presets */}
-            {jumpModalTab === 'page' && (
-              <div className="p-5 space-y-4 overflow-y-auto">
-                <form
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    const num = parseInt(jumpPageInput, 10);
-                    if (!isNaN(num) && num >= 1 && num <= 604) {
-                      goToPage(num);
-                      setIsJumpModalOpen(false);
-                      setJumpPageInput('');
-                    } else {
-                      showToast('Masukkan halaman antara 1 s/d 604');
-                    }
-                  }}
-                  className="space-y-3"
-                >
-                  <label className="block text-xs font-semibold text-slate-600">
-                    Ketik Nomor Halaman (1 - 604):
-                  </label>
-                  <div className="flex items-center gap-2">
+                  {/* Input Nomor Ayat */}
+                  <div className="space-y-1.5">
+                    <label className="block text-xs font-medium text-slate-600">
+                      Masukkan nomor ayat antara 1 - {totalAyat}
+                    </label>
                     <input
                       type="number"
                       min="1"
-                      max="604"
-                      autoFocus
-                      placeholder={`Contoh: ${curPage}`}
-                      value={jumpPageInput}
-                      onChange={(e) => setJumpPageInput(e.target.value)}
-                      className="flex-1 px-4 py-2.5 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500 font-bold text-center text-lg text-slate-800"
+                      max={totalAyat}
+                      placeholder={`1 - ${totalAyat}`}
+                      value={jumpAyahInput}
+                      onChange={(e) => setJumpAyahInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          handleConfirmJumpSurah();
+                        }
+                      }}
+                      className="w-full bg-white border border-slate-300 rounded-xl px-3.5 py-2.5 text-sm font-medium text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#009688] focus:border-transparent"
                     />
+                  </div>
+
+                  {/* Tombol Aksi Batal & Oke */}
+                  <div className="flex items-center gap-3 pt-2">
                     <button
-                      type="submit"
-                      className="px-5 py-2.5 rounded-xl bg-emerald-600 text-white font-bold text-sm shadow-md hover:bg-emerald-700 transition-colors cursor-pointer"
+                      type="button"
+                      onClick={() => setIsJumpModalOpen(false)}
+                      className="flex-1 py-2.5 px-4 rounded-xl border border-slate-300 bg-white text-slate-700 font-semibold text-sm hover:bg-slate-50 active:bg-slate-100 transition-colors cursor-pointer text-center"
                     >
-                      Buka
+                      Batal
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleConfirmJumpSurah}
+                      className="flex-1 py-2.5 px-4 rounded-xl bg-[#009688] hover:bg-[#00897b] active:bg-[#00796b] text-white font-semibold text-sm shadow-xs transition-colors cursor-pointer text-center"
+                    >
+                      Oke
                     </button>
                   </div>
-                </form>
+                </div>
+              );
+            })()}
 
-                {/* Slider */}
-                <div className="space-y-1.5 pt-2 border-t border-slate-100">
-                  <div className="flex justify-between text-xs font-semibold text-slate-600">
-                    <span>Geser Cepat Halaman:</span>
-                    <span className="text-emerald-700 font-bold">Hal. {curPage} / 604</span>
+            {/* TAB 2: JUZ */}
+            {jumpModalTab === 'juz' && (
+              <div className="space-y-4 pt-1">
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-medium text-slate-600">
+                    Pilih Juz (1 - 30)
+                  </label>
+                  <div className="relative">
+                    <select
+                      value={selectedJumpJuz}
+                      onChange={(e) => setSelectedJumpJuz(parseInt(e.target.value, 10))}
+                      className="w-full appearance-none bg-white border border-slate-300 rounded-xl px-3.5 py-2.5 pr-10 text-sm font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#009688] focus:border-transparent cursor-pointer"
+                    >
+                      {Array.from({ length: 30 }, (_, i) => i + 1).map((juzNum) => {
+                        const startP = JUZ_START_PAGES[juzNum - 1] || 1;
+                        const sId = getChapterIdFromPage(startP);
+                        const chName = chapters.find((c) => c.id === sId)?.name || '';
+                        return (
+                          <option key={juzNum} value={juzNum}>
+                            Juz {juzNum} {chName ? `(${chName} - Hal. ${startP})` : `(Hal. ${startP})`}
+                          </option>
+                        );
+                      })}
+                    </select>
+                    <ChevronDown className="w-5 h-5 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                   </div>
-                  <input
-                    type="range"
-                    min="1"
-                    max="604"
-                    dir="rtl"
-                    value={curPage}
-                    onChange={(e) => goToPage(parseInt(e.target.value, 10))}
-                    className="w-full accent-emerald-600 cursor-pointer"
-                  />
                 </div>
 
-                {/* Popular Shortcuts */}
-                <div className="space-y-1.5 pt-2 border-t border-slate-100">
-                  <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
-                    Pilihan Populer
-                  </span>
-                  <div className="grid grid-cols-2 gap-1.5">
-                    {[
-                      { name: 'Al-Fatihah', p: 1 },
-                      { name: 'Al-Baqarah', p: 2 },
-                      { name: 'Al-Kahf', p: 293 },
-                      { name: 'Ya-Sin', p: 440 },
-                      { name: 'Al-Waqi\'ah', p: 534 },
-                      { name: 'Al-Mulk', p: 562 },
-                      { name: 'Juz 30 (An-Naba)', p: 582 },
-                      { name: 'Al-Ikhlas', p: 604 }
-                    ].map((item) => (
-                      <button
-                        key={item.p}
-                        type="button"
-                        onClick={() => {
-                          goToPage(item.p);
-                          setIsJumpModalOpen(false);
-                        }}
-                        className={`px-3 py-2 rounded-xl text-left text-xs font-medium border transition-colors flex items-center justify-between cursor-pointer ${
-                          curPage === item.p ? 'bg-emerald-50 border-emerald-400 text-emerald-800' : 'bg-slate-50 border-slate-200 hover:bg-slate-100 text-slate-700'
-                        }`}
-                      >
-                        <span className="truncate">{item.name}</span>
-                        <span className="text-[10px] text-slate-400 font-mono">Hal. {item.p}</span>
-                      </button>
-                    ))}
-                  </div>
+                {/* Grid 30 Juz Cepat */}
+                <div className="max-h-40 overflow-y-auto grid grid-cols-5 gap-1.5 p-1 border border-slate-100 rounded-xl bg-slate-50/50">
+                  {Array.from({ length: 30 }, (_, i) => i + 1).map((juzNum) => (
+                    <button
+                      key={`juz-btn-${juzNum}`}
+                      type="button"
+                      onClick={() => setSelectedJumpJuz(juzNum)}
+                      className={`py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                        selectedJumpJuz === juzNum
+                          ? 'bg-[#009688] text-white shadow-xs'
+                          : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200/80'
+                      }`}
+                    >
+                      {juzNum}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Tombol Aksi Batal & Oke */}
+                <div className="flex items-center gap-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsJumpModalOpen(false)}
+                    className="flex-1 py-2.5 px-4 rounded-xl border border-slate-300 bg-white text-slate-700 font-semibold text-sm hover:bg-slate-50 active:bg-slate-100 transition-colors cursor-pointer text-center"
+                  >
+                    Batal
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleConfirmJumpJuz(selectedJumpJuz)}
+                    className="flex-1 py-2.5 px-4 rounded-xl bg-[#009688] hover:bg-[#00897b] active:bg-[#00796b] text-white font-semibold text-sm shadow-xs transition-colors cursor-pointer text-center"
+                  >
+                    Oke
+                  </button>
                 </div>
               </div>
             )}
 
-            {/* Tab 2: Grid of 30 Juzs */}
-            {jumpModalTab === 'juz' && (
-              <div className="p-4 overflow-y-auto max-h-[60vh]">
-                <div className="grid grid-cols-3 gap-2">
-                  {JUZ_START_PAGES.map((startPage, index) => {
-                    const juzNum = index + 1;
-                    const isCurrent = getJuzFromPage(curPage) === juzNum;
-                    return (
-                      <button
-                        key={`juz-btn-${juzNum}`}
-                        type="button"
-                        onClick={() => {
-                          goToPage(startPage);
-                          setIsJumpModalOpen(false);
-                          showToast(`Membuka Juz ${juzNum} (Hal. ${startPage})`);
-                        }}
-                        className={`p-2.5 rounded-xl border text-center transition-all cursor-pointer ${
-                          isCurrent
-                            ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm font-bold ring-2 ring-emerald-300'
-                            : 'bg-slate-50 hover:bg-emerald-50 text-slate-700 border-slate-200 hover:border-emerald-300'
-                        }`}
-                      >
-                        <div className="text-xs font-bold">Juz {juzNum}</div>
-                        <div className={`text-[10px] mt-0.5 ${isCurrent ? 'text-emerald-100' : 'text-slate-400'}`}>
-                          Hal. {startPage}
-                        </div>
-                      </button>
-                    );
-                  })}
+            {/* TAB 3: HALAMAN */}
+            {jumpModalTab === 'page' && (
+              <div className="space-y-4 pt-1">
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-medium text-slate-600">
+                    Masukkan nomor halaman antara 1 - 604
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="604"
+                    placeholder={`1 - 604 (saat ini Hal. ${curPage})`}
+                    value={jumpPageInput}
+                    onChange={(e) => setJumpPageInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        handleConfirmJumpPage();
+                      }
+                    }}
+                    className="w-full bg-white border border-slate-300 rounded-xl px-3.5 py-2.5 text-sm font-medium text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#009688] focus:border-transparent"
+                  />
+                </div>
+
+                {/* Pilihan Cepat Halaman Populer */}
+                <div className="grid grid-cols-2 gap-1.5 pt-1">
+                  {[
+                    { name: 'Al-Fatihah', p: 1 },
+                    { name: 'Al-Baqarah', p: 2 },
+                    { name: 'Al-Kahf', p: 293 },
+                    { name: 'Ya-Sin', p: 440 },
+                    { name: 'Al-Waqi\'ah', p: 534 },
+                    { name: 'Juz 30 (An-Naba)', p: 582 },
+                  ].map((item) => (
+                    <button
+                      key={item.p}
+                      type="button"
+                      onClick={() => setJumpPageInput(String(item.p))}
+                      className="px-2.5 py-1.5 rounded-lg text-left text-xs border border-slate-200 bg-slate-50 hover:bg-emerald-50 text-slate-700 flex items-center justify-between cursor-pointer"
+                    >
+                      <span className="truncate">{item.name}</span>
+                      <span className="text-[10px] text-slate-400 font-mono">Hal. {item.p}</span>
+                    </button>
+                  ))}
+                </div>
+
+                {/* Tombol Aksi Batal & Oke */}
+                <div className="flex items-center gap-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsJumpModalOpen(false)}
+                    className="flex-1 py-2.5 px-4 rounded-xl border border-slate-300 bg-white text-slate-700 font-semibold text-sm hover:bg-slate-50 active:bg-slate-100 transition-colors cursor-pointer text-center"
+                  >
+                    Batal
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleConfirmJumpPage}
+                    className="flex-1 py-2.5 px-4 rounded-xl bg-[#009688] hover:bg-[#00897b] active:bg-[#00796b] text-white font-semibold text-sm shadow-xs transition-colors cursor-pointer text-center"
+                  >
+                    Oke
+                  </button>
                 </div>
               </div>
             )}
