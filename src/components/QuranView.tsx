@@ -20,7 +20,11 @@ import {
   ChevronRight,
   Layers,
   Sparkles,
-  Share2
+  Share2,
+  Languages,
+  WholeWord,
+  Trash2,
+  ArrowRight
 } from 'lucide-react';
 import { useBackHandler } from '../utils/navigationHistory';
 import { BismillahCalligraphy } from './BismillahCalligraphy';
@@ -240,16 +244,17 @@ export const AyahEndCircle: React.FC<{
   isLastRead?: boolean;
   bookmarkColor?: string;
   className?: string;
-}> = ({ num, fontSize, isLastRead, bookmarkColor, className = '' }) => {
+}> = ({ num, fontSize, isLastRead, className = '' }) => {
   return (
     <span
       className={`inline-flex items-center justify-center relative select-none shrink-0 whitespace-nowrap mx-1 align-baseline ${className}`}
-      dir="ltr"
+      dir="rtl"
       style={{ 
         width: '1.24em',
         height: '1.24em',
         verticalAlign: '-0.52em',
         lineHeight: 1,
+        unicodeBidi: 'isolate',
         ...(fontSize ? { fontSize: `${fontSize}px` } : {})
       }}
       role="img"
@@ -284,14 +289,6 @@ export const AyahEndCircle: React.FC<{
           title="Terakhir dibaca"
         />
       )}
-      {/* Bookmark badge dot */}
-      {bookmarkColor && (
-        <span
-          className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full ring-1 ring-white shadow-xs z-10"
-          style={{ backgroundColor: bookmarkColor }}
-          title="Penanda"
-        />
-      )}
     </span>
   );
 };
@@ -318,6 +315,8 @@ interface MushafPageContentProps {
   onVerseMouseMove?: (e: React.MouseEvent) => void;
   onVerseMouseUp?: () => void;
   onRetry?: () => void;
+  playingWordKey?: string | null;
+  onWordClick?: (audioPath: string, key: string) => void;
 }
 
 const MushafPageContent: React.FC<MushafPageContentProps> = ({
@@ -333,6 +332,8 @@ const MushafPageContent: React.FC<MushafPageContentProps> = ({
   settings,
   isCleanReading,
   isInteractive = true,
+  playingWordKey,
+  onWordClick,
   onVerseClick,
   onVerseContextMenu,
   onVerseTouchStart,
@@ -436,60 +437,162 @@ const MushafPageContent: React.FC<MushafPageContentProps> = ({
                 </div>
               )}
 
-              {/* Verses in Digital Arabic Text - Justify with last line aligned to right */}
-              <div 
-                className="font-arabic text-slate-900 quran-mushaf-page-text leading-[2.6] sm:leading-[2.85] tracking-normal quran-interactive-text select-none px-1"
-                dir="rtl"
-                onContextMenu={(e) => e.preventDefault()}
-                style={{ 
-                  fontSize: `${currentFontSize}px`,
-                  fontFamily: activeFontConfig.css,
-                  textAlign: 'justify',
-                  textJustify: 'inter-word',
-                  textAlignLast: 'right',
-                }}
-              >
-                {section.verses.map((v) => {
-                  const isVersePlaying = playingInfo?.surahId === v.surahId && playingInfo?.verseNum === v.verseNum;
-                  const isSelected = selectedVerseKey === v.verseKey;
-                  const activeBookmarks = settings.bm[v.verseKey] || [];
-                  const isLastRead = settings.lr?.s === v.surahId && settings.lr?.v === v.verseNum;
+              {/* Verses Flow in Mushaf Mode */}
+              {settings.showWord ? (
+                /* Mode Mushaf dengan Tampilan Terjemah Per Kata (Tetap Justify & Baris Bawah Rata Kanan) */
+                <div 
+                  className="font-arabic text-slate-900 quran-mushaf-page-text leading-[3.2] sm:leading-[3.5] tracking-normal quran-interactive-text select-none px-1" 
+                  dir="rtl"
+                  onContextMenu={(e) => e.preventDefault()}
+                  style={{ 
+                    fontSize: `${currentFontSize}px`,
+                    fontFamily: activeFontConfig.css,
+                    direction: 'rtl',
+                    textAlign: 'justify',
+                    textAlignLast: 'right',
+                  }}
+                >
+                  {section.verses.map((v) => {
+                    const isVersePlaying = playingInfo?.surahId === v.surahId && playingInfo?.verseNum === v.verseNum;
+                    const isSelected = selectedVerseKey === v.verseKey;
+                    const isLastRead = settings.lr?.s === v.surahId && settings.lr?.v === v.verseNum;
 
-                  return (
-                    <span
-                      key={`mushaf-${page}-${v.verseKey}`}
-                      data-verse-key={v.verseKey}
-                      onClick={isInteractive ? onVerseClick : undefined}
-                      onContextMenu={isInteractive && onVerseContextMenu ? (e) => onVerseContextMenu(v.surahId, v.verseNum, v.verseKey, e) : undefined}
-                      onTouchStart={isInteractive && onVerseTouchStart ? (e) => onVerseTouchStart(v.surahId, v.verseNum, v.verseKey, e) : undefined}
-                      onTouchMove={isInteractive && onVerseTouchMove ? onVerseTouchMove : undefined}
-                      onTouchEnd={isInteractive && onVerseTouchEnd ? onVerseTouchEnd : undefined}
-                      onTouchCancel={isInteractive && onVerseTouchEnd ? onVerseTouchEnd : undefined}
-                      onMouseDown={isInteractive && onVerseMouseDown ? (e) => onVerseMouseDown(v.surahId, v.verseNum, v.verseKey, e) : undefined}
-                      onMouseMove={isInteractive && onVerseMouseMove ? onVerseMouseMove : undefined}
-                      onMouseUp={isInteractive && onVerseMouseUp ? onVerseMouseUp : undefined}
-                      className={`inline rounded-none px-1 py-0.5 mx-0 transition-colors duration-150 ${isInteractive ? 'cursor-pointer' : 'cursor-default pointer-events-none'} select-none quran-interactive-text border-0 outline-none ring-0 [box-decoration-break:clone] [-webkit-box-decoration-break:clone] ${
-                        isVersePlaying
-                          ? 'bg-[#bbf7d0] text-slate-950 font-normal'
-                          : isSelected
-                          ? 'bg-[#fef08a] text-slate-950 font-normal'
-                          : 'hover:bg-yellow-100/40 text-slate-900'
-                      }`}
-                      title={isInteractive ? `QS. ${section.chapter?.name || v.surahId} : ${v.verseNum} • Sentuh lama untuk opsi ayat` : undefined}
-                    >
-                      <span dir="rtl">{v.arabicText}</span>
-                      {/* Ayah End Rosette Medallion Symbol */}
-                      <AyahEndCircle
-                        num={v.verseNum}
-                        fontSize={currentFontSize}
-                        isLastRead={isLastRead}
-                        bookmarkColor={activeBookmarks.length > 0 ? (COLORS[activeBookmarks[0]] || '#1e88e5') : undefined}
-                      />
-                      {' '}
-                    </span>
-                  );
-                })}
-              </div>
+                    return (
+                      <span 
+                        key={`mushaf-wbw-${page}-${v.verseKey}`}
+                        data-verse-key={v.verseKey}
+                        dir="rtl"
+                        style={{ unicodeBidi: 'isolate' }}
+                        className={`inline rounded-none transition-colors duration-150 ${
+                          isVersePlaying
+                            ? 'bg-[#bbf7d0]/70'
+                            : isSelected
+                            ? 'bg-[#fef08a]/70'
+                            : ''
+                        }`}
+                      >
+                        {v.words.map((w, wIdx) => {
+                          const wordKey = `${v.surahId}:${v.verseNum}:${wIdx}`;
+                          const isWordPlaying = playingWordKey === wordKey;
+
+                          return (
+                            <React.Fragment key={wordKey}>
+                              <span
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  if (isInteractive && onWordClick && w[2]) {
+                                    onWordClick(w[2], wordKey);
+                                  }
+                                }}
+                                className={`inline-flex flex-col items-center justify-start mx-0.5 my-1 px-1 py-0.5 rounded-lg border-b transition-all ${
+                                  isInteractive ? 'cursor-pointer hover:bg-emerald-50/80 active:bg-emerald-100/80' : 'cursor-default'
+                                } ${
+                                  isWordPlaying
+                                    ? 'bg-[#c9e1c9] border-[#4f9a50] shadow-xs'
+                                    : 'border-slate-300/60'
+                                }`}
+                                style={{ verticalAlign: 'top', unicodeBidi: 'isolate' }}
+                                title={w[2] ? 'Klik untuk mendengarkan lafadz kata' : undefined}
+                              >
+                                {/* Arabic word */}
+                                <span
+                                  className="font-arabic leading-relaxed whitespace-nowrap text-slate-900"
+                                  dir="rtl"
+                                  style={{ 
+                                    fontSize: `${currentFontSize}px`,
+                                    fontFamily: activeFontConfig.css
+                                  }}
+                                >
+                                  {w[0]}
+                                </span>
+
+                                {/* Word-by-word meaning (LTR) */}
+                                <span 
+                                  className="text-[10px] sm:text-[11.5px] leading-tight text-slate-600 text-center max-w-[96px] break-words font-sans font-medium"
+                                  dir="ltr"
+                                >
+                                  {w[1]}
+                                </span>
+                              </span>
+                              {' '}
+                            </React.Fragment>
+                          );
+                        })}
+
+                        {/* Medallion Nomor Ayat */}
+                        <span 
+                          className="inline-flex items-center justify-center cursor-pointer select-none mx-0.5 my-1"
+                          style={{ verticalAlign: 'top', unicodeBidi: 'isolate' }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (isInteractive && onVerseContextMenu) {
+                              onVerseContextMenu(v.surahId, v.verseNum, v.verseKey, e);
+                            }
+                          }}
+                          title={`Menu Ayat ${v.verseNum}`}
+                        >
+                          <AyahEndCircle num={v.verseNum} fontSize={currentFontSize} isLastRead={isLastRead} />
+                        </span>
+                        {' '}
+                      </span>
+                    );
+                  })}
+                </div>
+              ) : (
+                /* Verses in Digital Arabic Text - Justify with last line aligned to right */
+                <div 
+                  className="font-arabic text-slate-900 quran-mushaf-page-text leading-[2.6] sm:leading-[2.85] tracking-normal quran-interactive-text select-none px-1"
+                  dir="rtl"
+                  onContextMenu={(e) => e.preventDefault()}
+                  style={{ 
+                    fontSize: `${currentFontSize}px`,
+                    fontFamily: activeFontConfig.css,
+                    direction: 'rtl',
+                    textAlign: 'justify',
+                    textAlignLast: 'right',
+                  }}
+                >
+                  {section.verses.map((v) => {
+                    const isVersePlaying = playingInfo?.surahId === v.surahId && playingInfo?.verseNum === v.verseNum;
+                    const isSelected = selectedVerseKey === v.verseKey;
+                    const isLastRead = settings.lr?.s === v.surahId && settings.lr?.v === v.verseNum;
+
+                    return (
+                      <span
+                        key={`mushaf-${page}-${v.verseKey}`}
+                        data-verse-key={v.verseKey}
+                        dir="rtl"
+                        style={{ unicodeBidi: 'isolate' }}
+                        onClick={isInteractive ? onVerseClick : undefined}
+                        onContextMenu={isInteractive && onVerseContextMenu ? (e) => onVerseContextMenu(v.surahId, v.verseNum, v.verseKey, e) : undefined}
+                        onTouchStart={isInteractive && onVerseTouchStart ? (e) => onVerseTouchStart(v.surahId, v.verseNum, v.verseKey, e) : undefined}
+                        onTouchMove={isInteractive && onVerseTouchMove ? onVerseTouchMove : undefined}
+                        onTouchEnd={isInteractive && onVerseTouchEnd ? onVerseTouchEnd : undefined}
+                        onTouchCancel={isInteractive && onVerseTouchEnd ? onVerseTouchEnd : undefined}
+                        onMouseDown={isInteractive && onVerseMouseDown ? (e) => onVerseMouseDown(v.surahId, v.verseNum, v.verseKey, e) : undefined}
+                        onMouseMove={isInteractive && onVerseMouseMove ? onVerseMouseMove : undefined}
+                        onMouseUp={isInteractive && onVerseMouseUp ? onVerseMouseUp : undefined}
+                        className={`inline rounded-none px-0.5 py-0.5 mx-0 transition-colors duration-150 ${isInteractive ? 'cursor-pointer' : 'cursor-default pointer-events-none'} select-none quran-interactive-text border-0 outline-none ring-0 [box-decoration-break:clone] [-webkit-box-decoration-break:clone] ${
+                          isVersePlaying
+                            ? 'bg-[#bbf7d0] text-slate-950 font-normal'
+                            : isSelected
+                            ? 'bg-[#fef08a] text-slate-950 font-normal'
+                            : 'hover:bg-yellow-100/40 text-slate-900'
+                        }`}
+                        title={isInteractive ? `QS. ${section.chapter?.name || v.surahId} : ${v.verseNum} • Sentuh lama untuk opsi ayat` : undefined}
+                      >
+                        <span dir="rtl">{v.arabicText}</span>
+                        <AyahEndCircle
+                          num={v.verseNum}
+                          fontSize={currentFontSize}
+                          isLastRead={isLastRead}
+                        />
+                        {' '}
+                      </span>
+                    );
+                  })}
+                </div>
+              )}
 
               {/* Divider between surahs if page contains multiple surahs */}
               {sIdx < pageSections.length - 1 && (
@@ -528,9 +631,11 @@ export const QuranView: React.FC<QuranViewProps> = ({ isOpen, onClose, initialSu
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const wordAudioRef = useRef<HTMLAudioElement | null>(null);
 
-  // Sheets state
+  // Sheets & Views state
   const [isSurahSheetOpen, setIsSurahSheetOpen] = useState(false);
-  const [isSettingsSheetOpen, setIsSettingsSheetOpen] = useState(false);
+  const [isBookmarksViewOpen, setIsBookmarksViewOpen] = useState(false);
+  const [bookmarkSearchQuery, setBookmarkSearchQuery] = useState('');
+  const [bookmarkedVersesData, setBookmarkedVersesData] = useState<Record<string, { arabic: string; trans: string; page: number; juz: number }>>({});
   const [isFontSizeModalOpen, setIsFontSizeModalOpen] = useState(false);
   const [activeVerseSheet, setActiveVerseSheet] = useState<{ surahId: number; verseNum: number } | null>(null);
   const [surahSearchQuery, setSurahSearchQuery] = useState('');
@@ -569,7 +674,9 @@ export const QuranView: React.FC<QuranViewProps> = ({ isOpen, onClose, initialSu
   const [isPageLoading, setIsPageLoading] = useState(false);
   const [isJumpModalOpen, setIsJumpModalOpen] = useState(false);
   const [jumpPageInput, setJumpPageInput] = useState<string>('');
-  const [jumpModalTab, setJumpModalTab] = useState<'page' | 'juz' | 'surah'>('page');
+  const [jumpModalTab, setJumpModalTab] = useState<'surah' | 'juz' | 'page'>('surah');
+  const [selectedJumpSurahId, setSelectedJumpSurahId] = useState<number>(1);
+  const [jumpAyahInput, setJumpAyahInput] = useState<string>('');
   const [currentJuzInfo, setCurrentJuzInfo] = useState<{ juz: number | string; page: number | string }>(() => ({
     juz: getJuzFromPage(loadSettings().curPage || 1),
     page: loadSettings().curPage || 1
@@ -585,6 +692,9 @@ export const QuranView: React.FC<QuranViewProps> = ({ isOpen, onClose, initialSu
   const dragDirectionRef = useRef<'horizontal' | 'vertical' | null>(null);
   const touchStartCoordRef = useRef<{ x: number; y: number } | null>(null);
   const pageContainerRef = useRef<HTMLDivElement | null>(null);
+  const activePageScrollerRef = useRef<HTMLDivElement | null>(null);
+  const nextPageScrollerRef = useRef<HTMLDivElement | null>(null);
+  const prevPageScrollerRef = useRef<HTMLDivElement | null>(null);
 
   const [selectedVerseKey, setSelectedVerseKey] = useState<string | null>(null);
   const [pageVersesCache, setPageVersesCache] = useState<Record<number, PageVerseItem[]>>({});
@@ -787,7 +897,19 @@ export const QuranView: React.FC<QuranViewProps> = ({ isOpen, onClose, initialSu
       saveSettings(next);
       return next;
     });
+
+    // Reset posisi scroll halaman ke paling atas sedari awal
+    if (activePageScrollerRef.current) {
+      activePageScrollerRef.current.scrollTop = 0;
+    }
   }, [curPage, fetchPageVerses]);
+
+  // Pastikan posisi scroll halaman mushaf selalu mulai dari paling atas saat halaman berganti
+  useEffect(() => {
+    if (activePageScrollerRef.current) {
+      activePageScrollerRef.current.scrollTop = 0;
+    }
+  }, [curPage]);
 
   const finishPageDrag = useCallback(() => {
     if (!touchStartCoordRef.current) return;
@@ -806,22 +928,22 @@ export const QuranView: React.FC<QuranViewProps> = ({ isOpen, onClose, initialSu
     const containerWidth = pageContainerRef.current?.clientWidth || window.innerWidth || 360;
     const threshold = Math.min(100, Math.max(45, containerWidth * 0.16));
 
-    if (currentOffset < -threshold && curPage < 604) {
-      // Swiped LEFT past threshold -> Slide over to Next Page (curPage + 1) in RTL (Hal. 1 -> Hal. 2)
+    if (currentOffset > threshold && curPage < 604) {
+      // Dragged to the RIGHT past threshold -> Slide over to Next Page (curPage + 1) in RTL Mushaf (Hal. 1 kanan -> Hal. 2 kiri)
       setIsAnimatingPage(true);
-      setDragOffset(-containerWidth);
-      dragOffsetRef.current = -containerWidth;
+      setDragOffset(containerWidth);
+      dragOffsetRef.current = containerWidth;
       setTimeout(() => {
         goToPage(curPage + 1);
         setIsAnimatingPage(false);
         setDragOffset(0);
         dragOffsetRef.current = 0;
       }, 260);
-    } else if (currentOffset > threshold && curPage > 1) {
-      // Swiped RIGHT past threshold -> Slide over to Prev Page (curPage - 1) in RTL (Hal. 2 -> Hal. 1)
+    } else if (currentOffset < -threshold && curPage > 1) {
+      // Dragged to the LEFT past threshold -> Slide over to Prev Page (curPage - 1) in RTL Mushaf (Hal. 2 kiri -> Hal. 1 kanan)
       setIsAnimatingPage(true);
-      setDragOffset(containerWidth);
-      dragOffsetRef.current = containerWidth;
+      setDragOffset(-containerWidth);
+      dragOffsetRef.current = -containerWidth;
       setTimeout(() => {
         goToPage(curPage - 1);
         setIsAnimatingPage(false);
@@ -870,9 +992,11 @@ export const QuranView: React.FC<QuranViewProps> = ({ isOpen, onClose, initialSu
 
     if (dragDirectionRef.current === 'horizontal') {
       let adjustedDx = dx;
-      if (curPage >= 604 && dx < 0) {
+      if (curPage >= 604 && dx > 0) {
+        // Halaman 604 berada paling kiri, tahan geser ke kanan
         adjustedDx = dx * 0.22;
-      } else if (curPage <= 1 && dx > 0) {
+      } else if (curPage <= 1 && dx < 0) {
+        // Halaman 1 berada paling kanan, tahan geser ke kiri
         adjustedDx = dx * 0.22;
       }
       dragOffsetRef.current = adjustedDx;
@@ -913,9 +1037,9 @@ export const QuranView: React.FC<QuranViewProps> = ({ isOpen, onClose, initialSu
 
     if (dragDirectionRef.current === 'horizontal') {
       let adjustedDx = dx;
-      if (curPage >= 604 && dx < 0) {
+      if (curPage >= 604 && dx > 0) {
         adjustedDx = dx * 0.22;
-      } else if (curPage <= 1 && dx > 0) {
+      } else if (curPage <= 1 && dx < 0) {
         adjustedDx = dx * 0.22;
       }
       dragOffsetRef.current = adjustedDx;
@@ -957,12 +1081,12 @@ export const QuranView: React.FC<QuranViewProps> = ({ isOpen, onClose, initialSu
   }, []);
 
   // Back handler for sheets
+  useBackHandler(Boolean(isOpen && isBookmarksViewOpen), 'quran-bookmarks-view', () => setIsBookmarksViewOpen(false));
   useBackHandler(Boolean(isOpen && isJumpModalOpen), 'quran-jump-modal', () => setIsJumpModalOpen(false));
   useBackHandler(Boolean(isOpen && isSurahSheetOpen), 'quran-surah-sheet', () => setIsSurahSheetOpen(false));
-  useBackHandler(Boolean(isOpen && isSettingsSheetOpen), 'quran-settings-sheet', () => setIsSettingsSheetOpen(false));
   useBackHandler(Boolean(isOpen && isFontSizeModalOpen), 'quran-font-size-modal', () => setIsFontSizeModalOpen(false));
   useBackHandler(Boolean(isOpen && activeVerseSheet !== null), 'quran-verse-sheet', () => setActiveVerseSheet(null));
-  useBackHandler(Boolean(isOpen && !isJumpModalOpen && !isSurahSheetOpen && !isSettingsSheetOpen && !isFontSizeModalOpen && activeVerseSheet === null), 'quran-main-page', () => {
+  useBackHandler(Boolean(isOpen && !isBookmarksViewOpen && !isJumpModalOpen && !isSurahSheetOpen && !isFontSizeModalOpen && activeVerseSheet === null), 'quran-main-page', () => {
     stopAudio();
     onClose();
   });
@@ -995,7 +1119,7 @@ export const QuranView: React.FC<QuranViewProps> = ({ isOpen, onClose, initialSu
   useEffect(() => {
     if (!isOpen || settings.mode !== 'read') return;
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (isJumpModalOpen || isSurahSheetOpen || isSettingsSheetOpen || activeVerseSheet !== null) return;
+      if (isBookmarksViewOpen || isJumpModalOpen || isSurahSheetOpen || activeVerseSheet !== null) return;
       if (e.key === 'ArrowLeft') {
         goToPage(curPage + 1);
       } else if (e.key === 'ArrowRight') {
@@ -1004,7 +1128,7 @@ export const QuranView: React.FC<QuranViewProps> = ({ isOpen, onClose, initialSu
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, settings.mode, curPage, isJumpModalOpen, isSurahSheetOpen, isSettingsSheetOpen, activeVerseSheet, goToPage]);
+  }, [isOpen, settings.mode, curPage, isBookmarksViewOpen, isJumpModalOpen, isSurahSheetOpen, activeVerseSheet, goToPage]);
 
   // Target verse to scroll to (for resuming last read)
   const [targetScrollVerse, setTargetScrollVerse] = useState<{ s: number; v: number } | null>(() => {
@@ -1373,28 +1497,24 @@ export const QuranView: React.FC<QuranViewProps> = ({ isOpen, onClose, initialSu
     a.play().catch(() => setPlayingWordKey(null));
   };
 
-  // Bookmark Toggle
-  const toggleBookmark = (surahId: number, verseNum: number, colorKey: string) => {
+  // Bookmark Toggle - Single bookmark
+  const toggleBookmark = (surahId: number, verseNum: number) => {
     const key = `${surahId}:${verseNum}`;
+    const wasBookmarked = Boolean(settings.bm[key]?.length);
     setSettings((prev) => {
-      const currentList = prev.bm[key] || [];
-      const hasColor = currentList.includes(colorKey);
-      const updated = hasColor
-        ? currentList.filter((c) => c !== colorKey)
-        : [...currentList, colorKey];
-
+      const isBookmarked = Boolean(prev.bm[key]?.length);
       const newBm = { ...prev.bm };
-      if (updated.length > 0) {
-        newBm[key] = updated;
-      } else {
+      if (isBookmarked) {
         delete newBm[key];
+      } else {
+        newBm[key] = ['marked'];
       }
 
       const nextSettings = { ...prev, bm: newBm };
       saveSettings(nextSettings);
       return nextSettings;
     });
-    showToast(`${t('bm')} ${colorKey}`);
+    showToast(!wasBookmarked ? 'Ayat ditandai' : 'Penanda ayat dihapus');
   };
 
   // Mark Last Read
@@ -1505,6 +1625,128 @@ export const QuranView: React.FC<QuranViewProps> = ({ isOpen, onClose, initialSu
     }
   };
 
+  // Fetch / Resolve Bookmarked Verses Details
+  useEffect(() => {
+    if (!isBookmarksViewOpen || !isOpen) return;
+
+    const keys = Object.keys(settings.bm).filter((k) => (settings.bm[k] || []).length > 0);
+    if (keys.length === 0) return;
+
+    const missingKeys = keys.filter((k) => !bookmarkedVersesData[k]);
+    if (missingKeys.length === 0) return;
+
+    let isMounted = true;
+    const updates: Record<string, { arabic: string; trans: string; page: number; juz: number }> = {};
+    const toFetch: string[] = [];
+
+    for (const key of missingKeys) {
+      const [sStr, vStr] = key.split(':');
+      const sId = parseInt(sStr, 10);
+      const vNum = parseInt(vStr, 10);
+
+      // 1. Check in localStorage
+      try {
+        const cached = localStorage.getItem(`qwbw:v_detail:${key}`);
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (parsed && parsed.arabic) {
+            updates[key] = parsed;
+            continue;
+          }
+        }
+      } catch (_) {}
+
+      // 2. Check in versesBySurah
+      const inSurah = versesBySurah[sId]?.find((x) => x.n === vNum);
+      if (inSurah) {
+        const item = {
+          arabic: inSurah.w.map((w) => w[0]).join(' '),
+          trans: inSurah.t,
+          page: inSurah.p,
+          juz: inSurah.j
+        };
+        updates[key] = item;
+        try { localStorage.setItem(`qwbw:v_detail:${key}`, JSON.stringify(item)); } catch (_) {}
+        continue;
+      }
+
+      // 3. Check in pageVersesCache
+      const inPage = Object.values(pageVersesCacheRef.current)
+        .flatMap((pv) => pv)
+        .find((x) => x.surahId === sId && x.verseNum === vNum);
+      if (inPage) {
+        const chapPages = CHAPTER_PAGE_RANGES[sId - 1] || [1, 1];
+        const item = {
+          arabic: inPage.arabicText,
+          trans: inPage.translation,
+          page: chapPages[0] || 1,
+          juz: getJuzFromPage(chapPages[0] || 1)
+        };
+        updates[key] = item;
+        try { localStorage.setItem(`qwbw:v_detail:${key}`, JSON.stringify(item)); } catch (_) {}
+        continue;
+      }
+
+      toFetch.push(key);
+    }
+
+    if (Object.keys(updates).length > 0) {
+      setBookmarkedVersesData((prev) => ({ ...prev, ...updates }));
+    }
+
+    if (toFetch.length === 0) return;
+
+    Promise.all(
+      toFetch.map(async (key) => {
+        try {
+          const res = await fetch(`${API}/verses/by_key/${key}?language=id&words=false&translations=33&fields=text_uthmani`);
+          if (!res.ok) return null;
+          const d = await res.json();
+          const v = d.verse;
+          if (!v) return null;
+          const item = {
+            arabic: v.text_uthmani || '',
+            trans: cleanHtml(v.translations?.[0]?.text || ''),
+            page: v.page_number || 1,
+            juz: v.juz_number || 1
+          };
+          try { localStorage.setItem(`qwbw:v_detail:${key}`, JSON.stringify(item)); } catch (_) {}
+          return { key, item };
+        } catch (_) {
+          return null;
+        }
+      })
+    ).then((results) => {
+      if (!isMounted) return;
+      const remoteUpdates: Record<string, any> = {};
+      results.forEach((r) => {
+        if (r && r.item) {
+          remoteUpdates[r.key] = r.item;
+        }
+      });
+      if (Object.keys(remoteUpdates).length > 0) {
+        setBookmarkedVersesData((prev) => ({ ...prev, ...remoteUpdates }));
+      }
+    });
+
+    return () => { isMounted = false; };
+  }, [isBookmarksViewOpen, isOpen, settings.bm, versesBySurah]);
+
+  // Jump to Bookmarked Verse
+  const handleJumpToBookmark = (surahId: number, verseNum: number, pageNum?: number) => {
+    setIsBookmarksViewOpen(false);
+    const targetPage = pageNum || CHAPTER_PAGE_RANGES[surahId - 1]?.[0] || 1;
+    if (settings.mode === 'read') {
+      goToPage(targetPage);
+      setSelectedVerseKey(`${surahId}:${verseNum}`);
+    } else {
+      handleSelectSurah(surahId);
+      setTargetScrollVerse({ s: surahId, v: verseNum });
+    }
+    const c = chapters.find((x) => x.id === surahId);
+    showToast(`Membuka QS. ${c?.name || surahId} : ${verseNum}`);
+  };
+
   // Display mode switcher
   const toggleDisplayMode = () => {
     const nextMode: 'wbw' | 'read' = settings.mode === 'wbw' ? 'read' : 'wbw';
@@ -1562,44 +1804,38 @@ export const QuranView: React.FC<QuranViewProps> = ({ isOpen, onClose, initialSu
         <button
           type="button"
           onClick={() => {
-            if (settings.mode === 'read') {
-              setIsJumpModalOpen(true);
-            } else {
-              setSurahSearchQuery('');
-              setIsSurahSheetOpen(true);
-            }
+            setSelectedJumpSurahId(activeSurahId);
+            setJumpAyahInput('');
+            setIsJumpModalOpen(true);
           }}
-          className="flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl hover:bg-white/10 active:bg-white/20 transition-all cursor-pointer min-w-0 mx-2"
+          className="flex-1 flex items-center justify-between gap-1.5 px-3 py-1 bg-black/15 hover:bg-black/25 border border-white/20 rounded-xl transition-all cursor-pointer min-w-0 mx-2 text-left"
+          title="Pergi ke Surah, Juz, atau Halaman"
         >
-          <span className="font-semibold text-sm sm:text-base truncate tracking-wide">
-            {activeChapter ? `${activeChapter.id}. ${activeChapter.name}` : 'Al-Qur\'an'}
-            {settings.mode === 'read' ? ` • Hal. ${curPage} (Juz ${getJuzFromPage(curPage)})` : ''}
-          </span>
-          <ChevronDown className="w-4 h-4 shrink-0 opacity-80" />
+          <div className="flex flex-col min-w-0 leading-tight">
+            <span className="font-bold text-sm sm:text-base text-white truncate tracking-wide">
+              {activeChapter ? `${activeChapter.id}. ${activeChapter.name}` : 'Al-Qur\'an'}
+            </span>
+            <span className="text-[11px] text-emerald-100/90 font-medium truncate">
+              {settings.mode === 'read' 
+                ? `Halaman ${curPage}, Juz ${getJuzFromPage(curPage)}` 
+                : `Juz ${currentJuzInfo.juz || 1} • Hal. ${currentJuzInfo.page || 1}`}
+            </span>
+          </div>
+          <ChevronDown className="w-4 h-4 shrink-0 text-white/80 ml-1.5" />
         </button>
 
-        {/* Quick Font Size 'aA' Button (Tersedia di semua mode) */}
+        {/* Tombol Kumpulan Ayat Ditandai (Bookmark) di Kanan Atas */}
         <button
           type="button"
-          onClick={() => setIsFontSizeModalOpen(true)}
-          className="w-9 h-9 rounded-full flex items-center justify-center hover:bg-white/20 active:bg-white/30 transition-colors cursor-pointer text-white"
-          title="Atur Ukuran Huruf (aA)"
-          aria-label="Atur Ukuran Huruf"
+          onClick={() => {
+            setBookmarkSearchQuery('');
+            setIsBookmarksViewOpen(true);
+          }}
+          className="w-10 h-10 rounded-full flex items-center justify-center hover:bg-white/20 active:bg-white/30 transition-colors cursor-pointer text-white"
+          title="Buka Kumpulan Ayat Ditandai (Bookmark)"
+          aria-label="Ayat Ditandai"
         >
-          <span className="font-serif tracking-tighter select-none font-bold text-xs sm:text-sm border border-white/40 px-1.5 py-0.5 rounded-lg bg-white/10">
-            aA
-          </span>
-        </button>
-
-        {/* Settings (Gir) Button */}
-        <button
-          type="button"
-          onClick={() => setIsSettingsSheetOpen(true)}
-          className="w-9 h-9 rounded-full flex items-center justify-center hover:bg-white/20 active:bg-white/30 transition-colors cursor-pointer text-white ml-0.5"
-          title={t('settings')}
-          aria-label="Pengaturan"
-        >
-          <Settings className="w-5 h-5" />
+          <Bookmark className="w-5 h-5 fill-white/20" />
         </button>
       </header>
 
@@ -1674,9 +1910,11 @@ export const QuranView: React.FC<QuranViewProps> = ({ isOpen, onClose, initialSu
               }
             }}
           >
-            {/* 1. Previous Page (Rendered only during right-drag / backward push) */}
-            {(dragOffset > 0 || (isAnimatingPage && dragOffset > 0)) && curPage > 1 && (
+            {/* 1. Next Page in RTL (curPage + 1 berada di sebelah KIRI, ditarik saat digeser ke kanan) */}
+            {(dragOffset > 0 || (isAnimatingPage && dragOffset > 0)) && curPage < 604 && (
               <div
+                key={`mushaf-next-page-${curPage + 1}`}
+                ref={nextPageScrollerRef}
                 className="absolute inset-y-0 w-full overflow-y-auto flex flex-col items-center justify-start overscroll-contain bg-[#fbf9f2] pointer-events-none"
                 style={{
                   left: '-100%',
@@ -1686,9 +1924,9 @@ export const QuranView: React.FC<QuranViewProps> = ({ isOpen, onClose, initialSu
                 }}
               >
                 <MushafPageContent
-                  page={curPage - 1}
-                  verses={pageVersesCache[curPage - 1] || []}
-                  isLoading={isPageLoading && !(pageVersesCache[curPage - 1]?.length)}
+                  page={curPage + 1}
+                  verses={pageVersesCache[curPage + 1] || []}
+                  isLoading={isPageLoading && !(pageVersesCache[curPage + 1]?.length)}
                   chapters={chapters}
                   isSurahFontLoaded={isSurahFontLoaded}
                   currentFontSize={currentFontSize}
@@ -1698,12 +1936,16 @@ export const QuranView: React.FC<QuranViewProps> = ({ isOpen, onClose, initialSu
                   settings={settings}
                   isCleanReading={isCleanReading}
                   isInteractive={false}
+                  playingWordKey={playingWordKey}
+                  onWordClick={playWordAudio}
                 />
               </div>
             )}
 
             {/* 2. Current Active Page (1 Layar Penuh = 1 Halaman Baku, terdorong halus saat digeser) */}
             <div
+              key={`mushaf-active-page-${curPage}`}
+              ref={activePageScrollerRef}
               className="absolute inset-0 w-full h-full overflow-y-auto flex flex-col items-center justify-start overscroll-contain bg-[#fbf9f2]"
               style={{
                 transform: `translateX(${dragOffset}px)`,
@@ -1724,6 +1966,8 @@ export const QuranView: React.FC<QuranViewProps> = ({ isOpen, onClose, initialSu
                 settings={settings}
                 isCleanReading={isCleanReading}
                 isInteractive={true}
+                playingWordKey={playingWordKey}
+                onWordClick={playWordAudio}
                 onVerseClick={handleVerseClick}
                 onVerseContextMenu={handleVerseContextMenu}
                 onVerseTouchStart={handleVerseTouchStart}
@@ -1736,9 +1980,11 @@ export const QuranView: React.FC<QuranViewProps> = ({ isOpen, onClose, initialSu
               />
             </div>
 
-            {/* 3. Next Page (Rendered only during left-drag / forward push) */}
-            {(dragOffset < 0 || (isAnimatingPage && dragOffset < 0)) && curPage < 604 && (
+            {/* 3. Previous Page in RTL (curPage - 1 berada di sebelah KANAN, ditarik saat digeser ke kiri) */}
+            {(dragOffset < 0 || (isAnimatingPage && dragOffset < 0)) && curPage > 1 && (
               <div
+                key={`mushaf-prev-page-${curPage - 1}`}
+                ref={prevPageScrollerRef}
                 className="absolute inset-y-0 w-full overflow-y-auto flex flex-col items-center justify-start overscroll-contain bg-[#fbf9f2] pointer-events-none"
                 style={{
                   left: '100%',
@@ -1748,9 +1994,9 @@ export const QuranView: React.FC<QuranViewProps> = ({ isOpen, onClose, initialSu
                 }}
               >
                 <MushafPageContent
-                  page={curPage + 1}
-                  verses={pageVersesCache[curPage + 1] || []}
-                  isLoading={isPageLoading && !(pageVersesCache[curPage + 1]?.length)}
+                  page={curPage - 1}
+                  verses={pageVersesCache[curPage - 1] || []}
+                  isLoading={isPageLoading && !(pageVersesCache[curPage - 1]?.length)}
                   chapters={chapters}
                   isSurahFontLoaded={isSurahFontLoaded}
                   currentFontSize={currentFontSize}
@@ -1760,6 +2006,8 @@ export const QuranView: React.FC<QuranViewProps> = ({ isOpen, onClose, initialSu
                   settings={settings}
                   isCleanReading={isCleanReading}
                   isInteractive={false}
+                  playingWordKey={playingWordKey}
+                  onWordClick={playWordAudio}
                 />
               </div>
             )}
@@ -1921,11 +2169,12 @@ export const QuranView: React.FC<QuranViewProps> = ({ isOpen, onClose, initialSu
                                 <span>Terakhir Dibaca</span>
                               </span>
                             )}
-                            {activeBookmarks.map((color, bIdx) => (
-                              <span key={`${verseKey}-bm-${color}-${bIdx}`} style={{ color: COLORS[color] }}>
+                            {activeBookmarks.length > 0 && (
+                              <span className="text-amber-600 flex items-center gap-1 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200 text-[10px] font-bold" title="Ditandai">
                                 <Bookmark className="w-3.5 h-3.5 fill-current" />
+                                <span>Ditandai</span>
                               </span>
-                            ))}
+                            )}
                           </div>
                         </div>
 
@@ -1994,7 +2243,6 @@ export const QuranView: React.FC<QuranViewProps> = ({ isOpen, onClose, initialSu
                               num={v.n}
                               fontSize={currentFontSize}
                               isLastRead={isLastRead}
-                              bookmarkColor={activeBookmarks.length > 0 ? (COLORS[activeBookmarks[0]] || '#1e88e5') : undefined}
                             />
                           </div>
                         </div>
@@ -2087,123 +2335,129 @@ export const QuranView: React.FC<QuranViewProps> = ({ isOpen, onClose, initialSu
           ? 'h-0 py-0 opacity-0 pointer-events-none overflow-hidden' 
           : 'opacity-100 pb-safe'
       }`}>
-        {/* Strip Atas: Pengatur Ukuran Font 'aA' (Di Mode Apapun Ada) & Tombol Pengatur Terjemah / Per Kata di Bawah Semua */}
-        <div className="flex items-center justify-between px-3 sm:px-4 py-1.5 border-b border-white/15 bg-black/10 backdrop-blur-xs">
-          {/* Tombol Pengatur Ukuran Font 'aA' (Ada di Mode Apapun) */}
-          <button
-            type="button"
-            onClick={() => setIsFontSizeModalOpen(true)}
-            className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/20 hover:bg-white/30 active:bg-white/40 text-white font-medium transition-all cursor-pointer border border-white/25 shadow-2xs"
-            title="Atur Ukuran Huruf (aA) - Tersedia di semua mode"
-            aria-label="Atur Ukuran Huruf aA"
-          >
-            <span className="font-serif font-black tracking-tight text-xs bg-white/25 px-1.5 py-0.5 rounded">
-              aA
-            </span>
-            <span className="text-[11px] font-semibold">{currentFontSize}px</span>
-          </button>
-
-          {/* Tombol Pengatur Terjemah dan Terjemah Per Kata di Bawah Semua */}
-          <div className="flex items-center gap-1.5">
-            {/* Tombol Terjemah */}
-            <button
-              type="button"
-              onClick={() => {
-                const nextVal = !settings.showTr;
-                setSettings((prev) => {
-                  const next = { 
-                    ...prev, 
-                    showTr: nextVal,
-                    ...(nextVal && prev.mode === 'read' ? { mode: 'wbw' as const } : {})
-                  };
-                  saveSettings(next);
-                  return next;
-                });
-                showToast(nextVal ? 'Terjemahan diaktifkan' : 'Terjemahan disembunyikan');
-              }}
-              className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer border ${
-                settings.showTr
-                  ? 'bg-white text-emerald-800 border-white shadow-xs'
-                  : 'bg-white/10 text-white/75 hover:text-white border-white/20 hover:bg-white/20'
-              }`}
-              title="Aktif/Nonaktifkan Terjemahan Lengkap Kemenag RI"
-            >
-              {settings.showTr && <Check className="w-3.5 h-3.5 text-emerald-700 stroke-[3]" />}
-              <span>Terjemah</span>
-            </button>
-
-            {/* Tombol Terjemah Per Kata */}
-            <button
-              type="button"
-              onClick={() => {
-                const nextVal = !settings.showWord;
-                setSettings((prev) => {
-                  const next = { 
-                    ...prev, 
-                    showWord: nextVal,
-                    ...(nextVal && prev.mode === 'read' ? { mode: 'wbw' as const } : {})
-                  };
-                  saveSettings(next);
-                  return next;
-                });
-                showToast(nextVal ? 'Terjemah per kata diaktifkan' : 'Terjemah per kata disembunyikan');
-              }}
-              className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer border ${
-                settings.showWord
-                  ? 'bg-white text-emerald-800 border-white shadow-xs'
-                  : 'bg-white/10 text-white/75 hover:text-white border-white/20 hover:bg-white/20'
-              }`}
-              title="Aktif/Nonaktifkan Makna Tafsir Per Kata"
-            >
-              {settings.showWord && <Check className="w-3.5 h-3.5 text-emerald-700 stroke-[3]" />}
-              <span>Per Kata</span>
-            </button>
-          </div>
-        </div>
-
-        {/* Strip Bawah: Pilihan Mode, Gir Pengaturan, & Audio Murottal */}
-        <div className="flex items-center justify-between px-3 sm:px-4 h-12">
-          {/* Display Mode Switcher (Mode Mushaf Pojok vs Mode Daftar) */}
+        {/* Item lingkaran sempurna & tombol play panjang curve sempurna */}
+        <div className="flex items-center justify-between gap-2 px-3 sm:px-4 h-14 max-w-lg mx-auto w-full">
+          {/* 1. Mode Baca (Lingkaran Sempurna) */}
           <button
             type="button"
             onClick={toggleDisplayMode}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/20 hover:bg-white/30 active:bg-white/35 text-white font-medium text-xs transition-all cursor-pointer border border-white/25 shadow-2xs"
-            title={settings.mode === 'wbw' ? 'Beralih ke Mode Mushaf Pojok' : 'Beralih ke Mode Daftar'}
+            className={`w-10 h-10 rounded-full flex items-center justify-center transition-all cursor-pointer border shrink-0 ${
+              settings.mode === 'read'
+                ? 'bg-white text-emerald-800 border-white shadow-xs'
+                : 'bg-white/15 text-white/90 hover:text-white border-white/20 hover:bg-white/25'
+            }`}
+            title={settings.mode === 'read' ? 'Beralih ke Mode Daftar Ayat' : 'Beralih ke Mode Mushaf'}
+            aria-label="Mode Baca"
           >
-            {settings.mode === 'wbw' ? (
-              <>
-                <BookOpen className="w-3.5 h-3.5 text-white" />
-                <span>Mode Mushaf</span>
-              </>
-            ) : (
-              <>
-                <FileText className="w-3.5 h-3.5 text-white" />
-                <span>Mode Daftar</span>
-              </>
-            )}
+            {settings.mode === 'read' ? <BookOpen className="w-4.5 h-4.5" /> : <FileText className="w-4.5 h-4.5" />}
           </button>
 
-          {/* Icon Pengaturan Jadi Gir */}
+          {/* 2. Ukuran Font 'aA' (Lingkaran Sempurna) */}
           <button
             type="button"
-            onClick={() => setIsSettingsSheetOpen(true)}
-            className="w-9 h-9 rounded-full flex items-center justify-center hover:bg-white/20 active:bg-white/30 transition-colors cursor-pointer text-white"
-            title="Pengaturan Al-Qur'an (Gir)"
-            aria-label="Pengaturan"
+            onClick={() => setIsFontSizeModalOpen(true)}
+            className="w-10 h-10 rounded-full flex items-center justify-center bg-white/15 hover:bg-white/25 active:bg-white/35 text-white transition-all cursor-pointer border border-white/20 shadow-xs shrink-0"
+            title="Atur Ukuran Huruf (aA)"
+            aria-label="Ukuran Huruf"
           >
-            <Settings className="w-4.5 h-4.5" />
+            <span className="font-serif font-black tracking-tight text-sm select-none">
+              aA
+            </span>
           </button>
 
-          {/* Play / Pause Reciter Audio */}
+          {/* 3. Terjemahan (Lingkaran Sempurna) - Nonaktif di Mode Mushaf */}
           <button
             type="button"
-            onClick={togglePlay}
-            className="flex items-center gap-1.5 px-4 h-8 rounded-full bg-white text-emerald-800 font-bold text-xs shadow-md hover:bg-slate-50 active:scale-95 transition-all cursor-pointer"
-            title={isPlaying ? 'Jeda Audio Murottal' : 'Putar Audio Murottal'}
+            disabled={settings.mode === 'read'}
+            onClick={() => {
+              if (settings.mode === 'read') return;
+              const nextVal = !settings.showTr;
+              setSettings((prev) => {
+                const next = { 
+                  ...prev, 
+                  showTr: nextVal
+                };
+                saveSettings(next);
+                return next;
+              });
+              showToast(nextVal ? 'Terjemahan diaktifkan' : 'Terjemahan disembunyikan');
+            }}
+            className={`w-10 h-10 rounded-full flex items-center justify-center transition-all border shrink-0 ${
+              settings.mode === 'read'
+                ? 'opacity-30 cursor-not-allowed bg-white/10 text-white/50 border-white/10'
+                : settings.showTr
+                ? 'bg-white text-emerald-800 border-white shadow-xs cursor-pointer'
+                : 'bg-white/15 text-white/90 hover:text-white border-white/20 hover:bg-white/25 cursor-pointer'
+            }`}
+            title={
+              settings.mode === 'read'
+                ? 'Terjemahan tidak aktif di Mode Mushaf (Gunakan tombol Per Kata untuk terjemahan)'
+                : settings.showTr
+                ? 'Sembunyikan Terjemahan (Kemenag RI)'
+                : 'Tampilkan Terjemahan (Kemenag RI)'
+            }
+            aria-label="Terjemahan"
           >
-            {isPlaying ? <Pause className="w-3.5 h-3.5 fill-current" /> : <Play className="w-3.5 h-3.5 fill-current ml-0.5" />}
-            <span>{isPlaying ? 'Jeda' : 'Murottal'}</span>
+            <Languages className="w-4.5 h-4.5" />
           </button>
+
+          {/* 4. Per Kata (Lingkaran Sempurna) - Berfungsi di Mode Mushaf & Mode Daftar */}
+          <button
+            type="button"
+            onClick={() => {
+              const nextVal = !settings.showWord;
+              setSettings((prev) => {
+                const next = { 
+                  ...prev, 
+                  showWord: nextVal
+                };
+                saveSettings(next);
+                return next;
+              });
+              showToast(nextVal ? 'Terjemah per kata diaktifkan' : 'Terjemah per kata disembunyikan');
+            }}
+            className={`w-10 h-10 rounded-full flex items-center justify-center transition-all cursor-pointer border shrink-0 ${
+              settings.showWord
+                ? 'bg-white text-emerald-800 border-white shadow-xs'
+                : 'bg-white/15 text-white/90 hover:text-white border-white/20 hover:bg-white/25'
+            }`}
+            title={settings.showWord ? 'Sembunyikan Makna Per Kata' : 'Tampilkan Makna Per Kata'}
+            aria-label="Per Kata"
+          >
+            <WholeWord className="w-4.5 h-4.5" />
+          </button>
+
+          {/* 5. Tombol Play Panjang Berbentuk Kapsul Melengkung Sempurna */}
+          {(() => {
+            const isCurrentPlaying = isPlaying && playingInfo !== null;
+            const playingChapter = isCurrentPlaying ? chapters.find((c) => c.id === playingInfo.surahId) : null;
+            const labelText = isCurrentPlaying
+              ? `${playingChapter?.name || 'Surah'} : ${playingInfo?.verseNum || 1}`
+              : `Putar QS. ${activeChapter?.name || 'Al-Qur\'an'}`;
+
+            return (
+              <button
+                type="button"
+                onClick={togglePlay}
+                className={`flex-1 h-10 rounded-full px-3.5 flex items-center justify-center gap-2 text-xs font-semibold shadow-xs transition-all cursor-pointer border min-w-0 ${
+                  isCurrentPlaying
+                    ? 'bg-emerald-950 text-white border-emerald-400 shadow-md ring-2 ring-white/50 animate-pulse'
+                    : 'bg-white text-emerald-800 border-white hover:bg-slate-50 active:scale-[0.98]'
+                }`}
+                title={isCurrentPlaying ? 'Jeda Audio Murottal' : labelText}
+                aria-label="Audio Murottal"
+              >
+                {isCurrentPlaying ? (
+                  <Pause className="w-4 h-4 fill-current shrink-0 text-emerald-300" />
+                ) : (
+                  <Play className="w-4 h-4 fill-current shrink-0 text-emerald-700 ml-0.5" />
+                )}
+                <span className="truncate tracking-tight font-bold">
+                  {labelText}
+                </span>
+              </button>
+            );
+          })()}
         </div>
       </footer>
 
@@ -2351,39 +2605,26 @@ export const QuranView: React.FC<QuranViewProps> = ({ isOpen, onClose, initialSu
                 </button>
               </div>
 
-              {/* Translation Preview Box */}
-              {translationText && (
-                <div className="p-3 bg-emerald-50/70 border border-emerald-100/90 rounded-2xl text-xs text-slate-700 leading-relaxed max-h-32 overflow-y-auto">
-                  <p className="font-semibold text-emerald-900 mb-1 text-[11px] flex items-center gap-1">
-                    <FileText className="w-3.5 h-3.5 text-emerald-700" />
-                    <span>Terjemahan Kemenag RI:</span>
-                  </p>
-                  <p className="italic font-normal text-slate-700">"{translationText}"</p>
-                </div>
-              )}
-
               {/* Action Buttons */}
               <div className="space-y-1 pt-1">
-                {/* Bookmarks */}
-                {['blue', 'red', 'green'].map((colorKey) => {
+                {/* Single Bookmark Button */}
+                {(() => {
                   const verseKey = `${activeVerseSheet.surahId}:${activeVerseSheet.verseNum}`;
-                  const hasColor = (settings.bm[verseKey] || []).includes(colorKey);
-
+                  const isBookmarked = Boolean(settings.bm[verseKey]?.length);
                   return (
                     <button
-                      key={colorKey}
                       type="button"
-                      onClick={() => toggleBookmark(activeVerseSheet.surahId, activeVerseSheet.verseNum, colorKey)}
+                      onClick={() => toggleBookmark(activeVerseSheet.surahId, activeVerseSheet.verseNum)}
                       className="w-full flex items-center justify-between p-3 rounded-xl hover:bg-slate-50 transition-colors cursor-pointer text-xs font-semibold text-slate-700"
                     >
                       <div className="flex items-center gap-3">
-                        <Bookmark className="w-4 h-4 fill-current" style={{ color: COLORS[colorKey] }} />
-                        <span>{t('bm')} ({colorKey === 'blue' ? t('bmBlue') : colorKey === 'red' ? t('bmRed') : t('bmGreen')})</span>
+                        <Bookmark className={`w-4 h-4 ${isBookmarked ? 'text-amber-500 fill-amber-500' : 'text-slate-500'}`} />
+                        <span>{isBookmarked ? 'Hapus Penanda' : 'Tandai Ayat'}</span>
                       </div>
-                      {hasColor && <Check className="w-4 h-4 text-[#4f9a50]" />}
+                      {isBookmarked && <Check className="w-4 h-4 text-[#4f9a50]" />}
                     </button>
                   );
-                })}
+                })()}
 
                 {/* Mark Last Read */}
                 <button
@@ -2425,227 +2666,263 @@ export const QuranView: React.FC<QuranViewProps> = ({ isOpen, onClose, initialSu
         );
       })()}
 
-      {/* ================= 7. DRAWER / SHEET: PENGATURAN AL-QUR'AN ================= */}
-      {isSettingsSheetOpen && (
-        <div
-          className="fixed inset-0 z-[100060] bg-black/60 backdrop-blur-xs flex flex-col justify-end animate-in fade-in"
-          onClick={() => setIsSettingsSheetOpen(false)}
-        >
+      {/* ================= 7. FULLSCREEN VIEW: KUMPULAN AYAT DITANDAI (BOOKMARK) ================= */}
+      {isBookmarksViewOpen && (() => {
+        const bookmarkedEntries = Object.keys(settings.bm).filter((k) => Boolean(settings.bm[k]?.length));
+
+        // Format and prepare bookmarked items
+        const bookmarkList = bookmarkedEntries.map((key) => {
+          const [sStr, vStr] = key.split(':');
+          const surahId = parseInt(sStr, 10);
+          const verseNum = parseInt(vStr, 10);
+          const chapter = chapters.find((c) => c.id === surahId);
+          
+          // Try to get verse from loaded chapters
+          const surahVerses = versesBySurah[surahId] || [];
+          const matchedCompactVerse = surahVerses.find((x) => x.n === verseNum);
+
+          // Try to get verse from page cache
+          const matchedPageVerse = Object.values(pageVersesCache)
+            .flatMap((p) => p)
+            .find((x) => x.surahId === surahId && x.verseNum === verseNum);
+
+          // Remote fetched data
+          const remoteDetail = bookmarkedVersesData[key];
+
+          const arabicText = matchedCompactVerse 
+            ? matchedCompactVerse.w.map((w) => w[0]).join(' ') 
+            : (matchedPageVerse?.arabicText || remoteDetail?.arabic || '');
+
+          const translation = matchedCompactVerse 
+            ? matchedCompactVerse.t 
+            : (matchedPageVerse?.translation || remoteDetail?.trans || '');
+
+          const pageNum = matchedCompactVerse?.p || (matchedPageVerse ? curPage : (remoteDetail?.page || CHAPTER_PAGE_RANGES[surahId - 1]?.[0] || 1));
+          const juzNum = matchedCompactVerse?.j || remoteDetail?.juz || getJuzFromPage(pageNum);
+
+          return {
+            key,
+            surahId,
+            verseNum,
+            chapter,
+            arabicText,
+            translation,
+            pageNum,
+            juzNum,
+          };
+        });
+
+        // Filter by search query
+        const filteredList = bookmarkList.filter((item) => {
+          if (!bookmarkSearchQuery.trim()) return true;
+          const q = bookmarkSearchQuery.toLowerCase();
+          const chName = item.chapter?.name?.toLowerCase() || '';
+          const chTn = item.chapter?.tn?.toLowerCase() || '';
+          const sNum = String(item.surahId);
+          const vNum = String(item.verseNum);
+          const fullRef = `${sNum}:${vNum}`;
+          const trans = item.translation.toLowerCase();
+          const arabic = item.arabicText;
+
+          return (
+            chName.includes(q) ||
+            chTn.includes(q) ||
+            sNum === q ||
+            vNum === q ||
+            fullRef === q ||
+            trans.includes(q) ||
+            arabic.includes(q)
+          );
+        });
+
+        return (
           <div
-            className="bg-white rounded-t-3xl max-h-[85vh] overflow-y-auto flex flex-col shadow-2xl border-t border-slate-100 animate-in slide-in-from-bottom duration-250 p-5 space-y-4 pb-safe"
-            onClick={(e) => e.stopPropagation()}
+            className="fixed inset-0 z-[100060] bg-[#fbf9f2] text-slate-800 flex flex-col font-sans select-none overflow-hidden max-w-lg mx-auto shadow-2xl animate-in fade-in duration-200"
           >
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <h3 className="font-bold text-base text-slate-900">{t('settings')}</h3>
+            {/* Header: Bersih, Fullscreen, Hijau Islami */}
+            <header className="bg-[#4f9a50] text-white px-4 h-14 pt-safe flex items-center justify-between shrink-0 shadow-sm z-10">
+              <div className="flex items-center gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => setIsBookmarksViewOpen(false)}
+                  className="w-9 h-9 rounded-full flex items-center justify-center hover:bg-white/20 active:bg-white/30 transition-colors cursor-pointer"
+                  title="Kembali ke Al-Qur'an"
+                >
+                  <ArrowLeft className="w-5 h-5 text-white" />
+                </button>
+                <div>
+                  <h2 className="font-bold text-base leading-tight flex items-center gap-2">
+                    <span>Ayat Ditandai</span>
+                    <span className="text-[11px] font-semibold bg-white/20 px-2 py-0.5 rounded-full text-emerald-50">
+                      {bookmarkedEntries.length}
+                    </span>
+                  </h2>
+                  <p className="text-[11px] text-emerald-100/80 leading-none mt-0.5">Kumpulan ayat suci yang Anda tandai</p>
+                </div>
+              </div>
+
               <button
                 type="button"
-                onClick={() => setIsSettingsSheetOpen(false)}
-                className="w-8 h-8 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-100"
+                onClick={() => setIsBookmarksViewOpen(false)}
+                className="w-9 h-9 rounded-full flex items-center justify-center hover:bg-white/20 active:bg-white/30 text-emerald-100 hover:text-white transition-colors cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
-            </div>
+            </header>
 
-            {/* Mode Banner Info */}
-            <div className="bg-emerald-50/80 border border-emerald-200/90 rounded-2xl p-3.5 text-xs text-emerald-950 space-y-1.5">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2 font-bold text-emerald-900 text-sm">
-                  <BookOpen className="w-4 h-4 text-emerald-700 shrink-0" />
-                  <span>Mode: {settings.mode === 'read' ? 'Mushaf Pojok Digital (604 Hal.)' : 'Kata per Kata'}</span>
-                </div>
-                <button
-                  type="button"
-                  onClick={toggleDisplayMode}
-                  className="px-2.5 py-1 rounded-lg bg-emerald-600 text-white font-bold text-[10px] hover:bg-emerald-700 transition-colors cursor-pointer shadow-2xs"
-                >
-                  Ganti Mode
-                </button>
-              </div>
-              <p className="text-[11px] text-emerald-800/80 leading-relaxed">
-                {settings.mode === 'read'
-                  ? "Format teks digital baku per halaman 1-604 (titik awal & akhir ayat presisi seperti Qur'an Pojok). Sentuh/klik ayat manapun untuk memunculkan menu ayat."
-                  : 'Menampilkan ayat suci beserta tafsir per kata dan terjemahan lengkap Kemenag RI.'}
-              </p>
-            </div>
-
-            {/* Live Arabic Font Size Preview */}
-                <div className="bg-slate-50 rounded-2xl p-3.5 border border-slate-200/80 text-center">
-                  <div className="flex items-center justify-between mb-1 px-0.5">
-                    <p className="text-[11px] text-slate-400 font-semibold">Pratinjau Font Arab ({currentFontSize}px)</p>
-                    <span className="text-[10px] font-bold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-full border border-emerald-200">
-                      {activeFontConfig.name}
-                    </span>
-                  </div>
-                  <div 
-                    className="font-arabic text-slate-900 leading-relaxed text-center py-1"
-                    dir="rtl"
-                    style={{ 
-                      fontSize: `${currentFontSize}px`,
-                      fontFamily: activeFontConfig.css
-                    }}
+            {/* Fitur Pencarian Ayat Bookmark */}
+            <div className="p-3 bg-white border-b border-slate-200/80 shrink-0 shadow-xs">
+              <div className="relative">
+                <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                <input
+                  type="search"
+                  placeholder="Cari nama surat, ayat, terjemahan..."
+                  value={bookmarkSearchQuery}
+                  onChange={(e) => setBookmarkSearchQuery(e.target.value)}
+                  className="w-full pl-9 pr-9 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#4f9a50] focus:bg-white transition-all"
+                />
+                {bookmarkSearchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => setBookmarkSearchQuery('')}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
                   >
-                    بِسْمِ ٱللَّهِ ٱلرَّحْمَٰنِ ٱلرَّحِيمِ
-                  </div>
-                </div>
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+            </div>
 
-                {/* Slider Font Size */}
-                <div className="space-y-1.5">
-                  <div className="flex justify-between text-xs font-semibold text-slate-700">
-                    <span>{t('arSize')}</span>
-                    <span>{currentFontSize} px</span>
+            {/* Konten Daftar Ayat Ditandai */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-3.5 pb-safe">
+              {bookmarkedEntries.length === 0 ? (
+                <div className="py-20 px-6 text-center space-y-3">
+                  <div className="w-16 h-16 rounded-full bg-emerald-50 border border-emerald-100 flex items-center justify-center mx-auto text-emerald-600 shadow-xs">
+                    <Bookmark className="w-8 h-8 text-emerald-600/70" />
                   </div>
-                  <input
-                    type="range"
-                    min="0"
-                    max={SIZES.length - 1}
-                    step="1"
-                    value={settings.size}
-                    onChange={(e) => {
-                      const idx = parseInt(e.target.value, 10);
-                      setSettings((prev) => {
-                        const next = { ...prev, size: idx };
-                        saveSettings(next);
-                        return next;
-                      });
-                    }}
-                    className="w-full accent-[#4f9a50]"
-                  />
+                  <h3 className="font-bold text-base text-slate-800">Belum Ada Ayat Ditandai</h3>
+                  <p className="text-xs text-slate-500 max-w-xs mx-auto leading-relaxed">
+                    Tandai ayat Al-Qur'an dengan mengetuk nomor ayat saat membaca, lalu pilih "Tandai Ayat" untuk menyimpannya di sini.
+                  </p>
                 </div>
+              ) : filteredList.length === 0 ? (
+                <div className="py-16 px-6 text-center space-y-2">
+                  <Search className="w-10 h-10 text-slate-300 mx-auto" />
+                  <p className="text-xs font-semibold text-slate-700">Tidak ada ayat yang cocok</p>
+                  <p className="text-[11px] text-slate-400">Kata kunci "{bookmarkSearchQuery}" tidak ditemukan pada ayat yang ditandai.</p>
+                  <button
+                    type="button"
+                    onClick={() => setBookmarkSearchQuery('')}
+                    className="mt-2 text-xs font-bold text-emerald-700 hover:underline"
+                  >
+                    Hapus Pencarian
+                  </button>
+                </div>
+              ) : (
+                filteredList.map((item) => {
+                  return (
+                    <article
+                      key={`bm-${item.key}`}
+                      className="bg-white rounded-2xl p-4 border border-slate-200/90 shadow-xs hover:border-emerald-300 transition-all space-y-3"
+                    >
+                      {/* Kartu Header: Nama Surat, Ayat, Juz & Halaman */}
+                      <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+                        <div className="flex items-center gap-2">
+                          <span className="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-200 flex items-center justify-center font-bold text-xs">
+                            {item.surahId}
+                          </span>
+                          <div>
+                            <h4 className="font-bold text-xs sm:text-sm text-slate-900 leading-tight">
+                              QS. {item.chapter?.name || `Surat ${item.surahId}`} : {item.verseNum}
+                            </h4>
+                            <p className="text-[10px] text-slate-400">
+                              {item.chapter?.tn || ''} • Juz {item.juzNum} • Hal. {item.pageNum}
+                            </p>
+                          </div>
+                        </div>
 
-                {/* Pilihan Jenis Font Al-Qur'an */}
-                <div className="space-y-2 pt-2 border-t border-slate-100">
-                  <div className="flex items-center justify-between text-xs font-semibold text-slate-700">
-                    <span>Pilihan Huruf / Font Al-Qur'an</span>
-                    <span className="text-[10px] text-emerald-600 font-medium">Standar Kemenag</span>
-                  </div>
-                  <div className="grid grid-cols-1 gap-2">
-                    {QURAN_FONTS.map((font) => {
-                      const isSelected = (settings.fontFamily || 'lpmq') === font.id;
-                      return (
+                        {/* Hapus Bookmark Button */}
                         <button
-                          key={font.id}
+                          type="button"
+                          onClick={() => toggleBookmark(item.surahId, item.verseNum)}
+                          className="w-8 h-8 rounded-full flex items-center justify-center text-amber-500 hover:text-red-600 hover:bg-red-50 transition-colors cursor-pointer"
+                          title="Hapus dari daftar ditandai"
+                        >
+                          <Bookmark className="w-4 h-4 fill-amber-500" />
+                        </button>
+                      </div>
+
+                      {/* Teks Arab Utsmani */}
+                      {item.arabicText ? (
+                        <div 
+                          className="font-arabic text-slate-900 leading-[2.6] text-right py-1 select-none"
+                          dir="rtl"
+                          style={{ 
+                            fontSize: `${currentFontSize}px`,
+                            fontFamily: activeFontConfig.css
+                          }}
+                        >
+                          {item.arabicText}
+                          <AyahEndCircle num={item.verseNum} fontSize={currentFontSize} />
+                        </div>
+                      ) : (
+                        <div className="py-3 text-center text-xs text-slate-400 italic">
+                          Memuat lafadz ayat...
+                        </div>
+                      )}
+
+                      {/* Terjemahan Bahasa Indonesia */}
+                      {item.translation && (
+                        <p className="text-xs leading-relaxed text-slate-600 font-normal pt-1 border-t border-slate-50">
+                          {item.translation}
+                        </p>
+                      )}
+
+                      {/* Bilah Aksi Cepat */}
+                      <div className="flex items-center justify-end gap-1.5 pt-1 border-t border-slate-100">
+                        {/* Tombol Salin */}
+                        <button
+                          type="button"
+                          onClick={() => copyVerseText(item.arabicText, item.translation, item.chapter || chapters[0], item.verseNum)}
+                          className="px-2.5 py-1.5 rounded-lg text-slate-600 hover:bg-slate-100 active:bg-slate-200 text-[11px] font-medium flex items-center gap-1.5 transition-colors cursor-pointer"
+                          title="Salin ayat dan terjemahan"
+                        >
+                          <Copy className="w-3.5 h-3.5" />
+                          <span>Salin</span>
+                        </button>
+
+                        {/* Tombol Putar Audio */}
+                        <button
                           type="button"
                           onClick={() => {
-                            setSettings((prev) => {
-                              const next = { ...prev, fontFamily: font.id };
-                              saveSettings(next);
-                              return next;
-                            });
-                            showToast(`Font diubah ke ${font.name}`);
+                            setIsBookmarksViewOpen(false);
+                            playVerse(item.surahId, item.verseNum);
                           }}
-                          className={`w-full flex items-center justify-between p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
-                            isSelected
-                              ? 'bg-emerald-50/80 border-emerald-500 shadow-xs ring-1 ring-emerald-500/30'
-                              : 'bg-white border-slate-200/90 hover:bg-slate-50 hover:border-slate-300'
-                          }`}
+                          className="px-2.5 py-1.5 rounded-lg text-emerald-700 hover:bg-emerald-50 active:bg-emerald-100 text-[11px] font-medium flex items-center gap-1.5 transition-colors cursor-pointer"
+                          title="Putar audio ayat ini"
                         >
-                          <div className="flex items-center gap-2.5">
-                            <div className={`w-4 h-4 rounded-full border flex items-center justify-center shrink-0 ${
-                              isSelected ? 'border-[#4f9a50] bg-[#4f9a50]' : 'border-slate-300'
-                            }`}>
-                              {isSelected && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
-                            </div>
-                            <div>
-                              <div className="flex items-center gap-1.5">
-                                <span className="text-xs font-bold text-slate-800">{font.name}</span>
-                                {font.badge && (
-                                  <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-md bg-emerald-100 text-emerald-800 border border-emerald-200">
-                                    {font.badge}
-                                  </span>
-                                )}
-                              </div>
-                              <p className="text-[10px] text-slate-500 leading-tight mt-0.5">{font.subtitle}</p>
-                            </div>
-                          </div>
-                          <span 
-                            className="text-base font-arabic text-slate-800 pl-2 shrink-0 select-none"
-                            dir="rtl"
-                            style={{ fontFamily: font.css }}
-                          >
-                            ٱلْقُرْءَانُ
-                          </span>
+                          <Play className="w-3.5 h-3.5 fill-current" />
+                          <span>Putar</span>
                         </button>
-                      );
-                    })}
-                  </div>
-                </div>
 
-            {/* Toggles */}
-            <div className="space-y-3 pt-2 border-t border-slate-100">
-              <label className="flex items-center justify-between text-xs font-semibold text-slate-700 cursor-pointer">
-                <span>{t('showTr')}</span>
-                <input
-                  type="checkbox"
-                  checked={settings.showTr}
-                  onChange={(e) => {
-                    const val = e.target.checked;
-                    setSettings((prev) => {
-                      const next = { ...prev, showTr: val };
-                      saveSettings(next);
-                      return next;
-                    });
-                  }}
-                  className="w-4 h-4 accent-[#4f9a50] rounded"
-                />
-              </label>
-
-              <label className="flex items-center justify-between text-xs font-semibold text-slate-700 cursor-pointer">
-                <span>{t('showWord')}</span>
-                <input
-                  type="checkbox"
-                  checked={settings.showWord}
-                  onChange={(e) => {
-                    const val = e.target.checked;
-                    setSettings((prev) => {
-                      const next = { ...prev, showWord: val };
-                      saveSettings(next);
-                      return next;
-                    });
-                  }}
-                  className="w-4 h-4 accent-[#4f9a50] rounded"
-                />
-              </label>
-
-              {/* Language Switch */}
-              <div className="flex items-center justify-between pt-1">
-                <span className="text-xs font-semibold text-slate-700">{t('lang')}</span>
-                <div className="flex border border-slate-200 rounded-xl overflow-hidden p-0.5 bg-slate-100 text-xs font-semibold">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSettings((prev) => {
-                        const next = { ...prev, lang: 'id' as const };
-                        saveSettings(next);
-                        return next;
-                      });
-                    }}
-                    className={`px-3 py-1.5 rounded-lg transition-all ${
-                      settings.lang === 'id' ? 'bg-[#4f9a50] text-white shadow-xs' : 'text-slate-600'
-                    }`}
-                  >
-                    Indonesia
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSettings((prev) => {
-                        const next = { ...prev, lang: 'en' as const };
-                        saveSettings(next);
-                        return next;
-                      });
-                    }}
-                    className={`px-3 py-1.5 rounded-lg transition-all ${
-                      settings.lang === 'en' ? 'bg-[#4f9a50] text-white shadow-xs' : 'text-slate-600'
-                    }`}
-                  >
-                    English
-                  </button>
-                </div>
-              </div>
+                        {/* Tombol Buka / Lompat Langsung ke Ayat */}
+                        <button
+                          type="button"
+                          onClick={() => handleJumpToBookmark(item.surahId, item.verseNum, item.pageNum)}
+                          className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white text-[11px] font-bold flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs ml-1"
+                        >
+                          <span>Buka Ayat</span>
+                          <ArrowRight className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </article>
+                  );
+                })
+              )}
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* ================= MODAL PENGATUR UKURAN FONT 'aA' (TERSEDIA DI SEMUA MODE) ================= */}
       {isFontSizeModalOpen && (
@@ -2664,8 +2941,8 @@ export const QuranView: React.FC<QuranViewProps> = ({ isOpen, onClose, initialSu
                   aA
                 </span>
                 <div>
-                  <h3 className="font-bold text-sm text-slate-900">Ukuran & Huruf Arab</h3>
-                  <p className="text-[11px] text-slate-400">Atur kenyamanan membaca Al-Qur'an</p>
+                  <h3 className="font-bold text-sm text-slate-900">Ukuran Huruf Al-Qur'an</h3>
+                  <p className="text-[11px] text-slate-400">Atur kenyamanan ukuran teks ayat</p>
                 </div>
               </div>
               <button
@@ -2680,9 +2957,9 @@ export const QuranView: React.FC<QuranViewProps> = ({ isOpen, onClose, initialSu
             {/* Live Arabic Font Size Preview */}
             <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200 text-center">
               <div className="flex items-center justify-between mb-1.5 px-0.5">
-                <p className="text-[11px] text-slate-400 font-semibold">Pratinjau ({currentFontSize}px)</p>
-                <span className="text-[10px] font-bold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-full border border-emerald-200">
-                  {activeFontConfig.name}
+                <p className="text-[11px] text-slate-400 font-semibold">Pratinjau</p>
+                <span className="text-[11px] font-bold text-emerald-800 bg-emerald-100 px-2.5 py-0.5 rounded-full border border-emerald-200">
+                  {currentFontSize} px
                 </span>
               </div>
               <div 
@@ -2755,42 +3032,10 @@ export const QuranView: React.FC<QuranViewProps> = ({ isOpen, onClose, initialSu
               />
             </div>
 
-            {/* Font Selection */}
-            <div className="space-y-1.5 pt-2 border-t border-slate-100">
-              <label className="text-xs font-semibold text-slate-700 block">Pilihan Jenis Font Arab:</label>
-              <div className="grid grid-cols-3 gap-1.5">
-                {QURAN_FONTS.map((font) => {
-                  const isSelected = (settings.fontFamily || 'lpmq') === font.id;
-                  return (
-                    <button
-                      key={`font-picker-${font.id}`}
-                      type="button"
-                      onClick={() => {
-                        setSettings((prev) => {
-                          const next = { ...prev, fontFamily: font.id };
-                          saveSettings(next);
-                          return next;
-                        });
-                        showToast(`Font: ${font.name}`);
-                      }}
-                      className={`p-2 rounded-xl border text-center transition-all cursor-pointer ${
-                        isSelected
-                          ? 'bg-emerald-50 border-emerald-500 text-emerald-800 font-bold shadow-xs'
-                          : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
-                      }`}
-                    >
-                      <div className="text-[11px] truncate">{font.name.split(' ')[0]}</div>
-                      <div className="text-[9px] text-slate-400 truncate">{font.badge || 'Standar'}</div>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
             <button
               type="button"
               onClick={() => setIsFontSizeModalOpen(false)}
-              className="w-full py-2.5 rounded-xl bg-emerald-600 text-white font-bold text-xs shadow-md hover:bg-emerald-700 transition-colors cursor-pointer"
+              className="w-full py-2.5 rounded-xl bg-emerald-600 text-white font-bold text-xs shadow-md hover:bg-emerald-700 transition-colors cursor-pointer mt-2"
             >
               Selesai
             </button>

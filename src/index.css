@@ -239,8 +239,8 @@
 
 /* Mushaf Page Justification - Rata Kanan Kiri dengan baris paling bawah rata kanan */
 .quran-mushaf-page-text {
+  direction: rtl !important;
   text-align: justify !important;
-  text-justify: inter-word !important;
   text-align-last: right !important;
   -webkit-text-align-last: right !important;
   -moz-text-align-last: right !important;
