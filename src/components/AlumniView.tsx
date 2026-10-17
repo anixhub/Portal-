@@ -962,6 +962,24 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
     hasAdvancedFilters
   );
 
+  const [visibleCount, setVisibleCount] = useState(60);
+
+  useEffect(() => {
+    setVisibleCount(60);
+  }, [
+    searchQuery,
+    sortOption,
+    activeQuickTag,
+    filterEntryFrom,
+    filterEntryTo,
+    filterGradFrom,
+    filterGradTo,
+    filterProvince,
+    filterCity,
+    filterKecamatan,
+    filterDesa
+  ]);
+
   const handleResetFilters = () => {
     setActiveQuickTag(null);
     setFilterEntryFrom('');
@@ -972,6 +990,7 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
     setFilterCity('');
     setFilterKecamatan('');
     setFilterDesa('');
+    setVisibleCount(60);
   };
 
   const triggerToast = (msg: string) => {
@@ -1470,19 +1489,6 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
                     </span>
                   )}
                 </button>
-
-                {/* Tombol Segarkan Data Realtime */}
-                {onRefreshData && (
-                  <button
-                    type="button"
-                    onClick={onRefreshData}
-                    disabled={isDbLoading}
-                    className="w-11 h-11 rounded-full bg-white border border-slate-200/80 shadow-xs flex items-center justify-center relative cursor-pointer hover:bg-slate-50 transition-colors disabled:opacity-50"
-                    title="Segarkan Data Realtime Hostinger"
-                  >
-                    <RotateCw className={`w-4 h-4 text-slate-800 ${isDbLoading ? 'animate-spin text-sky-600' : ''}`} />
-                  </button>
-                )}
 
                 {/* Tombol Lonceng Notifikasi */}
                 <button
@@ -2108,7 +2114,7 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
             {/* DAFTAR KARTU ALUMNI (CARD VIEW) - SATU-SATUNYA BAGIAN YANG TERSCROLL */}
             <div className="flex-1 overflow-y-auto p-4 space-y-3 pb-24">
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-              {sortedFilteredAlumni.map((item) => {
+              {sortedFilteredAlumni.slice(0, visibleCount).map((item) => {
                 const addressText = item.shareFullAddress === false
                   ? [item.kecamatan, item.city].filter(Boolean).join(', ') || item.city || item.province || 'Alamat disembunyikan'
                   : [item.desa, item.kecamatan, item.city].filter(Boolean).join(', ') || item.province || 'Alamat belum diisi';
@@ -2183,6 +2189,18 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
                 );
               })}
             </div>
+
+            {sortedFilteredAlumni.length > visibleCount && (
+              <div className="flex justify-center pt-2">
+                <button
+                  type="button"
+                  onClick={() => setVisibleCount((prev) => prev + 60)}
+                  className="w-full sm:w-auto px-6 py-3 bg-white hover:bg-slate-50 border border-slate-200 text-sky-700 font-bold text-xs rounded-2xl shadow-xs transition-colors cursor-pointer flex items-center justify-center gap-2"
+                >
+                  <span>Muat Lebih Banyak ({visibleCount} dari {sortedFilteredAlumni.length} alumni)</span>
+                </button>
+              </div>
+            )}
 
             {sortedFilteredAlumni.length === 0 && (
               <div className="bg-white rounded-2xl border border-slate-200 p-8 text-center text-slate-500 text-xs">
