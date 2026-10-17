@@ -30,6 +30,7 @@ import {
 import { useBackHandler } from '../utils/navigationHistory';
 import { BismillahCalligraphy } from './BismillahCalligraphy';
 import { LPMQ_AYAH_CIRCLE_PATH, AyahCircleMedallion, LpmqSvgDefs } from './lpmqAyahCirclePath';
+import { fetchQuranBookmark, saveQuranBookmark } from '../services/apiService';
 
 const API = 'https://api.quran.com/api/v4';
 const TRANSLATION_ID: Record<string, number> = { en: 20, id: 33 }; // 33 = Kemenag RI, 20 = Saheeh Int
@@ -695,11 +696,34 @@ interface QuranViewProps {
   isOpen: boolean;
   onClose: () => void;
   initialSurah?: number;
+  userId?: string;
 }
 
-export const QuranView: React.FC<QuranViewProps> = ({ isOpen, onClose, initialSurah }) => {
+export const QuranView: React.FC<QuranViewProps> = ({ isOpen, onClose, initialSurah, userId }) => {
   const [settings, setSettings] = useState<QuranSettings>(loadSettings);
   const [chapters, setChapters] = useState<ChapterItem[]>([]);
+
+  // Sinkronisasi Batas Al-Qur'an (Last Read & Penanda Ayat) dari Database saat dibuka
+  useEffect(() => {
+    if (!userId) return;
+    let isMounted = true;
+    fetchQuranBookmark(userId).then((remoteData) => {
+      if (!isMounted || !remoteData) return;
+      setSettings((prev) => {
+        const next: QuranSettings = {
+          ...prev,
+          lr: remoteData.lr !== undefined ? remoteData.lr : prev.lr,
+          bm: remoteData.bm ? { ...prev.bm, ...remoteData.bm } : prev.bm,
+          curPage: remoteData.page ? Number(remoteData.page) : prev.curPage,
+        };
+        saveSettings(next);
+        return next;
+      });
+    }).catch(() => {});
+    return () => {
+      isMounted = false;
+    };
+  }, [userId, isOpen]);
   
   // Continuous pages: list of loaded surah IDs in order
   const [loadedSurahIds, setLoadedSurahIds] = useState<number[]>([1]);
@@ -1837,6 +1861,13 @@ export const QuranView: React.FC<QuranViewProps> = ({ isOpen, onClose, initialSu
 
       const nextSettings = { ...prev, bm: newBm };
       saveSettings(nextSettings);
+      if (userId) {
+        saveQuranBookmark(userId, {
+          lr: nextSettings.lr,
+          bm: nextSettings.bm,
+          curPage: nextSettings.curPage,
+        });
+      }
       return nextSettings;
     });
     showToast(!wasBookmarked ? 'Ayat ditandai' : 'Penanda ayat dihapus');
@@ -1847,6 +1878,13 @@ export const QuranView: React.FC<QuranViewProps> = ({ isOpen, onClose, initialSu
     setSettings((prev) => {
       const nextSettings = { ...prev, lr: { s: surahId, v: verseNum } };
       saveSettings(nextSettings);
+      if (userId) {
+        saveQuranBookmark(userId, {
+          lr: nextSettings.lr,
+          bm: nextSettings.bm,
+          curPage: nextSettings.curPage,
+        });
+      }
       return nextSettings;
     });
     showToast(t('last'));
@@ -3855,6 +3893,13 @@ export const QuranView: React.FC<QuranViewProps> = ({ isOpen, onClose, initialSu
                     setSettings((prev) => {
                       const next = { ...prev, lr: { s: surahId, v: verseNum } };
                       saveSettings(next);
+                      if (userId) {
+                        saveQuranBookmark(userId, {
+                          lr: next.lr,
+                          bm: next.bm,
+                          curPage: next.curPage,
+                        });
+                      }
                       return next;
                     });
                     const ch = chapters.find((c) => c.id === surahId);

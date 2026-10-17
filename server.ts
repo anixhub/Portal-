@@ -582,6 +582,49 @@ async function startServer() {
     res.json({ success: true });
   });
 
+  // Post Like API: POST (Event or Announcement)
+  app.post('/api/posts/like', async (req, res) => {
+    const { postId, postType, isLiked } = req.body;
+    const delta = isLiked ? 1 : -1;
+
+    if (postType === 'announcement') {
+      cachedAnnouncements = cachedAnnouncements.map((a: any) => {
+        if (a.id === postId) {
+          return {
+            ...a,
+            isLiked,
+            likesCount: Math.max(0, (a.likesCount || 0) + delta),
+          };
+        }
+        return a;
+      });
+      saveJsonStore(announcementsStorePath, cachedAnnouncements);
+    } else {
+      cachedEvents = cachedEvents.map((e: any) => {
+        if (e.id === postId) {
+          return {
+            ...e,
+            isLiked,
+            likesCount: Math.max(0, (e.likesCount || 0) + delta),
+          };
+        }
+        return e;
+      });
+      saveJsonStore(eventsStorePath, cachedEvents);
+    }
+
+    try {
+      await fetch('https://alumni.attaroqqy.com/api_alumni.php?action=like_post', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ postId, postType, delta, isLiked }),
+        signal: AbortSignal.timeout(8000),
+      }).catch(() => {});
+    } catch (e) {}
+
+    res.json({ success: true });
+  });
+
   // Quran Bookmark API: GET
   app.get('/api/quran/bookmark/:userId', async (req, res) => {
     const { userId } = req.params;

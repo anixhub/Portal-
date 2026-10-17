@@ -19,6 +19,12 @@ import { formatAudienceSummary } from '../common/AudienceTargetModal';
 import { EventCommentsModal } from '../common/EventCommentsModal';
 import { INITIAL_ANNOUNCEMENT_COMMENTS } from '../../data/mockData';
 import { formatAuthorUsername, resolveAuthorAlumniRecord } from '../../utils/authorUtils';
+import { 
+  fetchCommentsFromDatabase, 
+  saveCommentToDatabase, 
+  toggleCommentLikeInDatabase,
+  togglePostLikeInDatabase 
+} from '../../services/apiService';
 
 interface AdminAnnouncementsTabProps {
   announcements: AnnouncementItem[];
@@ -213,6 +219,19 @@ export const AdminAnnouncementsTab: React.FC<AdminAnnouncementsTabProps> = ({
   const [activeCommentsAnnouncement, setActiveCommentsAnnouncement] = useState<AnnouncementItem | null>(null);
   const [commentsList, setCommentsList] = useState<EventComment[]>(INITIAL_ANNOUNCEMENT_COMMENTS);
 
+  // Load real comments from database
+  useEffect(() => {
+    let isMounted = true;
+    fetchCommentsFromDatabase().then((data) => {
+      if (isMounted && Array.isArray(data)) {
+        setCommentsList(data);
+      }
+    });
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
   const confirmDelete = () => {
     if (!deleteCandidate) return;
     onDeleteAnnouncement(deleteCandidate.id);
@@ -230,6 +249,7 @@ export const AdminAnnouncementsTab: React.FC<AdminAnnouncementsTabProps> = ({
       isLiked: isNowLiked,
       likesCount: newLikesCount,
     });
+    togglePostLikeInDatabase(id, 'announcement', isNowLiked);
   };
 
   // Handle add comment to announcement
@@ -263,6 +283,18 @@ export const AdminAnnouncementsTab: React.FC<AdminAnnouncementsTabProps> = ({
           return c;
         })
       );
+
+      saveCommentToDatabase({
+        id: newReply.id,
+        eventId: targetId,
+        commentId: replyToCommentId,
+        authorName: adminUser.name,
+        authorHandle: adminUser.username || '@admin_pusat',
+        authorAvatar: adminUser.avatar,
+        content: text.trim(),
+        likesCount: 0,
+        timeAgo: 'Baru saja',
+      } as any, 'announcement');
     } else {
       const newComment: EventComment = {
         id: `ann-comm-${Date.now()}`,
@@ -288,11 +320,13 @@ export const AdminAnnouncementsTab: React.FC<AdminAnnouncementsTabProps> = ({
           commentsCount: (ann.commentsCount || 0) + 1,
         });
       }
+      saveCommentToDatabase(newComment, 'announcement');
     }
   };
 
   // Handle toggle like on comment/reply
   const handleToggleLikeComment = (commentId: string, replyId?: string) => {
+    let targetLiked = false;
     setCommentsList((prev) =>
       prev.map((c) => {
         if (c.id === commentId) {
@@ -300,6 +334,7 @@ export const AdminAnnouncementsTab: React.FC<AdminAnnouncementsTabProps> = ({
             const updatedReplies = c.replies.map((r) => {
               if (r.id === replyId) {
                 const nextLiked = !r.isLiked;
+                targetLiked = nextLiked;
                 return {
                   ...r,
                   isLiked: nextLiked,
@@ -311,6 +346,7 @@ export const AdminAnnouncementsTab: React.FC<AdminAnnouncementsTabProps> = ({
             return { ...c, replies: updatedReplies };
           } else {
             const nextLiked = !c.isLiked;
+            targetLiked = nextLiked;
             return {
               ...c,
               isLiked: nextLiked,
@@ -321,6 +357,7 @@ export const AdminAnnouncementsTab: React.FC<AdminAnnouncementsTabProps> = ({
         return c;
       })
     );
+    toggleCommentLikeInDatabase(commentId, replyId, targetLiked);
   };
 
   // Filter announcements by reach/scope & search

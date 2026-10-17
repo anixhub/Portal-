@@ -50,6 +50,7 @@ export interface WilayahAddressFilterProps {
   }) => void;
   showLocationTag?: boolean;
   showAlamatLengkap?: boolean;
+  showCurrentLocationButton?: boolean;
 }
 
 type ActiveField = 'province' | 'city' | 'kecamatan' | 'desa' | null;
@@ -64,6 +65,7 @@ export const WilayahAddressFilter: React.FC<WilayahAddressFilterProps> = ({
   onChange,
   showLocationTag = true,
   showAlamatLengkap = true,
+  showCurrentLocationButton = false,
 }) => {
   // Lists from endpoint
   const [provincesList, setProvincesList] = useState<WilayahItem[]>([]);
@@ -638,10 +640,218 @@ export const WilayahAddressFilter: React.FC<WilayahAddressFilterProps> = ({
     });
   };
 
+  const [isDetectingLocation, setIsDetectingLocation] = useState(false);
+  const [detectStatus, setDetectStatus] = useState<string | null>(null);
+
+  const handleUseCurrentLocation = async () => {
+    if (typeof window === 'undefined' || !navigator.geolocation) {
+      alert('Perangkat Anda tidak mendukung fitur lokasi GPS');
+      return;
+    }
+    setIsDetectingLocation(true);
+    setDetectStatus('Membaca sinyal GPS...');
+
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        try {
+          const lat = pos.coords.latitude;
+          const lng = pos.coords.longitude;
+          setDetectStatus('Mendeteksi nama wilayah...');
+
+          let hint: any = null;
+          try {
+            const res = await fetch(
+              `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`,
+              {
+                headers: { 'Accept-Language': 'id' },
+                signal: AbortSignal.timeout(8000),
+              }
+            );
+            if (res.ok) {
+              const data = await res.json();
+              if (data && data.address) {
+                const a = data.address;
+                hint = {
+                  state: a.state || a.province || a.region || '',
+                  city: a.city || a.county || a.municipality || a.town || '',
+                  subdistrict: a.city_district || a.subdistrict || a.district || '',
+                  village: a.village || a.suburb || a.quarter || a.neighbourhood || '',
+                  road: a.road || a.street || '',
+                  displayName: data.display_name || '',
+                };
+              }
+            }
+          } catch (e) {
+            console.warn('Nominatim reverse error:', e);
+          }
+
+          if (!hint) {
+            try {
+              const bdcRes = await fetch(
+                `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lng}&localityLanguage=id`,
+                { signal: AbortSignal.timeout(6000) }
+              );
+              if (bdcRes.ok) {
+                const bdc = await bdcRes.json();
+                hint = {
+                  state: bdc.principalSubdivision || '',
+                  city: bdc.city || bdc.locality || '',
+                  subdistrict: bdc.localityInfo?.administrative?.[3]?.name || '',
+                  village: bdc.localityInfo?.administrative?.[4]?.name || '',
+                  road: '',
+                  displayName: '',
+                };
+              }
+            } catch (e) {}
+          }
+
+          setDetectStatus('Menyesuaikan data dropdown...');
+
+          let provs = provincesList;
+          if (provs.length === 0) {
+            provs = await fetchProvinces().catch(() => FALLBACK_PROVINCES);
+            setProvincesList(provs);
+          }
+
+          let matchedProv = provs.find((p) => {
+            const cleanP = cleanWilayahName(p.name);
+            const cleanHintState = cleanWilayahName(hint?.state || '');
+            return cleanP === cleanHintState || cleanHintState.includes(cleanP) || cleanP.includes(cleanHintState);
+          });
+          if (!matchedProv) {
+            matchedProv = provs.find((p) => p.name.includes('JAWA TIMUR') || p.id === '35');
+          }
+
+          let matchedReg: WilayahItem | undefined;
+          let matchedDist: WilayahItem | undefined;
+          let matchedVill: WilayahItem | undefined;
+
+          let targetCityName = '';
+          let targetKecName = '';
+          let targetDesaName = '';
+
+          if (matchedProv) {
+            setSelectedProvId(matchedProv.id);
+            const regList = await fetchRegencies(matchedProv.id).catch(() => []);
+            setRegenciesList(regList);
+
+            if (hint?.city) {
+              const cleanHintCity = cleanWilayahName(hint.city);
+              matchedReg = regList.find((r) => {
+                const cleanR = cleanWilayahName(r.name);
+                return cleanR === cleanHintCity || cleanHintCity.includes(cleanR) || cleanR.includes(cleanHintCity);
+              });
+            }
+
+            if (matchedReg) {
+              setSelectedRegId(matchedReg.id);
+              targetCityName = formatWilayahName(matchedReg.name);
+              const distList = await fetchDistricts(matchedReg.id).catch(() => []);
+              setDistrictsList(distList);
+
+              if (hint?.subdistrict) {
+                const cleanHintDist = cleanWilayahName(hint.subdistrict);
+                matchedDist = distList.find((d) => {
+                  const cleanD = cleanWilayahName(d.name);
+                  return cleanD === cleanHintDist || cleanHintDist.includes(cleanD) || cleanD.includes(cleanHintDist);
+                });
+              }
+
+              if (matchedDist) {
+                setSelectedDistId(matchedDist.id);
+                targetKecName = formatWilayahName(matchedDist.name);
+                const villList = await fetchVillages(matchedDist.id).catch(() => []);
+                setVillagesList(villList);
+
+                if (hint?.village) {
+                  const cleanHintVill = cleanWilayahName(hint.village);
+                  matchedVill = villList.find((v) => {
+                    const cleanV = cleanWilayahName(v.name);
+                    return cleanV === cleanHintVill || cleanHintVill.includes(cleanV) || cleanV.includes(cleanHintVill);
+                  });
+                }
+
+                if (matchedVill) {
+                  targetDesaName = formatWilayahName(matchedVill.name);
+                } else if (hint?.village) {
+                  targetDesaName = hint.village;
+                }
+              } else if (hint?.subdistrict) {
+                targetKecName = hint.subdistrict;
+                if (hint?.village) targetDesaName = hint.village;
+              }
+            } else if (hint?.city) {
+              targetCityName = hint.city;
+              if (hint?.subdistrict) targetKecName = hint.subdistrict;
+              if (hint?.village) targetDesaName = hint.village;
+            }
+          }
+
+          const targetProvName = matchedProv ? formatWilayahName(matchedProv.name) : (hint?.state || 'Jawa Timur');
+          const targetRoad = hint?.road || (hint?.displayName ? hint.displayName.split(',')[0] : '');
+          const finalAlamat = targetRoad ? `${targetRoad}${alamatLengkap ? ` (${alamatLengkap})` : ''}` : alamatLengkap;
+
+          onChange({
+            province: targetProvName,
+            city: targetCityName || city,
+            kecamatan: targetKecName || kecamatan,
+            desa: targetDesaName || desa,
+            alamatLengkap: finalAlamat,
+            coordinates: { lat, lng },
+          });
+
+          setDetectStatus('Wilayah berhasil dipilih!');
+          setTimeout(() => {
+            setDetectStatus(null);
+            setIsDetectingLocation(false);
+          }, 1500);
+        } catch (err) {
+          console.error('Error auto-detecting location:', err);
+          setDetectStatus('Gagal membaca detail wilayah');
+          setTimeout(() => {
+            setDetectStatus(null);
+            setIsDetectingLocation(false);
+          }, 2000);
+        }
+      },
+      (error) => {
+        console.warn('Geolocation error:', error);
+        setDetectStatus('Izin GPS ditolak atau tidak tersedia');
+        setTimeout(() => {
+          setDetectStatus(null);
+          setIsDetectingLocation(false);
+        }, 2000);
+      },
+      { enableHighAccuracy: true, timeout: 12000 }
+    );
+  };
+
   const hasCoords = Boolean(coordinates && coordinates.lat && coordinates.lng);
 
   return (
     <div ref={containerRef} className="space-y-3.5 text-xs relative z-40">
+      {/* TOMBOL GUNAKAN LOKASI SAAT INI (GPS AUTO-SELECT DROPDOWN WILAYAH) */}
+      {showCurrentLocationButton && (
+        <button
+          type="button"
+          onClick={handleUseCurrentLocation}
+          disabled={isDetectingLocation}
+          className="w-full py-2.5 px-3.5 rounded-2xl bg-gradient-to-r from-sky-600 via-blue-600 to-indigo-600 hover:from-sky-700 hover:to-indigo-700 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-sm transition-all active:scale-[0.98] cursor-pointer disabled:opacity-75 disabled:cursor-wait"
+        >
+          {isDetectingLocation ? (
+            <>
+              <Loader2 className="w-4 h-4 animate-spin shrink-0 text-white" />
+              <span>{detectStatus || 'Mendeteksi Lokasi & Memilih Wilayah...'}</span>
+            </>
+          ) : (
+            <>
+              <Navigation className="w-4 h-4 shrink-0 text-sky-100" />
+              <span>Gunakan Lokasi Saat Ini (Pilih Wilayah Otomatis)</span>
+            </>
+          )}
+        </button>
+      )}
+
       {/* 1. KOLOM PROVINSI DAN KABUPATEN SEJAJAR (PALING ATAS) */}
       <div className={`grid grid-cols-2 gap-2.5 relative transition-all ${activeDropdown === 'province' || activeDropdown === 'city' ? 'z-50' : 'z-30'}`}>
         {/* PROVINSI */}

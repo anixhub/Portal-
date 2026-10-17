@@ -93,6 +93,12 @@ import { MaulidView } from './MaulidView';
 import { DzikirView } from './DzikirView';
 import { MajmuahView, MAJMUAH_SECTIONS } from './MajmuahView';
 import { getAlumniPhotoUrl } from '../utils/photoUtils';
+import { 
+  fetchCommentsFromDatabase, 
+  saveCommentToDatabase, 
+  toggleCommentLikeInDatabase, 
+  togglePostLikeInDatabase 
+} from '../services/apiService';
 import { RealQrCode } from './common/RealQrCode';
 import { generateNisFromEntryDate } from '../utils/alumniIdentityUtils';
 import posterReuniImg from '../assets/images/poster_reuni_akbar_1790648045947.jpg';
@@ -643,15 +649,30 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
   const [commentsList, setCommentsList] = useState<EventComment[]>(INITIAL_EVENT_COMMENTS);
   const [activeCommentsModalEvent, setActiveCommentsModalEvent] = useState<EventAgenda | null>(null);
 
+  // Muat data komentar asli dari database secara otomatis
+  useEffect(() => {
+    let isMounted = true;
+    fetchCommentsFromDatabase().then((data) => {
+      if (isMounted && Array.isArray(data)) {
+        setCommentsList(data);
+      }
+    });
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
   // Komentar & Menu Pengumuman untuk Akun Alumni
   const [activeCommentsAnnouncement, setActiveCommentsAnnouncement] = useState<AnnouncementItem | null>(null);
   const [activeMenuAnnouncement, setActiveMenuAnnouncement] = useState<AnnouncementItem | null>(null);
 
   const handleToggleLikeAnnouncement = (annId: string) => {
+    let targetLiked = false;
     setAnnouncements((prev) =>
       prev.map((a) => {
         if (a.id !== annId) return a;
         const isNowLiked = !a.isLiked;
+        targetLiked = isNowLiked;
         return {
           ...a,
           isLiked: isNowLiked,
@@ -659,6 +680,7 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
         };
       })
     );
+    togglePostLikeInDatabase(annId, 'announcement', targetLiked);
   };
 
   const handleAddAnnouncementComment = (targetId: string, text: string, replyToCommentId?: string) => {
@@ -694,6 +716,17 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
           return c;
         })
       );
+      saveCommentToDatabase({
+        id: newReply.id,
+        eventId: targetId,
+        commentId: replyToCommentId,
+        authorName: alumni.name,
+        authorHandle: userHandle,
+        authorAvatar: alumni.photoUrl,
+        content: text.trim(),
+        likesCount: 0,
+        timeAgo: 'Baru saja',
+      } as any, 'announcement');
     } else {
       const newComment: EventComment = {
         id: `ann-comm-${Date.now()}`,
@@ -713,6 +746,7 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
       setAnnouncements((prev) =>
         prev.map((a) => (a.id === targetId ? { ...a, commentsCount: (a.commentsCount || 0) + 1 } : a))
       );
+      saveCommentToDatabase(newComment, 'announcement');
     }
   };
 
@@ -1156,6 +1190,17 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
           return c;
         })
       );
+      saveCommentToDatabase({
+        id: newReply.id,
+        eventId,
+        commentId: replyToCommentId,
+        authorName: alumni.name,
+        authorHandle: newReply.authorHandle,
+        authorAvatar: alumni.photoUrl,
+        content: text,
+        likesCount: 0,
+        timeAgo: 'Baru saja',
+      } as any, 'event');
       triggerToast('Balasan berhasil dikirim!');
     } else {
       // Tanggapan utama baru
@@ -1174,11 +1219,13 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
         isCurrentUser: true,
       };
       setCommentsList((prev) => [newComment, ...prev]);
+      saveCommentToDatabase(newComment, 'event');
       triggerToast('Tanggapan berhasil dikirim!');
     }
   };
 
   const handleToggleLikeComment = (commentId: string, replyId?: string) => {
+    let targetLiked = false;
     setCommentsList((prev) =>
       prev.map((c) => {
         if (c.id === commentId) {
@@ -1186,6 +1233,7 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
             const updatedReplies = (c.replies || []).map((rep) => {
               if (rep.id === replyId) {
                 const isLiked = !rep.isLiked;
+                targetLiked = isLiked;
                 return {
                   ...rep,
                   isLiked,
@@ -1197,6 +1245,7 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
             return { ...c, replies: updatedReplies };
           } else {
             const isLiked = !c.isLiked;
+            targetLiked = isLiked;
             return {
               ...c,
               isLiked,
@@ -1207,11 +1256,30 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
         return c;
       })
     );
+    toggleCommentLikeInDatabase(commentId, replyId, targetLiked);
   };
 
   const handleShareEvent = async (ev: EventAgenda) => {
-    const posterSrc = ev.posterUrl || posterReuniImg;
+    const posterSrc = (ev.images && ev.images[0]) || (ev.posterUrl && ev.posterUrl.trim() ? ev.posterUrl : null);
     const shareText = `*${ev.title}*\n\n🗓️ Tanggal: ${ev.date}\n⏰ Waktu: ${ev.time}\n📍 Tempat: ${ev.location}\n\n${ev.description}\n\nKonfirmasi kehadiran Anda di Portal Alumni At-taroqqy:\n${window.location.href}`;
+
+    if (!posterSrc) {
+      if (navigator.share) {
+        try {
+          await navigator.share({
+            title: ev.title,
+            text: shareText,
+            url: window.location.href,
+          });
+          return;
+        } catch (e) {}
+      }
+      try {
+        await navigator.clipboard.writeText(shareText);
+        triggerToast('Teks agenda disalin ke clipboard');
+      } catch (e) {}
+      return;
+    }
 
     try {
       // 1. Ambil file gambar poster sebagai Blob & File
@@ -1299,7 +1367,11 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
   };
 
   const handleDownloadPoster = (ev: EventAgenda) => {
-    const posterSrc = ev.posterUrl || posterReuniImg;
+    const posterSrc = (ev.images && ev.images[0]) || (ev.posterUrl && ev.posterUrl.trim() ? ev.posterUrl : null);
+    if (!posterSrc) {
+      triggerToast('Agenda ini tidak memiliki poster gambar');
+      return;
+    }
     const a = document.createElement('a');
     a.href = posterSrc;
     a.download = `poster-${ev.title.toLowerCase().replace(/[^a-z0-9]/g, '-')}.jpg`;
@@ -1653,35 +1725,38 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
                 </button>
               </div>
 
-              {/* Kotak Poster Event dengan Judul dan Tag Lokasi & Waktu di bawah judul (Menutup sedikit countdown agar menyatu) */}
+              {/* Kotak Event Beranda: Hanya tampilkan foto jika ada poster asli, jika tidak ada hanya teks kartu */}
               <div
                 onClick={() => setActiveTab('events')}
-                className="relative z-10 rounded-[28px] overflow-hidden shadow-md aspect-[16/10] sm:aspect-[16/9] cursor-pointer group select-none border border-slate-200/60"
+                className="relative z-10 rounded-[28px] overflow-hidden shadow-md aspect-[16/10] sm:aspect-[16/9] cursor-pointer group select-none border border-slate-200/60 bg-gradient-to-br from-emerald-950 via-slate-900 to-sky-950 flex flex-col justify-end"
               >
-                <img
-                  src={events[0]?.posterUrl || posterReuniImg}
-                  alt={events[0]?.title || 'Agenda Terdekat'}
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                />
-
-                {/* Dark Vignette Overlay */}
-                <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/45 to-transparent" />
+                {(Boolean(events[0]?.posterUrl?.trim()) || (events[0]?.images && events[0]?.images.length > 0)) && (
+                  <>
+                    <img
+                      src={(events[0]?.images && events[0]?.images[0]) || events[0]?.posterUrl}
+                      alt={events[0]?.title || 'Agenda Terdekat'}
+                      className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                    />
+                    {/* Dark Vignette Overlay */}
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/45 to-transparent" />
+                  </>
+                )}
 
                 {/* Bottom Overlay: Judul Acara & Tag Lokasi dan Waktu tepat di bawah judul */}
-                <div className="absolute bottom-0 inset-x-0 p-4 pt-10 bg-gradient-to-t from-black/95 via-black/80 to-transparent">
+                <div className="relative z-10 p-4 pt-10 bg-gradient-to-t from-black/95 via-black/80 to-transparent">
                   <h3 className="font-bold text-base sm:text-lg text-white leading-snug drop-shadow-sm mb-2">
-                    {events[0]?.title || 'Reuni Akbar & Haul Masyayikh Ke-42'}
+                    {events[0]?.title || 'Reuni Akbar Alumni Ponpes At-Taroqqy'}
                   </h3>
 
                   {/* Tag Lokasi dan Waktu tepat di bawah judul */}
                   <div className="flex flex-wrap items-center gap-2">
                     <div className="backdrop-blur-md bg-black/50 border border-white/20 text-white text-[11px] font-semibold px-3 py-1.5 rounded-full flex items-center gap-1.5 shadow-xs">
                       <Calendar className="w-3.5 h-3.5 text-sky-400" />
-                      <span>{events[0]?.date || '12 Okt 2026'}</span>
+                      <span>{events[0]?.date || 'Belum ditentukan'}</span>
                     </div>
                     <div className="backdrop-blur-md bg-black/50 border border-white/20 text-white text-[11px] font-semibold px-3 py-1.5 rounded-full flex items-center gap-1.5 shadow-xs">
                       <MapPin className="w-3.5 h-3.5 text-rose-400" />
-                      <span>{events[0]?.location || 'Ponpes At-taroqqy'}</span>
+                      <span>{events[0]?.location || 'Aula Ponpes At-taroqqy'}</span>
                     </div>
                   </div>
                 </div>
@@ -1849,13 +1924,15 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
                       </div>
                     </div>
 
-                    {/* 2. POSTER MEDIA (MULTI-IMAGE SLIDER DENGAN COUNTER DAN TITIK GESER) */}
-                    <PostMediaCarousel
-                      images={ev.images}
-                      fallbackImage={ev.posterUrl || posterReuniImg}
-                      title={ev.title}
-                      onPreview={(url) => setFullscreenPosterUrl(url)}
-                    />
+                    {/* 2. POSTER MEDIA (HANYA DITAMPILKAN JIKA ADA FOTO ASLI) */}
+                    {((ev.images && ev.images.length > 0) || Boolean(ev.posterUrl?.trim())) && (
+                      <PostMediaCarousel
+                        images={ev.images}
+                        fallbackImage={ev.posterUrl}
+                        title={ev.title}
+                        onPreview={(url) => setFullscreenPosterUrl(url)}
+                      />
+                    )}
 
                     {/* 3. BARIS KONFIRMASI KEHADIRAN */}
                     {!ev.userRsvp || ev.userRsvp === 'belum_pasti' ? (
@@ -3570,6 +3647,7 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
                       coordinates={editCoordinates}
                       showAlamatLengkap={true}
                       showLocationTag={true}
+                      showCurrentLocationButton={true}
                       onChange={(vals) => {
                         setEditProvince(vals.province);
                         setEditCity(vals.city);
@@ -5238,6 +5316,7 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
         isOpen={isQuranViewOpen}
         onClose={() => setIsQuranViewOpen(false)}
         initialSurah={selectedQuranSurah}
+        userId={alumni.id || alumni.nik || 'alumni_default'}
       />
 
       {/* ================= KITAB MAULID NABI ================= */}

@@ -529,18 +529,23 @@ export default function App() {
   };
 
   const handleUpdateEvent = async (id: string, updated: Partial<EventAgenda>) => {
-    let targetEvent: EventAgenda | null = null;
-    setEvents((prev) =>
-      prev.map((item) => {
+    let mergedEvent: EventAgenda | null = null;
+    setEvents((prev) => {
+      const next = prev.map((item) => {
         if (item.id === id) {
-          targetEvent = { ...item, ...updated };
-          return targetEvent;
+          mergedEvent = { ...item, ...updated };
+          return mergedEvent;
         }
         return item;
-      })
-    );
-    if (targetEvent) {
-      await saveEventToHostinger(targetEvent);
+      });
+      return next;
+    });
+
+    // Fallback pencarian langsung jika state callback belum tereksekusi
+    const current = events.find((item) => item.id === id);
+    const eventToSave = mergedEvent || (current ? { ...current, ...updated } : (updated as EventAgenda));
+    if (eventToSave && eventToSave.id) {
+      await saveEventToHostinger(eventToSave);
     }
   };
 
@@ -556,18 +561,22 @@ export default function App() {
   };
 
   const handleUpdateAnnouncement = async (id: string, updated: Partial<AnnouncementItem>) => {
-    let targetAnn: AnnouncementItem | null = null;
-    setAnnouncements((prev) =>
-      prev.map((item) => {
+    let mergedAnn: AnnouncementItem | null = null;
+    setAnnouncements((prev) => {
+      const next = prev.map((item) => {
         if (item.id === id) {
-          targetAnn = { ...item, ...updated };
-          return targetAnn;
+          mergedAnn = { ...item, ...updated };
+          return mergedAnn;
         }
         return item;
-      })
-    );
-    if (targetAnn) {
-      await saveAnnouncementToHostinger(targetAnn);
+      });
+      return next;
+    });
+
+    const current = announcements.find((item) => item.id === id);
+    const annToSave = mergedAnn || (current ? { ...current, ...updated } : (updated as AnnouncementItem));
+    if (annToSave && annToSave.id) {
+      await saveAnnouncementToHostinger(annToSave);
     }
   };
 

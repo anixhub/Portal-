@@ -1147,6 +1147,39 @@ export async function deleteCommentFromDatabase(commentId: string): Promise<{ su
   }
 }
 
+export async function togglePostLikeInDatabase(
+  postId: string,
+  postType: 'event' | 'announcement',
+  isLiked: boolean
+): Promise<{ success: boolean }> {
+  try {
+    const endpoints = [
+      '/api/posts/like',
+      `${HOSTINGER_API_URL}?action=like_post`,
+      'https://alumni.attaroqqy.com/api_alumni.php?action=like_post',
+    ];
+    const payload = {
+      postId,
+      postType,
+      isLiked,
+      delta: isLiked ? 1 : -1,
+    };
+    await Promise.allSettled(
+      endpoints.map((ep) =>
+        fetch(ep, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+          signal: AbortSignal.timeout(6000),
+        })
+      )
+    );
+    return { success: true };
+  } catch (e) {
+    return { success: false };
+  }
+}
+
 /**
  * ==========================================
  * REAL QURAN BOOKMARK (BATAS AL-QUR'AN) API

@@ -1369,6 +1369,33 @@ if ($action === 'delete_comment' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     exit;
 }
 
+if ($action === 'like_post' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    ensureTablesExist($pdo);
+    $input = json_decode(file_get_contents('php://input'), true);
+    $postId = $input['postId'] ?? $input['id'] ?? '';
+    $postType = $input['postType'] ?? 'announcement';
+    $delta = isset($input['delta']) ? (int)$input['delta'] : (isset($input['isLiked']) && $input['isLiked'] ? 1 : -1);
+    if ($postId) {
+        try {
+            if ($postType === 'announcement') {
+                $stmt = $pdo->prepare("UPDATE announcements SET likes_count = GREATEST(0, likes_count + :delta) WHERE id = :pid");
+                $stmt->execute([':delta' => $delta, ':pid' => $postId]);
+            } else {
+                $stmt = $pdo->prepare("UPDATE events SET attendees_count = GREATEST(0, attendees_count) WHERE id = :pid");
+                $stmt->execute([':pid' => $postId]);
+            }
+            echo json_encode(['success' => true]);
+        } catch (Exception $e) {
+            http_response_code(500);
+            echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+        }
+        exit;
+    }
+    http_response_code(400);
+    echo json_encode(['success' => false, 'message' => 'postId wajib']);
+    exit;
+}
+
 // ==========================================
 // 11. ENDPOINTS FITUR BATAS AL-QUR'AN (BOOKMARK)
 // ==========================================

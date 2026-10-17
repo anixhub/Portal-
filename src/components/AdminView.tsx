@@ -1089,7 +1089,9 @@ export const AdminView: React.FC<AdminViewProps> = ({
 
     const finalPoster = eventImages.length > 0 
       ? eventImages[0] 
-      : (eventPosterUrl ? eventPosterUrl : undefined);
+      : (eventPosterUrl && eventPosterUrl.trim() ? eventPosterUrl.trim() : '');
+    const finalImages = eventImages.length > 0 ? eventImages : [];
+
     const authorHandleFormatted = adminUser.username
       ? (adminUser.username.startsWith('@') ? adminUser.username : '@' + adminUser.username)
       : '@admin_pusat';
@@ -1103,7 +1105,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
         location: eventLocation.trim() || 'Belum ditentukan',
         description: eventDesc.trim(),
         posterUrl: finalPoster,
-        images: eventImages.length > 0 ? eventImages : undefined,
+        images: finalImages,
         targetAudience: eventAudienceTarget,
       };
       setEventList((prev) => prev.map((ev) => (ev.id === editingEvent.id ? updated : ev)));
@@ -1129,7 +1131,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
         authorAvatar: adminUser.avatar || logoPonpesImg,
         postedAt: 'Baru saja',
         posterUrl: finalPoster,
-        images: eventImages.length > 0 ? eventImages : undefined,
+        images: finalImages,
         targetAudience: (adminUser.regionLevel && adminUser.regionLevel !== 'pusat')
           ? getAdminDefaultAudience(adminUser)
           : eventAudienceTarget,
@@ -3625,6 +3627,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
       <QuranView
         isOpen={isQuranViewOpen}
         onClose={() => setIsQuranViewOpen(false)}
+        userId={adminUser.id || adminUser.username || 'admin_default'}
       />
 
       {/* ================= KITAB MAULID NABI ================= */}
