@@ -568,7 +568,7 @@ export function buildMaulidBooks(): MaulidBook[] {
   const books: MaulidBook[] = [
     {
       id: "b",
-      ar: "عِقْدُ الْجَوْهَرِ فِي مَوْلِدِ النَّبِيِّ الْأَزْهَرِ",
+      ar: "مَوْلِدُ الْبَرْزَنْجِيِّ",
       id_: "Maulid Al-Barzanji · Syekh Ja'far al-Barzanji",
       ch: barzanjiCh
     },

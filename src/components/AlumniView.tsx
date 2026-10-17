@@ -4519,7 +4519,7 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
                   {[
                     { id: 's', title: 'Maulid Simtudduror', author: 'Al-Habib Ali bin Muhammad Al-Habsyi', rawi: 'Lengkap 15 Rawi & Mahalul Qiyam', arabic: 'سِمْطُ الدُّرَرِ' },
                     { id: 'a', title: 'Maulid Ad-Diba’i', author: 'Al-Imam Abdurrahman Ad-Diba’i', rawi: 'Bait qasidah & sholawat pembuka', arabic: 'مَوْلِدُ الدِّيبَعِيِّ' },
-                    { id: 'b', title: 'Maulid Al-Barzanji', author: 'Sayyid Ja’far bin Hasan Al-Barzanji', rawi: 'Nasab mulia & akhlak Rasulullah SAW', arabic: 'عِقْدُ الْجَوْهَرِ' },
+                    { id: 'b', title: 'Maulid Al-Barzanji', author: 'Sayyid Ja’far bin Hasan Al-Barzanji', rawi: 'Nasab mulia & akhlak Rasulullah SAW', arabic: 'مَوْلِدُ الْبَرْزَنْجِيِّ' },
                     { id: 'd', title: 'Maulid Dhiyaul Lami’', author: 'Al-Habib Umar bin Hafidz', rawi: 'Untaian cahaya maulid zaman kini', arabic: 'الضِّيَاءُ اللَّامِعُ' },
                     { id: 'q', title: 'Qashidah Burdah', author: 'Imam Al-Bushiri', rawi: '10 Fasal syair kecintaan kpd Nabi', arabic: 'قَصِيدَةُ الْبُرْدَةِ' },
                   ].map((m) => (

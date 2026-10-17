@@ -29,7 +29,7 @@ import {
 } from 'lucide-react';
 import { useBackHandler } from '../utils/navigationHistory';
 import { BismillahCalligraphy } from './BismillahCalligraphy';
-import { LPMQ_AYAH_CIRCLE_PATH } from './lpmqAyahCirclePath';
+import { LPMQ_AYAH_CIRCLE_PATH, AyahCircleMedallion, LpmqSvgDefs } from './lpmqAyahCirclePath';
 
 const API = 'https://api.quran.com/api/v4';
 const TRANSLATION_ID: Record<string, number> = { en: 20, id: 33 }; // 33 = Kemenag RI, 20 = Saheeh Int
@@ -2355,6 +2355,21 @@ export const QuranView: React.FC<QuranViewProps> = ({ isOpen, onClose, initialSu
 
   return (
     <div className="fixed inset-0 z-[100050] bg-[#fbf9f2] text-slate-800 flex flex-col font-sans select-none overflow-hidden max-w-lg mx-auto shadow-2xl border-x border-slate-200">
+      <LpmqSvgDefs />
+      {/* Global SVG Definition for Surah Cartouche Pill */}
+      <svg width="0" height="0" className="absolute w-0 h-0 overflow-hidden pointer-events-none" aria-hidden="true">
+        <defs>
+          <symbol id="surah-cartouche-symbol" viewBox="-2 -2 304 68">
+            <path 
+              d="M22.4,0 L277.6,0 L277.6,9.6 A22.4,22.4 0 0 1 277.6,54.4 L277.6,64 L22.4,64 L22.4,54.4 A22.4,22.4 0 0 1 22.4,9.6 Z" 
+              fill="var(--pill, #ffffff)" 
+              stroke="var(--line, #9fe3cc)" 
+              strokeWidth="1.8" 
+              strokeLinejoin="miter"
+            />
+          </symbol>
+        </defs>
+      </svg>
       {!isReadingActive ? (
         /* ================= TAMPILAN AWAL (BERANDA AL-QUR'AN) ================= */
         <div className="flex-1 flex flex-col bg-[#fbf9f2] overflow-hidden">
@@ -2524,15 +2539,14 @@ export const QuranView: React.FC<QuranViewProps> = ({ isOpen, onClose, initialSu
                         isLastReadSurah ? 'bg-emerald-50/70 hover:bg-emerald-50' : 'hover:bg-slate-50'
                       }`}
                     >
-                      {/* Sisi Kiri: Nomor, Nama Transliterasi Indo, Arti & Info Ayat */}
-                      <div className="flex items-center gap-3 min-w-0 pr-2">
-                        <span className={`w-8 h-8 rounded-xl flex items-center justify-center text-xs font-bold shrink-0 transition-colors ${
-                          isLastReadSurah 
-                            ? 'bg-[#4f9a50] text-white shadow-xs' 
-                            : 'bg-slate-100 text-slate-700 group-hover:bg-emerald-100 group-hover:text-emerald-800'
-                        }`}>
-                          {c.id}
-                        </span>
+                      {/* Sisi Kiri: Nomor dalam Lingkaran Nomor Ayat, Nama Transliterasi Indo, Arti & Info Ayat */}
+                      <div className="flex items-center gap-3.5 min-w-0 pr-2">
+                        <AyahCircleMedallion
+                          num={c.id}
+                          size={38}
+                          isHighlighted={isLastReadSurah}
+                          title={`Surat ke-${c.id}`}
+                        />
                         <div className="truncate">
                           <div className="flex items-center gap-1.5">
                             <span className="text-sm font-bold text-slate-900 group-hover:text-emerald-800 truncate">
@@ -3682,10 +3696,13 @@ export const QuranView: React.FC<QuranViewProps> = ({ isOpen, onClose, initialSu
                     >
                       {/* Kartu Header: Nama Surat, Ayat, Juz & Halaman */}
                       <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
-                        <div className="flex items-center gap-2">
-                          <span className="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-200 flex items-center justify-center font-bold text-xs">
-                            {item.surahId}
-                          </span>
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <AyahCircleMedallion
+                            num={item.surahId}
+                            size={32}
+                            circleColorClass="text-emerald-700"
+                            textColorClass="text-emerald-950 font-black"
+                          />
                           <div>
                             <h4 className="font-bold text-xs sm:text-sm text-slate-900 leading-tight">
                               QS. {item.chapter?.name || `Surat ${item.surahId}`} : {item.verseNum}
@@ -3924,9 +3941,11 @@ export const QuranView: React.FC<QuranViewProps> = ({ isOpen, onClose, initialSu
                       title="Buka Halaman Penuh Pilih Surat"
                     >
                       <div className="flex items-center gap-2.5 min-w-0 pr-2">
-                        <span className="w-6 h-6 rounded-md bg-[#009688] text-white flex items-center justify-center font-bold text-xs shrink-0 shadow-xs">
-                          {selectedJumpSurahId}
-                        </span>
+                        <AyahCircleMedallion
+                          num={selectedJumpSurahId}
+                          size={32}
+                          isHighlighted={true}
+                        />
                         <div className="truncate">
                           <span className="font-semibold text-sm text-slate-800">
                             {selectedCh?.name}
@@ -4174,14 +4193,13 @@ export const QuranView: React.FC<QuranViewProps> = ({ isOpen, onClose, initialSu
                     }`}
                   >
                     {/* Sisi Kiri: Transliterasi Indo */}
-                    <div className="flex items-center gap-3 min-w-0 pr-2">
-                      <span className={`w-8 h-8 rounded-xl flex items-center justify-center text-xs font-bold shrink-0 transition-colors ${
-                        isSelected 
-                          ? 'bg-[#009688] text-white shadow-xs' 
-                          : 'bg-slate-100 text-slate-700 group-hover:bg-emerald-100'
-                      }`}>
-                        {c.id}
-                      </span>
+                    <div className="flex items-center gap-3.5 min-w-0 pr-2">
+                      <AyahCircleMedallion
+                        num={c.id}
+                        size={36}
+                        isHighlighted={isSelected}
+                        title={`Surat ke-${c.id}`}
+                      />
                       <div className="truncate">
                         <div className="text-sm font-semibold text-slate-900 group-hover:text-emerald-800 truncate">
                           {c.name}

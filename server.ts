@@ -10,7 +10,7 @@ const __dirname = path.dirname(__filename);
 // In-memory cache for live santri data
 let cachedSantriData: any = null;
 let lastCacheTime = 0;
-const CACHE_TTL_MS = 5 * 1000; // 5 seconds for fast 2-way sync with Hostinger
+const CACHE_TTL_MS = 60 * 1000; // 60 seconds cache to prevent repeated remote overhead
 
 // Load local fallback snapshot if available
 let localSnapshot: any = null;
@@ -19,10 +19,11 @@ try {
   if (fs.existsSync(snapshotPath)) {
     const raw = fs.readFileSync(snapshotPath, 'utf-8');
     localSnapshot = JSON.parse(raw);
+    cachedSantriData = localSnapshot; // Pre-seed in-memory cache with snapshot for instant response
     console.log('[Server] Local santri snapshot loaded successfully with', localSnapshot.data?.length, 'items');
   }
 } catch (err) {
-  console.warn('[Server] Could not load local snapshot:', err);
+  console.info('[Server] Local snapshot not loaded:', err);
 }
 
 // Load Rembang & Sedan wilayah dataset for instant and offline response
@@ -34,7 +35,7 @@ try {
     console.log('[Server] Rembang wilayah data loaded successfully');
   }
 } catch (err) {
-  console.warn('[Server] Could not load rembangWilayahData.json:', err);
+  console.info('[Server] Rembang wilayah data not loaded:', err);
 }
 
 // Function to fetch live santri data with timeout and fallback
@@ -52,11 +53,12 @@ async function getSantriData(forceFresh: boolean = false): Promise<any> {
   for (const url of urlsToTry) {
     try {
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 6000);
+      const timeout = setTimeout(() => controller.abort(), 12000);
 
       const response = await fetch(url, {
         headers: {
           Accept: 'application/json',
+          'User-Agent': 'AttaroqqyPortal/1.0',
         },
         signal: controller.signal,
       });
@@ -75,7 +77,7 @@ async function getSantriData(forceFresh: boolean = false): Promise<any> {
         }
       }
     } catch (err: any) {
-      console.warn(`[Server] Failed to fetch from ${url}:`, err?.message);
+      console.log(`[Server] Note: fetch from ${url} (${err?.message || 'offline'}), using cached data.`);
     }
   }
 

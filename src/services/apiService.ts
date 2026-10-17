@@ -212,16 +212,16 @@ export async function fetchAlumniFromHostinger(forceFresh: boolean = false): Pro
   const ts = Date.now();
   const freshParam = forceFresh ? `&fresh=true&_t=${ts}` : `&_t=${ts}`;
   const endpointsToTry = [
+    `/api/db/santri?_t=${ts}`,
     `${HOSTINGER_API_URL}?action=get_alumni${freshParam}`,
     `https://alumni.attaroqqy.com/api_alumni.php?action=get_alumni${freshParam}`,
-    `/api/db/santri?fresh=true&_t=${ts}`,
     `${HOSTINGER_EXPRESS_DB_URL}/santri?fresh=true&_t=${ts}`,
   ];
 
   for (const url of endpointsToTry) {
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 6000);
+      const timeoutId = setTimeout(() => controller.abort(), 12000);
 
       const response = await fetch(url, {
         method: 'GET',
@@ -263,7 +263,7 @@ export async function fetchAlumniFromHostinger(forceFresh: boolean = false): Pro
         }
       }
     } catch (err: any) {
-      console.warn(`Gagal memuat dari ${url}:`, err?.message);
+      console.info(`[apiService] Info: sumber ${url} (${err?.message || 'offline'}), mencoba cadangan.`);
       continue;
     }
   }

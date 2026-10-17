@@ -1,10 +1,17 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { 
   ArrowLeft, 
-  Settings, 
   Moon, 
   Sun, 
-  Menu
+  Menu,
+  Search,
+  X,
+  Play,
+  Pause,
+  ChevronLeft,
+  ChevronRight,
+  Sliders,
+  Check
 } from 'lucide-react';
 import { useBackHandler } from '../utils/navigationHistory';
 import { 
@@ -12,17 +19,110 @@ import {
   buildMaulidBooks, 
   ordAr, 
   getHijriDate, 
-  ad, 
   isSl, 
   MaulidBook, 
   ChapterItem 
 } from '../data/maulidData';
+import { AyahCircleMedallion, LpmqSvgDefs } from './lpmqAyahCirclePath';
+import { BismillahCalligraphy } from './BismillahCalligraphy';
+import { SholawatCartoucheFrame } from './SholawatCartoucheFrame';
+import { getMaulidTextTranslation } from '../data/maulidTranslations';
 
 interface MaulidViewProps {
   isOpen: boolean;
   onClose: () => void;
-  initialBookId?: string; // 'b' | 's' | 'd' | 'a'
+  initialBookId?: string; // 'b' | 's' | 'd' | 'a' | 'q'
   initialChapterIndex?: number;
+}
+
+interface MaulidBookMeta {
+  id: string;
+  indoTitle: string;
+  author: string;
+  shortAr: string;
+  fullAr: string;
+}
+
+const MAULID_BOOKS_META: Record<string, MaulidBookMeta> = {
+  b: {
+    id: 'b',
+    indoTitle: 'Maulid Al-Barzanji',
+    author: "Syekh Ja'far al-Barzanji",
+    shortAr: 'مَوْلِدُ الْبَرْزَنْجِيِّ',
+    fullAr: 'مَوْلِدُ الْبَرْزَنْجِيِّ'
+  },
+  s: {
+    id: 's',
+    indoTitle: 'Simtud Duror',
+    author: 'Habib Ali bin Muhammad al-Habsyi',
+    shortAr: 'سِمْطُ الدُّرَرِ',
+    fullAr: 'سِمْطُ الدُّرَرِ فِي أَخْبَارِ مَوْلِدِ خَيْرِ الْبَشَرِ'
+  },
+  d: {
+    id: 'd',
+    indoTitle: "Maulid Dliyaul Lami'",
+    author: 'Habib Umar bin Hafidz',
+    shortAr: 'الضِّيَاءُ اللَّامِعُ',
+    fullAr: 'الضِّيَاءُ اللَّامِعُ بِذِكْرِ مَوْلِدِ النَّبِيِّ الشَّفِيعِ'
+  },
+  a: {
+    id: 'a',
+    indoTitle: "Maulid Ad-Diba'i",
+    author: "Imam Abdurrahman ad-Diba'i",
+    shortAr: 'مَوْلِدُ الدِّيبَعِيِّ',
+    fullAr: 'مَوْلِدُ الدِّيبَعِيِّ'
+  },
+  q: {
+    id: 'q',
+    indoTitle: 'Qashidah Burdah',
+    author: 'Imam Syarafuddin al-Bushiri',
+    shortAr: 'قَصِيدَةُ الْبُرْدَةِ',
+    fullAr: 'قَصِيدَةُ الْبُرْدَةِ'
+  }
+};
+
+/**
+ * Label untuk Tab Bar Horizontal di atas (Pill Bar)
+ * Contoh pada Barzanji: 1. Laqod Jāakum, 2. Abtadiul Imlāa, 3. Waba'du Faaqūlu
+ */
+export function getChapterTabLabel(book: MaulidBook, idx: number): string {
+  const ch = book.ch[idx];
+  if (!ch) return '';
+  if (book.id === 'b') {
+    if (idx === 0) return 'Yā Robbi Sholli';
+    if (idx === 1) return '1. Laqod Jāakum';
+    if (idx === 2) return '2. Abtadiul Imlāa';
+    if (idx === 3) return "3. Waba'du Faaqūlu";
+    if (idx === 4) return '4. Walammā Arādallāh';
+    if (idx === 5) return '5. Walammā Tamma';
+    if (idx === 6) return '6. Mahalul Qiyam';
+    if (idx === 7) return '7. Wabaraza ﷺ';
+    if (idx === 8) return "8. Wa Zhahara 'Inda";
+    if (idx === 9) return "9. Wa Ardha'at-hu";
+    if (idx === 10) return '10. Wa Kāna Yasyubbu';
+    if (idx === 11) return '11. Walammā Balagha';
+    if (idx === 12) return '12. Walammā Balagha 25';
+    if (idx === 13) return '13. Banat Quroisy';
+    if (idx === 14) return '14. Ba\'atsahullāh';
+    if (idx === 15) return '15. Awwalu Man Āmana';
+    if (idx === 16) return '16. Tsumma Usriya';
+    if (idx === 17) return '17. \'Ardhu Nafsihi';
+    if (idx === 18) return '18. Doa Penutup';
+    return `${idx}. ${ch.l || ch.t}`;
+  }
+  return `${idx + 1}. ${ch.l || ch.t}`;
+}
+
+/**
+ * Judul Fasal di Header Atas (contoh: "Muqaddimah" pada Laqod Jāakum)
+ */
+export function getChapterHeaderTitle(book: MaulidBook, idx: number): string {
+  const ch = book.ch[idx];
+  if (!ch) return '';
+  if (book.id === 'b' && idx === 1) return 'Muqaddimah';
+  if (ch.lb0 === 'Sholawat' || ch.lb === 'Sholawat') return 'Sholawat Pembuka';
+  if (ch.t.includes('الْقِيَامُ') || ch.lb === 'Qiyām') return 'Mahalul Qiyam';
+  return ch.l || ch.t;
 }
 
 export const MaulidView: React.FC<MaulidViewProps> = ({
@@ -37,53 +137,54 @@ export const MaulidView: React.FC<MaulidViewProps> = ({
   const [currentView, setCurrentView] = useState<'home' | 'toc' | 'read'>('home');
   const [activeBookIndex, setActiveBookIndex] = useState<number>(0);
   const [activeChapterIndex, setActiveChapterIndex] = useState<number>(0);
+  const [searchQuery, setSearchQuery] = useState<string>('');
 
-  // Settings: font size & theme
+  // Settings: font size, show translation, theme
   const [fontSize, setFontSize] = useState<number>(() => {
     try {
-      const saved = localStorage.getItem('fs');
+      const saved = localStorage.getItem('maulid_fs');
       return saved ? Math.min(48, Math.max(18, parseInt(saved, 10))) : 26;
     } catch (e) {
       return 26;
     }
   });
 
-  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
+  const [showTranslation, setShowTranslation] = useState<boolean>(() => {
     try {
-      const saved = localStorage.getItem('maulid_theme');
-      if (saved === 'dark' || saved === 'light') return saved;
-      return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+      const saved = localStorage.getItem('maulid_show_tr');
+      return saved !== null ? saved === 'true' : true;
     } catch (e) {
-      return 'light';
+      return true;
     }
   });
 
-  const [isFontSettingOpen, setIsFontSettingOpen] = useState(false);
+  const [theme, setTheme] = useState<'light' | 'dark'>('light');
+  const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
+  const [isPlayingAudio, setIsPlayingAudio] = useState(false);
   const [openToggles, setOpenToggles] = useState<Record<string, boolean>>({});
 
-  // Hint / Pull to next/prev chapter state
-  const [hintVisible, setHintVisible] = useState(false);
-  const [hintType, setHintType] = useState<'top' | 'bottom'>('top');
-  const [hintText, setHintText] = useState('');
-  const [hintProgress, setHintProgress] = useState(0);
+  // Horizontal Swipe gesture state for chapter navigation (seperti pada Al-Qur'an)
+  const [dragOffset, setDragOffset] = useState<number>(0);
+  const [isAnimatingSwipe, setIsAnimatingSwipe] = useState<boolean>(false);
+  const dragOffsetRef = useRef<number>(0);
+  const touchStartCoordRef = useRef<{ x: number; y: number } | null>(null);
+  const isDraggingHorizontalRef = useRef<boolean>(false);
 
-  // Touch and wheel pull tracking refs
-  const baseTouchYRef = useRef<number | null>(null);
-  const pullDirRef = useRef<number>(0);
-  const pullAmountRef = useRef<number>(0);
-  const wheelTimerRef = useRef<number | null>(null);
-
+  // Scroller refs
   const scrollerRef = useRef<HTMLDivElement | null>(null);
   const readerRef = useRef<HTMLDivElement | null>(null);
+  const tabScrollContainerRef = useRef<HTMLDivElement | null>(null);
+  const tabButtonsRef = useRef<(HTMLButtonElement | null)[]>([]);
+
+  // TOC scroll animation refs
   const headerBgRef = useRef<HTMLDivElement | null>(null);
-  const titleHeaderRef = useRef<HTMLSpanElement | null>(null);
-  const subTitleHeaderRef = useRef<HTMLSpanElement | null>(null);
-  const bigTitleRef = useRef<HTMLDivElement | null>(null);
-  const heroHeaderRef = useRef<HTMLDivElement | null>(null);
+  const floatingArabicTitleRef = useRef<HTMLSpanElement | null>(null);
+  const heroSubtitleRef = useRef<HTMLDivElement | null>(null);
 
   // Back handling
   useBackHandler(Boolean(isOpen && currentView === 'read'), 'maulid-read-view', () => {
     setCurrentView('toc');
+    setIsPlayingAudio(false);
   });
 
   useBackHandler(Boolean(isOpen && currentView === 'toc'), 'maulid-toc-view', () => {
@@ -94,20 +195,65 @@ export const MaulidView: React.FC<MaulidViewProps> = ({
     onClose();
   });
 
+  // Helpers for numbering & meta
+  const currentBook = books[activeBookIndex] || books[0];
+  const currentBookMeta = MAULID_BOOKS_META[currentBook.id] || {
+    id: currentBook.id,
+    indoTitle: currentBook.id_.split('·')[0]?.trim() || currentBook.ar,
+    author: currentBook.id_.split('·')[1]?.trim() || '',
+    shortAr: currentBook.ar,
+    fullAr: currentBook.ar
+  };
+
+  const numChaptersBefore = useCallback((j: number) => {
+    return currentBook.ch.slice(0, j + 1).filter((c) => !c.i).length;
+  }, [currentBook]);
+
+  const chapterLabel = useCallback((t: number) => {
+    const ch = currentBook.ch[t];
+    if (!ch) return '';
+    return ch.i ? (ch.lb || "مُقَدِّمَةٌ") : ordAr(numChaptersBefore(t));
+  }, [currentBook, numChaptersBefore]);
+
+  // Scroll effect on TOC header:
+  // Judul arab yang awalnya besar di hero mengecil sembari bergeser menempati tempatnya di header
+  const handleTocScroll = useCallback(() => {
+    const sc = scrollerRef.current;
+    if (!sc) return;
+    const threshold = 75;
+    const p = Math.min(1, Math.max(0, sc.scrollTop / threshold));
+
+    if (headerBgRef.current) {
+      headerBgRef.current.style.opacity = String(p);
+    }
+    if (heroSubtitleRef.current) {
+      heroSubtitleRef.current.style.opacity = String(Math.max(0, 1 - p * 2.0));
+    }
+    if (floatingArabicTitleRef.current) {
+      const y = (1 - p) * 58;
+      const scale = 0.92 + (1 - p) * 0.43;
+      floatingArabicTitleRef.current.style.transform = `translate3d(0, ${y}px, 0) scale(${scale})`;
+    }
+  }, []);
+
   // Open book handler
   const openBook = useCallback((idx: number) => {
     setActiveBookIndex(idx);
     setCurrentView('toc');
-    setIsFontSettingOpen(false);
     if (scrollerRef.current) scrollerRef.current.scrollTop = 0;
-  }, []);
+    requestAnimationFrame(() => {
+      if (scrollerRef.current) scrollerRef.current.scrollTop = 0;
+      handleTocScroll();
+    });
+  }, [handleTocScroll]);
 
   // Open chapter handler
   const openChapter = useCallback((chapterIdx: number) => {
     setActiveChapterIndex(chapterIdx);
     setCurrentView('read');
-    setIsFontSettingOpen(false);
     setOpenToggles({});
+    dragOffsetRef.current = 0;
+    setDragOffset(0);
     if (readerRef.current) readerRef.current.scrollTop = 0;
   }, []);
 
@@ -136,7 +282,18 @@ export const MaulidView: React.FC<MaulidViewProps> = ({
     setFontSize((prev) => {
       const next = Math.min(48, Math.max(18, prev + delta));
       try {
-        localStorage.setItem('fs', String(next));
+        localStorage.setItem('maulid_fs', String(next));
+      } catch (e) {}
+      return next;
+    });
+  }, []);
+
+  // Toggle Translation
+  const toggleTranslation = useCallback(() => {
+    setShowTranslation((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem('maulid_show_tr', String(next));
       } catch (e) {}
       return next;
     });
@@ -144,142 +301,154 @@ export const MaulidView: React.FC<MaulidViewProps> = ({
 
   // Toggle Theme
   const toggleTheme = useCallback(() => {
-    setTheme((prev) => {
-      const next = prev === 'dark' ? 'light' : 'dark';
-      try {
-        localStorage.setItem('maulid_theme', next);
-      } catch (e) {}
-      return next;
-    });
+    setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'));
   }, []);
 
-  // Helpers for numbering
-  const currentBook = books[activeBookIndex] || books[0];
-  const numChaptersBefore = useCallback((j: number) => {
-    return currentBook.ch.slice(0, j + 1).filter((c) => !c.i).length;
-  }, [currentBook]);
-
-  const chapterLabel = useCallback((t: number) => {
-    const ch = currentBook.ch[t];
-    if (!ch) return '';
-    return ch.i ? (ch.lb || "مُقَدِّمَةٌ") : ordAr(numChaptersBefore(t));
-  }, [currentBook, numChaptersBefore]);
-
-  // Scroll effect on TOC header
-  const handleTocScroll = useCallback(() => {
-    const sc = scrollerRef.current;
-    const hh = heroHeaderRef.current;
-    if (!sc || !hh) return;
-    const r = Math.max(1, hh.offsetHeight - 56 - 18);
-    const p = Math.min(1, Math.max(0, sc.scrollTop / r));
-
-    if (headerBgRef.current) headerBgRef.current.style.opacity = String(p);
-    if (titleHeaderRef.current) titleHeaderRef.current.style.opacity = String(Math.max(0, 1 - p * 2.2));
-    if (subTitleHeaderRef.current) subTitleHeaderRef.current.style.opacity = String(Math.min(1, Math.max(0, (p - 0.45) * 2.2)));
-    if (bigTitleRef.current) {
-      bigTitleRef.current.style.opacity = String(Math.max(0, 1 - p * 1.15));
-      bigTitleRef.current.style.transform = `scale(${1 - 0.3 * p})`;
+  // Reset scroll and update title position when entering TOC view
+  useEffect(() => {
+    if (currentView === 'toc') {
+      requestAnimationFrame(() => {
+        if (scrollerRef.current) scrollerRef.current.scrollTop = 0;
+        handleTocScroll();
+      });
     }
-  }, []);
+  }, [currentView, activeBookIndex, handleTocScroll]);
 
-  // Edge detection in Reader for pull-to-change chapter
-  const checkEdge = useCallback(() => {
-    const rd = readerRef.current;
-    if (!rd) return 0;
-    if (rd.scrollTop <= 1) return -1;
-    if (rd.scrollTop + rd.clientHeight >= rd.scrollHeight - 1) return 1;
-    return 0;
-  }, []);
-
-  const getTargetChapter = useCallback((dir: number) => {
-    const n = activeChapterIndex + dir;
-    const list = currentBook.ch;
-    return n >= 0 && n < list.length ? n : null;
-  }, [activeChapterIndex, currentBook]);
-
-  const updateHintUi = useCallback((dir: number, pull: number) => {
-    const TH = 110;
-    const target = getTargetChapter(dir);
-    setHintType(dir < 0 ? 'top' : 'bottom');
-    setHintVisible(true);
-
-    if (target === null) {
-      setHintText(dir < 0 ? "Awal kitab" : "Akhir kitab");
-    } else {
-      const prefix = pull >= TH 
-        ? "Lepas untuk membuka: " 
-        : (dir < 0 ? "Tarik terus ke bab sebelumnya: " : "Tarik terus ke bab berikutnya: ");
-      const label = chapterLabel(target) + " · " + currentBook.ch[target].t;
-      setHintText(prefix + label);
-    }
-    setHintProgress(Math.min(100, (pull / TH) * 100));
-  }, [chapterLabel, currentBook, getTargetChapter]);
-
-  const finishPull = useCallback(() => {
-    const TH = 110;
-    if (pullDirRef.current && pullAmountRef.current >= TH) {
-      const target = getTargetChapter(pullDirRef.current);
-      if (target !== null) {
-        openChapter(target);
+  // Auto-scroll active tab into view in Reader View (seperti pada Al-Qur'an)
+  useEffect(() => {
+    if (currentView === 'read') {
+      const activeBtn = tabButtonsRef.current[activeChapterIndex];
+      if (activeBtn) {
+        activeBtn.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
       }
     }
-    setHintVisible(false);
-    baseTouchYRef.current = null;
-    pullDirRef.current = 0;
-    pullAmountRef.current = 0;
-  }, [getTargetChapter, openChapter]);
+  }, [currentView, activeChapterIndex]);
 
-  // Touch handlers in reader
+  // ================= SWIPE GESTURE HANDLERS (GESER UNTUK PINDAH BAB) =================
+  const canGoPrev = activeChapterIndex > 0;
+  const canGoNext = activeChapterIndex < currentBook.ch.length - 1;
+
+  const goToPrevChapter = useCallback(() => {
+    if (canGoPrev) {
+      openChapter(activeChapterIndex - 1);
+    }
+  }, [canGoPrev, activeChapterIndex, openChapter]);
+
+  const goToNextChapter = useCallback(() => {
+    if (canGoNext) {
+      openChapter(activeChapterIndex + 1);
+    }
+  }, [canGoNext, activeChapterIndex, openChapter]);
+
   const handleTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
-    baseTouchYRef.current = null;
-    pullDirRef.current = 0;
-    pullAmountRef.current = 0;
+    if (isAnimatingSwipe) return;
+    const touch = e.touches[0];
+    touchStartCoordRef.current = { x: touch.clientX, y: touch.clientY };
+    isDraggingHorizontalRef.current = false;
+    dragOffsetRef.current = 0;
   };
 
   const handleTouchMove = (e: React.TouchEvent<HTMLDivElement>) => {
-    const y = e.touches[0].clientY;
-    const ed = checkEdge();
-    if (!ed) {
-      baseTouchYRef.current = null;
-      pullDirRef.current = 0;
-      pullAmountRef.current = 0;
-      setHintVisible(false);
-      return;
+    if (!touchStartCoordRef.current || isAnimatingSwipe) return;
+    const touch = e.touches[0];
+    const dx = touch.clientX - touchStartCoordRef.current.x;
+    const dy = touch.clientY - touchStartCoordRef.current.y;
+
+    if (!isDraggingHorizontalRef.current) {
+      if (Math.abs(dx) > 10 && Math.abs(dx) > Math.abs(dy) * 1.25) {
+        isDraggingHorizontalRef.current = true;
+      } else if (Math.abs(dy) > 10) {
+        touchStartCoordRef.current = null;
+        return;
+      }
     }
 
-    if (baseTouchYRef.current === null) {
-      baseTouchYRef.current = y;
-      pullDirRef.current = ed;
-    }
-
-    const dy = (y - baseTouchYRef.current) * (pullDirRef.current < 0 ? 1 : -1);
-    const pull = Math.max(0, dy);
-    pullAmountRef.current = pull;
-
-    if (pull > 6) {
-      updateHintUi(pullDirRef.current, pull);
-    } else {
-      setHintVisible(false);
+    if (isDraggingHorizontalRef.current) {
+      let effectiveDx = dx;
+      if ((dx > 0 && !canGoPrev) || (dx < 0 && !canGoNext)) {
+        effectiveDx = dx * 0.28;
+      }
+      dragOffsetRef.current = effectiveDx;
+      setDragOffset(effectiveDx);
     }
   };
 
   const handleTouchEnd = () => {
-    finishPull();
+    if (!touchStartCoordRef.current) return;
+    const offset = dragOffsetRef.current;
+    const wasDragging = isDraggingHorizontalRef.current;
+    touchStartCoordRef.current = null;
+    isDraggingHorizontalRef.current = false;
+
+    if (!wasDragging) return;
+
+    const threshold = 55;
+    const containerWidth = readerRef.current?.clientWidth || window.innerWidth || 360;
+
+    if (offset < -threshold && canGoNext) {
+      // Geser ke KIRI -> Bab Berikutnya
+      setIsAnimatingSwipe(true);
+      setDragOffset(-containerWidth);
+      setTimeout(() => {
+        openChapter(activeChapterIndex + 1);
+        setIsAnimatingSwipe(false);
+        setDragOffset(0);
+        dragOffsetRef.current = 0;
+      }, 200);
+    } else if (offset > threshold && canGoPrev) {
+      // Geser ke KANAN -> Bab Sebelumnya
+      setIsAnimatingSwipe(true);
+      setDragOffset(containerWidth);
+      setTimeout(() => {
+        openChapter(activeChapterIndex - 1);
+        setIsAnimatingSwipe(false);
+        setDragOffset(0);
+        dragOffsetRef.current = 0;
+      }, 200);
+    } else {
+      // Balik ke tengah jika tidak melewati batas
+      setIsAnimatingSwipe(true);
+      setDragOffset(0);
+      dragOffsetRef.current = 0;
+      setTimeout(() => {
+        setIsAnimatingSwipe(false);
+      }, 200);
+    }
   };
 
-  const handleWheel = (e: React.WheelEvent<HTMLDivElement>) => {
-    const ed = checkEdge();
-    if (!ed || (ed < 0 && e.deltaY > 0) || (ed > 0 && e.deltaY < 0)) return;
+  // Enriched books list with structured Indonesian name, author, Arabic title
+  const enrichedBooks = useMemo(() => {
+    return books.map((b, idx) => {
+      const meta = MAULID_BOOKS_META[b.id] || {
+        id: b.id,
+        indoTitle: b.id_.split('·')[0]?.trim() || b.ar,
+        author: b.id_.split('·')[1]?.trim() || '',
+        shortAr: b.ar,
+        fullAr: b.ar
+      };
+      return {
+        ...b,
+        originalIndex: idx,
+        indoTitle: meta.indoTitle,
+        author: meta.author,
+        shortAr: meta.shortAr,
+        fullAr: meta.fullAr,
+      };
+    });
+  }, [books]);
 
-    pullDirRef.current = ed;
-    pullAmountRef.current += Math.abs(e.deltaY);
-    updateHintUi(pullDirRef.current, pullAmountRef.current);
-
-    if (wheelTimerRef.current) clearTimeout(wheelTimerRef.current);
-    wheelTimerRef.current = window.setTimeout(finishPull, 350);
-  };
-
-  const hijriText = useMemo(() => getHijriDate(), []);
+  // Filtered books by search query
+  const filteredBooks = useMemo(() => {
+    if (!searchQuery.trim()) return enrichedBooks;
+    const q = searchQuery.trim().toLowerCase();
+    return enrichedBooks.filter((b) => 
+      b.indoTitle.toLowerCase().includes(q) ||
+      b.author.toLowerCase().includes(q) ||
+      b.shortAr.includes(q) ||
+      b.fullAr.includes(q) ||
+      b.ch.some((ch) => (ch.t || '').toLowerCase().includes(q) || (ch.l || '').toLowerCase().includes(q))
+    );
+  }, [enrichedBooks, searchQuery]);
 
   if (!isOpen) return null;
 
@@ -289,160 +458,206 @@ export const MaulidView: React.FC<MaulidViewProps> = ({
     <div
       data-theme={theme}
       style={{
-        '--bg': theme === 'dark' ? '#14120d' : '#f7f2e7',
-        '--sf': theme === 'dark' ? '#1d1a12' : '#fffdf7',
-        '--tx': theme === 'dark' ? '#eee6d0' : '#2a2418',
-        '--mu': theme === 'dark' ? '#a09676' : '#8a7d62',
-        '--ac': theme === 'dark' ? '#5cc4a0' : '#1f6b53',
-        '--ln': theme === 'dark' ? '#332e20' : '#e3d9bf',
-        '--gd': theme === 'dark' ? '#d4b25a' : '#b08a2e',
+        '--bg': theme === 'dark' ? '#14120d' : '#fbf9f2',
+        '--sf': theme === 'dark' ? '#1d1a12' : '#ffffff',
+        '--tx': theme === 'dark' ? '#eee6d0' : '#1e293b',
+        '--mu': theme === 'dark' ? '#a09676' : '#64748b',
+        '--ac': theme === 'dark' ? '#5cc4a0' : '#1b6837',
+        '--ln': theme === 'dark' ? '#332e20' : '#e2e8f0',
+        '--gd': theme === 'dark' ? '#d4b25a' : '#b45309',
         '--fs': `${fontSize}px`,
       } as React.CSSProperties}
-      className="fixed inset-0 z-[100050] bg-[var(--bg)] text-[var(--tx)] font-sans flex flex-col select-none overflow-hidden max-w-lg mx-auto shadow-2xl border-x border-[var(--ln)]"
+      className="fixed inset-0 z-[100050] bg-[#fbf9f2] text-slate-800 font-sans flex flex-col select-none overflow-hidden max-w-lg mx-auto shadow-2xl border-x border-slate-200"
     >
-      {/* ================= 1. HOME VIEW: LIST OF MAULID BOOKS ================= */}
+      <LpmqSvgDefs />
+
+      {/* ================= 1. HOME VIEW: KUMPULAN KITAB MAULID ================= */}
       {currentView === 'home' && (
-        <div className="flex-1 flex flex-col h-full bg-[var(--bg)]">
-          {/* Header */}
-          <div className="flex items-center justify-between px-3 h-14 border-b border-[var(--ln)] bg-[var(--sf)] shrink-0">
+        <div className="flex-1 flex flex-col h-full bg-[#fbf9f2] overflow-hidden">
+          {/* Header Beranda Kitab Maulid: Identik dengan Header Al-Qur'an (#4f9a50) */}
+          <header className="bg-[#4f9a50] text-white flex items-center justify-between px-3 h-14 pt-safe shrink-0 shadow-sm z-20">
             <button
               type="button"
               onClick={onClose}
-              className="text-[var(--ac)] border border-[var(--ln)] rounded-[10px] px-3 py-1.5 text-xs font-semibold flex items-center gap-1.5 hover:bg-[var(--bg)] transition-colors cursor-pointer"
+              className="w-10 h-10 rounded-full flex items-center justify-center hover:bg-white/20 active:bg-white/30 transition-colors cursor-pointer text-white"
+              title="Kembali ke Portal Alumni"
             >
-              <ArrowLeft className="w-4 h-4" />
-              <span>Kembali</span>
+              <ArrowLeft className="w-5 h-5" />
             </button>
-            <h2 className="font-arabic text-base font-semibold text-[var(--tx)] m-0">
-              مَجْمُوعُ الْمَوَالِدِ
-            </h2>
+
+            <h1 className="font-bold text-base sm:text-lg text-white tracking-wide">
+              Kitab Maulid Nabi ﷺ
+            </h1>
+
             <button
               type="button"
               onClick={toggleTheme}
-              className="w-9 h-9 rounded-[10px] border border-[var(--ln)] text-[var(--ac)] flex items-center justify-center hover:bg-[var(--bg)] transition-colors cursor-pointer"
-              title="Ganti Tema"
+              className="w-10 h-10 rounded-full flex items-center justify-center hover:bg-white/20 active:bg-white/30 transition-colors cursor-pointer text-white"
+              title="Ganti Mode Tampilan"
             >
-              {theme === 'dark' ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4" />}
+              {theme === 'dark' ? <Sun className="w-5 h-5 text-amber-300" /> : <Moon className="w-5 h-5" />}
             </button>
-          </div>
+          </header>
 
-          {/* Book List Scroll Area */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-3.5">
-            <div className="text-center pt-4 pb-2">
-              <div 
-                className="text-[34px] text-[var(--gd)] font-arabic leading-relaxed"
-                style={{ fontFamily: "'Amiri Quran', serif" }}
-              >
-                مَجْمُوعُ الْمَوَالِدِ
-              </div>
-              <p className="text-[var(--mu)] text-xs font-medium mt-1">
-                مَجْمُوعُ كُتُبِ الْمَوَالِدِ الشَّرِيفَةِ
-              </p>
+          {/* Konten Scrollable: Paling atas kotak cari, bawahnya daftar kitab maulid */}
+          <div className="flex-1 overflow-y-auto overscroll-contain p-4 space-y-4">
+            {/* 1. KOTAK CARI PALING ATAS */}
+            <div className="relative">
+              <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <input
+                type="search"
+                placeholder="Cari kitab maulid atau nama pengarang..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-9.5 pr-8 py-2.5 bg-white border border-slate-200/90 rounded-xl text-xs sm:text-sm font-medium text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#4f9a50] focus:border-transparent shadow-xs transition-all"
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery('')}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 w-5 h-5 flex items-center justify-center text-slate-400 hover:text-slate-600 cursor-pointer"
+                  title="Hapus pencarian"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
             </div>
 
-            {/* Book Cards */}
-            {books.map((book, idx) => (
-              <button
-                key={book.id}
-                type="button"
-                onClick={() => openBook(idx)}
-                className="w-full block text-center bg-[var(--sf)] border border-[var(--ln)] rounded-[16px] p-5 my-3 hover:border-[var(--ac)] transition-all active:scale-[0.99] cursor-pointer shadow-2xs group"
-              >
-                <div 
-                  className="font-arabic text-[27px] leading-[2] text-[var(--ac)] group-hover:text-[var(--gd)] transition-colors"
-                  style={{ fontFamily: "'Amiri Quran', serif" }}
+            {/* 2. DAFTAR KITAB MAULID */}
+            <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs divide-y divide-slate-100 overflow-hidden">
+              {filteredBooks.map((book) => (
+                <button
+                  key={book.id}
+                  type="button"
+                  onClick={() => openBook(book.originalIndex)}
+                  className="w-full flex items-center justify-between p-3.5 sm:p-4 text-left transition-colors cursor-pointer group hover:bg-emerald-50/60 active:bg-emerald-100/60"
                 >
-                  {book.ar}
-                </div>
-                <small className="block text-[var(--mu)] text-xs mt-1 font-sans">
-                  {book.id_}
-                </small>
-              </button>
-            ))}
+                  {/* Sisi Kiri: Nomor dalam Lingkaran Nomor Ayat, Bahasa Indo, Pengarang di Bawahnya */}
+                  <div className="flex items-center gap-3.5 min-w-0 pr-3">
+                    <AyahCircleMedallion
+                      num={book.originalIndex + 1}
+                      size={38}
+                      circleColorClass="text-amber-900/75 group-hover:text-emerald-800"
+                      textColorClass="text-slate-800 group-hover:text-emerald-950 font-extrabold"
+                      title={`Kitab ke-${book.originalIndex + 1}`}
+                    />
+                    <div className="truncate">
+                      <div className="text-sm sm:text-base font-bold text-slate-900 group-hover:text-emerald-800 truncate leading-snug">
+                        {book.indoTitle}
+                      </div>
+                      <div className="text-[11px] sm:text-xs text-slate-500 group-hover:text-emerald-900/80 truncate mt-0.5 font-normal">
+                        {book.author} • {book.ch.length} Fasal
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Sisi Kanan: Tulisan Arab Kitab Maulid */}
+                  <span
+                    className="font-arabic shrink-0 ml-2 text-slate-800 group-hover:text-emerald-900 text-xl sm:text-2xl leading-none select-none transition-colors text-right"
+                    style={{ fontFamily: "'Amiri Quran', 'Scheherazade New', serif" }}
+                    dir="rtl"
+                  >
+                    {book.shortAr}
+                  </span>
+                </button>
+              ))}
+            </div>
+
+            {/* Pesan Jika Pencarian Tidak Ditemukan */}
+            {filteredBooks.length === 0 && (
+              <div className="bg-white rounded-2xl border border-slate-200/80 p-8 text-center space-y-2.5 shadow-xs">
+                <Search className="w-8 h-8 text-slate-300 mx-auto" />
+                <p className="text-xs font-semibold text-slate-700">Kitab maulid tidak ditemukan</p>
+                <p className="text-[11px] text-slate-400">
+                  Tidak ada kitab atau pengarang yang cocok dengan "{searchQuery}"
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery('')}
+                  className="mt-2 text-xs font-bold text-emerald-700 hover:underline cursor-pointer"
+                >
+                  Hapus Pencarian
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}
 
-      {/* ================= 2. TOC VIEW: TABLE OF CONTENTS ================= */}
+      {/* ================= 2. TOC VIEW: DAFTAR FASAL / BAB ================= */}
       {currentView === 'toc' && (
-        <div className="relative flex-1 flex flex-col h-full bg-[var(--bg)] overflow-hidden">
+        <div className="relative flex-1 flex flex-col h-full bg-[#fbf9f2] overflow-hidden">
           <div 
             ref={scrollerRef}
             onScroll={handleTocScroll}
             className="flex-1 min-h-0 overflow-y-auto overscroll-contain pb-6"
           >
-            {/* Sticky Header Bar */}
-            <div className="sticky top-0 z-10 h-14 flex items-center justify-between gap-2 px-3 text-white">
+            {/* Sticky Header Bar: Identik dengan Warna Al-Qur'an (#4f9a50) */}
+            <div className="sticky top-0 z-20 h-14 flex items-center justify-between gap-2 px-3 text-white">
               <div 
                 ref={headerBgRef} 
-                className="absolute inset-0 bg-[#1b5e20] opacity-0 shadow-md transition-opacity duration-150 -z-10" 
+                className="absolute inset-0 bg-[#4f9a50] opacity-0 shadow-md transition-opacity duration-150 -z-10" 
               />
-              <div className="flex items-center gap-1.5 min-w-[82px]">
+              {/* Tombol Kembali (Kiri) - Tombol pengaturan telah dihapus */}
+              <div className="flex items-center min-w-[40px]">
                 <button
                   type="button"
                   onClick={() => setCurrentView('home')}
-                  className="w-9 h-9 rounded-full bg-white/15 border-0 flex items-center justify-center text-white hover:bg-white/25 active:bg-white/30 transition-colors cursor-pointer"
+                  className="w-9 h-9 rounded-full bg-white/20 border-0 flex items-center justify-center text-white hover:bg-white/30 active:bg-white/40 transition-colors cursor-pointer"
                   title="Kembali ke Daftar Kitab"
                 >
                   <ArrowLeft className="w-5 h-5" />
                 </button>
-                <button
-                  type="button"
-                  onClick={() => setIsFontSettingOpen(!isFontSettingOpen)}
-                  className="w-9 h-9 rounded-full bg-white/15 border-0 flex items-center justify-center text-white hover:bg-white/25 active:bg-white/30 transition-colors cursor-pointer text-base"
-                  title="Pengaturan Huruf"
-                >
-                  <Settings className="w-4 h-4" />
-                </button>
               </div>
 
-              {/* Title & Hijri in Topbar */}
-              <div className="relative flex-1 h-full flex items-center justify-center text-center overflow-hidden">
+              {/* Tempat Judul Arab di Header:
+                  Teks Latin dihapus (dibuat kosong).
+                  Saat daftar isi di-scroll ke atas, judul Arab yang awalnya besar di hero akan mengecil sembari bergeser menempati tempat ini */}
+              <div className="relative flex-1 h-full flex items-center justify-center text-center overflow-visible pointer-events-none px-1">
                 <span 
-                  ref={titleHeaderRef}
-                  className="text-xs font-medium text-white/90 truncate max-w-full"
+                  ref={floatingArabicTitleRef}
+                  className="font-arabic text-white select-none whitespace-nowrap will-change-transform drop-shadow-xs text-xl sm:text-2xl"
+                  style={{ 
+                    fontFamily: "'Amiri Quran', 'Scheherazade New', serif",
+                    transformOrigin: 'center center',
+                    transform: 'translate3d(0, 58px, 0) scale(1.35)'
+                  }}
+                  dir="rtl"
                 >
-                  {hijriText}
-                </span>
-                <span 
-                  ref={subTitleHeaderRef}
-                  className="absolute inset-0 flex items-center justify-center font-arabic text-lg text-white truncate opacity-0"
-                  style={{ fontFamily: "'Amiri Quran', serif" }}
-                >
-                  {currentBook.ar}
+                  {currentBookMeta.shortAr}
                 </span>
               </div>
 
-              {/* Theme toggle */}
-              <div className="flex items-center justify-end min-w-[82px]">
+              {/* Mode Tampilan (Kanan) */}
+              <div className="flex items-center justify-end min-w-[40px]">
                 <button
                   type="button"
                   onClick={toggleTheme}
-                  className="w-9 h-9 rounded-full bg-white/15 border-0 flex items-center justify-center text-white hover:bg-white/25 active:bg-white/30 transition-colors cursor-pointer"
-                  title="Ganti Tema"
+                  className="w-9 h-9 rounded-full bg-white/20 border-0 flex items-center justify-center text-white hover:bg-white/30 active:bg-white/40 transition-colors cursor-pointer"
+                  title="Ganti Mode Tampilan"
                 >
                   {theme === 'dark' ? <Sun className="w-4 h-4 text-amber-300" /> : <Moon className="w-4 h-4" />}
                 </button>
               </div>
             </div>
 
-            {/* Big Green Header Hero */}
+            {/* Big Quranic Green Header Hero */}
             <div 
-              ref={heroHeaderRef}
-              className="-mt-14 pt-14 pb-8 px-3.5 text-white text-center bg-gradient-to-b from-[#1b5e20] to-[#2e7d32]"
+              className="-mt-14 pt-14 pb-7 px-4 text-white text-center bg-linear-to-b from-[#4f9a50] to-[#388e3c]"
             >
+              {/* Spacer penampung posisi awal judul arab besar */}
+              <div className="h-14 flex items-center justify-center" aria-hidden="true" />
               <div 
-                ref={bigTitleRef}
-                className="font-arabic text-[clamp(28px,9vw,50px)] leading-[1.7] mt-5 drop-shadow-md transition-transform duration-100"
-                style={{ fontFamily: "'Amiri Quran', serif" }}
+                ref={heroSubtitleRef}
+                className="text-emerald-100 font-medium text-xs mt-1 transition-opacity duration-150"
               >
-                {currentBook.ar}
+                {currentBookMeta.indoTitle} • {currentBookMeta.author}
               </div>
             </div>
 
             {/* Card Content with Chapter List */}
             <div 
-              className="relative z-1 -mt-4 mx-3 mb-3 bg-[var(--sf)] rounded-[18px] shadow-lg border border-[var(--ln)] overflow-hidden divide-y divide-[var(--ln)]"
+              className="relative z-1 -mt-4 mx-3 mb-3 bg-white rounded-2xl shadow-sm border border-slate-200/80 overflow-hidden divide-y divide-slate-100"
               style={{ minHeight: 'calc(100vh - 180px)' }}
             >
               {currentBook.ch.map((c, j) => {
@@ -457,23 +672,26 @@ export const MaulidView: React.FC<MaulidViewProps> = ({
                     key={j}
                     type="button"
                     onClick={() => openChapter(j)}
-                    className={`w-full flex items-center gap-3.5 p-3.5 text-left border-0 bg-transparent text-[var(--tx)] hover:bg-[var(--bg)] transition-colors cursor-pointer group ${
+                    className={`w-full flex items-center gap-3.5 p-3.5 text-left border-0 bg-transparent text-slate-800 hover:bg-emerald-50/50 transition-colors cursor-pointer group ${
                       c.b ? '' : 'opacity-55'
                     }`}
                   >
-                    <span className="flex-none min-w-[46px] h-[46px] rounded-[6px] bg-[#2e7d32] text-white flex items-center justify-center font-bold text-lg p-1 shrink-0 shadow-2xs">
-                      {c.i ? '✦' : numChaptersBefore(j)}
-                    </span>
-                    <span className="flex-1 min-w-0">
-                      <b className="block text-sm sm:text-base leading-snug truncate font-bold text-[var(--tx)]">
+                    <AyahCircleMedallion
+                      num={c.i ? '✦' : numChaptersBefore(j)}
+                      size={36}
+                      circleColorClass="text-amber-900/70 group-hover:text-emerald-800"
+                      textColorClass="text-slate-800 group-hover:text-emerald-950 font-bold"
+                    />
+                    <div className="flex-1 min-w-0">
+                      <span className="block text-sm sm:text-base leading-snug truncate font-bold text-slate-900 group-hover:text-emerald-800">
                         {lat}
-                      </b>
-                      <small className="block text-[var(--mu)] text-xs mt-0.5">
+                      </span>
+                      <span className="block text-slate-500 text-xs mt-0.5 font-normal">
                         {sub}{c.b ? '' : ' · belum dimuat'}
-                      </small>
-                    </span>
+                      </span>
+                    </div>
                     <span 
-                      className="font-arabic text-right text-lg leading-relaxed text-[var(--tx)] shrink-0 max-w-[48%]"
+                      className="font-arabic text-right text-base sm:text-lg leading-relaxed text-slate-800 group-hover:text-emerald-900 shrink-0 max-w-[48%]"
                       dir="rtl"
                       style={{ fontFamily: "'Amiri Quran', serif" }}
                     >
@@ -484,162 +702,238 @@ export const MaulidView: React.FC<MaulidViewProps> = ({
               })}
             </div>
           </div>
-
-          {/* Floating Font Size Popup (#sp) */}
-          {isFontSettingOpen && (
-            <div className="absolute top-[58px] left-3 z-30 flex items-center gap-3 py-2 px-3 rounded-[12px] bg-[#143d18] text-white text-xs shadow-xl border border-white/20 animate-in fade-in">
-              <button
-                type="button"
-                onClick={() => adjustFontSize(-2)}
-                className="text-white border border-white/30 rounded-[8px] py-1 px-2.5 bg-transparent hover:bg-white/20 cursor-pointer font-bold"
-              >
-                A−
-              </button>
-              <span className="font-medium text-xs">Ukuran ({fontSize}px)</span>
-              <button
-                type="button"
-                onClick={() => adjustFontSize(2)}
-                className="text-white border border-white/30 rounded-[8px] py-1 px-2.5 bg-transparent hover:bg-white/20 cursor-pointer font-bold"
-              >
-                A+
-              </button>
-            </div>
-          )}
         </div>
       )}
 
-      {/* ================= 3. READ VIEW: CHAPTER READER ================= */}
+      {/* ================= 3. READ VIEW: BACA FASAL MAULID (UI PERSIS SCREENSHOT + GESER PINDAH BAB) ================= */}
       {currentView === 'read' && (
-        <div className="flex-1 flex flex-col h-full bg-[var(--bg)] overflow-hidden">
-          {/* Top Navbar */}
-          <div className="flex items-center gap-2 px-3.5 py-2.5 border-b border-[var(--ln)] bg-[var(--sf)] shrink-0 shadow-2xs">
+        <div className="flex-1 flex flex-col h-full bg-[#fbf9f2] overflow-hidden">
+          {/* Top Navbar: Header Hijau Presisi seperti Screenshot */}
+          <header className="bg-[#1b6837] text-white flex items-center justify-between px-3 h-14 pt-safe shrink-0 shadow-sm z-30">
+            {/* Tombol Kembali ke Daftar Fasal (<) */}
             <button
               type="button"
-              onClick={() => setCurrentView('toc')}
-              className="text-[var(--ac)] border border-[var(--ln)] rounded-[10px] p-2 hover:bg-[var(--bg)] transition-colors cursor-pointer flex items-center justify-center shrink-0"
-              title="Daftar Bab"
+              onClick={() => {
+                setCurrentView('toc');
+                setIsPlayingAudio(false);
+              }}
+              className="w-10 h-10 rounded-full flex items-center justify-center hover:bg-white/20 active:bg-white/30 transition-colors cursor-pointer text-white shrink-0"
+              title="Kembali ke Daftar Fasal"
             >
-              <Menu className="w-4 h-4" />
+              <ArrowLeft className="w-5 h-5" />
             </button>
-            <h2 
-              className="flex-1 m-0 text-center text-sm font-semibold truncate text-[var(--tx)] font-arabic"
-              style={{ fontFamily: "'Amiri Quran', serif" }}
-            >
-              {currentChapter.i ? '' : `${ad(numChaptersBefore(activeChapterIndex))}. `}{currentChapter.t}
-            </h2>
+
+            {/* Judul Fasal di Header (Contoh: "Muqaddimah" pada Laqod Jāakum) */}
+            <h1 className="font-bold text-base sm:text-lg text-white truncate px-2 text-center flex-1 min-w-0 tracking-tight">
+              {getChapterHeaderTitle(currentBook, activeChapterIndex)}
+            </h1>
+
+            {/* Aksi Kanan: Tombol Putar Audio (▶) dan Tombol Huruf (AA) */}
             <div className="flex items-center gap-1 shrink-0">
               <button
                 type="button"
-                onClick={() => adjustFontSize(-2)}
-                className="text-[var(--ac)] border border-[var(--ln)] rounded-[10px] px-2.5 py-1 text-xs font-bold hover:bg-[var(--bg)] transition-colors cursor-pointer"
+                onClick={() => setIsPlayingAudio(!isPlayingAudio)}
+                className={`w-9 h-9 rounded-full flex items-center justify-center transition-all cursor-pointer text-white ${
+                  isPlayingAudio ? 'bg-amber-400 text-slate-900 shadow-sm animate-pulse' : 'hover:bg-white/20 active:bg-white/30'
+                }`}
+                title={isPlayingAudio ? 'Jeda Audio Qiraah' : 'Putar Audio Qiraah'}
               >
-                A−
+                {isPlayingAudio ? (
+                  <Pause className="w-4 h-4 fill-current" />
+                ) : (
+                  <Play className="w-4 h-4 fill-current ml-0.5" />
+                )}
               </button>
               <button
                 type="button"
-                onClick={() => adjustFontSize(2)}
-                className="text-[var(--ac)] border border-[var(--ln)] rounded-[10px] px-2.5 py-1 text-xs font-bold hover:bg-[var(--bg)] transition-colors cursor-pointer"
+                onClick={() => setIsSettingsModalOpen(true)}
+                className="w-9 h-9 rounded-full flex items-center justify-center font-bold text-xs sm:text-sm hover:bg-white/20 active:bg-white/30 transition-colors cursor-pointer text-white tracking-tighter"
+                title="Pengaturan Huruf & Terjemahan"
               >
-                A+
+                AA
               </button>
+            </div>
+          </header>
+
+          {/* Sub-header: Bar Tab Fasal Horizontal (Pill Bar persis Screenshot) */}
+          <div className="bg-[#1b6837] border-t border-emerald-600/30 px-2 py-2 shrink-0 z-20 shadow-xs">
+            <div 
+              ref={tabScrollContainerRef}
+              className="flex items-center gap-1.5 overflow-x-auto no-scrollbar scroll-smooth select-none"
+            >
+              {currentBook.ch.map((c, idx) => {
+                const isActive = idx === activeChapterIndex;
+                const label = getChapterTabLabel(currentBook, idx);
+                return (
+                  <button
+                    key={idx}
+                    ref={(el) => { tabButtonsRef.current[idx] = el; }}
+                    type="button"
+                    onClick={() => {
+                      if (activeChapterIndex !== idx) {
+                        openChapter(idx);
+                      }
+                    }}
+                    className={`shrink-0 text-xs sm:text-sm transition-all duration-200 cursor-pointer ${
+                      isActive
+                        ? 'bg-white text-[#1b6837] font-bold rounded-full px-4 py-1.5 shadow-xs'
+                        : 'text-white/85 hover:text-white font-medium px-3 py-1.5 rounded-full hover:bg-white/10'
+                    }`}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
             </div>
           </div>
 
-          {/* Reader Scrollable Content */}
+          {/* Reader Scrollable Content dengan Gesture Geser Horizontal (Pindah Bab Seperti Al-Qur'an) */}
           <div
             ref={readerRef}
             onTouchStart={handleTouchStart}
             onTouchMove={handleTouchMove}
             onTouchEnd={handleTouchEnd}
-            onWheel={handleWheel}
-            className="flex-1 overflow-y-auto px-4.5 py-5 pb-24 overscroll-contain select-text"
+            className="flex-1 overflow-y-auto px-4 sm:px-6 py-6 pb-28 overscroll-contain select-text bg-[#fbf9f2]"
           >
-            <div className="max-w-[640px] mx-auto">
-              {/* Chapter Header Badge & Title */}
-              <div className="text-center text-[var(--mu)] text-xs mb-4 font-sans font-medium">
-                {currentChapter.i ? (currentChapter.lb || 'مُقَدِّمَةٌ') : ordAr(numChaptersBefore(activeChapterIndex))}
-              </div>
-              <div 
-                className="text-center font-arabic text-[calc(var(--fs)*1.25)] text-[var(--gd)] mt-1.5 mb-1 leading-loose"
-                style={{ fontFamily: "'Amiri Quran', serif" }}
-              >
-                {currentChapter.t}
-              </div>
-
-              {/* Body Content */}
+            <div 
+              className="max-w-[620px] mx-auto transition-transform duration-200 ease-out"
+              style={{
+                transform: `translate3d(${dragOffset}px, 0, 0)`,
+                transition: isAnimatingSwipe ? 'transform 220ms cubic-bezier(0.2, 0.9, 0.3, 1)' : 'none'
+              }}
+            >
               {!currentChapter.b ? (
-                <div className="text-center text-[var(--mu)] py-10 px-2.5 leading-relaxed text-xs">
-                  Teks bab ini belum dimuat.<br />Teks berharakat harus dimasukkan dari sumber yang terverifikasi.
+                <div className="text-center text-slate-500 py-16 px-4 leading-relaxed text-xs sm:text-sm bg-white rounded-2xl border border-slate-200/80 my-4 shadow-xs">
+                  <p className="font-semibold text-slate-700">Teks bab ini belum dimuat.</p>
+                  <p className="text-slate-400 mt-1">Teks berharakat dan terjemahan sedang disinkronkan.</p>
                 </div>
               ) : (
-                <div className="space-y-4 pt-2">
+                <div className="space-y-4">
                   {currentChapter.b.p.map((x: any, pIdx: number) => {
-                    // String paragraph
-                    if (typeof x === 'string') {
-                      if (isSl(x)) {
-                        return (
-                          <div 
-                            key={pIdx}
-                            className="relative text-center font-arabic text-[calc(var(--fs)*0.95)] leading-loose text-[var(--ac)] my-9 mx-0.5 py-7 px-3.5 border-2 border-[var(--gd)] rounded-tr-[24px] rounded-bl-[24px] rounded-tl-[6px] rounded-br-[6px] bg-[repeating-linear-gradient(45deg,transparent_0_10px,rgba(176,138,46,0.07)_10px_11px)] [box-shadow:inset_0_0_0_5px_var(--sf),inset_0_0_0_6px_var(--gd)] before:content-['✦_❁_✦'] before:absolute before:left-1/2 before:-translate-x-1/2 before:bg-[var(--bg)] before:text-[var(--gd)] before:px-2.5 before:text-xs before:leading-none before:-top-2 after:content-['✦_❁_✦'] after:absolute after:left-1/2 after:-translate-x-1/2 after:bg-[var(--bg)] after:text-[var(--gd)] after:px-2.5 after:text-xs after:leading-none after:-bottom-2"
-                            dir="rtl"
-                            style={{ fontFamily: "'Amiri Quran', serif" }}
-                          >
-                            {x}
-                          </div>
-                        );
-                      }
+                    // 1. Sholawat Pembuka: "اللَّهُمَّ صَلِّ وَسَلِّمْ وَبَارِكْ عَلَيْهِ"
+                    // Ditampilkan dalam Bingkai Kartus Kaligrafi Islami Mewah + Terjemahan di bawahnya persis screenshot
+                    if ((typeof x === 'string' && isSl(x)) || (typeof x === 'string' && x.includes("اللَّهُمَّ صَلِّ وَسَلِّمْ وَبَارِكْ عَلَيْهِ"))) {
+                      const tr = getMaulidTextTranslation(x, currentBook.id, activeChapterIndex, pIdx);
                       return (
-                        <p
-                          key={pIdx}
-                          className="font-arabic text-justify text-right text-[var(--fs)] leading-[2.15] mb-5 text-[var(--tx)]"
-                          dir="rtl"
-                          style={{ fontFamily: "'Scheherazade New', 'Amiri Quran', serif" }}
-                          dangerouslySetInnerHTML={{
-                            __html: x.replace(/❁/g, "<em style='font-style:normal;color:var(--gd);margin:0 .15em;'>❁</em>")
-                          }}
-                        />
-                      );
-                    }
-
-                    // Center callout: x.c
-                    if (x.c) {
-                      return (
-                        <div
-                          key={pIdx}
-                          className="font-arabic text-center text-[calc(var(--fs)*1.1)] leading-loose my-4 text-[var(--tx)]"
-                          dir="rtl"
-                          style={{ fontFamily: "'Amiri Quran', 'Scheherazade New', serif" }}
-                        >
-                          {x.c}
+                        <div key={`sholawat-cartouche-${pIdx}`} className="my-4 text-center">
+                          <SholawatCartoucheFrame text="اللَّهُمَّ صَلِّ وَسَلِّمْ وَبَارِكْ عَلَيْهِ" />
+                          {showTranslation && (
+                            <p className="text-center text-xs sm:text-sm text-slate-600 mt-2 mb-6 font-normal max-w-md mx-auto leading-relaxed">
+                              {tr || "Ya Allah, limpahkanlah rahmat, keselamatan, dan keberkahan kepada-Nya."}
+                            </p>
+                          )}
                         </div>
                       );
                     }
 
-                    // Collapsible section with toggle button: x.h
+                    // 2. Basmalah Calligraphy: "بِسْمِ اللهِ الرَّحْمٰنِ الرَّحِيمِ"
+                    // Ditampilkan dengan Vektor Kaligrafi Indah + Terjemahan di bawahnya persis screenshot
+                    if (
+                      (x.c && (x.c.includes("بِسْمِ اللهِ الرَّحْمٰنِ الرَّحِيمِ") || x.c === "بِسْمِ اللهِ الرَّحْمٰنِ الرَّحِيمِ")) ||
+                      (typeof x === 'string' && (x.includes("بِسْمِ اللهِ الرَّحْمٰنِ الرَّحِيمِ") || x === "بِسْمِ اللهِ الرَّحْمٰنِ الرَّحِيمِ"))
+                    ) {
+                      const tr = getMaulidTextTranslation("بِسْمِ اللهِ الرَّحْمٰنِ الرَّحِيمِ", currentBook.id, activeChapterIndex, pIdx);
+                      return (
+                        <div key={`basmalah-${pIdx}`} className="my-6 text-center">
+                          <BismillahCalligraphy className="w-56 sm:w-64 max-w-[80vw] h-auto mx-auto my-2 text-slate-800" />
+                          {showTranslation && (
+                            <p className="text-center text-xs sm:text-sm text-slate-600 mt-2 mb-6 font-normal max-w-md mx-auto leading-relaxed">
+                              {tr || "Dengan nama Allah Yang Maha Pengasih, Maha Penyayang."}
+                            </p>
+                          )}
+                        </div>
+                      );
+                    }
+
+                    // 3. Ayat / Fasal / Callout Khusus: x.c (contoh: Laqod Jāakum, Innallāha wa malāikatahū)
+                    if (x.c) {
+                      const tr = getMaulidTextTranslation(x.c, currentBook.id, activeChapterIndex, pIdx);
+                      return (
+                        <div key={`callout-${pIdx}`} className="my-5">
+                          <div
+                            className="font-arabic text-right text-[calc(var(--fs)*1.08)] leading-[2.4] text-slate-900 font-semibold my-2"
+                            dir="rtl"
+                            style={{ fontFamily: "'Amiri Quran', 'Scheherazade New', serif" }}
+                            dangerouslySetInnerHTML={{
+                              __html: x.c.replace(/۝/g, "<span class='inline-block text-amber-700 mx-1 font-normal'>۝</span>")
+                            }}
+                          />
+                          {showTranslation && tr && (
+                            <p className="text-left text-xs sm:text-sm text-slate-700 leading-relaxed font-normal mt-2.5 mb-2">
+                              {tr}
+                            </p>
+                          )}
+                          <div className="w-full border-t border-slate-200/80 my-5" />
+                        </div>
+                      );
+                    }
+
+                    // 4. Paragraf Rawi Narasi (string biasa)
+                    if (typeof x === 'string') {
+                      const tr = getMaulidTextTranslation(x, currentBook.id, activeChapterIndex, pIdx);
+                      return (
+                        <div key={`rawi-p-${pIdx}`} className="my-5">
+                          <p
+                            className="font-arabic text-justify text-right text-[var(--fs)] leading-[2.3] mb-3 text-slate-900"
+                            dir="rtl"
+                            style={{ fontFamily: "'Scheherazade New', 'Amiri Quran', serif" }}
+                            dangerouslySetInnerHTML={{
+                              __html: x.replace(/❁/g, "<span class='inline-block text-amber-700 mx-1 font-normal'>❁</span>")
+                            }}
+                          />
+                          {showTranslation && tr && (
+                            <p className="text-left text-xs sm:text-sm text-slate-700 leading-relaxed font-normal mb-3">
+                              {tr}
+                            </p>
+                          )}
+                          <div className="w-full border-t border-slate-200/70 my-5" />
+                        </div>
+                      );
+                    }
+
+                    // 5. Bagian Syair / Nadhom Dua Kolom (x.v)
+                    if (x.v) {
+                      return (
+                        <div key={`couplets-${pIdx}`} className="border-y border-slate-200/80 py-3 my-5 space-y-3" dir="rtl">
+                          {x.v.map((r: string[], vIdx: number) => (
+                            <div
+                              key={vIdx}
+                              className="grid grid-cols-2 gap-4 font-arabic text-[calc(var(--fs)*0.95)] leading-loose text-center text-slate-900"
+                              style={{ fontFamily: "'Amiri Quran', 'Scheherazade New', serif" }}
+                            >
+                              <span>{r[0]}</span>
+                              <span>{r[1]}</span>
+                            </div>
+                          ))}
+                        </div>
+                      );
+                    }
+
+                    // 6. Bagian dengan Judul Lipat (x.h)
                     if (x.h) {
                       const toggleKey = `${activeBookIndex}-${activeChapterIndex}-${pIdx}`;
                       const isOpened = !!openToggles[toggleKey];
 
                       return (
-                        <div key={pIdx} className="my-4">
+                        <div key={`heading-section-${pIdx}`} className="my-5">
                           <button
                             type="button"
                             onClick={() => {
                               setOpenToggles((prev) => ({ ...prev, [toggleKey]: !prev[toggleKey] }));
                             }}
-                            className="w-full my-4 py-3 px-3.5 border-2 border-[var(--gd)] rounded-[14px] bg-[var(--sf)] text-[var(--ac)] font-arabic text-[calc(var(--fs)*0.95)] leading-relaxed text-center cursor-pointer flex items-center justify-center gap-1.5"
+                            className="w-full my-3 py-3 px-3.5 border border-amber-600/40 rounded-xl bg-amber-50/70 text-[#1b6837] font-arabic text-[calc(var(--fs)*0.95)] leading-relaxed text-center cursor-pointer flex items-center justify-center gap-1.5 shadow-2xs hover:bg-amber-100/70 transition-colors"
                             dir="rtl"
                             style={{ fontFamily: "'Amiri Quran', serif" }}
                           >
                             <span>{x.h}</span>
-                            <span className="font-sans text-xs text-[var(--gd)]">{isOpened ? '▲' : '▼'}</span>
+                            <span className="font-sans text-xs text-[#b45309]">{isOpened ? '▲' : '▼'}</span>
                           </button>
-                          {isOpened && (
-                            <div className="border-y border-[var(--ln)] py-1.5 my-5 space-y-1.5" dir="rtl">
+                          {isOpened && x.v && (
+                            <div className="border-y border-slate-200/80 py-2 my-4 space-y-2" dir="rtl">
                               {x.v.map((r: string[], vIdx: number) => (
                                 <div
                                   key={vIdx}
-                                  className="grid grid-cols-2 gap-4 font-arabic text-[calc(var(--fs)*0.95)] leading-loose text-center my-1.5 text-[var(--tx)]"
+                                  className="grid grid-cols-2 gap-4 font-arabic text-[calc(var(--fs)*0.95)] leading-loose text-center my-1.5 text-slate-900"
                                   style={{ fontFamily: "'Amiri Quran', 'Scheherazade New', serif" }}
                                 >
                                   <span>{r[0]}</span>
@@ -652,59 +946,210 @@ export const MaulidView: React.FC<MaulidViewProps> = ({
                       );
                     }
 
-                    // Verses block: x.v
-                    if (x.v) {
-                      return (
-                        <div 
-                          key={pIdx}
-                          className="border-y border-[var(--ln)] py-1.5 my-5 space-y-1.5" 
-                          dir="rtl"
-                        >
-                          {x.v.map((r: string[], vIdx: number) => (
-                            <div
-                              key={vIdx}
-                              className="grid grid-cols-2 gap-4 font-arabic text-[calc(var(--fs)*0.95)] leading-loose text-center my-1.5 text-[var(--tx)]"
-                              style={{ fontFamily: "'Amiri Quran', 'Scheherazade New', serif" }}
-                            >
-                              <span>{r[0]}</span>
-                              <span>{r[1]}</span>
-                            </div>
-                          ))}
-                        </div>
-                      );
-                    }
-
                     return null;
                   })}
 
-                  {/* Refrain / Closing Sholawat: c.b.r */}
+                  {/* Refrain / Sholawat Penutup Rawi: c.b.r */}
                   {currentChapter.b.r && (
-                    <div 
-                      className="font-arabic text-center text-[calc(var(--fs)*0.95)] leading-loose text-[var(--ac)] border-y border-[var(--ln)] py-3 px-1 my-6"
-                      dir="rtl"
-                      style={{ fontFamily: "'Amiri Quran', serif" }}
-                      dangerouslySetInnerHTML={{
-                        __html: R.replace(/❁/g, "<em style='font-style:normal;color:var(--gd);margin:0 .15em;'>❁</em>")
-                      }}
-                    />
+                    <div className="my-6 text-center">
+                      <div 
+                        className="font-arabic text-center text-[calc(var(--fs)*0.95)] leading-loose text-[#1b6837] border-y border-emerald-300/80 bg-emerald-50/60 py-4 px-3 rounded-2xl shadow-2xs"
+                        dir="rtl"
+                        style={{ fontFamily: "'Amiri Quran', serif" }}
+                        dangerouslySetInnerHTML={{
+                          __html: R.replace(/❁/g, "<span class='inline-block text-amber-700 mx-1 font-normal'>❁</span>")
+                        }}
+                      />
+                      {showTranslation && (
+                        <p className="text-center text-xs sm:text-sm text-slate-600 mt-2.5 font-normal max-w-md mx-auto leading-relaxed">
+                          Ya Allah, harumkanlah kuburnya yang mulia dengan keharuman semerbak sholawat dan salam. Ya Allah, limpahkanlah sholawat, salam, dan keberkahan kepada beliau.
+                        </p>
+                      )}
+                    </div>
                   )}
+
+                  {/* Navigasi Cepat Bab Bawah: Geser untuk berpindah */}
+                  <div className="pt-6 pb-4 flex items-center justify-between border-t border-slate-200/70 mt-8 text-xs text-slate-500 select-none">
+                    <button
+                      type="button"
+                      disabled={!canGoPrev}
+                      onClick={goToPrevChapter}
+                      className={`flex items-center gap-1.5 px-3 py-2 rounded-xl transition-colors cursor-pointer ${
+                        canGoPrev ? 'bg-white border border-slate-200 text-slate-700 hover:bg-emerald-50 active:bg-emerald-100 shadow-2xs' : 'opacity-30 cursor-not-allowed'
+                      }`}
+                    >
+                      <ChevronLeft className="w-4 h-4" />
+                      <span>Bab Sebelumnya</span>
+                    </button>
+
+                    <span className="text-[11px] text-slate-400 font-medium">
+                      Geser layar untuk pindah
+                    </span>
+
+                    <button
+                      type="button"
+                      disabled={!canGoNext}
+                      onClick={goToNextChapter}
+                      className={`flex items-center gap-1.5 px-3 py-2 rounded-xl transition-colors cursor-pointer ${
+                        canGoNext ? 'bg-white border border-slate-200 text-slate-700 hover:bg-emerald-50 active:bg-emerald-100 shadow-2xs' : 'opacity-30 cursor-not-allowed'
+                      }`}
+                    >
+                      <span>Bab Berikutnya</span>
+                      <ChevronRight className="w-4 h-4" />
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
           </div>
 
-          {/* Overscroll Pull-to-change Hint (#hint) */}
-          <div
-            className={`fixed left-0 right-0 z-40 text-center p-2.5 text-xs bg-[var(--ac)] text-[var(--bg)] transition-opacity duration-150 pointer-events-none max-w-lg mx-auto ${
-              hintType === 'top' ? 'top-14' : 'bottom-0'
-            } ${hintVisible ? 'opacity-100' : 'opacity-0'}`}
-          >
-            <div>{hintText}</div>
+          {/* Floating Mini Audio Bar ketika Audio Aktif */}
+          {isPlayingAudio && (
+            <div className="fixed bottom-4 left-3 right-3 max-w-md mx-auto bg-slate-900/95 backdrop-blur-md text-white rounded-2xl p-3 px-4 shadow-2xl flex items-center justify-between border border-white/10 z-40 animate-in fade-in slide-in-from-bottom-2">
+              <div className="flex items-center gap-3 min-w-0">
+                <button
+                  type="button"
+                  onClick={() => setIsPlayingAudio(false)}
+                  className="w-8 h-8 rounded-full bg-emerald-500 text-slate-900 flex items-center justify-center shrink-0 cursor-pointer"
+                  title="Jeda"
+                >
+                  <Pause className="w-4 h-4 fill-current" />
+                </button>
+                <div className="truncate">
+                  <div className="text-xs font-bold text-white truncate">
+                    Memutar Qira'ah: {getChapterHeaderTitle(currentBook, activeChapterIndex)}
+                  </div>
+                  <div className="text-[10px] text-emerald-300 truncate">
+                    {currentBookMeta.indoTitle}
+                  </div>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsPlayingAudio(false)}
+                className="text-slate-400 hover:text-white text-xs px-2 py-1 rounded-lg hover:bg-white/10 cursor-pointer"
+              >
+                Tutup
+              </button>
+            </div>
+          )}
+
+          {/* ================= MODAL / BOTTOM SHEET PENGATURAN BACAAN (AA) ================= */}
+          {isSettingsModalOpen && (
             <div 
-              className="h-0.5 bg-[var(--bg)] opacity-60 mt-1.5 mx-auto transition-all"
-              style={{ width: `${hintProgress}%` }}
-            />
-          </div>
+              className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4 animate-in fade-in"
+              onClick={() => setIsSettingsModalOpen(false)}
+            >
+              <div 
+                className="w-full max-w-md bg-white rounded-t-3xl sm:rounded-3xl p-5 shadow-2xl border border-slate-200 animate-in slide-in-from-bottom-4 space-y-5"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                  <div className="flex items-center gap-2">
+                    <Sliders className="w-4 h-4 text-emerald-700" />
+                    <h3 className="font-bold text-sm sm:text-base text-slate-800">
+                      Pengaturan Bacaan Maulid
+                    </h3>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setIsSettingsModalOpen(false)}
+                    className="w-7 h-7 rounded-full bg-slate-100 text-slate-500 hover:text-slate-800 flex items-center justify-center cursor-pointer"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+
+                {/* 1. Pengaturan Ukuran Huruf Arab */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between text-xs text-slate-600 font-semibold">
+                    <span>Ukuran Teks Arab</span>
+                    <span className="text-emerald-700 font-bold">{fontSize}px</span>
+                  </div>
+                  <div className="flex items-center gap-3 bg-slate-50 p-2 rounded-2xl border border-slate-200/80">
+                    <button
+                      type="button"
+                      onClick={() => adjustFontSize(-2)}
+                      className="w-10 h-10 rounded-xl bg-white border border-slate-200 font-bold text-sm text-slate-700 hover:bg-emerald-50 active:bg-emerald-100 flex items-center justify-center cursor-pointer shadow-2xs"
+                    >
+                      A−
+                    </button>
+                    <input
+                      type="range"
+                      min={18}
+                      max={44}
+                      step={2}
+                      value={fontSize}
+                      onChange={(e) => {
+                        const val = parseInt(e.target.value, 10);
+                        setFontSize(val);
+                        try {
+                          localStorage.setItem('maulid_fs', String(val));
+                        } catch (err) {}
+                      }}
+                      className="flex-1 accent-[#1b6837] cursor-pointer"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => adjustFontSize(2)}
+                      className="w-10 h-10 rounded-xl bg-white border border-slate-200 font-bold text-sm text-slate-700 hover:bg-emerald-50 active:bg-emerald-100 flex items-center justify-center cursor-pointer shadow-2xs"
+                    >
+                      A+
+                    </button>
+                  </div>
+                </div>
+
+                {/* 2. Switch Terjemahan Bahasa Indonesia */}
+                <div className="flex items-center justify-between py-2 border-y border-slate-100">
+                  <div>
+                    <div className="text-xs sm:text-sm font-bold text-slate-800">
+                      Tampilkan Terjemahan
+                    </div>
+                    <div className="text-[11px] text-slate-500">
+                      Tampilkan terjemahan bahasa Indonesia di bawah teks Arab
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={toggleTranslation}
+                    className={`w-12 h-6.5 rounded-full p-0.5 transition-colors cursor-pointer flex items-center ${
+                      showTranslation ? 'bg-[#1b6837] justify-end' : 'bg-slate-300 justify-start'
+                    }`}
+                  >
+                    <span className="w-5.5 h-5.5 bg-white rounded-full shadow-md transform transition-transform" />
+                  </button>
+                </div>
+
+                {/* 3. Mode Tampilan (Terang / Gelap) */}
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="text-xs sm:text-sm font-bold text-slate-800">
+                      Mode Tampilan
+                    </div>
+                    <div className="text-[11px] text-slate-500">
+                      Pilih warna latar bacaan yang nyaman di mata
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={toggleTheme}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-xs font-semibold cursor-pointer text-slate-700"
+                  >
+                    {theme === 'dark' ? <Sun className="w-4 h-4 text-amber-500" /> : <Moon className="w-4 h-4 text-slate-600" />}
+                    <span>{theme === 'dark' ? 'Mode Gelap' : 'Mode Terang'}</span>
+                  </button>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setIsSettingsModalOpen(false)}
+                  className="w-full py-2.5 rounded-xl bg-[#1b6837] text-white font-bold text-xs sm:text-sm hover:bg-[#15542c] transition-colors cursor-pointer shadow-sm"
+                >
+                  Selesai
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>
