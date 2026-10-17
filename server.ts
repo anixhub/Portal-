@@ -406,6 +406,39 @@ async function startServer() {
 
   // Events API: RSVP
   app.post('/api/events/rsvp', async (req, res) => {
+    const { eventId, alumniId, status, note, authorName, authorHandle, authorAvatar } = req.body || {};
+    if (eventId && alumniId) {
+      const commId = `comm-rsvp-${alumniId}-${eventId}`;
+      const defaultNote = status === 'hadir' ? 'Insya Allah saya hadir' : status === 'tidak_hadir' ? 'Mohon maaf belum bisa hadir' : '';
+      const finalContent = (note && String(note).trim()) ? String(note).trim() : defaultNote;
+
+      if (finalContent) {
+        const rsvpComment = {
+          id: commId,
+          eventId,
+          postType: 'event',
+          authorId: alumniId,
+          authorName: authorName || 'Alumni',
+          authorHandle: authorHandle || '@alumni',
+          authorAvatar: authorAvatar || '',
+          avatarRing: true,
+          status: status || 'hadir',
+          content: finalContent,
+          timeAgo: 'Baru saja',
+          likesCount: 0,
+          repliesCount: 0,
+          replies: [],
+        };
+        const idx = cachedComments.findIndex((c: any) => c.id === commId);
+        if (idx >= 0) {
+          cachedComments[idx] = { ...cachedComments[idx], ...rsvpComment };
+        } else {
+          cachedComments.unshift(rsvpComment);
+        }
+        saveJsonStore(commentsStorePath, cachedComments);
+      }
+    }
+
     try {
       await fetch('https://alumni.attaroqqy.com/api_alumni.php?action=save_rsvp', {
         method: 'POST',

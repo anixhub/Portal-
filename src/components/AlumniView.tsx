@@ -1116,13 +1116,15 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
   const handleConfirmRsvpModal = () => {
     if (!rsvpModalData) return;
 
-    // Filter keluar tanggapan lama dari user saat ini untuk event ini (sehingga tanggapan lama dan seluruh balasannya otomatis terhapus)
     const currentUserName = alumni.name.toLowerCase().trim();
+    const rsvpCommentId = `comm-rsvp-${alumni.id}-${rsvpModalData.eventId}`;
+
+    // Hanya filter keluar tanggapan konfirmasi kehadiran lama untuk event ini, JANGAN menghapus komentar manual biasa
     const updatedComments = commentsList.filter(
       (c) =>
         !(
           c.eventId === rsvpModalData.eventId &&
-          (c.isCurrentUser || c.authorName.toLowerCase().trim() === currentUserName)
+          (c.id === rsvpCommentId || (c.status && (c.isCurrentUser || c.authorName.toLowerCase().trim() === currentUserName)))
         )
     );
 
@@ -1137,12 +1139,12 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
     const finalNote = rsvpNoteInput.trim() || rsvpModalData.defaultText;
     onRsvpEvent(rsvpModalData.eventId, rsvpModalData.type, finalNote);
 
-    // Mengganti tanggapan yang sudah di-up di postingan dengan tanggapan baru yang fresh (tanpa balasan lama)
+    // Simpan komentar konfirmasi kehadiran ke state lokal dan langsung ke database agar akun admin dan publik dapat melihatnya
     const newComment: EventComment = {
-      id: `comm-user-${Date.now()}`,
+      id: rsvpCommentId,
       eventId: rsvpModalData.eventId,
       authorName: alumni.name,
-      authorHandle: alumni.username || alumni.name.toLowerCase().replace(/\s+/g, '_'),
+      authorHandle: alumni.username || (alumni.name ? '@' + alumni.name.toLowerCase().replace(/\s+/g, '_') : '@alumni'),
       authorAvatar: alumni.photoUrl,
       avatarRing: true,
       status: rsvpModalData.type,
@@ -1154,6 +1156,7 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
       isCurrentUser: true,
     };
     setCommentsList([newComment, ...updatedComments]);
+    saveCommentToDatabase(newComment, 'event');
 
     triggerToast(
       rsvpModalData.type === 'hadir'
@@ -1726,80 +1729,88 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
                 </button>
               </div>
 
-              {/* Kotak Event Beranda: Hanya tampilkan foto jika ada poster asli, jika tidak ada hanya teks kartu */}
-              <div
-                onClick={() => setActiveTab('events')}
-                className="relative z-10 rounded-[28px] overflow-hidden shadow-md aspect-[16/10] sm:aspect-[16/9] cursor-pointer group select-none border border-slate-200/60 bg-gradient-to-br from-emerald-950 via-slate-900 to-sky-950 flex flex-col justify-end"
-              >
-                {(Boolean(events[0]?.posterUrl?.trim()) || (events[0]?.images && events[0]?.images.length > 0)) && (
-                  <>
-                    <img
-                      src={(events[0]?.images && events[0]?.images[0]) || events[0]?.posterUrl}
-                      alt={events[0]?.title || 'Agenda Terdekat'}
-                      className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                    />
-                    {/* Dark Vignette Overlay */}
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/45 to-transparent" />
-                  </>
-                )}
+              {/* Kotak Event Beranda */}
+              {events.length > 0 && events[0] ? (
+                <>
+                  <div
+                    onClick={() => setActiveTab('events')}
+                    className="relative z-10 rounded-[28px] overflow-hidden shadow-md aspect-[16/10] sm:aspect-[16/9] cursor-pointer group select-none border border-slate-200/60 bg-gradient-to-br from-emerald-950 via-slate-900 to-sky-950 flex flex-col justify-end"
+                  >
+                    {(Boolean(events[0]?.posterUrl?.trim()) || (events[0]?.images && events[0]?.images.length > 0)) && (
+                      <>
+                        <img
+                          src={(events[0]?.images && events[0]?.images[0]) || events[0]?.posterUrl}
+                          alt={events[0]?.title || 'Agenda Terdekat'}
+                          className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                        />
+                        {/* Dark Vignette Overlay */}
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/45 to-transparent" />
+                      </>
+                    )}
 
-                {/* Bottom Overlay: Judul Acara & Tag Lokasi dan Waktu tepat di bawah judul */}
-                <div className="relative z-10 p-4 pt-10 bg-gradient-to-t from-black/95 via-black/80 to-transparent">
-                  <h3 className="font-bold text-base sm:text-lg text-white leading-snug drop-shadow-sm mb-2">
-                    {events[0]?.title || 'Reuni Akbar Alumni Ponpes At-Taroqqy'}
-                  </h3>
+                    {/* Bottom Overlay: Judul Acara & Tag Lokasi dan Waktu tepat di bawah judul */}
+                    <div className="relative z-10 p-4 pt-10 bg-gradient-to-t from-black/95 via-black/80 to-transparent">
+                      <h3 className="font-bold text-base sm:text-lg text-white leading-snug drop-shadow-sm mb-2">
+                        {events[0]?.title}
+                      </h3>
 
-                  {/* Tag Lokasi dan Waktu tepat di bawah judul */}
-                  <div className="flex flex-wrap items-center gap-2">
-                    <div className="backdrop-blur-md bg-black/50 border border-white/20 text-white text-[11px] font-semibold px-3 py-1.5 rounded-full flex items-center gap-1.5 shadow-xs">
-                      <Calendar className="w-3.5 h-3.5 text-sky-400" />
-                      <span>{events[0]?.date ? formatToDDMMYYYY(events[0].date) : 'Belum ditentukan'}</span>
+                      {/* Tag Lokasi dan Waktu tepat di bawah judul */}
+                      <div className="flex flex-wrap items-center gap-2">
+                        <div className="backdrop-blur-md bg-black/50 border border-white/20 text-white text-[11px] font-semibold px-3 py-1.5 rounded-full flex items-center gap-1.5 shadow-xs">
+                          <Calendar className="w-3.5 h-3.5 text-sky-400" />
+                          <span>{events[0]?.date ? formatToDDMMYYYY(events[0].date) : 'Belum ditentukan'}</span>
+                        </div>
+                        <div className="backdrop-blur-md bg-black/50 border border-white/20 text-white text-[11px] font-semibold px-3 py-1.5 rounded-full flex items-center gap-1.5 shadow-xs">
+                          <MapPin className="w-3.5 h-3.5 text-rose-400" />
+                          <span>{events[0]?.location || 'Aula Ponpes At-taroqqy'}</span>
+                        </div>
+                      </div>
                     </div>
-                    <div className="backdrop-blur-md bg-black/50 border border-white/20 text-white text-[11px] font-semibold px-3 py-1.5 rounded-full flex items-center gap-1.5 shadow-xs">
-                      <MapPin className="w-3.5 h-3.5 text-rose-400" />
-                      <span>{events[0]?.location || 'Aula Ponpes At-taroqqy'}</span>
+                  </div>
+
+                  {/* Countdown Elegan di Bawah Kotak Poster (Menyatu tanpa teks Hitung Mundur Acara & Reuni Akbar) */}
+                  <div className="bg-white rounded-b-3xl border-x border-b border-slate-200/90 p-3.5 -mt-3.5 pt-5 shadow-xs relative z-0">
+                    <div className="grid grid-cols-4 gap-2">
+                      <div className="bg-gradient-to-b from-slate-50 to-slate-100/90 border border-slate-200/80 rounded-xl py-2 px-1 text-center shadow-2xs">
+                        <span className="block text-xl font-bold font-mono text-sky-900 tracking-tight leading-none">
+                          {String(countdown.days).padStart(2, '0')}
+                        </span>
+                        <span className="text-[9px] uppercase font-bold text-slate-600 tracking-wider mt-1 block">
+                          Hari
+                        </span>
+                      </div>
+                      <div className="bg-gradient-to-b from-slate-50 to-slate-100/90 border border-slate-200/80 rounded-xl py-2 px-1 text-center shadow-2xs">
+                        <span className="block text-xl font-bold font-mono text-sky-900 tracking-tight leading-none">
+                          {String(countdown.hours).padStart(2, '0')}
+                        </span>
+                        <span className="text-[9px] uppercase font-bold text-slate-600 tracking-wider mt-1 block">
+                          Jam
+                        </span>
+                      </div>
+                      <div className="bg-gradient-to-b from-slate-50 to-slate-100/90 border border-slate-200/80 rounded-xl py-2 px-1 text-center shadow-2xs">
+                        <span className="block text-xl font-bold font-mono text-sky-900 tracking-tight leading-none">
+                          {String(countdown.minutes).padStart(2, '0')}
+                        </span>
+                        <span className="text-[9px] uppercase font-bold text-slate-600 tracking-wider mt-1 block">
+                          Menit
+                        </span>
+                      </div>
+                      <div className="bg-gradient-to-b from-slate-50 to-slate-100/90 border border-slate-200/80 rounded-xl py-2 px-1 text-center shadow-2xs">
+                        <span className="block text-xl font-bold font-mono text-sky-900 tracking-tight leading-none">
+                          {String(countdown.seconds).padStart(2, '0')}
+                        </span>
+                        <span className="text-[9px] uppercase font-bold text-slate-600 tracking-wider mt-1 block">
+                          Detik
+                        </span>
+                      </div>
                     </div>
                   </div>
+                </>
+              ) : (
+                <div className="bg-white rounded-3xl border border-slate-200/90 p-5 text-center text-xs text-slate-500 shadow-2xs">
+                  Belum ada agenda terdekat saat ini.
                 </div>
-              </div>
-
-              {/* Countdown Elegan di Bawah Kotak Poster (Menyatu tanpa teks Hitung Mundur Acara & Reuni Akbar) */}
-              <div className="bg-white rounded-b-3xl border-x border-b border-slate-200/90 p-3.5 -mt-3.5 pt-5 shadow-xs relative z-0">
-                <div className="grid grid-cols-4 gap-2">
-                  <div className="bg-gradient-to-b from-slate-50 to-slate-100/90 border border-slate-200/80 rounded-xl py-2 px-1 text-center shadow-2xs">
-                    <span className="block text-xl font-bold font-mono text-sky-900 tracking-tight leading-none">
-                      {String(countdown.days).padStart(2, '0')}
-                    </span>
-                    <span className="text-[9px] uppercase font-bold text-slate-600 tracking-wider mt-1 block">
-                      Hari
-                    </span>
-                  </div>
-                  <div className="bg-gradient-to-b from-slate-50 to-slate-100/90 border border-slate-200/80 rounded-xl py-2 px-1 text-center shadow-2xs">
-                    <span className="block text-xl font-bold font-mono text-sky-900 tracking-tight leading-none">
-                      {String(countdown.hours).padStart(2, '0')}
-                    </span>
-                    <span className="text-[9px] uppercase font-bold text-slate-600 tracking-wider mt-1 block">
-                      Jam
-                    </span>
-                  </div>
-                  <div className="bg-gradient-to-b from-slate-50 to-slate-100/90 border border-slate-200/80 rounded-xl py-2 px-1 text-center shadow-2xs">
-                    <span className="block text-xl font-bold font-mono text-sky-900 tracking-tight leading-none">
-                      {String(countdown.minutes).padStart(2, '0')}
-                    </span>
-                    <span className="text-[9px] uppercase font-bold text-slate-600 tracking-wider mt-1 block">
-                      Menit
-                    </span>
-                  </div>
-                  <div className="bg-gradient-to-b from-slate-50 to-slate-100/90 border border-slate-200/80 rounded-xl py-2 px-1 text-center shadow-2xs">
-                    <span className="block text-xl font-bold font-mono text-sky-900 tracking-tight leading-none">
-                      {String(countdown.seconds).padStart(2, '0')}
-                    </span>
-                    <span className="text-[9px] uppercase font-bold text-slate-600 tracking-wider mt-1 block">
-                      Detik
-                    </span>
-                  </div>
-                </div>
-              </div>
+              )}
             </div>
           </div>
         )}
@@ -2061,6 +2072,12 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
                     </div>
                   </div>
                 ))}
+
+              {events.length === 0 && (
+                <div className="bg-white rounded-3xl border border-slate-200/90 p-8 text-center text-slate-500 text-xs">
+                  Belum ada agenda kegiatan yang ditambahkan.
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -2982,7 +2999,7 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
                   </div>
                   <div className="flex gap-2 pt-2">
                     <button type="button" onClick={() => setActiveEditModal(null)} className="flex-1 py-2 rounded-xl border border-slate-200 text-slate-600 font-semibold text-xs cursor-pointer">Batal</button>
-                    <button type="button" onClick={() => { onUpdateProfile({ name: editName }); setActiveEditModal(null); triggerToast('Nama berhasil diperbarui'); }} className="flex-1 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs cursor-pointer">Simpan</button>
+                    <button type="button" onClick={() => { onUpdateProfile({ name: editName, username: alumni.username }); setActiveEditModal(null); triggerToast('Nama berhasil diperbarui'); }} className="flex-1 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs cursor-pointer">Simpan</button>
                   </div>
                 </div>
               </div>
@@ -5149,8 +5166,9 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
       {activeCommentsAnnouncement && (
         <EventCommentsModal
           targetId={activeCommentsAnnouncement.id}
-          modalTitle="Komentar"
+          modalTitle="Komentar Pengumuman"
           hideAttendanceSummary={true}
+          hideAttendanceLabel={true}
           comments={commentsList}
           currentUser={{
             name: alumni.name,

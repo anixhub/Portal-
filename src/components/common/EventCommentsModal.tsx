@@ -8,6 +8,7 @@ interface EventCommentsModalProps {
   targetId?: string;
   modalTitle?: string;
   hideAttendanceSummary?: boolean;
+  hideAttendanceLabel?: boolean;
   comments: EventComment[];
   currentUser: {
     name: string;
@@ -27,6 +28,7 @@ export const EventCommentsModal: React.FC<EventCommentsModalProps> = ({
   targetId,
   modalTitle = 'Tanggapan',
   hideAttendanceSummary = false,
+  hideAttendanceLabel = false,
   comments,
   currentUser,
   onClose,
@@ -204,15 +206,17 @@ export const EventCommentsModal: React.FC<EventCommentsModalProps> = ({
                           {formatAuthorUsername(c.authorHandle || c.authorName)}
                         </span>
                         <span className="text-[11px] text-slate-400">{c.timeAgo}</span>
-                        {c.status && (
+                        {!hideAttendanceLabel && !hideAttendanceSummary && c.status && c.status !== 'netral' && (
                           <span
                             className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${
                               c.status === 'hadir'
                                 ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                : c.status === 'belum_pasti'
+                                ? 'bg-amber-50 text-amber-700 border border-amber-200'
                                 : 'bg-rose-50 text-rose-700 border border-rose-200'
                             }`}
                           >
-                            {c.status === 'hadir' ? 'Hadir' : 'Tidak Hadir'}
+                            {c.status === 'hadir' ? 'Hadir' : c.status === 'belum_pasti' ? 'Belum Pasti' : 'Tidak Hadir'}
                           </span>
                         )}
                       </div>

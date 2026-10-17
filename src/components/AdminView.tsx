@@ -49,7 +49,7 @@ import { AlumniDetailAdminModal } from './admin/AlumniDetailAdminModal';
 import { AlumniProfileCardModal } from './common/AlumniProfileCardModal';
 import { AdminAnnouncementsTab } from './admin/AdminAnnouncementsTab';
 import { AdminAccountsTab } from './admin/AdminAccountsTab';
-import { formatAdminAuthorityLabel, getAdminDefaultAudience } from '../utils/adminAuthorityUtils';
+import { formatAdminAuthorityLabel, getAdminDefaultAudience, isAlumniInAdminJurisdiction } from '../utils/adminAuthorityUtils';
 import { WilayahAddressFilter } from './common/WilayahAddressFilter';
 import { AlumniDistributionMapModal } from './common/AlumniDistributionMapModal';
 import { CleanMediaPreviewModal } from './common/CleanMediaPreviewModal';
@@ -176,6 +176,14 @@ export const AdminView: React.FC<AdminViewProps> = ({
   // Admin Profile Edit State
   const [adminUser, setAdminUser] = useState<AdminUser>(admin);
   const [adminAccountsList, setAdminAccountsList] = useState<AdminUser[]>(adminList || [admin]);
+
+  const isPusatAdmin = adminUser.regionLevel === 'pusat' || adminUser.role === 'super_admin' || adminUser.username === '@admin_pusat';
+
+  useEffect(() => {
+    if (!isPusatAdmin && activeTab === 'admin_accounts') {
+      setActiveTab('agenda');
+    }
+  }, [isPusatAdmin, activeTab]);
 
   useEffect(() => {
     if (adminList) {
@@ -565,6 +573,19 @@ export const AdminView: React.FC<AdminViewProps> = ({
     });
   }, []);
 
+  useEffect(() => {
+    if (activeCommentsModalEvent) {
+      fetchCommentsFromDatabase(activeCommentsModalEvent.id).then((data) => {
+        if (Array.isArray(data) && data.length > 0) {
+          setCommentsList((prev) => {
+            const others = prev.filter((c) => c.eventId !== activeCommentsModalEvent.id);
+            return [...data, ...others];
+          });
+        }
+      });
+    }
+  }, [activeCommentsModalEvent]);
+
   const handleAddComment = (eventId: string, text: string, replyToCommentId?: string) => {
     if (!text.trim()) return;
     if (replyToCommentId) {
@@ -794,11 +815,14 @@ export const AdminView: React.FC<AdminViewProps> = ({
   // Jika sedang berada di tab Agenda, Pengumuman, atau Profil Admin, tekan tombol fisik kembali ke Kelola Alumni
   useBackHandler(activeTab !== 'alumni', 'admin-tab-alumni', () => setActiveTab('alumni'));
 
+  // Wilayah jurisdiction filtered base list for this admin (Admin daerah hanya mengelola data alumni di daerahnya atau bawahnya)
+  const jurisdictionAlumniList = alumniList.filter((item) => isAlumniInAdminJurisdiction(item, adminUser));
+
   // Counts for status labels & gender
-  const activeCount = alumniList.filter((item) => item.hasLoggedIn === true || item.isPasswordChanged === true).length;
-  const inactiveCount = alumniList.filter((item) => !item.hasLoggedIn && !item.isPasswordChanged).length;
-  const putraCount = alumniList.filter((item) => item.gender === 'Putra' || item.gender === 'L' || item.gender?.toLowerCase() === 'putra').length;
-  const putriCount = alumniList.filter((item) => item.gender === 'Putri' || item.gender === 'P' || item.gender?.toLowerCase() === 'putri').length;
+  const activeCount = jurisdictionAlumniList.filter((item) => item.hasLoggedIn === true || item.isPasswordChanged === true).length;
+  const inactiveCount = jurisdictionAlumniList.filter((item) => !item.hasLoggedIn && !item.isPasswordChanged).length;
+  const putraCount = jurisdictionAlumniList.filter((item) => item.gender === 'Putra' || item.gender === 'L' || item.gender?.toLowerCase() === 'putra').length;
+  const putriCount = jurisdictionAlumniList.filter((item) => item.gender === 'Putri' || item.gender === 'P' || item.gender?.toLowerCase() === 'putri').length;
 
   // Toast
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -809,7 +833,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
   };
 
   // Filtered alumni list
-  const filteredList = alumniList.filter((item) => {
+  const filteredList = jurisdictionAlumniList.filter((item) => {
     const q = searchQuery.toLowerCase();
     const matchSearch =
       !searchQuery ||
@@ -1548,23 +1572,6 @@ export const AdminView: React.FC<AdminViewProps> = ({
                 >
                   <Filter className="w-4 h-4" />
                 </button>
-
-                {/* Tombol Segarkan Data Realtime dari Hostinger */}
-                {onRefreshData && (
-                  <button
-                    type="button"
-                    onClick={onRefreshData}
-                    disabled={isDbLoading}
-                    className={`p-2.5 rounded-xl border transition-all cursor-pointer flex items-center justify-center shrink-0 ${
-                      isDbLoading
-                        ? 'bg-sky-50 text-sky-600 border-sky-200'
-                        : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
-                    }`}
-                    title="Segarkan Sinkronisasi Realtime Database Hostinger"
-                  >
-                    <RotateCw className={`w-4 h-4 ${isDbLoading ? 'animate-spin text-sky-600' : ''}`} />
-                  </button>
-                )}
               </div>
 
               {/* Filter Label Gender: Semua, Putra, Putri */}
@@ -1578,7 +1585,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
                       : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
                   }`}
                 >
-                  Semua ({alumniList.length.toLocaleString('id-ID')})
+                  Semua ({jurisdictionAlumniList.length.toLocaleString('id-ID')})
                 </button>
                 <button
                   type="button"
@@ -1948,10 +1955,12 @@ export const AdminView: React.FC<AdminViewProps> = ({
                     <ChevronRight className="w-4 h-4 text-slate-400 shrink-0 group-hover:translate-x-0.5 transition-transform" />
                   </div>
 
-                  {/* 3b. Wewenang Wilayah & Kelola Akun Admin */}
+                  {/* 3b. Wewenang Wilayah (Hanya Admin Pusat yang bisa membuka Kelola Akun) */}
                   <div
-                    onClick={() => setActiveTab('admin_accounts')}
-                    className="flex items-center justify-between py-3.5 cursor-pointer hover:bg-slate-50/70 -mx-3 px-3 rounded-2xl transition-colors group"
+                    onClick={isPusatAdmin ? () => setActiveTab('admin_accounts') : undefined}
+                    className={`flex items-center justify-between py-3.5 -mx-3 px-3 rounded-2xl transition-colors group ${
+                      isPusatAdmin ? 'cursor-pointer hover:bg-slate-50/70' : 'cursor-default'
+                    }`}
                   >
                     <div className="flex items-center gap-4 min-w-0 pr-2">
                       <div className="w-6 flex items-center justify-center shrink-0">
@@ -1964,12 +1973,14 @@ export const AdminView: React.FC<AdminViewProps> = ({
                         </p>
                       </div>
                     </div>
-                    <div className="flex items-center gap-1.5 shrink-0">
-                      <span className="text-[11px] font-bold text-sky-700 bg-sky-50 px-2.5 py-0.5 rounded-full border border-sky-200">
-                        Kelola Akun
-                      </span>
-                      <ChevronRight className="w-4 h-4 text-slate-400 shrink-0 group-hover:translate-x-0.5 transition-transform" />
-                    </div>
+                    {isPusatAdmin && (
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <span className="text-[11px] font-bold text-sky-700 bg-sky-50 px-2.5 py-0.5 rounded-full border border-sky-200">
+                          Kelola Akun
+                        </span>
+                        <ChevronRight className="w-4 h-4 text-slate-400 shrink-0 group-hover:translate-x-0.5 transition-transform" />
+                      </div>
+                    )}
                   </div>
 
                   {/* 4. Bio */}
@@ -2240,16 +2251,18 @@ export const AdminView: React.FC<AdminViewProps> = ({
           <span className="text-[10px]">Pengumuman</span>
         </button>
 
-        <button
-          type="button"
-          onClick={() => setActiveTab('admin_accounts')}
-          className={`flex flex-col items-center gap-1 py-1 px-2.5 rounded-xl transition-colors cursor-pointer ${
-            activeTab === 'admin_accounts' ? 'text-[#0284c7] font-bold' : 'text-slate-500 hover:text-slate-800'
-          }`}
-        >
-          <ShieldCheck className="w-5 h-5" />
-          <span className="text-[10px]">Kelola Akun</span>
-        </button>
+        {isPusatAdmin && (
+          <button
+            type="button"
+            onClick={() => setActiveTab('admin_accounts')}
+            className={`flex flex-col items-center gap-1 py-1 px-2.5 rounded-xl transition-colors cursor-pointer ${
+              activeTab === 'admin_accounts' ? 'text-[#0284c7] font-bold' : 'text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            <ShieldCheck className="w-5 h-5" />
+            <span className="text-[10px]">Kelola Akun</span>
+          </button>
+        )}
 
         <button
           type="button"

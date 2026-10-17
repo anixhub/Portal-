@@ -124,3 +124,96 @@ export const getAdminDefaultAudience = (admin: AdminUser): AudienceTarget => {
     regionScope: 'semua',
   };
 };
+
+/**
+ * Cek apakah seorang alumni berada di wilayah kekuasaan / kewenangan admin.
+ * Admin pusat: berhak mengelola semua alumni se-Indonesia.
+ * Admin daerah: hanya berhak mengelola alumni di daerahnya atau sub-wilayah bawahnya.
+ */
+export const isAlumniInAdminJurisdiction = (alumni: any, admin: AdminUser): boolean => {
+  const level: AdminRegionLevel = admin.regionLevel || (admin.role === 'super_admin' ? 'pusat' : 'provinsi');
+  if (level === 'pusat' || admin.role === 'super_admin' || admin.username === '@admin_pusat') {
+    return true;
+  }
+
+  const norm = (s?: string) =>
+    (s || '').toLowerCase().replace(/^(provinsi|kota|kabupaten|kab\.|kecamatan|kec\.|desa|kelurahan)\s+/i, '').trim();
+
+  const almProv = norm(alumni.province);
+  const adminProv = norm(admin.province);
+
+  // Tingkat Provinsi: alumni harus di provinsi yang sama
+  if (level === 'provinsi') {
+    return Boolean(adminProv && (almProv.includes(adminProv) || adminProv.includes(almProv)));
+  }
+
+  const almCity = norm(alumni.city);
+  const adminCity = norm(admin.city);
+
+  // Tingkat Kota / Kabupaten: alumni harus di kota/kabupaten yang sama
+  if (level === 'kota') {
+    const matchCity = Boolean(adminCity && (almCity.includes(adminCity) || adminCity.includes(almCity)));
+    const matchProv = !adminProv || (almProv.includes(adminProv) || adminProv.includes(almProv));
+    return matchCity && matchProv;
+  }
+
+  const almKec = norm(alumni.kecamatan);
+  const adminKec = norm(admin.kecamatan);
+
+  // Tingkat Kecamatan: alumni harus di kecamatan yang sama
+  if (level === 'kecamatan') {
+    const matchKec = Boolean(adminKec && (almKec.includes(adminKec) || adminKec.includes(almKec)));
+    const matchCity = !adminCity || (almCity.includes(adminCity) || adminCity.includes(almCity));
+    return matchKec && matchCity;
+  }
+
+  // Tingkat Desa
+  if (level === 'desa') {
+    const almDesa = norm(alumni.desa);
+    const adminDesa = norm(admin.desa);
+    return Boolean(adminDesa && (almDesa.includes(adminDesa) || adminDesa.includes(almDesa)));
+  }
+
+  return true;
+};
+
+/**
+ * Memastikan admin hanya dapat menargetkan postingan ke wilayahnya atau wilayah bawahnya.
+ */
+export const isTargetInAdminJurisdiction = (admin: AdminUser, target: AudienceTarget): boolean => {
+  const level: AdminRegionLevel = admin.regionLevel || (admin.role === 'super_admin' ? 'pusat' : 'provinsi');
+  if (level === 'pusat' || admin.role === 'super_admin' || admin.username === '@admin_pusat') {
+    return true;
+  }
+
+  if (target.regionScope === 'semua') {
+    return false;
+  }
+
+  const norm = (s?: string) =>
+    (s || '').toLowerCase().replace(/^(provinsi|kota|kabupaten|kab\.|kecamatan|kec\.|desa|kelurahan)\s+/i, '').trim();
+
+  const targetProv = norm(target.provinceName);
+  const adminProv = norm(admin.province);
+
+  if (level === 'provinsi') {
+    return Boolean(adminProv && (targetProv.includes(adminProv) || adminProv.includes(targetProv)));
+  }
+
+  const targetCity = norm(target.regencyName);
+  const adminCity = norm(admin.city);
+
+  if (level === 'kota') {
+    const matchCity = Boolean(adminCity && (targetCity.includes(adminCity) || adminCity.includes(targetCity)));
+    return matchCity;
+  }
+
+  const targetKec = norm(target.districtName);
+  const adminKec = norm(admin.kecamatan);
+
+  if (level === 'kecamatan') {
+    return Boolean(adminKec && (targetKec.includes(adminKec) || adminKec.includes(targetKec)));
+  }
+
+  return true;
+};

@@ -926,7 +926,8 @@ export async function saveRsvpToHostinger(
   eventId: string,
   alumniId: string,
   status: 'hadir' | 'belum_pasti' | 'tidak_hadir',
-  note?: string
+  note?: string,
+  author?: { name?: string; username?: string; photoUrl?: string }
 ): Promise<{ success: boolean }> {
   const endpoints = [
     `${HOSTINGER_API_URL}?action=save_rsvp`,
@@ -934,18 +935,29 @@ export async function saveRsvpToHostinger(
     '/api/events/rsvp',
   ];
 
+  const payload = {
+    eventId,
+    alumniId,
+    status,
+    note,
+    authorName: author?.name,
+    authorHandle: author?.username,
+    authorAvatar: author?.photoUrl,
+  };
+
   await Promise.allSettled(
     endpoints.map((ep) =>
       fetch(ep, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ eventId, alumniId, status, note }),
+        body: JSON.stringify(payload),
         signal: AbortSignal.timeout(10000),
       })
     )
   );
 
   broadcastSyncEvent('events');
+  broadcastSyncEvent('comments');
   return { success: true };
 }
 

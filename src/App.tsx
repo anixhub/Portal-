@@ -173,7 +173,9 @@ export default function App() {
               (a) => a.id === prev.alumniData!.id || (a.nik && a.nik === prev.alumniData!.nik)
             );
             if (freshMe) {
-              return { ...prev, alumniData: freshMe };
+              // Username tidak boleh ikut berubah saat nama berubah
+              const persistentUsername = prev.alumniData.username || freshMe.username;
+              return { ...prev, alumniData: { ...freshMe, username: persistentUsername } };
             }
           }
           return prev;
@@ -296,9 +298,16 @@ export default function App() {
     if (!currentSession?.alumniData) return;
 
     const prevAlumni = currentSession.alumniData;
+    // Jangan ubah username saat nama diubah
+    const lockedUsername = updates.username !== undefined ? updates.username : prevAlumni.username;
+    const finalUpdates = {
+      ...updates,
+      username: lockedUsername,
+    };
+
     const updatedAlumni: AlumniRecord = {
       ...currentSession.alumniData,
-      ...updates,
+      ...finalUpdates,
     };
 
     if ('coordinates' in updates && !updates.coordinates) {
@@ -528,7 +537,11 @@ export default function App() {
     );
 
     if (currentSession?.alumniData?.id) {
-      await saveRsvpToHostinger(eventId, currentSession.alumniData.id, rsvp, note);
+      await saveRsvpToHostinger(eventId, currentSession.alumniData.id, rsvp, note, {
+        name: currentSession.alumniData.name,
+        username: currentSession.alumniData.username,
+        photoUrl: currentSession.alumniData.photoUrl,
+      });
     }
   };
 

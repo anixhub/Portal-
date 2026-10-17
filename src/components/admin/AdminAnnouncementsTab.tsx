@@ -516,8 +516,9 @@ export const AdminAnnouncementsTab: React.FC<AdminAnnouncementsTabProps> = ({
       {activeCommentsAnnouncement && (
         <EventCommentsModal
           targetId={activeCommentsAnnouncement.id}
-          modalTitle="Komentar"
+          modalTitle="Komentar Pengumuman"
           hideAttendanceSummary={true}
+          hideAttendanceLabel={true}
           comments={commentsList}
           currentUser={{
             name: adminUser.name,

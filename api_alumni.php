@@ -937,6 +937,46 @@ if ($action === 'save_rsvp' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 VALUES (:id, :eid, :aid, :st, :nt, NOW()) 
                 ON DUPLICATE KEY UPDATE status = VALUES(status), note = VALUES(note), updated_at = NOW()");
             $stmt->execute([':id' => $id, ':eid' => $eventId, ':aid' => $alumniId, ':st' => $status, ':nt' => $note]);
+
+            // Sync tanggapan kehadiran ke post_comments agar akun admin dan publik dapat langsung melihat komentar konfirmasi kehadiran
+            $defaultNote = ($status === 'hadir') ? 'Insya Allah saya hadir' : (($status === 'tidak_hadir') ? 'Mohon maaf belum bisa hadir' : '');
+            $finalContent = (!empty($note) && trim($note) !== '') ? trim($note) : $defaultNote;
+
+            if ($finalContent !== '') {
+                $authorName = $input['authorName'] ?? '';
+                $authorHandle = $input['authorHandle'] ?? '';
+                $authorAvatar = $input['authorAvatar'] ?? '';
+
+                if (empty($authorName)) {
+                    $sStmt = $pdo->prepare("SELECT nama, username, foto FROM santri WHERE id = :aid OR nis = :aid OR nik = :aid LIMIT 1");
+                    $sStmt->execute([':aid' => $alumniId]);
+                    $sRow = $sStmt->fetch();
+                    if ($sRow) {
+                        $authorName = $sRow['nama'];
+                        $authorHandle = !empty($sRow['username']) ? '@' . ltrim($sRow['username'], '@') : '@alumni';
+                        $authorAvatar = $sRow['foto'] ?? '';
+                    }
+                }
+
+                $commId = 'comm-rsvp-' . $alumniId . '-' . $eventId;
+                $commStatus = ($status === 'hadir' || $status === 'tidak_hadir') ? $status : 'netral';
+                $cStmt = $pdo->prepare("INSERT INTO post_comments (
+                    id, post_type, post_id, author_id, author_name, author_handle, author_avatar, avatar_ring, status, content, likes_count, created_at
+                ) VALUES (
+                    :cid, 'event', :eid, :aid, :aname, :ahandle, :aavatar, 1, :st, :cnt, 0, NOW()
+                ) ON DUPLICATE KEY UPDATE status = VALUES(status), content = VALUES(content)");
+                $cStmt->execute([
+                    ':cid' => $commId,
+                    ':eid' => $eventId,
+                    ':aid' => $alumniId,
+                    ':aname' => $authorName ?: 'Alumni',
+                    ':ahandle' => $authorHandle ?: '@alumni',
+                    ':aavatar' => $authorAvatar ?: '',
+                    ':st' => $commStatus,
+                    ':cnt' => $finalContent,
+                ]);
+            }
+
             echo json_encode(['success' => true, 'message' => 'RSVP berhasil disimpan']);
         } catch (Exception $e) {
             http_response_code(500);
@@ -1301,7 +1341,7 @@ if ($action === 'save_comment' && $_SERVER['REQUEST_METHOD'] === 'POST') {
             id, post_type, post_id, parent_comment_id, author_id, author_name, author_handle, author_avatar, avatar_ring, status, content, likes_count, created_at
         ) VALUES (
             :id, :ptype, :pid, :pcid, :aid, :aname, :ahandle, :aavatar, :aring, :status, :content, :likes, NOW()
-        ) ON DUPLICATE KEY UPDATE content = VALUES(content), likes_count = VALUES(likes_count)";
+        ) ON DUPLICATE KEY UPDATE content = VALUES(content), status = VALUES(status), likes_count = VALUES(likes_count)";
         $stmt = $pdo->prepare($sql);
         $stmt->execute([
             ':id' => $id,
