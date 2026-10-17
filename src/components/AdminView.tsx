@@ -68,6 +68,9 @@ import { INITIAL_EVENT_COMMENTS, INITIAL_ANNOUNCEMENTS } from '../data/mockData'
 import { 
   saveEventToHostinger, 
   deleteEventFromHostinger, 
+  deleteAnnouncementFromHostinger,
+  getDeletedEventIds,
+  getDeletedAnnouncementIds,
   fetchCommentsFromDatabase, 
   saveCommentToDatabase, 
   toggleCommentLikeInDatabase 
@@ -155,11 +158,16 @@ export const AdminView: React.FC<AdminViewProps> = ({
   onRefreshData,
 }) => {
   const [activeTab, setActiveTab] = useState<AdminTab>('alumni');
-  const [eventList, setEventList] = useState<EventAgenda[]>(events);
+  const [eventList, setEventList] = useState<EventAgenda[]>(() => {
+    const deleted = getDeletedEventIds();
+    return (events || []).filter((e) => e && e.id && !deleted.includes(e.id));
+  });
   const [agendaScopeFilter, setAgendaScopeFilter] = useState<'Semua' | 'Umum' | 'Provinsi' | 'Kabupaten' | 'Kecamatan' | 'Desa'>('Semua');
-  const [announcementList, setAnnouncementList] = useState<AnnouncementItem[]>(
-    announcements || INITIAL_ANNOUNCEMENTS
-  );
+  const [announcementList, setAnnouncementList] = useState<AnnouncementItem[]>(() => {
+    const deleted = getDeletedAnnouncementIds();
+    const source = announcements || INITIAL_ANNOUNCEMENTS;
+    return source.filter((a) => a && a.id && !deleted.includes(a.id));
+  });
   const [isQuranViewOpen, setIsQuranViewOpen] = useState(false);
   const [isMaulidViewOpen, setIsMaulidViewOpen] = useState(false);
   const [isDzikirViewOpen, setIsDzikirViewOpen] = useState(false);
@@ -211,12 +219,14 @@ export const AdminView: React.FC<AdminViewProps> = ({
   }, [admin]);
 
   useEffect(() => {
-    setEventList(events);
+    const deleted = getDeletedEventIds();
+    setEventList((events || []).filter((e) => e && e.id && !deleted.includes(e.id)));
   }, [events]);
 
   useEffect(() => {
     if (announcements) {
-      setAnnouncementList(announcements);
+      const deleted = getDeletedAnnouncementIds();
+      setAnnouncementList(announcements.filter((a) => a && a.id && !deleted.includes(a.id)));
     }
   }, [announcements]);
 
@@ -243,6 +253,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
   const handleDeleteAnnouncement = (id: string) => {
     setAnnouncementList((prev) => prev.filter((item) => item.id !== id));
     onDeleteAnnouncement?.(id);
+    deleteAnnouncementFromHostinger(id);
   };
 
   const handleSaveAdminUsername = (e: React.FormEvent) => {
@@ -1070,11 +1081,11 @@ export const AdminView: React.FC<AdminViewProps> = ({
       return;
     }
     if (!cleanDate || cleanDate.toLowerCase() === 'belum ditentukan') {
-      triggerToast('Waktu tanggal agenda wajib dipilih');
+      triggerToast('Waktu tanggal agenda wajib diisi');
       return;
     }
     if (!cleanTime || cleanTime.toLowerCase() === 'belum ditentukan') {
-      triggerToast('Jam pelaksanaan agenda wajib diatur');
+      triggerToast('Jam pelaksanaan agenda wajib diisi');
       return;
     }
     if (!cleanLocation || cleanLocation.toLowerCase() === 'belum ditentukan') {
@@ -1438,7 +1449,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
                           {session.title}
                         </h5>
                         <p className="text-xs text-slate-400 font-medium mt-1">
-                          {session.date}
+                          {formatToDDMMYYYY(session.date)}
                         </p>
                       </div>
 
@@ -2841,7 +2852,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
               {/* 2. Kotak Keterangan (DI BAWAH KOTAK NAMA AGENDA) */}
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                  Keterangan Agenda
+                  Keterangan Agenda <span className="text-rose-500">*</span>
                 </label>
                 <textarea
                   rows={5}
@@ -2865,7 +2876,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
                 >
                   <div className="flex items-center gap-2.5 min-w-0 flex-1">
                     <Calendar className="w-4 h-4 text-slate-400 group-hover:text-sky-600 transition-colors shrink-0" />
-                    <span className="text-xs font-semibold text-slate-700">Tanggal</span>
+                    <span className="text-xs font-semibold text-slate-700">Tanggal <span className="text-rose-500">*</span></span>
                   </div>
                   <div className="flex items-center gap-1.5">
                     <span className={`text-xs ${eventDate ? 'font-bold text-sky-700' : 'text-slate-400'}`}>
@@ -2875,33 +2886,36 @@ export const AdminView: React.FC<AdminViewProps> = ({
                   </div>
                 </div>
 
-                {/* Waktu Kegiatan */}
+                {/* Jam / Waktu Kegiatan */}
                 <div 
                   onClick={() => setIsTimePickerSheetOpen(true)}
                   className="py-3 flex items-center justify-between cursor-pointer group hover:bg-slate-50 px-2 rounded-xl transition-colors select-none"
                 >
                   <div className="flex items-center gap-2.5 min-w-0 flex-1">
                     <Clock className="w-4 h-4 text-slate-400 group-hover:text-sky-600 transition-colors shrink-0" />
-                    <span className="text-xs font-semibold text-slate-700">Waktu</span>
+                    <span className="text-xs font-semibold text-slate-700">Jam / Waktu <span className="text-rose-500">*</span></span>
                   </div>
                   <div className="flex items-center gap-1.5">
                     <span className={`text-xs ${eventTime ? 'font-bold text-sky-700' : 'text-slate-400'}`}>
-                      {eventTime || 'Pilih waktu...'}
+                      {eventTime || 'Pilih jam...'}
                     </span>
                     <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-slate-600 transition-all" />
                   </div>
                 </div>
 
-                {/* Lokasi Kegiatan */}
+                {/* Lokasi / Tempat Kegiatan */}
                 <div className="py-2.5 px-2 flex items-center gap-2.5">
                   <MapPin className="w-4 h-4 text-slate-400 shrink-0" />
-                  <input
-                    type="text"
-                    value={eventLocation}
-                    onChange={(e) => setEventLocation(e.target.value)}
-                    placeholder="Tulis lokasi atau tempat kegiatan..."
-                    className="w-full text-xs font-semibold text-slate-800 placeholder-slate-400 focus:outline-none"
-                  />
+                  <div className="flex items-center gap-2 min-w-0 flex-1">
+                    <span className="text-xs font-semibold text-slate-700 shrink-0">Tempat <span className="text-rose-500">*</span></span>
+                    <input
+                      type="text"
+                      value={eventLocation}
+                      onChange={(e) => setEventLocation(e.target.value)}
+                      placeholder="Tulis tempat atau lokasi kegiatan..."
+                      className="w-full text-xs font-semibold text-slate-800 placeholder-slate-400 focus:outline-none"
+                    />
+                  </div>
                 </div>
 
                 {/* Jangkauan Agenda */}

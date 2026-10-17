@@ -1903,7 +1903,7 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
                         </div>
                       </div>
 
-                      {/* Tombol Unduh & Bagikan (Menggantikan Posisi Titik Tiga di Kanan Atas) */}
+                      {/* Tombol Unduh, Bagikan & Opsi Menu Titik Tiga */}
                       <div className="flex items-center gap-1 shrink-0">
                         <button
                           type="button"
@@ -1921,6 +1921,15 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
                           title="Bagikan Event"
                         >
                           <Share2 className="w-4 h-4" />
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => setActiveMenuEvent(ev)}
+                          className="w-8 h-8 rounded-full text-slate-400 hover:text-slate-700 hover:bg-slate-100 flex items-center justify-center transition-colors cursor-pointer active:scale-95"
+                          title="Opsi Agenda"
+                        >
+                          <MoreVertical className="w-4 h-4" />
                         </button>
                       </div>
                     </div>
@@ -2024,7 +2033,7 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
                           <div className="flex items-center gap-2">
                             <Calendar className="w-4 h-4 text-sky-600 shrink-0" />
                             <span className="text-slate-500 font-medium">Tanggal:</span>
-                            <span className="font-semibold text-slate-800">{ev.date}</span>
+                            <span className="font-semibold text-slate-800">{formatToDDMMYYYY(ev.date)}</span>
                           </div>
                           <div className="flex items-center gap-2">
                             <Clock className="w-4 h-4 text-amber-600 shrink-0" />
@@ -4002,7 +4011,7 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
                         </h4>
                         <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
                           <span className="text-[11px] text-slate-400">
-                            {ann.date}
+                            {formatToDDMMYYYY(ann.date)}
                           </span>
                           <span className="text-[10px] font-bold text-sky-700 bg-sky-50 border border-sky-200 px-2 py-0.5 rounded-full flex items-center gap-1">
                             <Globe className="w-2.5 h-2.5 text-sky-600" />
@@ -5184,6 +5193,194 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
               >
                 <Copy className="w-5 h-5 text-slate-700 shrink-0" />
                 <span>Salin Teks Pengumuman</span>
+              </button>
+
+              {/* 2. Hapus Pengumuman */}
+              <button
+                type="button"
+                onClick={() => {
+                  const ann = activeMenuAnnouncement;
+                  setActiveMenuAnnouncement(null);
+                  setAnnouncementToDelete(ann);
+                }}
+                className="w-full flex items-center gap-3.5 px-4 py-3 rounded-2xl hover:bg-rose-50 text-rose-600 font-semibold text-sm transition-colors cursor-pointer text-left"
+              >
+                <Trash2 className="w-5 h-5 text-rose-600 shrink-0" />
+                <span>Hapus Pengumuman</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ================= BOTTOM SHEET MENU TITIK 3 AGENDA ALUMNI ================= */}
+      {activeMenuEvent && (
+        <div 
+          className="fixed inset-0 z-[100020] bg-black/60 backdrop-blur-xs flex items-end justify-center animate-in fade-in duration-150"
+          onClick={() => setActiveMenuEvent(null)}
+        >
+          <div 
+            className="bg-white rounded-t-3xl w-full max-w-lg p-5 pb-6 space-y-2 shadow-2xl border-t border-slate-200 animate-in slide-in-from-bottom duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Top Drag Handle */}
+            <div className="w-10 h-1 bg-slate-300 rounded-full mx-auto mb-2" />
+
+            <div className="space-y-1">
+              {/* 1. Salin Teks Agenda */}
+              <button
+                type="button"
+                onClick={() => {
+                  const ev = activeMenuEvent;
+                  setActiveMenuEvent(null);
+                  if (navigator.clipboard) {
+                    navigator.clipboard.writeText(`*${ev.title}*\n\n🗓️ Tanggal: ${formatToDDMMYYYY(ev.date)}\n⏰ Waktu: ${ev.time}\n📍 Tempat: ${ev.location}\n\n${ev.description}\n\nInfo selengkapnya di Portal Alumni Ponpes At-Taroqqy`);
+                  }
+                  triggerToast('Teks agenda disalin');
+                }}
+                className="w-full flex items-center gap-3.5 px-4 py-3 rounded-2xl hover:bg-slate-50 text-slate-800 font-semibold text-sm transition-colors cursor-pointer text-left"
+              >
+                <Copy className="w-5 h-5 text-slate-700 shrink-0" />
+                <span>Salin Teks Agenda</span>
+              </button>
+
+              {/* 2. Bagikan Agenda */}
+              <button
+                type="button"
+                onClick={() => {
+                  const ev = activeMenuEvent;
+                  setActiveMenuEvent(null);
+                  handleShareEvent(ev);
+                }}
+                className="w-full flex items-center gap-3.5 px-4 py-3 rounded-2xl hover:bg-slate-50 text-slate-800 font-semibold text-sm transition-colors cursor-pointer text-left"
+              >
+                <Share2 className="w-5 h-5 text-slate-700 shrink-0" />
+                <span>Bagikan Agenda</span>
+              </button>
+
+              {/* 3. Unduh Poster jika ada */}
+              {((activeMenuEvent.images && activeMenuEvent.images.length > 0) || Boolean(activeMenuEvent.posterUrl?.trim())) && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const ev = activeMenuEvent;
+                    setActiveMenuEvent(null);
+                    handleDownloadPoster(ev);
+                  }}
+                  className="w-full flex items-center gap-3.5 px-4 py-3 rounded-2xl hover:bg-slate-50 text-slate-800 font-semibold text-sm transition-colors cursor-pointer text-left"
+                >
+                  <Download className="w-5 h-5 text-slate-700 shrink-0" />
+                  <span>Unduh Poster</span>
+                </button>
+              )}
+
+              {/* 4. Hapus Agenda */}
+              <button
+                type="button"
+                onClick={() => {
+                  const ev = activeMenuEvent;
+                  setActiveMenuEvent(null);
+                  setEventToDelete(ev);
+                }}
+                className="w-full flex items-center gap-3.5 px-4 py-3 rounded-2xl hover:bg-rose-50 text-rose-600 font-semibold text-sm transition-colors cursor-pointer text-left"
+              >
+                <Trash2 className="w-5 h-5 text-rose-600 shrink-0" />
+                <span>Hapus Agenda</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ================= MODAL KONFIRMASI HAPUS AGENDA ================= */}
+      {eventToDelete && (
+        <div 
+          className="fixed inset-0 z-[100030] bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150 select-none"
+          onClick={() => setEventToDelete(null)}
+        >
+          <div 
+            className="bg-white rounded-3xl p-5 max-w-sm w-full space-y-3.5 shadow-2xl border border-slate-100 text-center animate-in zoom-in-95 duration-150"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="w-12 h-12 rounded-full bg-rose-50 text-rose-600 mx-auto flex items-center justify-center">
+              <Trash2 className="w-6 h-6" />
+            </div>
+            <div>
+              <h3 className="font-display font-bold text-base text-slate-900">
+                Hapus Agenda?
+              </h3>
+              <p className="text-xs text-slate-500 mt-1">
+                Agenda <b>"{eventToDelete.title}"</b> akan dihapus secara permanen dari sistem.
+              </p>
+            </div>
+            <div className="flex items-center gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setEventToDelete(null)}
+                className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs cursor-pointer"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const id = eventToDelete.id;
+                  onDeleteEvent?.(id);
+                  deleteEventFromHostinger(id);
+                  setEventToDelete(null);
+                  triggerToast('Agenda berhasil dihapus');
+                }}
+                className="flex-1 py-2.5 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-xl text-xs cursor-pointer shadow-md shadow-rose-600/20"
+              >
+                Hapus
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ================= MODAL KONFIRMASI HAPUS PENGUMUMAN ================= */}
+      {announcementToDelete && (
+        <div 
+          className="fixed inset-0 z-[100030] bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150 select-none"
+          onClick={() => setAnnouncementToDelete(null)}
+        >
+          <div 
+            className="bg-white rounded-3xl p-5 max-w-sm w-full space-y-3.5 shadow-2xl border border-slate-100 text-center animate-in zoom-in-95 duration-150"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="w-12 h-12 rounded-full bg-rose-50 text-rose-600 mx-auto flex items-center justify-center">
+              <Trash2 className="w-6 h-6" />
+            </div>
+            <div>
+              <h3 className="font-display font-bold text-base text-slate-900">
+                Hapus Pengumuman?
+              </h3>
+              <p className="text-xs text-slate-500 mt-1">
+                Pengumuman <b>"{announcementToDelete.title}"</b> akan dihapus secara permanen dari sistem.
+              </p>
+            </div>
+            <div className="flex items-center gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setAnnouncementToDelete(null)}
+                className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs cursor-pointer"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const id = announcementToDelete.id;
+                  setAnnouncements((prev) => prev.filter((a) => a.id !== id));
+                  onDeleteAnnouncement?.(id);
+                  deleteAnnouncementFromHostinger(id);
+                  setAnnouncementToDelete(null);
+                  triggerToast('Pengumuman berhasil dihapus');
+                }}
+                className="flex-1 py-2.5 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-xl text-xs cursor-pointer shadow-md shadow-rose-600/20"
+              >
+                Hapus
               </button>
             </div>
           </div>

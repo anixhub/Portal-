@@ -727,8 +727,69 @@ export async function resetAlumniPasswordInHostinger(
  * ==========================================
  */
 
+export function getDeletedEventIds(): string[] {
+  try {
+    const raw = localStorage.getItem('attaroqqy_deleted_event_ids_v1');
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) return parsed;
+    }
+  } catch (e) {}
+  return [];
+}
+
+export function addDeletedEventId(id: string) {
+  if (!id) return;
+  try {
+    const list = getDeletedEventIds();
+    if (!list.includes(id)) {
+      list.push(id);
+      localStorage.setItem('attaroqqy_deleted_event_ids_v1', JSON.stringify(list));
+    }
+  } catch (e) {}
+}
+
+export function removeDeletedEventId(id: string) {
+  if (!id) return;
+  try {
+    const list = getDeletedEventIds().filter((dId) => dId !== id);
+    localStorage.setItem('attaroqqy_deleted_event_ids_v1', JSON.stringify(list));
+  } catch (e) {}
+}
+
+export function getDeletedAnnouncementIds(): string[] {
+  try {
+    const raw = localStorage.getItem('attaroqqy_deleted_announcement_ids_v1');
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) return parsed;
+    }
+  } catch (e) {}
+  return [];
+}
+
+export function addDeletedAnnouncementId(id: string) {
+  if (!id) return;
+  try {
+    const list = getDeletedAnnouncementIds();
+    if (!list.includes(id)) {
+      list.push(id);
+      localStorage.setItem('attaroqqy_deleted_announcement_ids_v1', JSON.stringify(list));
+    }
+  } catch (e) {}
+}
+
+export function removeDeletedAnnouncementId(id: string) {
+  if (!id) return;
+  try {
+    const list = getDeletedAnnouncementIds().filter((dId) => dId !== id);
+    localStorage.setItem('attaroqqy_deleted_announcement_ids_v1', JSON.stringify(list));
+  } catch (e) {}
+}
+
 export async function fetchEventsFromHostinger(): Promise<{ success: boolean; data: EventAgenda[] }> {
   const ts = Date.now();
+  const deletedIds = getDeletedEventIds();
   const endpoints = [
     `${HOSTINGER_API_URL}?action=get_events&_t=${ts}`,
     `https://alumni.attaroqqy.com/api_alumni.php?action=get_events&_t=${ts}`,
@@ -748,10 +809,11 @@ export async function fetchEventsFromHostinger(): Promise<{ success: boolean; da
           const json = JSON.parse(text);
           const list = Array.isArray(json) ? json : (Array.isArray(json?.data) ? json.data : null);
           if (Array.isArray(list)) {
+            const cleanList = list.filter((e: any) => e && e.id && !deletedIds.includes(e.id));
             try {
-              localStorage.setItem('attaroqqy_events_cache_v1', JSON.stringify(list));
+              localStorage.setItem('attaroqqy_events_cache_v1', JSON.stringify(cleanList));
             } catch (e) {}
-            return { success: true, data: list };
+            return { success: true, data: cleanList };
           }
         }
       }
@@ -766,7 +828,8 @@ export async function fetchEventsFromHostinger(): Promise<{ success: boolean; da
     if (cached !== null) {
       const parsed = JSON.parse(cached);
       if (Array.isArray(parsed)) {
-        return { success: true, data: parsed };
+        const cleanList = parsed.filter((e: any) => e && e.id && !deletedIds.includes(e.id));
+        return { success: true, data: cleanList };
       }
     }
   } catch (e) {}
@@ -776,6 +839,9 @@ export async function fetchEventsFromHostinger(): Promise<{ success: boolean; da
 
 export async function saveEventToHostinger(event: EventAgenda): Promise<{ success: boolean; id?: string }> {
   try {
+    if (event.id) {
+      removeDeletedEventId(event.id);
+    }
     // 1. Simpan segera ke localStorage agar responsif
     try {
       const raw = localStorage.getItem('attaroqqy_events_cache_v1');
@@ -815,6 +881,7 @@ export async function saveEventToHostinger(event: EventAgenda): Promise<{ succes
 
 export async function deleteEventFromHostinger(id: string): Promise<{ success: boolean }> {
   try {
+    addDeletedEventId(id);
     try {
       const raw = localStorage.getItem('attaroqqy_events_cache_v1');
       if (raw) {
@@ -890,6 +957,7 @@ export async function saveRsvpToHostinger(
 
 export async function fetchAnnouncementsFromHostinger(): Promise<{ success: boolean; data: AnnouncementItem[] }> {
   const ts = Date.now();
+  const deletedIds = getDeletedAnnouncementIds();
   const endpoints = [
     `${HOSTINGER_API_URL}?action=get_announcements&_t=${ts}`,
     `https://alumni.attaroqqy.com/api_alumni.php?action=get_announcements&_t=${ts}`,
@@ -909,10 +977,11 @@ export async function fetchAnnouncementsFromHostinger(): Promise<{ success: bool
           const json = JSON.parse(text);
           const list = Array.isArray(json) ? json : (Array.isArray(json?.data) ? json.data : null);
           if (Array.isArray(list)) {
+            const cleanList = list.filter((a: any) => a && a.id && !deletedIds.includes(a.id));
             try {
-              localStorage.setItem('attaroqqy_announcements_cache_v1', JSON.stringify(list));
+              localStorage.setItem('attaroqqy_announcements_cache_v1', JSON.stringify(cleanList));
             } catch (e) {}
-            return { success: true, data: list };
+            return { success: true, data: cleanList };
           }
         }
       }
@@ -925,7 +994,8 @@ export async function fetchAnnouncementsFromHostinger(): Promise<{ success: bool
     if (cached !== null) {
       const parsed = JSON.parse(cached);
       if (Array.isArray(parsed)) {
-        return { success: true, data: parsed };
+        const cleanList = parsed.filter((a: any) => a && a.id && !deletedIds.includes(a.id));
+        return { success: true, data: cleanList };
       }
     }
   } catch (e) {}
@@ -937,6 +1007,9 @@ export async function saveAnnouncementToHostinger(
   announcement: AnnouncementItem
 ): Promise<{ success: boolean; id?: string }> {
   try {
+    if (announcement.id) {
+      removeDeletedAnnouncementId(announcement.id);
+    }
     // 1. Simpan segera ke localStorage
     try {
       const raw = localStorage.getItem('attaroqqy_announcements_cache_v1');
@@ -976,6 +1049,7 @@ export async function saveAnnouncementToHostinger(
 
 export async function deleteAnnouncementFromHostinger(id: string): Promise<{ success: boolean }> {
   try {
+    addDeletedAnnouncementId(id);
     try {
       const raw = localStorage.getItem('attaroqqy_announcements_cache_v1');
       if (raw) {

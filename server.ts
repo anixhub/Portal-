@@ -280,6 +280,8 @@ async function startServer() {
   // Persistent file paths for dev/fallback storage
   const eventsStorePath = path.resolve(__dirname, 'src/data/events_store.json');
   const announcementsStorePath = path.resolve(__dirname, 'src/data/announcements_store.json');
+  const deletedEventsStorePath = path.resolve(__dirname, 'src/data/deleted_events_store.json');
+  const deletedAnnouncementsStorePath = path.resolve(__dirname, 'src/data/deleted_announcements_store.json');
   const commentsStorePath = path.resolve(__dirname, 'src/data/comments_store.json');
   const quranBookmarksStorePath = path.resolve(__dirname, 'src/data/quran_bookmarks_store.json');
 
@@ -302,8 +304,10 @@ async function startServer() {
     }
   };
 
-  let cachedEvents: any[] = loadJsonStore(eventsStorePath, []);
-  let cachedAnnouncements: any[] = loadJsonStore(announcementsStorePath, []);
+  let deletedEventIds: string[] = loadJsonStore(deletedEventsStorePath, []);
+  let deletedAnnouncementIds: string[] = loadJsonStore(deletedAnnouncementsStorePath, []);
+  let cachedEvents: any[] = loadJsonStore(eventsStorePath, []).filter((e: any) => e && e.id && !deletedEventIds.includes(e.id));
+  let cachedAnnouncements: any[] = loadJsonStore(announcementsStorePath, []).filter((a: any) => a && a.id && !deletedAnnouncementIds.includes(a.id));
   let cachedComments: any[] = loadJsonStore(commentsStorePath, []);
   let cachedQuranBookmarks: Record<string, any> = loadJsonStore(quranBookmarksStorePath, {});
 
@@ -320,23 +324,27 @@ async function startServer() {
         if (text.trim().startsWith('{') || text.trim().startsWith('[')) {
           const data = JSON.parse(text);
           const list = Array.isArray(data) ? data : (Array.isArray(data?.data) ? data.data : null);
-          if (Array.isArray(list) && list.length > 0) {
-            cachedEvents = list;
+          if (Array.isArray(list)) {
+            const filtered = list.filter((e: any) => e && e.id && !deletedEventIds.includes(e.id));
+            cachedEvents = filtered;
             saveJsonStore(eventsStorePath, cachedEvents);
-            return res.json({ success: true, data: list });
+            return res.json({ success: true, data: filtered });
           }
         }
       }
     } catch (err: any) {
       // Ignore network/remote formatting errors safely
     }
-    res.json({ success: true, data: cachedEvents });
+    const filteredCached = cachedEvents.filter((e: any) => e && e.id && !deletedEventIds.includes(e.id));
+    res.json({ success: true, data: filteredCached });
   });
 
   // Events API: POST (save/create/update)
   app.post('/api/events', async (req, res) => {
     const event = req.body;
     if (event && event.id) {
+      deletedEventIds = deletedEventIds.filter((dId) => dId !== event.id);
+      saveJsonStore(deletedEventsStorePath, deletedEventIds);
       const idx = cachedEvents.findIndex((e: any) => e.id === event.id);
       if (idx >= 0) cachedEvents[idx] = event;
       else cachedEvents.unshift(event);
@@ -363,6 +371,10 @@ async function startServer() {
   // Events API: DELETE (DELETE & POST)
   const handleEventDeletion = async (id: string, res: any) => {
     if (!id) return res.status(400).json({ success: false, message: 'ID required' });
+    if (!deletedEventIds.includes(id)) {
+      deletedEventIds.push(id);
+      saveJsonStore(deletedEventsStorePath, deletedEventIds);
+    }
     cachedEvents = cachedEvents.filter((e: any) => e.id !== id);
     saveJsonStore(eventsStorePath, cachedEvents);
     try {
@@ -421,23 +433,27 @@ async function startServer() {
         if (text.trim().startsWith('{') || text.trim().startsWith('[')) {
           const data = JSON.parse(text);
           const list = Array.isArray(data) ? data : (Array.isArray(data?.data) ? data.data : null);
-          if (Array.isArray(list) && list.length > 0) {
-            cachedAnnouncements = list;
+          if (Array.isArray(list)) {
+            const filtered = list.filter((a: any) => a && a.id && !deletedAnnouncementIds.includes(a.id));
+            cachedAnnouncements = filtered;
             saveJsonStore(announcementsStorePath, cachedAnnouncements);
-            return res.json({ success: true, data: list });
+            return res.json({ success: true, data: filtered });
           }
         }
       }
     } catch (err: any) {
       // Ignore network/remote formatting errors safely
     }
-    res.json({ success: true, data: cachedAnnouncements });
+    const filteredCached = cachedAnnouncements.filter((a: any) => a && a.id && !deletedAnnouncementIds.includes(a.id));
+    res.json({ success: true, data: filteredCached });
   });
 
   // Announcements API: POST (save/create/update)
   app.post('/api/announcements', async (req, res) => {
     const ann = req.body;
     if (ann && ann.id) {
+      deletedAnnouncementIds = deletedAnnouncementIds.filter((dId) => dId !== ann.id);
+      saveJsonStore(deletedAnnouncementsStorePath, deletedAnnouncementIds);
       const idx = cachedAnnouncements.findIndex((a: any) => a.id === ann.id);
       if (idx >= 0) cachedAnnouncements[idx] = ann;
       else cachedAnnouncements.unshift(ann);
@@ -464,6 +480,10 @@ async function startServer() {
   // Announcements API: DELETE (DELETE & POST)
   const handleAnnouncementDeletion = async (id: string, res: any) => {
     if (!id) return res.status(400).json({ success: false, message: 'ID required' });
+    if (!deletedAnnouncementIds.includes(id)) {
+      deletedAnnouncementIds.push(id);
+      saveJsonStore(deletedAnnouncementsStorePath, deletedAnnouncementIds);
+    }
     cachedAnnouncements = cachedAnnouncements.filter((a: any) => a.id !== id);
     saveJsonStore(announcementsStorePath, cachedAnnouncements);
     try {

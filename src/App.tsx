@@ -26,6 +26,8 @@ import {
   fetchAnnouncementsFromHostinger,
   saveAnnouncementToHostinger,
   deleteAnnouncementFromHostinger,
+  getDeletedEventIds,
+  getDeletedAnnouncementIds,
   syncChannel,
 } from './services/apiService';
 
@@ -73,25 +75,31 @@ export default function App() {
 
   // Events & Announcements dengan persistensi lokal dan sinkronisasi database
   const [events, setEvents] = useState<EventAgenda[]>(() => {
+    const deletedIds = getDeletedEventIds();
     try {
       const saved = localStorage.getItem('attaroqqy_events_cache_v1');
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed)) {
+          return parsed.filter((e) => e && e.id && !deletedIds.includes(e.id));
+        }
       }
     } catch (e) {}
-    return INITIAL_EVENTS;
+    return INITIAL_EVENTS.filter((e) => !deletedIds.includes(e.id));
   });
 
   const [announcements, setAnnouncements] = useState<AnnouncementItem[]>(() => {
+    const deletedIds = getDeletedAnnouncementIds();
     try {
       const saved = localStorage.getItem('attaroqqy_announcements_cache_v1');
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed)) {
+          return parsed.filter((a) => a && a.id && !deletedIds.includes(a.id));
+        }
       }
     } catch (e) {}
-    return INITIAL_ANNOUNCEMENTS;
+    return INITIAL_ANNOUNCEMENTS.filter((a) => !deletedIds.includes(a.id));
   });
 
   useEffect(() => {
@@ -175,11 +183,13 @@ export default function App() {
       }
 
       if (eventsRes.success && Array.isArray(eventsRes.data)) {
-        setEvents(eventsRes.data);
+        const deletedIds = getDeletedEventIds();
+        setEvents(eventsRes.data.filter((e) => e && e.id && !deletedIds.includes(e.id)));
       }
 
       if (annRes.success && Array.isArray(annRes.data)) {
-        setAnnouncements(annRes.data);
+        const deletedIds = getDeletedAnnouncementIds();
+        setAnnouncements(annRes.data.filter((a) => a && a.id && !deletedIds.includes(a.id)));
       }
     } catch (err) {
       console.warn('Gagal memuat data dari Hostinger:', err);

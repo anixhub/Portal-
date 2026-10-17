@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { AttendanceSession, AttendanceAttendee, AlumniRecord } from '../../types';
 import { EventAttendanceScannerModal } from './EventAttendanceScannerModal';
+import { formatToDDMMYYYY } from '../../utils/dateUtils';
 
 interface FullAttendanceViewModalProps {
   session: AttendanceSession;
@@ -139,7 +140,7 @@ export const FullAttendanceViewModal: React.FC<FullAttendanceViewModalProps> = (
     link.setAttribute('href', encodedUri);
     link.setAttribute(
       'download',
-      `Presensi_${session.title.replace(/\s+/g, '_')}_${session.date}.csv`
+      `Presensi_${session.title.replace(/\s+/g, '_')}_${formatToDDMMYYYY(session.date)}.csv`
     );
     document.body.appendChild(link);
     link.click();
@@ -471,7 +472,7 @@ export const FullAttendanceViewModal: React.FC<FullAttendanceViewModalProps> = (
           event={{
             id: session.sourceEventId || session.id,
             title: session.title,
-            date: session.date,
+            date: formatToDDMMYYYY(session.date),
             time: 'Pelaksanaan Presensi',
             location: 'Lokasi Acara',
             category: 'reuni',

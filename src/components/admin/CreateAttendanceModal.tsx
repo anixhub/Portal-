@@ -207,7 +207,7 @@ export const CreateAttendanceModal: React.FC<CreateAttendanceModalProps> = ({
                       {ev.title}
                     </p>
                     <p className="text-[11px] text-slate-400 mt-0.5">
-                      {ev.date}
+                      {ev.date ? formatToDDMMYYYY(ev.date) : '-'}
                     </p>
                   </div>
                   <ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />
