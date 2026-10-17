@@ -71,13 +71,6 @@ const MAULID_BOOKS_META: Record<string, MaulidBookMeta> = {
     author: "Imam Abdurrahman ad-Diba'i",
     shortAr: 'مَوْلِدُ الدِّيبَعِيِّ',
     fullAr: 'مَوْلِدُ الدِّيبَعِيِّ'
-  },
-  q: {
-    id: 'q',
-    indoTitle: 'Qashidah Burdah',
-    author: 'Imam Syarafuddin al-Bushiri',
-    shortAr: 'قَصِيدَةُ الْبُرْدَةِ',
-    fullAr: 'قَصِيدَةُ الْبُرْدَةِ'
   }
 };
 
@@ -523,42 +516,47 @@ export const MaulidView: React.FC<MaulidViewProps> = ({
               )}
             </div>
 
-            {/* 2. DAFTAR KITAB MAULID */}
-            <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs divide-y divide-slate-100 overflow-hidden">
+            {/* 2. DAFTAR KITAB MAULID - MODEL KARTU 2 GRID PER BARIS */}
+            <div className="grid grid-cols-2 gap-3 sm:gap-3.5">
               {filteredBooks.map((book) => (
                 <button
                   key={book.id}
                   type="button"
                   onClick={() => openBook(book.originalIndex)}
-                  className="w-full flex items-center justify-between p-3.5 sm:p-4 text-left transition-colors cursor-pointer group hover:bg-emerald-50/60 active:bg-emerald-100/60"
+                  className="bg-white rounded-2xl border border-slate-200/90 hover:border-emerald-500/60 p-3.5 sm:p-4 text-left shadow-2xs hover:shadow-md transition-all duration-200 cursor-pointer flex flex-col justify-between group relative overflow-hidden active:scale-[0.98] min-h-[155px]"
                 >
-                  {/* Sisi Kiri: Nomor dalam Lingkaran Nomor Ayat, Bahasa Indo, Pengarang di Bawahnya */}
-                  <div className="flex items-center gap-3.5 min-w-0 pr-3">
+                  {/* Sisi Atas: Nomor Medali & Tulisan Arab */}
+                  <div className="flex items-start justify-between gap-2 w-full">
                     <AyahCircleMedallion
                       num={book.originalIndex + 1}
-                      size={38}
+                      size={34}
                       circleColorClass="text-amber-900/75 group-hover:text-emerald-800"
                       textColorClass="text-slate-800 group-hover:text-emerald-950 font-extrabold"
                       title={`Kitab ke-${book.originalIndex + 1}`}
                     />
-                    <div className="truncate">
-                      <div className="text-sm sm:text-base font-bold text-slate-900 group-hover:text-emerald-800 truncate leading-snug">
-                        {book.indoTitle}
-                      </div>
-                      <div className="text-[11px] sm:text-xs text-slate-500 group-hover:text-emerald-900/80 truncate mt-0.5 font-normal">
-                        {book.author} • {book.ch.length} Fasal
-                      </div>
-                    </div>
+                    <span
+                      className="font-arabic text-right text-slate-800 group-hover:text-emerald-900 text-xl sm:text-2xl leading-none select-none transition-colors shrink-0"
+                      style={{ fontFamily: "'Amiri Quran', 'Scheherazade New', serif" }}
+                      dir="rtl"
+                    >
+                      {book.shortAr}
+                    </span>
                   </div>
 
-                  {/* Sisi Kanan: Tulisan Arab Kitab Maulid */}
-                  <span
-                    className="font-arabic shrink-0 ml-2 text-slate-800 group-hover:text-emerald-900 text-xl sm:text-2xl leading-none select-none transition-colors text-right"
-                    style={{ fontFamily: "'Amiri Quran', 'Scheherazade New', serif" }}
-                    dir="rtl"
-                  >
-                    {book.shortAr}
-                  </span>
+                  {/* Sisi Bawah: Judul Indonesia, Pengarang, dan Jumlah Fasal */}
+                  <div className="mt-3 w-full">
+                    <h3 className="text-xs sm:text-sm font-bold text-slate-900 group-hover:text-emerald-800 transition-colors leading-snug line-clamp-2">
+                      {book.indoTitle}
+                    </h3>
+                    <p className="text-[10px] sm:text-[11px] text-slate-500 group-hover:text-emerald-900/80 truncate mt-1 font-normal">
+                      {book.author}
+                    </p>
+                    <div className="mt-2.5 flex items-center justify-between">
+                      <span className="inline-flex items-center text-[10px] font-semibold text-emerald-800 bg-emerald-50 group-hover:bg-emerald-100/90 px-2 py-0.5 rounded-full">
+                        {book.ch.length} Fasal
+                      </span>
+                    </div>
+                  </div>
                 </button>
               ))}
             </div>

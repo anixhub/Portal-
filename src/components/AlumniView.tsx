@@ -4422,7 +4422,7 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
                   <p className="text-[11px] text-slate-500">
                     {activeIslamicMenu === 'quran' && 'Bacaan mushaf digital & terjemahan resmi'}
                     {activeIslamicMenu === 'majmuah' && 'Kumpulan doa mustajab & istighotsah masyayikh'}
-                    {activeIslamicMenu === 'maulid' && "Simtudduror, Diba'i, Al-Barzanji, & Qasidah"}
+                    {activeIslamicMenu === 'maulid' && "Simtudduror, Diba'i, Al-Barzanji, & Dhiyaul Lami'"}
                     {(activeIslamicMenu === 'dzikir' || activeIslamicMenu === 'aurod') && 'Dzikir shalat, tasbih digital, Rotib Al-Haddad & Hizib'}
                   </p>
                 </div>
@@ -4538,14 +4538,13 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
                     className="w-full mb-3 py-3 px-4 bg-gradient-to-r from-emerald-700 via-emerald-800 to-teal-800 hover:from-emerald-800 hover:to-teal-900 text-white rounded-2xl font-bold text-xs flex items-center justify-center gap-2 shadow-sm active:scale-[0.98] transition-all cursor-pointer"
                   >
                     <Scroll className="w-4 h-4 text-emerald-200" />
-                    <span>Buka Kumpulan Kitab Maulid Lengkap (5 Kitab)</span>
+                    <span>Buka Kumpulan Kitab Maulid Lengkap (4 Kitab)</span>
                   </button>
                   {[
                     { id: 's', title: 'Maulid Simtudduror', author: 'Al-Habib Ali bin Muhammad Al-Habsyi', rawi: 'Lengkap 15 Rawi & Mahalul Qiyam', arabic: 'سِمْطُ الدُّرَرِ' },
                     { id: 'a', title: 'Maulid Ad-Diba’i', author: 'Al-Imam Abdurrahman Ad-Diba’i', rawi: 'Bait qasidah & sholawat pembuka', arabic: 'مَوْلِدُ الدِّيبَعِيِّ' },
                     { id: 'b', title: 'Maulid Al-Barzanji', author: 'Sayyid Ja’far bin Hasan Al-Barzanji', rawi: 'Nasab mulia & akhlak Rasulullah SAW', arabic: 'مَوْلِدُ الْبَرْزَنْجِيِّ' },
                     { id: 'd', title: 'Maulid Dhiyaul Lami’', author: 'Al-Habib Umar bin Hafidz', rawi: 'Untaian cahaya maulid zaman kini', arabic: 'الضِّيَاءُ اللَّامِعُ' },
-                    { id: 'q', title: 'Qashidah Burdah', author: 'Imam Al-Bushiri', rawi: '10 Fasal syair kecintaan kpd Nabi', arabic: 'قَصِيدَةُ الْبُرْدَةِ' },
                   ].map((m) => (
                     <div
                       key={m.id}

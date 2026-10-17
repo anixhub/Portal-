@@ -589,12 +589,6 @@ export function buildMaulidBooks(): MaulidBook[] {
       ar: "مَوْلِدُ الدِّيبَعِيِّ",
       id_: "Maulid Ad-Diba'i · Imam Abdurrahman ad-Diba'i",
       ch: AD_DIBAI_CH
-    },
-    {
-      id: "q",
-      ar: "قَصِيدَةُ الْبُرْدَةِ",
-      id_: "Qashidah Burdah · Al-Imam Syarafuddin al-Bushiri",
-      ch: BURDAH_CH
     }
   ];
 

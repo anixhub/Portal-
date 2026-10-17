@@ -2025,7 +2025,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
                       </div>
                       <div className="text-left">
                         <p className="font-bold text-sm text-amber-950">Kitab Maulid Nabi</p>
-                        <p className="text-[11px] font-normal text-amber-700">Simtudduror, Diba'i, Al-Barzanji & Burdah</p>
+                        <p className="text-[11px] font-normal text-amber-700">Simtudduror, Diba'i, Al-Barzanji & Dliyaul Lami'</p>
                       </div>
                     </div>
                     <ChevronRight className="w-4 h-4 text-amber-600 group-hover:translate-x-0.5 transition-transform" />
