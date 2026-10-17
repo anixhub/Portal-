@@ -65,6 +65,13 @@ import { CreateAnnouncementModal } from './common/CreateAnnouncementModal';
 import { PostMediaCarousel } from './common/PostMediaCarousel';
 import { AudienceTargetModal, formatAudienceSummary } from './common/AudienceTargetModal';
 import { INITIAL_EVENT_COMMENTS, INITIAL_ANNOUNCEMENTS } from '../data/mockData';
+import { 
+  saveEventToHostinger, 
+  deleteEventFromHostinger, 
+  fetchCommentsFromDatabase, 
+  saveCommentToDatabase, 
+  toggleCommentLikeInDatabase 
+} from '../services/apiService';
 import { formatAuthorUsername, resolveAuthorAlumniRecord } from '../utils/authorUtils';
 import { shareMediaWithCaption } from '../utils/shareUtils';
 import { useBackHandler } from '../utils/navigationHistory';
@@ -135,6 +142,8 @@ interface AdminViewProps {
   onDeleteAlumni?: (id: string) => void;
   onResetPassword: (id: string) => void;
   onAddEvent: (newEvent: EventAgenda) => void;
+  onUpdateEvent?: (id: string, updated: Partial<EventAgenda>) => void;
+  onDeleteEvent?: (id: string) => void;
   onUpdateAdmin?: (updated: Partial<AdminUser>) => void;
   onAddAnnouncement?: (ann: AnnouncementItem) => void;
   onUpdateAnnouncement?: (id: string, updated: Partial<AnnouncementItem>) => void;
@@ -161,6 +170,8 @@ export const AdminView: React.FC<AdminViewProps> = ({
   onDeleteAlumni,
   onResetPassword,
   onAddEvent,
+  onUpdateEvent,
+  onDeleteEvent,
   onUpdateAdmin,
   onAddAnnouncement,
   onUpdateAnnouncement,
@@ -563,9 +574,15 @@ export const AdminView: React.FC<AdminViewProps> = ({
     setExpandedCaptions((prev) => ({ ...prev, [id]: !prev[id] }));
   };
 
-  // Comments modal state & handlers (sama persis dengan agenda akun alumni)
+  // Comments modal state & handlers (terhubung langsung ke database)
   const [activeCommentsModalEvent, setActiveCommentsModalEvent] = useState<EventAgenda | null>(null);
-  const [commentsList, setCommentsList] = useState<EventComment[]>(INITIAL_EVENT_COMMENTS);
+  const [commentsList, setCommentsList] = useState<EventComment[]>([]);
+
+  useEffect(() => {
+    fetchCommentsFromDatabase().then((data) => {
+      if (Array.isArray(data)) setCommentsList(data);
+    });
+  }, []);
 
   const handleAddComment = (eventId: string, text: string, replyToCommentId?: string) => {
     if (!text.trim()) return;
@@ -576,7 +593,6 @@ export const AdminView: React.FC<AdminViewProps> = ({
         authorName: adminUser.name || admin.name,
         authorHandle: adminUser.username || admin.username || '@admin_pusat',
         authorAvatar: adminUser.avatar || admin.avatar,
-        avatarRing: true,
         content: text.trim(),
         timeAgo: 'Baru saja',
         likesCount: 0,
@@ -595,6 +611,18 @@ export const AdminView: React.FC<AdminViewProps> = ({
           return c;
         })
       );
+      saveCommentToDatabase({
+        id: newReply.id,
+        eventId,
+        commentId: replyToCommentId,
+        authorName: newReply.authorName,
+        authorHandle: newReply.authorHandle,
+        authorAvatar: newReply.authorAvatar,
+        content: newReply.content,
+        timeAgo: 'Baru saja',
+        likesCount: 0,
+        replies: [],
+      }, 'event');
       triggerToast('Balasan berhasil dikirim!');
     } else {
       const newComment: EventComment = {
@@ -612,11 +640,13 @@ export const AdminView: React.FC<AdminViewProps> = ({
         isCurrentUser: true,
       };
       setCommentsList((prev) => [newComment, ...prev]);
+      saveCommentToDatabase(newComment, 'event');
       triggerToast('Tanggapan berhasil dikirim!');
     }
   };
 
   const handleToggleLikeComment = (commentId: string, replyId?: string) => {
+    let targetLiked = false;
     setCommentsList((prev) =>
       prev.map((c) => {
         if (c.id === commentId) {
@@ -624,6 +654,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
             const updatedReplies = (c.replies || []).map((rep) => {
               if (rep.id === replyId) {
                 const isLiked = !rep.isLiked;
+                targetLiked = isLiked;
                 return {
                   ...rep,
                   isLiked,
@@ -638,6 +669,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
             };
           } else {
             const isLiked = !c.isLiked;
+            targetLiked = isLiked;
             return {
               ...c,
               isLiked,
@@ -648,6 +680,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
         return c;
       })
     );
+    toggleCommentLikeInDatabase(commentId, replyId, targetLiked);
   };
 
   // Search & Filter state for Kelola Alumni
@@ -731,7 +764,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
   const [eventDesc, setEventDesc] = useState('');
   const [eventAudienceTarget, setEventAudienceTarget] = useState<AudienceTarget>({ gender: 'semua', regionScope: 'semua' });
   const [isEventAudienceModalOpen, setIsEventAudienceModalOpen] = useState(false);
-  const [eventPosterUrl, setEventPosterUrl] = useState<string>(posterReuniImg);
+  const [eventPosterUrl, setEventPosterUrl] = useState<string>('');
   const [eventImages, setEventImages] = useState<string[]>([]);
   const [currentEventSlide, setCurrentEventSlide] = useState(0);
   const eventSliderRef = useRef<HTMLDivElement>(null);
@@ -960,7 +993,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
       setEventTime(agendaDraft.time);
       setEventLocation(agendaDraft.location);
       setEventDesc(agendaDraft.desc);
-      setEventPosterUrl(agendaDraft.posterUrl || posterReuniImg);
+      setEventPosterUrl(agendaDraft.posterUrl || '');
       setEventImages(agendaDraft.images || (agendaDraft.posterUrl ? [agendaDraft.posterUrl] : []));
       setEventAudienceTarget(agendaDraft.targetAudience || { gender: 'semua', regionScope: 'semua' });
     } else {
@@ -969,7 +1002,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
       setEventTime('');
       setEventLocation('');
       setEventDesc('');
-      setEventPosterUrl(posterReuniImg);
+      setEventPosterUrl('');
       setEventImages([]);
       setEventAudienceTarget(getAdminDefaultAudience(adminUser));
     }
@@ -984,7 +1017,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
     setEventTime(ev.time || '');
     setEventLocation(ev.location || '');
     setEventDesc(ev.description || '');
-    setEventPosterUrl(ev.posterUrl || posterReuniImg);
+    setEventPosterUrl(ev.posterUrl || '');
     setEventAudienceTarget(ev.targetAudience || { gender: 'semua', regionScope: 'semua' });
     const existingImages = ev.images && ev.images.length > 0
       ? ev.images
@@ -1054,7 +1087,9 @@ export const AdminView: React.FC<AdminViewProps> = ({
       return;
     }
 
-    const finalPoster = eventImages.length > 0 ? eventImages[0] : eventPosterUrl || posterReuniImg;
+    const finalPoster = eventImages.length > 0 
+      ? eventImages[0] 
+      : (eventPosterUrl ? eventPosterUrl : undefined);
     const authorHandleFormatted = adminUser.username
       ? (adminUser.username.startsWith('@') ? adminUser.username : '@' + adminUser.username)
       : '@admin_pusat';
@@ -1072,7 +1107,11 @@ export const AdminView: React.FC<AdminViewProps> = ({
         targetAudience: eventAudienceTarget,
       };
       setEventList((prev) => prev.map((ev) => (ev.id === editingEvent.id ? updated : ev)));
-      triggerToast('Perubahan agenda dibagikan');
+      onUpdateEvent?.(editingEvent.id, updated);
+      saveEventToHostinger(updated);
+      setEditingEvent(null);
+      setAgendaDraft(null);
+      triggerToast('Perubahan agenda berhasil disimpan');
     } else {
       const created: EventAgenda = {
         id: 'ev-' + Date.now(),
@@ -1096,6 +1135,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
           : eventAudienceTarget,
       };
       onAddEvent(created);
+      saveEventToHostinger(created);
       setEventList((prev) => [created, ...prev]);
       setAgendaDraft(null);
       triggerToast('Agenda berhasil dibagikan');
@@ -1270,14 +1310,16 @@ export const AdminView: React.FC<AdminViewProps> = ({
                       </div>
                     </div>
 
-                    {/* 2. POSTER MEDIA (MULTI-IMAGE CAROUSEL DENGAN SLIDER GESER) */}
-                    <PostMediaCarousel
-                      images={ev.images}
-                      fallbackImage={ev.posterUrl || posterReuniImg}
-                      title={ev.title}
-                      onPreview={(url) => setFullscreenPosterUrl(url)}
-                      onSlideChange={(idx) => setEventSlideMap((prev) => ({ ...prev, [ev.id]: idx }))}
-                    />
+                    {/* 2. POSTER MEDIA (MULTI-IMAGE CAROUSEL DENGAN SLIDER GESER - HANYA JIKA ADA FOTO) */}
+                    {((ev.images && ev.images.length > 0) || ev.posterUrl) && (
+                      <PostMediaCarousel
+                        images={ev.images}
+                        fallbackImage={ev.posterUrl}
+                        title={ev.title}
+                        onPreview={(url) => setFullscreenPosterUrl(url)}
+                        onSlideChange={(idx) => setEventSlideMap((prev) => ({ ...prev, [ev.id]: idx }))}
+                      />
+                    )}
 
                     {/* 3. BARIS KETERANGAN KEHADIRAN (KETERANGAN KEHADIRAN DI KIRI, TOMBOL BUAT PRESENSI DI KANAN) */}
                     <div className="px-4 py-2.5 flex items-center justify-between border-b border-slate-100 bg-white text-xs select-none gap-2">

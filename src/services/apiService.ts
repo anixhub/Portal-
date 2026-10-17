@@ -1,4 +1,4 @@
-import { AlumniRecord, EventAgenda, AnnouncementItem } from '../types';
+import { AlumniRecord, EventAgenda, AnnouncementItem, EventComment } from '../types';
 import { INITIAL_ALUMNI, INITIAL_EVENTS, INITIAL_ANNOUNCEMENTS } from '../data/mockData';
 import { getAlumniPhotoUrl, formatPhotoUrlForHostinger } from '../utils/photoUtils';
 import { ensureConsistentAlumniIdentities } from '../utils/alumniIdentityUtils';
@@ -998,6 +998,240 @@ export async function deleteAnnouncementFromHostinger(id: string): Promise<{ suc
 
     broadcastSyncEvent('announcements');
   } catch (e) {}
+
+  return { success: true };
+}
+
+/**
+ * ==========================================
+ * REAL COMMENTS & LIKES API (HOSTINGER & DB)
+ * ==========================================
+ */
+
+export async function fetchCommentsFromDatabase(postId?: string): Promise<EventComment[]> {
+  const ts = Date.now();
+  const queryParam = postId ? `&post_id=${encodeURIComponent(postId)}` : '';
+  const endpoints = [
+    `/api/comments?${postId ? `postId=${encodeURIComponent(postId)}&` : ''}_t=${ts}`,
+    `${HOSTINGER_API_URL}?action=get_comments${queryParam}&_t=${ts}`,
+    `https://alumni.attaroqqy.com/api_alumni.php?action=get_comments${queryParam}&_t=${ts}`,
+  ];
+
+  for (const ep of endpoints) {
+    try {
+      const res = await fetch(ep, {
+        headers: { Accept: 'application/json', 'Cache-Control': 'no-cache' },
+        signal: AbortSignal.timeout(8000),
+      });
+      const contentType = res.headers.get('content-type') || '';
+      if (res.ok && contentType.includes('application/json')) {
+        const text = await res.text();
+        if (text.trim().startsWith('{') || text.trim().startsWith('[')) {
+          const json = JSON.parse(text);
+          const list = Array.isArray(json) ? json : (Array.isArray(json?.data) ? json.data : null);
+          if (Array.isArray(list)) {
+            try {
+              localStorage.setItem(`attaroqqy_comments_cache_${postId || 'all'}`, JSON.stringify(list));
+            } catch (e) {}
+            return list;
+          }
+        }
+      }
+    } catch (e) {}
+  }
+
+  try {
+    const cached = localStorage.getItem(`attaroqqy_comments_cache_${postId || 'all'}`);
+    if (cached) {
+      const parsed = JSON.parse(cached);
+      if (Array.isArray(parsed)) return parsed;
+    }
+  } catch (e) {}
+
+  return [];
+}
+
+export async function saveCommentToDatabase(
+  comment: EventComment,
+  postType: 'event' | 'announcement' = 'event'
+): Promise<{ success: boolean; id?: string }> {
+  try {
+    const endpoints = [
+      '/api/comments',
+      `${HOSTINGER_API_URL}?action=save_comment`,
+      'https://alumni.attaroqqy.com/api_alumni.php?action=save_comment',
+    ];
+
+    const payload = {
+      ...comment,
+      postType,
+      postId: comment.eventId,
+      content: comment.content,
+    };
+
+    await Promise.allSettled(
+      endpoints.map((ep) =>
+        fetch(ep, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+          body: JSON.stringify(payload),
+          signal: AbortSignal.timeout(8000),
+        })
+      )
+    );
+
+    return { success: true, id: comment.id };
+  } catch (e) {
+    return { success: false };
+  }
+}
+
+export async function toggleCommentLikeInDatabase(
+  commentId: string,
+  replyId?: string,
+  isLiked?: boolean
+): Promise<{ success: boolean }> {
+  try {
+    const endpoints = [
+      '/api/comments/like',
+      `${HOSTINGER_API_URL}?action=like_comment`,
+      'https://alumni.attaroqqy.com/api_alumni.php?action=like_comment',
+    ];
+
+    const payload = {
+      commentId,
+      replyId,
+      isLiked,
+      delta: isLiked ? 1 : -1,
+    };
+
+    await Promise.allSettled(
+      endpoints.map((ep) =>
+        fetch(ep, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+          signal: AbortSignal.timeout(6000),
+        })
+      )
+    );
+
+    return { success: true };
+  } catch (e) {
+    return { success: false };
+  }
+}
+
+export async function deleteCommentFromDatabase(commentId: string): Promise<{ success: boolean }> {
+  try {
+    const endpoints = [
+      `/api/comments/${encodeURIComponent(commentId)}`,
+      `${HOSTINGER_API_URL}?action=delete_comment`,
+      'https://alumni.attaroqqy.com/api_alumni.php?action=delete_comment',
+    ];
+
+    await Promise.allSettled(
+      endpoints.map((ep) =>
+        fetch(ep, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ commentId, id: commentId }),
+          signal: AbortSignal.timeout(6000),
+        })
+      )
+    );
+
+    return { success: true };
+  } catch (e) {
+    return { success: false };
+  }
+}
+
+/**
+ * ==========================================
+ * REAL QURAN BOOKMARK (BATAS AL-QUR'AN) API
+ * ==========================================
+ */
+
+export async function fetchQuranBookmark(userId: string): Promise<{
+  lr: { s: number; v: number } | null;
+  bm: Record<string, string[]>;
+  page?: number;
+} | null> {
+  if (!userId) return null;
+  const ts = Date.now();
+  const endpoints = [
+    `/api/quran/bookmark/${encodeURIComponent(userId)}?_t=${ts}`,
+    `${HOSTINGER_API_URL}?action=get_quran_bookmark&user_id=${encodeURIComponent(userId)}&_t=${ts}`,
+    `https://alumni.attaroqqy.com/api_alumni.php?action=get_quran_bookmark&user_id=${encodeURIComponent(userId)}&_t=${ts}`,
+  ];
+
+  for (const ep of endpoints) {
+    try {
+      const res = await fetch(ep, {
+        headers: { Accept: 'application/json' },
+        signal: AbortSignal.timeout(6000),
+      });
+      if (res.ok) {
+        const json = await res.json();
+        if (json && json.data) {
+          try {
+            localStorage.setItem(`attaroqqy_quran_bookmark_${userId}`, JSON.stringify(json.data));
+          } catch (e) {}
+          return json.data;
+        }
+      }
+    } catch (e) {}
+  }
+
+  try {
+    const cached = localStorage.getItem(`attaroqqy_quran_bookmark_${userId}`);
+    if (cached) {
+      return JSON.parse(cached);
+    }
+  } catch (e) {}
+
+  return null;
+}
+
+export async function saveQuranBookmark(
+  userId: string,
+  data: {
+    lr: { s: number; v: number } | null;
+    bm?: Record<string, string[]>;
+    curPage?: number;
+    page?: number;
+  }
+): Promise<{ success: boolean }> {
+  if (!userId) return { success: false };
+
+  try {
+    localStorage.setItem(`attaroqqy_quran_bookmark_${userId}`, JSON.stringify(data));
+  } catch (e) {}
+
+  const endpoints = [
+    '/api/quran/bookmark',
+    `${HOSTINGER_API_URL}?action=save_quran_bookmark`,
+    'https://alumni.attaroqqy.com/api_alumni.php?action=save_quran_bookmark',
+  ];
+
+  const payload = {
+    userId,
+    lr: data.lr,
+    bm: data.bm || {},
+    page: data.curPage || data.page || 1,
+  };
+
+  await Promise.allSettled(
+    endpoints.map((ep) =>
+      fetch(ep, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+        signal: AbortSignal.timeout(8000),
+      })
+    )
+  );
 
   return { success: true };
 }

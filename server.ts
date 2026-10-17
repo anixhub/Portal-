@@ -277,9 +277,35 @@ async function startServer() {
     }
   });
 
-  // In-memory cache for events & announcements in dev/fallback
-  let cachedEvents: any[] = [];
-  let cachedAnnouncements: any[] = [];
+  // Persistent file paths for dev/fallback storage
+  const eventsStorePath = path.resolve(__dirname, 'src/data/events_store.json');
+  const announcementsStorePath = path.resolve(__dirname, 'src/data/announcements_store.json');
+  const commentsStorePath = path.resolve(__dirname, 'src/data/comments_store.json');
+  const quranBookmarksStorePath = path.resolve(__dirname, 'src/data/quran_bookmarks_store.json');
+
+  const loadJsonStore = (filePath: string, fallback: any = []) => {
+    try {
+      if (fs.existsSync(filePath)) {
+        return JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+      }
+    } catch (e) {
+      console.warn('[Server] Error reading store:', filePath, e);
+    }
+    return fallback;
+  };
+
+  const saveJsonStore = (filePath: string, data: any) => {
+    try {
+      fs.writeFileSync(filePath, JSON.stringify(data, null, 2), 'utf-8');
+    } catch (e) {
+      console.warn('[Server] Error writing store:', filePath, e);
+    }
+  };
+
+  let cachedEvents: any[] = loadJsonStore(eventsStorePath, []);
+  let cachedAnnouncements: any[] = loadJsonStore(announcementsStorePath, []);
+  let cachedComments: any[] = loadJsonStore(commentsStorePath, []);
+  let cachedQuranBookmarks: Record<string, any> = loadJsonStore(quranBookmarksStorePath, {});
 
   // Events API: GET
   app.get('/api/events', async (req, res) => {
@@ -294,8 +320,9 @@ async function startServer() {
         if (text.trim().startsWith('{') || text.trim().startsWith('[')) {
           const data = JSON.parse(text);
           const list = Array.isArray(data) ? data : (Array.isArray(data?.data) ? data.data : null);
-          if (Array.isArray(list)) {
+          if (Array.isArray(list) && list.length > 0) {
             cachedEvents = list;
+            saveJsonStore(eventsStorePath, cachedEvents);
             return res.json({ success: true, data: list });
           }
         }
@@ -306,13 +333,14 @@ async function startServer() {
     res.json({ success: true, data: cachedEvents });
   });
 
-  // Events API: POST (save/create)
+  // Events API: POST (save/create/update)
   app.post('/api/events', async (req, res) => {
     const event = req.body;
     if (event && event.id) {
       const idx = cachedEvents.findIndex((e: any) => e.id === event.id);
       if (idx >= 0) cachedEvents[idx] = event;
       else cachedEvents.unshift(event);
+      saveJsonStore(eventsStorePath, cachedEvents);
     }
     try {
       const remoteRes = await fetch('https://alumni.attaroqqy.com/api_alumni.php?action=save_event', {
@@ -336,6 +364,7 @@ async function startServer() {
   app.delete('/api/events/:id', async (req, res) => {
     const { id } = req.params;
     cachedEvents = cachedEvents.filter((e: any) => e.id !== id);
+    saveJsonStore(eventsStorePath, cachedEvents);
     try {
       await fetch('https://alumni.attaroqqy.com/api_alumni.php?action=delete_event', {
         method: 'POST',
@@ -379,8 +408,9 @@ async function startServer() {
         if (text.trim().startsWith('{') || text.trim().startsWith('[')) {
           const data = JSON.parse(text);
           const list = Array.isArray(data) ? data : (Array.isArray(data?.data) ? data.data : null);
-          if (Array.isArray(list)) {
+          if (Array.isArray(list) && list.length > 0) {
             cachedAnnouncements = list;
+            saveJsonStore(announcementsStorePath, cachedAnnouncements);
             return res.json({ success: true, data: list });
           }
         }
@@ -391,13 +421,14 @@ async function startServer() {
     res.json({ success: true, data: cachedAnnouncements });
   });
 
-  // Announcements API: POST (save/create)
+  // Announcements API: POST (save/create/update)
   app.post('/api/announcements', async (req, res) => {
     const ann = req.body;
     if (ann && ann.id) {
       const idx = cachedAnnouncements.findIndex((a: any) => a.id === ann.id);
       if (idx >= 0) cachedAnnouncements[idx] = ann;
       else cachedAnnouncements.unshift(ann);
+      saveJsonStore(announcementsStorePath, cachedAnnouncements);
     }
     try {
       const remoteRes = await fetch('https://alumni.attaroqqy.com/api_alumni.php?action=save_announcement', {
@@ -421,6 +452,7 @@ async function startServer() {
   app.delete('/api/announcements/:id', async (req, res) => {
     const { id } = req.params;
     cachedAnnouncements = cachedAnnouncements.filter((a: any) => a.id !== id);
+    saveJsonStore(announcementsStorePath, cachedAnnouncements);
     try {
       await fetch('https://alumni.attaroqqy.com/api_alumni.php?action=delete_announcement', {
         method: 'POST',
@@ -433,6 +465,170 @@ async function startServer() {
       }).catch(() => {});
     } catch (err: any) {}
     res.json({ success: true });
+  });
+
+  // Comments API: GET
+  app.get('/api/comments', async (req, res) => {
+    const { postId } = req.query;
+    try {
+      const remoteUrl = postId
+        ? `https://alumni.attaroqqy.com/api_alumni.php?action=get_comments&post_id=${encodeURIComponent(String(postId))}`
+        : 'https://alumni.attaroqqy.com/api_alumni.php?action=get_comments';
+      const remoteRes = await fetch(remoteUrl, {
+        headers: { Accept: 'application/json' },
+        signal: AbortSignal.timeout(8000),
+      });
+      const contentType = remoteRes.headers.get('content-type') || '';
+      if (remoteRes.ok && contentType.includes('application/json')) {
+        const json = await remoteRes.json();
+        if (json && Array.isArray(json.data) && json.data.length > 0) {
+          cachedComments = json.data;
+          saveJsonStore(commentsStorePath, cachedComments);
+          return res.json({ success: true, data: json.data });
+        }
+      }
+    } catch (e) {}
+
+    let filtered = cachedComments;
+    if (postId) {
+      filtered = cachedComments.filter((c: any) => c.eventId === postId || c.postId === postId);
+    }
+    res.json({ success: true, data: filtered });
+  });
+
+  // Comments API: POST (save comment or reply)
+  app.post('/api/comments', async (req, res) => {
+    const comm = req.body;
+    if (comm && comm.id) {
+      if (comm.commentId) {
+        // It is a reply to an existing parent comment
+        const parent = cachedComments.find((c: any) => c.id === comm.commentId);
+        if (parent) {
+          if (!parent.replies) parent.replies = [];
+          const repIdx = parent.replies.findIndex((r: any) => r.id === comm.id);
+          if (repIdx >= 0) parent.replies[repIdx] = comm;
+          else parent.replies.push(comm);
+          parent.repliesCount = parent.replies.length;
+        }
+      } else {
+        const idx = cachedComments.findIndex((c: any) => c.id === comm.id);
+        if (idx >= 0) cachedComments[idx] = comm;
+        else cachedComments.unshift(comm);
+      }
+      saveJsonStore(commentsStorePath, cachedComments);
+    }
+
+    try {
+      await fetch('https://alumni.attaroqqy.com/api_alumni.php?action=save_comment', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(req.body),
+        signal: AbortSignal.timeout(10000),
+      }).catch(() => {});
+    } catch (e) {}
+
+    res.json({ success: true, id: comm.id });
+  });
+
+  // Comments API: LIKE
+  app.post('/api/comments/like', async (req, res) => {
+    const { commentId, replyId, isLiked } = req.body;
+    const delta = isLiked ? 1 : -1;
+
+    cachedComments = cachedComments.map((c: any) => {
+      if (c.id === commentId) {
+        if (replyId && c.replies) {
+          c.replies = c.replies.map((r: any) => {
+            if (r.id === replyId) {
+              return { ...r, isLiked, likesCount: Math.max(0, (r.likesCount || 0) + delta) };
+            }
+            return r;
+          });
+        } else {
+          return { ...c, isLiked, likesCount: Math.max(0, (c.likesCount || 0) + delta) };
+        }
+      }
+      return c;
+    });
+    saveJsonStore(commentsStorePath, cachedComments);
+
+    try {
+      await fetch('https://alumni.attaroqqy.com/api_alumni.php?action=like_comment', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ commentId: replyId || commentId, delta }),
+        signal: AbortSignal.timeout(8000),
+      }).catch(() => {});
+    } catch (e) {}
+
+    res.json({ success: true });
+  });
+
+  // Comments API: DELETE
+  app.delete('/api/comments/:id', async (req, res) => {
+    const { id } = req.params;
+    cachedComments = cachedComments.filter((c: any) => c.id !== id);
+    saveJsonStore(commentsStorePath, cachedComments);
+
+    try {
+      await fetch('https://alumni.attaroqqy.com/api_alumni.php?action=delete_comment', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ commentId: id }),
+        signal: AbortSignal.timeout(8000),
+      }).catch(() => {});
+    } catch (e) {}
+
+    res.json({ success: true });
+  });
+
+  // Quran Bookmark API: GET
+  app.get('/api/quran/bookmark/:userId', async (req, res) => {
+    const { userId } = req.params;
+    if (cachedQuranBookmarks[userId]) {
+      return res.json({ success: true, data: cachedQuranBookmarks[userId] });
+    }
+    try {
+      const remoteRes = await fetch(`https://alumni.attaroqqy.com/api_alumni.php?action=get_quran_bookmark&user_id=${encodeURIComponent(userId)}`, {
+        headers: { Accept: 'application/json' },
+        signal: AbortSignal.timeout(8000),
+      });
+      if (remoteRes.ok) {
+        const json = await remoteRes.json();
+        if (json && json.data) {
+          cachedQuranBookmarks[userId] = json.data;
+          saveJsonStore(quranBookmarksStorePath, cachedQuranBookmarks);
+          return res.json(json);
+        }
+      }
+    } catch (e) {}
+
+    res.json({ success: true, data: null });
+  });
+
+  // Quran Bookmark API: POST (save)
+  app.post('/api/quran/bookmark', async (req, res) => {
+    const { userId, lr, bm, page, curPage } = req.body;
+    if (userId) {
+      cachedQuranBookmarks[userId] = {
+        lr: lr || null,
+        bm: bm || {},
+        page: page || curPage || 1,
+        updatedAt: new Date().toISOString(),
+      };
+      saveJsonStore(quranBookmarksStorePath, cachedQuranBookmarks);
+    }
+
+    try {
+      await fetch('https://alumni.attaroqqy.com/api_alumni.php?action=save_quran_bookmark', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(req.body),
+        signal: AbortSignal.timeout(8000),
+      }).catch(() => {});
+    } catch (e) {}
+
+    res.json({ success: true, message: 'Batas Al-Qur\'an berhasil disimpan' });
   });
 
   // Wilayah API In-Memory Cache

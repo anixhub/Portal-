@@ -137,6 +137,33 @@ function ensureTablesExist($pdo) {
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
         ");
+        $pdo->exec("
+            CREATE TABLE IF NOT EXISTS post_comments (
+                id VARCHAR(64) NOT NULL PRIMARY KEY,
+                post_type ENUM('event', 'announcement') NOT NULL DEFAULT 'event',
+                post_id VARCHAR(64) NOT NULL,
+                parent_comment_id VARCHAR(64) DEFAULT NULL,
+                author_id VARCHAR(64) DEFAULT NULL,
+                author_name VARCHAR(150) NOT NULL,
+                author_handle VARCHAR(80) DEFAULT NULL,
+                author_avatar TEXT DEFAULT NULL,
+                avatar_ring TINYINT(1) DEFAULT 0,
+                status ENUM('hadir', 'tidak_hadir', 'netral') DEFAULT 'netral',
+                content TEXT NOT NULL,
+                likes_count INT(11) DEFAULT 0,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+        ");
+        $pdo->exec("
+            CREATE TABLE IF NOT EXISTS user_quran_bookmarks (
+                user_id VARCHAR(64) NOT NULL PRIMARY KEY,
+                surah_id INT(11) NOT NULL,
+                verse_number INT(11) NOT NULL,
+                page_number INT(11) DEFAULT 1,
+                bookmarks_json LONGTEXT DEFAULT NULL,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+        ");
         // Ensure columns in events and announcements can hold large images if created as TEXT earlier
         try {
             $pdo->exec("ALTER TABLE events MODIFY COLUMN poster_url LONGTEXT DEFAULT NULL;");
@@ -1192,6 +1219,217 @@ if ($action === 'checkin_attendee' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         http_response_code(500);
         echo json_encode(['success' => false, 'message' => $e->getMessage()]);
     }
+    exit;
+}
+
+// ==========================================
+// 10. ENDPOINTS FITUR POST COMMENTS & LIKES
+// ==========================================
+if ($action === 'get_comments') {
+    ensureTablesExist($pdo);
+    $postId = $_GET['post_id'] ?? $_GET['eventId'] ?? null;
+    try {
+        if ($postId) {
+            $stmt = $pdo->prepare("SELECT * FROM post_comments WHERE post_id = :pid ORDER BY id ASC");
+            $stmt->execute([':pid' => $postId]);
+        } else {
+            $stmt = $pdo->query("SELECT * FROM post_comments ORDER BY id ASC");
+        }
+        $rows = $stmt->fetchAll();
+        $commentsMap = [];
+        $replies = [];
+        foreach ($rows as $r) {
+            $c = [
+                'id' => (string)$r['id'],
+                'eventId' => (string)$r['post_id'],
+                'postType' => $r['post_type'] ?? 'event',
+                'authorName' => $r['author_name'],
+                'authorHandle' => $r['author_handle'] ?? '',
+                'authorAvatar' => $r['author_avatar'] ?? '',
+                'avatarRing' => (bool)($r['avatar_ring'] ?? 0),
+                'status' => $r['status'] ?? 'netral',
+                'content' => $r['content'],
+                'likesCount' => (int)($r['likes_count'] ?? 0),
+                'timeAgo' => 'Baru saja',
+                'replies' => [],
+                'repliesCount' => 0
+            ];
+            if (!empty($r['parent_comment_id'])) {
+                $replies[] = [
+                    'id' => (string)$r['id'],
+                    'commentId' => (string)$r['parent_comment_id'],
+                    'authorName' => $r['author_name'],
+                    'authorHandle' => $r['author_handle'] ?? '',
+                    'authorAvatar' => $r['author_avatar'] ?? '',
+                    'content' => $r['content'],
+                    'timeAgo' => 'Baru saja',
+                    'likesCount' => (int)($r['likes_count'] ?? 0),
+                ];
+            } else {
+                $commentsMap[$r['id']] = $c;
+            }
+        }
+        foreach ($replies as $rep) {
+            if (isset($commentsMap[$rep['commentId']])) {
+                $commentsMap[$rep['commentId']]['replies'][] = $rep;
+                $commentsMap[$rep['commentId']]['repliesCount']++;
+            }
+        }
+        $result = array_values($commentsMap);
+        echo json_encode(['success' => true, 'data' => $result], JSON_UNESCAPED_UNICODE);
+    } catch (Exception $e) {
+        http_response_code(500);
+        echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+    }
+    exit;
+}
+
+if ($action === 'save_comment' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    ensureTablesExist($pdo);
+    $input = json_decode(file_get_contents('php://input'), true);
+    $id = $input['id'] ?? ('comm-' . time() . '-' . rand(100, 999));
+    $postId = $input['eventId'] ?? $input['post_id'] ?? '';
+    $parentCommentId = $input['commentId'] ?? $input['parent_comment_id'] ?? null;
+    $postType = $input['postType'] ?? 'event';
+    if (!$postId || empty($input['content'])) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'message' => 'post_id dan content wajib diisi']);
+        exit;
+    }
+    try {
+        $sql = "INSERT INTO post_comments (
+            id, post_type, post_id, parent_comment_id, author_id, author_name, author_handle, author_avatar, avatar_ring, status, content, likes_count, created_at
+        ) VALUES (
+            :id, :ptype, :pid, :pcid, :aid, :aname, :ahandle, :aavatar, :aring, :status, :content, :likes, NOW()
+        ) ON DUPLICATE KEY UPDATE content = VALUES(content), likes_count = VALUES(likes_count)";
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute([
+            ':id' => $id,
+            ':ptype' => $postType,
+            ':pid' => $postId,
+            ':pcid' => $parentCommentId,
+            ':aid' => $input['authorId'] ?? null,
+            ':aname' => $input['authorName'] ?? 'Alumni',
+            ':ahandle' => $input['authorHandle'] ?? null,
+            ':aavatar' => $input['authorAvatar'] ?? null,
+            ':aring' => !empty($input['avatarRing']) ? 1 : 0,
+            ':status' => $input['status'] ?? 'netral',
+            ':content' => $input['content'],
+            ':likes' => $input['likesCount'] ?? 0,
+        ]);
+        if ($postType === 'announcement') {
+            $pdo->prepare("UPDATE announcements SET comments_count = (SELECT COUNT(*) FROM post_comments WHERE post_id = :pid) WHERE id = :pid")->execute([':pid' => $postId]);
+        }
+        echo json_encode(['success' => true, 'id' => $id, 'message' => 'Komentar berhasil disimpan']);
+    } catch (Exception $e) {
+        http_response_code(500);
+        echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+    }
+    exit;
+}
+
+if ($action === 'like_comment' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    ensureTablesExist($pdo);
+    $input = json_decode(file_get_contents('php://input'), true);
+    $commentId = $input['commentId'] ?? $input['id'] ?? '';
+    $delta = isset($input['delta']) ? (int)$input['delta'] : (isset($input['isLiked']) && $input['isLiked'] ? 1 : -1);
+    if ($commentId) {
+        try {
+            $stmt = $pdo->prepare("UPDATE post_comments SET likes_count = GREATEST(0, likes_count + :delta) WHERE id = :cid");
+            $stmt->execute([':delta' => $delta, ':cid' => $commentId]);
+            echo json_encode(['success' => true]);
+        } catch (Exception $e) {
+            http_response_code(500);
+            echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+        }
+        exit;
+    }
+    http_response_code(400);
+    echo json_encode(['success' => false, 'message' => 'commentId wajib']);
+    exit;
+}
+
+if ($action === 'delete_comment' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    ensureTablesExist($pdo);
+    $input = json_decode(file_get_contents('php://input'), true);
+    $commentId = $input['commentId'] ?? $input['id'] ?? '';
+    if ($commentId) {
+        try {
+            $stmt = $pdo->prepare("DELETE FROM post_comments WHERE id = :cid OR parent_comment_id = :cid");
+            $stmt->execute([':cid' => $commentId]);
+            echo json_encode(['success' => true]);
+        } catch (Exception $e) {
+            http_response_code(500);
+            echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+        }
+        exit;
+    }
+    http_response_code(400);
+    echo json_encode(['success' => false, 'message' => 'commentId wajib']);
+    exit;
+}
+
+// ==========================================
+// 11. ENDPOINTS FITUR BATAS AL-QUR'AN (BOOKMARK)
+// ==========================================
+if ($action === 'get_quran_bookmark') {
+    ensureTablesExist($pdo);
+    $userId = $_GET['user_id'] ?? $_GET['userId'] ?? '';
+    if ($userId) {
+        try {
+            $stmt = $pdo->prepare("SELECT * FROM user_quran_bookmarks WHERE user_id = :uid");
+            $stmt->execute([':uid' => $userId]);
+            $row = $stmt->fetch();
+            if ($row) {
+                $bm = !empty($row['bookmarks_json']) ? json_decode($row['bookmarks_json'], true) : [];
+                echo json_encode([
+                    'success' => true,
+                    'data' => [
+                        'lr' => ['s' => (int)$row['surah_id'], 'v' => (int)$row['verse_number']],
+                        'page' => (int)($row['page_number'] ?? 1),
+                        'bm' => is_array($bm) ? $bm : []
+                    ]
+                ], JSON_UNESCAPED_UNICODE);
+                exit;
+            }
+        } catch (Exception $e) {
+            // fall through
+        }
+    }
+    echo json_encode(['success' => true, 'data' => null]);
+    exit;
+}
+
+if ($action === 'save_quran_bookmark' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    ensureTablesExist($pdo);
+    $input = json_decode(file_get_contents('php://input'), true);
+    $userId = $input['userId'] ?? $input['user_id'] ?? '';
+    $lr = $input['lr'] ?? null;
+    $bm = $input['bm'] ?? null;
+    $page = $input['page'] ?? $input['curPage'] ?? 1;
+    if ($userId && $lr && isset($lr['s']) && isset($lr['v'])) {
+        try {
+            $bmJson = $bm ? json_encode($bm) : null;
+            $sql = "INSERT INTO user_quran_bookmarks (user_id, surah_id, verse_number, page_number, bookmarks_json, updated_at)
+                    VALUES (:uid, :sid, :vnum, :pnum, :bm, NOW())
+                    ON DUPLICATE KEY UPDATE surah_id = VALUES(surah_id), verse_number = VALUES(verse_number), page_number = VALUES(page_number), bookmarks_json = VALUES(bookmarks_json), updated_at = NOW()";
+            $stmt = $pdo->prepare($sql);
+            $stmt->execute([
+                ':uid' => $userId,
+                ':sid' => (int)$lr['s'],
+                ':vnum' => (int)$lr['v'],
+                ':pnum' => (int)$page,
+                ':bm' => $bmJson,
+            ]);
+            echo json_encode(['success' => true, 'message' => 'Batas bacaan Al-Qur\'an berhasil disimpan di database']);
+        } catch (Exception $e) {
+            http_response_code(500);
+            echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+        }
+        exit;
+    }
+    http_response_code(400);
+    echo json_encode(['success' => false, 'message' => 'userId dan data lr wajib']);
     exit;
 }
 

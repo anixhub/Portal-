@@ -528,6 +528,27 @@ export default function App() {
     await saveEventToHostinger(newEvent);
   };
 
+  const handleUpdateEvent = async (id: string, updated: Partial<EventAgenda>) => {
+    let targetEvent: EventAgenda | null = null;
+    setEvents((prev) =>
+      prev.map((item) => {
+        if (item.id === id) {
+          targetEvent = { ...item, ...updated };
+          return targetEvent;
+        }
+        return item;
+      })
+    );
+    if (targetEvent) {
+      await saveEventToHostinger(targetEvent);
+    }
+  };
+
+  const handleDeleteEvent = async (id: string) => {
+    setEvents((prev) => prev.filter((item) => item.id !== id));
+    await deleteEventFromHostinger(id);
+  };
+
   const handleAddAnnouncement = async (newAnn: AnnouncementItem) => {
     setAnnouncements((prev) => [newAnn, ...prev]);
     // Simpan permanen ke database Hostinger
@@ -617,6 +638,8 @@ export default function App() {
           onDeleteAlumni={handleDeleteAlumniByAdmin}
           onResetPassword={handleResetAlumniPassword}
           onAddEvent={handleAddEvent}
+          onUpdateEvent={handleUpdateEvent}
+          onDeleteEvent={handleDeleteEvent}
           onUpdateAdmin={handleUpdateAdmin}
           onAddAdminUser={handleAddAdminUser}
           onUpdateAdminUser={handleUpdateAdminUser}
