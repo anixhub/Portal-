@@ -55,8 +55,8 @@ export const MAJMUAH_SECTIONS: MajmuahSection[] = [
 ];
 
 const PDF_URL = '/majmuah_putra.pdf';
-const STORAGE_LAST_PAGE = 'majmuah_last_page';
 const TOTAL_PAGES_COUNT = 223;
+const MIN_PAGE = 3; // Halaman awal Surat Yasin (halaman judul dan biodata sebelum Yasin dihapus)
 const DEFAULT_FIRST_PAGE = 3; // Halaman awal surat Yasin
 
 interface MajmuahViewProps {
@@ -70,18 +70,12 @@ export const MajmuahView: React.FC<MajmuahViewProps> = ({ isOpen, onClose, initi
   const [currentView, setCurrentView] = useState<'toc' | 'read'>('toc');
   const [isRightSidebarOpen, setIsRightSidebarOpen] = useState<boolean>(false);
 
+  // Tidak ada fitur lanjutkan membaca (selalu mulai dari Surat Yasin hal. 3 atau yang dipilih)
   const [currentPage, setCurrentPage] = useState<number>(() => {
-    if (initialPage && initialPage > 0) return initialPage;
     try {
-      const saved = localStorage.getItem(STORAGE_LAST_PAGE);
-      if (saved) {
-        const p = parseInt(saved, 10);
-        if (!isNaN(p) && p >= 3 && p <= TOTAL_PAGES_COUNT) return p;
-      }
-    } catch {
-      // ignore
-    }
-    return DEFAULT_FIRST_PAGE;
+      localStorage.removeItem('majmuah_last_page');
+    } catch {}
+    return initialPage && initialPage >= MIN_PAGE ? initialPage : DEFAULT_FIRST_PAGE;
   });
 
   const [totalPages, setTotalPages] = useState<number>(TOTAL_PAGES_COUNT);
@@ -104,6 +98,9 @@ export const MajmuahView: React.FC<MajmuahViewProps> = ({ isOpen, onClose, initi
   const pageImageCacheRef = useRef<Map<number, string>>(new Map());
   const pdfDocRef = useRef<any>(null);
   const pageContainerRef = useRef<HTMLDivElement | null>(null);
+  const animationTimeoutRef = useRef<any>(null);
+  const rafRef = useRef<number | null>(null);
+  const activeSidebarItemRef = useRef<HTMLButtonElement | null>(null);
 
   // Gesture coordinate tracking
   const dragOffsetRef = useRef<number>(0);
@@ -173,7 +170,7 @@ export const MajmuahView: React.FC<MajmuahViewProps> = ({ isOpen, onClose, initi
 
   // Render a specific page to high-quality image URL with fit-width scaling
   const getOrRenderPageImage = useCallback(async (pageNum: number): Promise<string | null> => {
-    if (pageNum < 1 || pageNum > totalPages) return null;
+    if (pageNum < MIN_PAGE || pageNum > totalPages) return null;
     if (pageImageCacheRef.current.has(pageNum)) {
       return pageImageCacheRef.current.get(pageNum)!;
     }
@@ -210,8 +207,8 @@ export const MajmuahView: React.FC<MajmuahViewProps> = ({ isOpen, onClose, initi
   const updateVisiblePages = useCallback(async (activePage: number) => {
     // 1. Instant update if current page is already in cache
     const cachedCurrent = pageImageCacheRef.current.get(activePage) || null;
-    const cachedNext = pageImageCacheRef.current.get(activePage + 1) || null;
-    const cachedPrev = pageImageCacheRef.current.get(activePage - 1) || null;
+    const cachedNext = activePage < totalPages ? (pageImageCacheRef.current.get(activePage + 1) || null) : null;
+    const cachedPrev = activePage > MIN_PAGE ? (pageImageCacheRef.current.get(activePage - 1) || null) : null;
 
     setRenderedPages({
       current: cachedCurrent,
@@ -232,7 +229,7 @@ export const MajmuahView: React.FC<MajmuahViewProps> = ({ isOpen, onClose, initi
       });
     }
 
-    if (activePage > 1 && !cachedPrev) {
+    if (activePage > MIN_PAGE && !cachedPrev) {
       getOrRenderPageImage(activePage - 1).then((prevUrl) => {
         setRenderedPages((prev) => ({ ...prev, prev: prevUrl }));
       });
@@ -242,7 +239,7 @@ export const MajmuahView: React.FC<MajmuahViewProps> = ({ isOpen, onClose, initi
     if (activePage + 2 <= totalPages && !pageImageCacheRef.current.has(activePage + 2)) {
       getOrRenderPageImage(activePage + 2);
     }
-    if (activePage - 2 >= 1 && !pageImageCacheRef.current.has(activePage - 2)) {
+    if (activePage - 2 >= MIN_PAGE && !pageImageCacheRef.current.has(activePage - 2)) {
       getOrRenderPageImage(activePage - 2);
     }
   }, [getOrRenderPageImage, totalPages]);
@@ -250,11 +247,6 @@ export const MajmuahView: React.FC<MajmuahViewProps> = ({ isOpen, onClose, initi
   useEffect(() => {
     if (isOpen && currentView === 'read' && pdfDocRef.current) {
       updateVisiblePages(currentPage);
-      try {
-        localStorage.setItem(STORAGE_LAST_PAGE, String(currentPage));
-      } catch {
-        // ignore
-      }
     }
   }, [isOpen, currentView, currentPage, updateVisiblePages]);
 
@@ -282,17 +274,36 @@ export const MajmuahView: React.FC<MajmuahViewProps> = ({ isOpen, onClose, initi
 
   // Jump to page
   const goToPage = useCallback((pageNum: number) => {
-    const valid = Math.max(1, Math.min(totalPages, pageNum));
+    const valid = Math.max(MIN_PAGE, Math.min(totalPages, pageNum));
     setCurrentPage(valid);
     setIsRightSidebarOpen(false);
   }, [totalPages]);
 
+  // Auto-scroll sidebar list to currently highlighted item when opening
+  useEffect(() => {
+    if (isRightSidebarOpen) {
+      const timer = setTimeout(() => {
+        if (activeSidebarItemRef.current) {
+          activeSidebarItemRef.current.scrollIntoView({
+            behavior: 'smooth',
+            block: 'center',
+          });
+        }
+      }, 150);
+      return () => clearTimeout(timer);
+    }
+  }, [isRightSidebarOpen]);
+
   // ================= PUSH SWIPE GESTURE (IDENTIK DENGAN AL-QUR'AN) =================
-  // Arah halaman RTL: Nomor 1 di KANAN, nomor berikutnya ke KIRI.
+  // Arah halaman RTL: Nomor awal di KANAN, nomor berikutnya ke KIRI.
   // Geser ke kanan (dragOffset > 0): Halaman berikutnya (currentPage + 1) masuk dari kiri mendorong halaman saat ini.
   // Geser ke kiri (dragOffset < 0): Halaman sebelumnya (currentPage - 1) masuk dari kanan mendorong halaman saat ini.
 
   const finishPageDrag = useCallback(() => {
+    if (rafRef.current) {
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
+    }
     if (!touchStartCoordRef.current) return;
     const currentOffset = dragOffsetRef.current;
     const wasDragging = isDraggingPageRef.current;
@@ -300,14 +311,14 @@ export const MajmuahView: React.FC<MajmuahViewProps> = ({ isOpen, onClose, initi
     dragDirectionRef.current = null;
     isDraggingPageRef.current = false;
 
-    if (!wasDragging || Math.abs(currentOffset) < 2) {
+    if (!wasDragging || Math.abs(currentOffset) < 3) {
       setDragOffset(0);
       dragOffsetRef.current = 0;
       return;
     }
 
     const containerWidth = pageContainerRef.current?.clientWidth || window.innerWidth || 360;
-    const threshold = Math.min(90, Math.max(40, containerWidth * 0.15));
+    const threshold = Math.min(85, Math.max(35, containerWidth * 0.14));
 
     if (currentOffset > threshold && currentPage < totalPages) {
       // Geser ke kanan past threshold -> Halaman berikutnya (currentPage + 1) masuk dari kiri
@@ -315,9 +326,9 @@ export const MajmuahView: React.FC<MajmuahViewProps> = ({ isOpen, onClose, initi
       setDragOffset(containerWidth);
       dragOffsetRef.current = containerWidth;
 
-      setTimeout(() => {
+      if (animationTimeoutRef.current) clearTimeout(animationTimeoutRef.current);
+      animationTimeoutRef.current = setTimeout(() => {
         const nextP = currentPage + 1;
-        // Seamless handoff: next page image becomes current immediately without re-render flash
         setRenderedPages((prev) => ({
           current: prev.next,
           next: pageImageCacheRef.current.get(nextP + 1) || null,
@@ -327,16 +338,17 @@ export const MajmuahView: React.FC<MajmuahViewProps> = ({ isOpen, onClose, initi
         setIsAnimatingPage(false);
         setDragOffset(0);
         dragOffsetRef.current = 0;
+        animationTimeoutRef.current = null;
       }, 260);
-    } else if (currentOffset < -threshold && currentPage > 1) {
+    } else if (currentOffset < -threshold && currentPage > MIN_PAGE) {
       // Geser ke kiri past threshold -> Halaman sebelumnya (currentPage - 1) masuk dari kanan
       setIsAnimatingPage(true);
       setDragOffset(-containerWidth);
       dragOffsetRef.current = -containerWidth;
 
-      setTimeout(() => {
+      if (animationTimeoutRef.current) clearTimeout(animationTimeoutRef.current);
+      animationTimeoutRef.current = setTimeout(() => {
         const prevP = currentPage - 1;
-        // Seamless handoff: prev page image becomes current immediately
         setRenderedPages((prev) => ({
           current: prev.prev,
           next: prev.current,
@@ -346,20 +358,32 @@ export const MajmuahView: React.FC<MajmuahViewProps> = ({ isOpen, onClose, initi
         setIsAnimatingPage(false);
         setDragOffset(0);
         dragOffsetRef.current = 0;
+        animationTimeoutRef.current = null;
       }, 260);
     } else {
       // Snap kembali ke halaman saat ini
       setIsAnimatingPage(true);
       setDragOffset(0);
       dragOffsetRef.current = 0;
-      setTimeout(() => {
+      if (animationTimeoutRef.current) clearTimeout(animationTimeoutRef.current);
+      animationTimeoutRef.current = setTimeout(() => {
         setIsAnimatingPage(false);
+        animationTimeoutRef.current = null;
       }, 260);
     }
   }, [currentPage, totalPages]);
 
   const handleTouchStart = (e: React.TouchEvent) => {
-    if (isAnimatingPage) return;
+    // If user touches while animation is running, cancel it immediately so there is no jump
+    if (animationTimeoutRef.current) {
+      clearTimeout(animationTimeoutRef.current);
+      animationTimeoutRef.current = null;
+    }
+    if (rafRef.current) {
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
+    }
+    setIsAnimatingPage(false);
     const touch = e.touches[0];
     touchStartCoordRef.current = { x: touch.clientX, y: touch.clientY };
     dragDirectionRef.current = null;
@@ -367,14 +391,14 @@ export const MajmuahView: React.FC<MajmuahViewProps> = ({ isOpen, onClose, initi
   };
 
   const handleTouchMove = (e: React.TouchEvent) => {
-    if (!touchStartCoordRef.current || isAnimatingPage) return;
+    if (!touchStartCoordRef.current) return;
     const touch = e.touches[0];
     const dx = touch.clientX - touchStartCoordRef.current.x;
     const dy = touch.clientY - touchStartCoordRef.current.y;
 
     if (dragDirectionRef.current === null) {
-      if (Math.abs(dx) > 6 || Math.abs(dy) > 6) {
-        if (Math.abs(dx) > Math.abs(dy)) {
+      if (Math.abs(dx) > 5 || Math.abs(dy) > 5) {
+        if (Math.abs(dx) > Math.abs(dy) * 1.1) {
           dragDirectionRef.current = 'horizontal';
           isDraggingPageRef.current = true;
         } else {
@@ -387,11 +411,18 @@ export const MajmuahView: React.FC<MajmuahViewProps> = ({ isOpen, onClose, initi
       let adjustedDx = dx;
       if (currentPage >= totalPages && dx > 0) {
         adjustedDx = dx * 0.22;
-      } else if (currentPage <= 1 && dx < 0) {
+      } else if (currentPage <= MIN_PAGE && dx < 0) {
         adjustedDx = dx * 0.22;
       }
       dragOffsetRef.current = adjustedDx;
-      setDragOffset(adjustedDx);
+      
+      // Sync frame smoothly via requestAnimationFrame to avoid initial jump
+      if (!rafRef.current) {
+        rafRef.current = requestAnimationFrame(() => {
+          setDragOffset(dragOffsetRef.current);
+          rafRef.current = null;
+        });
+      }
     }
   };
 
@@ -401,20 +432,29 @@ export const MajmuahView: React.FC<MajmuahViewProps> = ({ isOpen, onClose, initi
 
   // Mouse drag support for web/desktop testing
   const handleMouseDown = (e: React.MouseEvent) => {
-    if (isAnimatingPage || e.button !== 0) return;
+    if (e.button !== 0) return;
+    if (animationTimeoutRef.current) {
+      clearTimeout(animationTimeoutRef.current);
+      animationTimeoutRef.current = null;
+    }
+    if (rafRef.current) {
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
+    }
+    setIsAnimatingPage(false);
     touchStartCoordRef.current = { x: e.clientX, y: e.clientY };
     dragDirectionRef.current = null;
     isDraggingPageRef.current = false;
   };
 
   const handleMouseMove = (e: React.MouseEvent) => {
-    if (!touchStartCoordRef.current || isAnimatingPage) return;
+    if (!touchStartCoordRef.current) return;
     const dx = e.clientX - touchStartCoordRef.current.x;
     const dy = e.clientY - touchStartCoordRef.current.y;
 
     if (dragDirectionRef.current === null) {
-      if (Math.abs(dx) > 6 || Math.abs(dy) > 6) {
-        if (Math.abs(dx) > Math.abs(dy)) {
+      if (Math.abs(dx) > 5 || Math.abs(dy) > 5) {
+        if (Math.abs(dx) > Math.abs(dy) * 1.1) {
           dragDirectionRef.current = 'horizontal';
           isDraggingPageRef.current = true;
         } else {
@@ -427,11 +467,17 @@ export const MajmuahView: React.FC<MajmuahViewProps> = ({ isOpen, onClose, initi
       let adjustedDx = dx;
       if (currentPage >= totalPages && dx > 0) {
         adjustedDx = dx * 0.22;
-      } else if (currentPage <= 1 && dx < 0) {
+      } else if (currentPage <= MIN_PAGE && dx < 0) {
         adjustedDx = dx * 0.22;
       }
       dragOffsetRef.current = adjustedDx;
-      setDragOffset(adjustedDx);
+      
+      if (!rafRef.current) {
+        rafRef.current = requestAnimationFrame(() => {
+          setDragOffset(dragOffsetRef.current);
+          rafRef.current = null;
+        });
+      }
     }
   };
 
@@ -440,7 +486,7 @@ export const MajmuahView: React.FC<MajmuahViewProps> = ({ isOpen, onClose, initi
   };
 
   const openSection = (page: number) => {
-    setCurrentPage(page);
+    setCurrentPage(Math.max(MIN_PAGE, page));
     setCurrentView('read');
     setIsRightSidebarOpen(false);
   };
@@ -455,7 +501,7 @@ export const MajmuahView: React.FC<MajmuahViewProps> = ({ isOpen, onClose, initi
           goToPage(currentPage + 1);
         }
       } else if (e.key === 'ArrowRight') {
-        if (currentPage > 1) {
+        if (currentPage > MIN_PAGE) {
           goToPage(currentPage - 1);
         }
       } else if (e.key === 'Escape') {
@@ -545,32 +591,6 @@ export const MajmuahView: React.FC<MajmuahViewProps> = ({ isOpen, onClose, initi
               />
             </div>
 
-            {/* 2. Banner Lanjutkan Terakhir Dibaca (Jika ada) */}
-            {currentPage > DEFAULT_FIRST_PAGE && !searchQuery && (
-              <button
-                type="button"
-                onClick={() => openSection(currentPage)}
-                className="w-full bg-linear-to-r from-emerald-700 via-teal-800 to-emerald-900 text-white rounded-2xl p-3.5 text-left shadow-xs flex items-center justify-between cursor-pointer active:scale-[0.99] transition-transform"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-xl bg-white/20 backdrop-blur-md flex items-center justify-center shrink-0">
-                    <BookOpen className="w-4 h-4 text-white" />
-                  </div>
-                  <div>
-                    <span className="text-[10px] uppercase font-bold text-emerald-200 tracking-wider">
-                      Lanjutkan Membaca
-                    </span>
-                    <p className="font-bold text-xs sm:text-sm text-white truncate leading-snug">
-                      {currentSection.title}
-                    </p>
-                  </div>
-                </div>
-                <span className="text-xs font-semibold bg-white/20 px-2.5 py-1 rounded-lg">
-                  Buka
-                </span>
-              </button>
-            )}
-
             {/* 3. Daftar Bab Kitab Majmu'ah: Nomor Urut Saja + Keterangan Halaman Saja */}
             <div className="bg-white rounded-2xl border border-slate-200/80 shadow-2xs divide-y divide-slate-100 overflow-hidden">
               {filteredSections.map((sec, idx) => (
@@ -648,14 +668,11 @@ export const MajmuahView: React.FC<MajmuahViewProps> = ({ isOpen, onClose, initi
               <ArrowLeft className="w-5 h-5" />
             </button>
 
-            {/* Judul Bab Bersih di Tengah */}
+            {/* Judul Bab Bersih di Tengah (Keterangan Revisi 2024 dihapus di mode baca sesuai permintaan) */}
             <div className="text-center truncate px-2">
-              <h2 className="font-bold text-sm sm:text-base text-white truncate max-w-[220px] sm:max-w-[280px]">
+              <h2 className="font-bold text-sm sm:text-base text-white truncate max-w-[240px] sm:max-w-[300px]">
                 {currentSection.title}
               </h2>
-              <p className="text-[11px] text-emerald-100 font-medium">
-                Revisi 2024
-              </p>
             </div>
 
             {/* Tombol Kanan Atas: Membuka Sidebar Kanan Daftar Isi */}
@@ -669,7 +686,7 @@ export const MajmuahView: React.FC<MajmuahViewProps> = ({ isOpen, onClose, initi
             </button>
           </header>
 
-          {/* Area Baca Kitab - Background #fbf9f2 & Center Vertical Layar Penuh */}
+          {/* Area Baca Kitab - Background #fbf9f2 & Center Vertical Layar Penuh dengan touchAction: none agar tidak ada lompatan awal */}
           <div
             ref={pageContainerRef}
             onTouchStart={handleTouchStart}
@@ -678,7 +695,8 @@ export const MajmuahView: React.FC<MajmuahViewProps> = ({ isOpen, onClose, initi
             onMouseDown={handleMouseDown}
             onMouseMove={handleMouseMove}
             onMouseUp={handleMouseUp}
-            className="flex-1 relative w-full h-full overflow-hidden bg-[#fbf9f2] flex items-center justify-center cursor-grab active:cursor-grabbing select-none"
+            style={{ touchAction: 'none' }}
+            className="flex-1 relative w-full h-full overflow-hidden bg-[#fbf9f2] flex items-center justify-center cursor-grab active:cursor-grabbing select-none touch-none"
           >
             {/* Indikator Memuat Awal */}
             {isLoading && !renderedPages.current && (
@@ -689,7 +707,7 @@ export const MajmuahView: React.FC<MajmuahViewProps> = ({ isOpen, onClose, initi
             )}
 
             {/* 1. Next Page in RTL (currentPage + 1): Berada di sebelah KIRI, masuk mendorong halaman saat digeser ke kanan */}
-            {currentPage < totalPages && (
+            {(dragOffset > 0 || (isAnimatingPage && dragOffset > 0)) && currentPage < totalPages && (
               <div
                 className="absolute inset-0 w-full h-full flex items-center justify-center overscroll-contain bg-[#fbf9f2] pointer-events-none select-none"
                 style={{
@@ -732,8 +750,8 @@ export const MajmuahView: React.FC<MajmuahViewProps> = ({ isOpen, onClose, initi
               )}
             </div>
 
-            {/* 3. Previous Page in RTL (currentPage - 1): Berada di sebelah KANAN, masuk mendorong halaman saat digeser ke kiri */}
-            {currentPage > 1 && (
+            {/* 3. Previous Page in RTL (currentPage - 1): Berada di sebelah KANAN, masuk mendorong halaman saat digeser ke kiri (hanya jika > MIN_PAGE / Yasin) */}
+            {(dragOffset < 0 || (isAnimatingPage && dragOffset < 0)) && currentPage > MIN_PAGE && (
               <div
                 className="absolute inset-0 w-full h-full flex items-center justify-center overscroll-contain bg-[#fbf9f2] pointer-events-none select-none"
                 style={{
@@ -773,7 +791,6 @@ export const MajmuahView: React.FC<MajmuahViewProps> = ({ isOpen, onClose, initi
                 <List className="w-5 h-5 text-emerald-100" />
                 <div>
                   <h3 className="font-bold text-sm text-white leading-tight">Daftar Isi</h3>
-                  <p className="text-[10px] text-emerald-100 font-medium">Revisi 2024</p>
                 </div>
               </div>
 
@@ -803,11 +820,12 @@ export const MajmuahView: React.FC<MajmuahViewProps> = ({ isOpen, onClose, initi
 
             {/* Daftar Bab di Sidebar */}
             <div className="flex-1 overflow-y-auto p-2 space-y-1 no-scrollbar">
-              {filteredSidebarSections.map((sec, idx) => {
+              {filteredSidebarSections.map((sec) => {
                 const isActive = currentSection?.page === sec.page;
                 return (
                   <button
                     key={sec.page}
+                    ref={isActive ? activeSidebarItemRef : undefined}
                     type="button"
                     onClick={() => goToPage(sec.page)}
                     className={`w-full text-left p-2.5 rounded-xl transition-all flex items-center justify-between group cursor-pointer ${

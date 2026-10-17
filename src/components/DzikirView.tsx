@@ -827,7 +827,7 @@ export const DzikirView: React.FC<DzikirViewProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[100050] bg-[#1b1c2f] text-[#f4f4fa] font-sans flex flex-col select-none overflow-hidden max-w-lg mx-auto shadow-2xl border-x border-slate-800">
+    <div className="fixed inset-0 z-[100050] bg-[#fbf9f2] text-slate-800 font-sans flex flex-col select-none overflow-hidden max-w-lg mx-auto shadow-2xl border-x border-slate-200">
       <style>{`
         @keyframes ripple {
           0% {
@@ -843,32 +843,32 @@ export const DzikirView: React.FC<DzikirViewProps> = ({
 
       {/* ================= 1. HOME SCREEN (BERANDA PANDUAN DZIKIR) ================= */}
       {currentScreen === 'home' && (
-        <div className="flex-1 flex flex-col h-full overflow-hidden p-4 pb-6">
-          {/* Header Bar */}
-          <header className="flex items-center justify-between h-14 shrink-0 px-1 border-b border-white/5">
+        <div className="flex-1 flex flex-col h-full overflow-hidden">
+          {/* Header Bar Warna Hijau Identik Al-Qur'an (#4f9a50) */}
+          <header className="bg-[#4f9a50] text-white flex items-center justify-between px-3 h-14 shrink-0 shadow-sm z-20">
             <button
               type="button"
               onClick={onClose}
-              className="w-10 h-10 rounded-full flex items-center justify-center text-white/80 hover:text-white hover:bg-white/10 active:bg-white/20 transition-colors cursor-pointer"
+              className="w-10 h-10 rounded-full flex items-center justify-center hover:bg-white/20 active:bg-white/30 text-white transition-colors cursor-pointer"
               title="Kembali ke Beranda"
             >
               <ArrowLeft className="w-5 h-5" />
             </button>
-            <h1 className="text-base sm:text-lg font-bold text-white tracking-wide">
+            <h1 className="text-base sm:text-lg font-bold text-white tracking-wide text-center">
               Panduan Dzikir
             </h1>
-            <div className="w-10" />
+            <div className="w-10 h-10" />
           </header>
 
           {/* Scrollable Content */}
-          <div className="flex-1 overflow-y-auto no-scrollbar py-3 space-y-4">
+          <div className="flex-1 overflow-y-auto no-scrollbar p-4 space-y-4">
             {/* Welcome Banner */}
-            <div className="flex items-center gap-4 bg-[#25263f] rounded-2xl p-4.5 border border-white/5 shadow-xs">
-              <svg viewBox="0 0 100 100" className="w-14 h-14 shrink-0" aria-hidden="true">
+            <div className="flex items-center gap-4 bg-[#fcfaf5] rounded-2xl p-4.5 border border-amber-900/15 shadow-2xs">
+              <svg viewBox="0 0 100 100" className="w-13 h-13 shrink-0" aria-hidden="true">
                 <polygon
                   points="50,6 88,28 88,72 50,94 12,72 12,28"
-                  fill="#ff8a47"
-                  stroke="#ff8a47"
+                  fill="#4f9a50"
+                  stroke="#4f9a50"
                   strokeWidth="8"
                   strokeLinejoin="round"
                 />
@@ -882,8 +882,8 @@ export const DzikirView: React.FC<DzikirViewProps> = ({
                   <circle cx="63" cy="70" r="2.6" />
                 </g>
               </svg>
-              <p className="text-xs sm:text-[13px] leading-relaxed text-[#f4f4fa] font-normal">
-                Selamat datang di fitur <strong className="text-amber-400 font-semibold">Panduan Dzikir</strong>. Kumpulan doa-doa Dzikir dilengkapi dengan Tasbih Digital dan panduan Dzikir secara interaktif.
+              <p className="text-xs sm:text-[13px] leading-relaxed text-slate-700 font-normal">
+                Selamat datang di fitur <strong className="text-emerald-800 font-semibold">Panduan Dzikir</strong>. Kumpulan doa-doa Dzikir dilengkapi dengan Tasbih Digital dan panduan Dzikir secara interaktif.
               </p>
             </div>
 
@@ -894,9 +894,9 @@ export const DzikirView: React.FC<DzikirViewProps> = ({
                   key={cat.id}
                   type="button"
                   onClick={() => openCategory(cat)}
-                  className="relative overflow-hidden h-32 rounded-2xl bg-[#25263f] hover:bg-[#2c2d49] text-left p-4 flex items-center justify-between border border-white/5 transition-all active:scale-[0.98] cursor-pointer group shadow-xs"
+                  className="relative overflow-hidden h-32 rounded-2xl bg-[#fcfaf5] hover:bg-emerald-50/60 text-left p-4 flex items-center justify-between border border-amber-900/15 transition-all active:scale-[0.98] cursor-pointer group shadow-2xs"
                 >
-                  <span className="relative z-10 max-w-[62%] font-bold text-sm sm:text-base text-white leading-snug">
+                  <span className="relative z-10 max-w-[62%] font-bold text-sm sm:text-base text-slate-800 group-hover:text-emerald-800 leading-snug">
                     {cat.name}
                   </span>
 
@@ -904,7 +904,7 @@ export const DzikirView: React.FC<DzikirViewProps> = ({
                   <div className="absolute right-0 bottom-0 h-full w-24 pointer-events-none opacity-90 group-hover:scale-105 transition-transform">
                     {cat.art === 'books' ? (
                       <svg viewBox="40 0 80 120" className="h-full w-full" preserveAspectRatio="xMaxYMax meet">
-                        <circle cx="92" cy="84" r="46" fill={cat.color} />
+                        <circle cx="92" cy="84" r="46" fill="#4f9a50" opacity="0.85" />
                         <rect x="46" y="30" width="20" height="82" rx="2" fill="#7a5230" />
                         <rect x="46" y="44" width="20" height="4" fill="#d9b25a" />
                         <rect x="46" y="96" width="20" height="4" fill="#d9b25a" />
@@ -924,7 +924,7 @@ export const DzikirView: React.FC<DzikirViewProps> = ({
                       </svg>
                     ) : (
                       <svg viewBox="40 0 80 120" className="h-full w-full" preserveAspectRatio="xMaxYMax meet">
-                        <circle cx="86" cy="78" r="48" fill={cat.color} />
+                        <circle cx="86" cy="78" r="48" fill="#4f9a50" opacity="0.85" />
                         <path d="M44 120 C46 94 62 84 82 86 C102 88 116 100 120 120 Z" fill="#f3f0f8" />
                         <rect x="72" y="62" width="14" height="26" rx="6" fill="#e0ad86" />
                         <ellipse cx="78" cy="48" rx="16" ry="20" fill="#e0ad86" />
@@ -951,20 +951,20 @@ export const DzikirView: React.FC<DzikirViewProps> = ({
           </div>
 
           {/* Tasbih Digital Pinned di Bawah Beranda */}
-          <div className="shrink-0 flex flex-col items-center pt-2 pb-1 border-t border-white/5">
-            <p className="text-xs font-semibold tracking-wider text-slate-300 uppercase mb-3">
+          <div className="shrink-0 flex flex-col items-center pt-3 pb-2 border-t border-slate-200/80 bg-white/70 backdrop-blur-xs">
+            <p className="text-xs font-bold tracking-wider text-emerald-800 uppercase mb-2.5">
               TASBIH DIGITAL
             </p>
 
-            <div className="relative w-full h-[180px] flex items-center justify-center">
+            <div className="relative w-full h-[174px] flex items-center justify-center">
               {/* Tombol Samping Kiri: Pengaturan Tasbih (Gear) */}
               <button
                 type="button"
                 onClick={() => setIsCfgDialogOpen(true)}
-                className="absolute left-[calc(25%-54px)] top-[calc(50%-32px)] -translate-x-1/2 -translate-y-1/2 w-11 h-11 rounded-full bg-[#c8153f] text-white flex items-center justify-center shadow-md active:scale-95 cursor-pointer z-10"
+                className="absolute left-[calc(25%-54px)] top-[calc(50%-32px)] -translate-x-1/2 -translate-y-1/2 w-11 h-11 rounded-full bg-white text-emerald-800 border border-slate-200/90 flex items-center justify-center shadow-xs active:scale-95 hover:bg-emerald-50 cursor-pointer z-10 transition-colors"
                 title="Pengaturan Tasbih"
               >
-                <Settings className="w-5 h-5" />
+                <Settings className="w-5 h-5 text-emerald-800" />
               </button>
 
               {/* Tombol Samping Kiri Bawah: Reset Hitungan */}
@@ -975,24 +975,24 @@ export const DzikirView: React.FC<DzikirViewProps> = ({
                   triggerVibrate(60);
                   showToast('Hitungan tasbih diatur ulang');
                 }}
-                className="absolute left-[calc(25%-54px)] top-[calc(50%+32px)] -translate-x-1/2 -translate-y-1/2 w-11 h-11 rounded-full bg-[#c8153f] text-white flex items-center justify-center shadow-md active:scale-95 cursor-pointer z-10"
+                className="absolute left-[calc(25%-54px)] top-[calc(50%+32px)] -translate-x-1/2 -translate-y-1/2 w-11 h-11 rounded-full bg-white text-emerald-800 border border-slate-200/90 flex items-center justify-center shadow-xs active:scale-95 hover:bg-emerald-50 cursor-pointer z-10 transition-colors"
                 title="Atur Ulang Hitungan"
               >
-                <RotateCcw className="w-5 h-5" />
+                <RotateCcw className="w-5 h-5 text-emerald-800" />
               </button>
 
               {/* Lingkaran Progress & Tombol Ketuk Utama */}
               <div
-                className="w-[176px] h-[176px] rounded-full p-[3px] flex items-center justify-center shadow-lg"
+                className="w-[172px] h-[172px] rounded-full p-[3px] flex items-center justify-center shadow-md bg-white border border-slate-200/70"
                 style={{
-                  background: `conic-gradient(#ff8a47 ${Math.min(100, (homeCount / homeTarget) * 100)}%, #2b2c47 0%)`
+                  background: `conic-gradient(#10b981 ${Math.min(100, (homeCount / homeTarget) * 100)}%, #e2e8f0 0%)`
                 }}
               >
-                <div className="w-full h-full rounded-full bg-[#1b1c2f] flex items-center justify-center p-2">
+                <div className="w-full h-full rounded-full bg-[#fbf9f2] flex items-center justify-center p-2">
                   <button
                     type="button"
                     onClick={(e) => handleTap('home', e)}
-                    className="relative overflow-hidden w-[148px] h-[148px] rounded-full bg-[#2d2e49] hover:bg-[#343555] active:scale-[0.97] transition-all flex items-center justify-center text-white font-bold cursor-pointer shadow-inner select-none"
+                    className="relative overflow-hidden w-[144px] h-[144px] rounded-full bg-linear-to-b from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800 active:scale-[0.97] transition-all flex items-center justify-center text-white font-extrabold cursor-pointer shadow-md select-none"
                   >
                     <span
                       className="relative z-10 font-bold tabular-nums"
@@ -1015,7 +1015,7 @@ export const DzikirView: React.FC<DzikirViewProps> = ({
                   setTargetDialogError('');
                   setIsTargetDialogOpen(true);
                 }}
-                className="absolute left-[calc(75%+54px)] top-1/2 -translate-x-1/2 -translate-y-1/2 w-11 h-11 rounded-full bg-[#c8153f] text-white font-bold text-sm flex items-center justify-center shadow-md active:scale-95 cursor-pointer z-10 tabular-nums"
+                className="absolute left-[calc(75%+54px)] top-1/2 -translate-x-1/2 -translate-y-1/2 w-11 h-11 rounded-full bg-white text-emerald-800 border border-slate-200/90 font-bold text-sm flex items-center justify-center shadow-xs active:scale-95 hover:bg-emerald-50 cursor-pointer z-10 tabular-nums transition-colors"
                 title="Ubah Target Hitungan"
               >
                 {homeTarget}
@@ -1027,35 +1027,35 @@ export const DzikirView: React.FC<DzikirViewProps> = ({
 
       {/* ================= 2. LIST SCREEN (DAFTAR KOLEKSI DZIKIR) ================= */}
       {currentScreen === 'list' && (
-        <div className="flex-1 flex flex-col h-full overflow-hidden p-4">
-          <header className="flex items-center justify-between h-14 shrink-0 px-1 border-b border-white/5">
+        <div className="flex-1 flex flex-col h-full overflow-hidden">
+          <header className="bg-[#4f9a50] text-white flex items-center justify-between px-3 h-14 shrink-0 shadow-sm z-20">
             <button
               type="button"
               onClick={() => setCurrentScreen('home')}
-              className="w-10 h-10 rounded-full flex items-center justify-center text-white/80 hover:text-white hover:bg-white/10 active:bg-white/20 transition-colors cursor-pointer"
+              className="w-10 h-10 rounded-full flex items-center justify-center hover:bg-white/20 active:bg-white/30 text-white transition-colors cursor-pointer"
               title="Kembali"
             >
               <ArrowLeft className="w-5 h-5" />
             </button>
-            <h1 className="text-base sm:text-lg font-bold text-white tracking-wide truncate px-2">
+            <h1 className="text-base sm:text-lg font-bold text-white tracking-wide truncate px-2 text-center flex-1">
               {activeCategory.name}
             </h1>
-            <div className="w-10" />
+            <div className="w-10 h-10" />
           </header>
 
-          <div className="flex-1 overflow-y-auto no-scrollbar py-4 space-y-3">
+          <div className="flex-1 overflow-y-auto no-scrollbar p-4 space-y-3">
             {activeCategory.cols.map((col) => (
               <button
                 key={col.id}
                 type="button"
                 onClick={() => openCollection(col)}
-                className="w-full flex items-center justify-between p-4.5 rounded-2xl bg-[#25263f] hover:bg-[#2c2d49] text-left border border-white/5 active:scale-[0.99] transition-all cursor-pointer shadow-xs"
+                className="w-full flex items-center justify-between p-4.5 rounded-2xl bg-[#fcfaf5] hover:bg-emerald-50/70 text-left border border-amber-900/15 active:scale-[0.99] transition-all cursor-pointer shadow-2xs group"
               >
                 <div>
-                  <h3 className="font-bold text-white text-sm sm:text-base">{col.title}</h3>
-                  <p className="text-xs text-[#a8a9c4] mt-1">{col.items.length} bacaan dzikir</p>
+                  <h3 className="font-bold text-slate-900 group-hover:text-emerald-800 text-sm sm:text-base">{col.title}</h3>
+                  <p className="text-xs text-emerald-700 mt-1 font-medium">{col.items.length} bacaan dzikir</p>
                 </div>
-                <ChevronRight className="w-5 h-5 text-[#74759a]" />
+                <ChevronRight className="w-5 h-5 text-slate-400 group-hover:text-emerald-700 transition-colors" />
               </button>
             ))}
           </div>
@@ -1064,9 +1064,9 @@ export const DzikirView: React.FC<DzikirViewProps> = ({
 
       {/* ================= 3. VIEWER SCREEN (LAYAR BACAAN DZIKIR + TASBIH TERINTEGRASI) ================= */}
       {currentScreen === 'viewer' && (
-        <div className="flex-1 flex flex-col h-full overflow-hidden p-4 pb-2">
+        <div className="flex-1 flex flex-col h-full overflow-hidden">
           {/* Header Bar */}
-          <header className="relative flex items-center justify-between h-14 shrink-0 px-1 border-b border-white/5">
+          <header className="bg-[#4f9a50] text-white relative flex items-center justify-between h-14 px-3 shrink-0 shadow-sm z-30">
             <button
               type="button"
               onClick={() => {
@@ -1077,7 +1077,7 @@ export const DzikirView: React.FC<DzikirViewProps> = ({
                   setCurrentScreen('home');
                 }
               }}
-              className="w-10 h-10 rounded-full flex items-center justify-center text-white/80 hover:text-white hover:bg-white/10 active:bg-white/20 transition-colors cursor-pointer"
+              className="w-10 h-10 rounded-full flex items-center justify-center hover:bg-white/20 active:bg-white/30 text-white transition-colors cursor-pointer shrink-0"
               title="Kembali"
             >
               <ArrowLeft className="w-5 h-5" />
@@ -1090,7 +1090,7 @@ export const DzikirView: React.FC<DzikirViewProps> = ({
             <button
               type="button"
               onClick={() => setIsMoreMenuOpen(!isMoreMenuOpen)}
-              className="w-10 h-10 rounded-full flex items-center justify-center text-white/80 hover:text-white hover:bg-white/10 active:bg-white/20 transition-colors cursor-pointer"
+              className="w-10 h-10 rounded-full flex items-center justify-center hover:bg-white/20 active:bg-white/30 text-white transition-colors cursor-pointer shrink-0"
               title="Menu Pengaturan Teks"
             >
               <MoreVertical className="w-5 h-5" />
@@ -1098,14 +1098,14 @@ export const DzikirView: React.FC<DzikirViewProps> = ({
 
             {/* Floating More Menu */}
             {isMoreMenuOpen && (
-              <div className="absolute right-2 top-14 z-50 min-w-[210px] bg-[#2d2e49] rounded-2xl p-2 shadow-2xl border border-white/10 animate-in fade-in space-y-1">
+              <div className="absolute right-3 top-14 z-50 min-w-[210px] bg-[#fffefc] rounded-2xl p-2 shadow-2xl border border-amber-900/15 animate-in fade-in space-y-1 text-slate-800">
                 <button
                   type="button"
                   onClick={() => {
                     setArabicFontSize((prev) => Math.min(44, prev + 2));
                     setIsMoreMenuOpen(false);
                   }}
-                  className="w-full text-left px-3 py-2 text-xs font-medium text-white hover:bg-[#3b3c57] rounded-xl cursor-pointer"
+                  className="w-full text-left px-3 py-2 text-xs font-semibold text-slate-800 hover:bg-emerald-50 hover:text-emerald-900 rounded-xl cursor-pointer"
                 >
                   Perbesar teks Arab (+2px)
                 </button>
@@ -1115,7 +1115,7 @@ export const DzikirView: React.FC<DzikirViewProps> = ({
                     setArabicFontSize((prev) => Math.max(20, prev - 2));
                     setIsMoreMenuOpen(false);
                   }}
-                  className="w-full text-left px-3 py-2 text-xs font-medium text-white hover:bg-[#3b3c57] rounded-xl cursor-pointer"
+                  className="w-full text-left px-3 py-2 text-xs font-semibold text-slate-800 hover:bg-emerald-50 hover:text-emerald-900 rounded-xl cursor-pointer"
                 >
                   Perkecil teks Arab (-2px)
                 </button>
@@ -1125,7 +1125,7 @@ export const DzikirView: React.FC<DzikirViewProps> = ({
                     setShowLatin(!showLatin);
                     setIsMoreMenuOpen(false);
                   }}
-                  className="w-full text-left px-3 py-2 text-xs font-medium text-white hover:bg-[#3b3c57] rounded-xl cursor-pointer"
+                  className="w-full text-left px-3 py-2 text-xs font-semibold text-slate-800 hover:bg-emerald-50 hover:text-emerald-900 rounded-xl cursor-pointer"
                 >
                   {showLatin ? 'Sembunyikan teks latin' : 'Tampilkan teks latin'}
                 </button>
@@ -1135,7 +1135,7 @@ export const DzikirView: React.FC<DzikirViewProps> = ({
                     setShowTerjemah(!showTerjemah);
                     setIsMoreMenuOpen(false);
                   }}
-                  className="w-full text-left px-3 py-2 text-xs font-medium text-white hover:bg-[#3b3c57] rounded-xl cursor-pointer"
+                  className="w-full text-left px-3 py-2 text-xs font-semibold text-slate-800 hover:bg-emerald-50 hover:text-emerald-900 rounded-xl cursor-pointer"
                 >
                   {showTerjemah ? 'Sembunyikan terjemahan' : 'Tampilkan terjemahan'}
                 </button>
@@ -1143,206 +1143,208 @@ export const DzikirView: React.FC<DzikirViewProps> = ({
             )}
           </header>
 
-          {/* Card Body Reading Container */}
-          <div className="flex-1 flex flex-col min-h-0 bg-[#25263f] rounded-2xl overflow-hidden border border-white/5 my-3 shadow-md">
-            {/* Card Title */}
-            <h2 className="shrink-0 m-0 px-4 py-3 bg-[#2d2e49] text-[#ff8a47] font-bold text-sm sm:text-base text-center border-b border-white/5">
-              {currentItem.t}
-            </h2>
+          <div className="flex-1 flex flex-col h-full overflow-hidden p-4 pb-2">
+            {/* Card Body Reading Container: Latar & Halaman Dzikir Serasi Al-Qur'an (#fbf9f2) */}
+            <div className="flex-1 flex flex-col min-h-0 bg-[#fcfaf5] rounded-2xl overflow-hidden border border-amber-900/15 my-2 shadow-2xs">
+              {/* Card Title */}
+              <h2 className="shrink-0 m-0 px-4 py-3 bg-[#f5efe0] text-[#1b6837] font-bold text-sm sm:text-base text-center border-b border-amber-900/15">
+                {currentItem.t}
+              </h2>
 
-            {/* Scrollable Reading Text */}
-            <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4 select-text">
-              {/* Teks Arab dengan Ornamen Nomor Ayat */}
-              <p
-                className="font-arabic text-right leading-[2.3] text-white"
-                dir="rtl"
-                style={{
-                  fontFamily: "'Amiri Quran', 'Scheherazade New', serif",
-                  fontSize: `${arabicFontSize}px`
-                }}
-                dangerouslySetInnerHTML={{
-                  __html: currentItem.ar.replace(
-                    /\[([٠-٩]+)\]/g,
-                    "<span class='inline-flex items-center justify-center w-7 h-7 mx-1 border border-amber-500/60 rounded-full text-xs font-sans text-amber-300 align-middle'>$1</span>"
-                  )
-                }}
-              />
-
-              {/* Teks Latin */}
-              {showLatin && currentItem.la && (
-                <p className="italic text-xs sm:text-sm text-[#e6e6f2] leading-relaxed font-normal pt-2 border-t border-white/5">
-                  {currentItem.la}
-                </p>
-              )}
-
-              {/* Terjemahan Bahasa Indonesia */}
-              {showTerjemah && currentItem.id && (
-                <p className="text-xs sm:text-sm text-[#a8a9c4] leading-relaxed font-normal pt-2 border-t border-white/5">
-                  {currentItem.id}
-                </p>
-              )}
-            </div>
-
-            {/* Card Action Buttons Bar */}
-            <div className="shrink-0 flex items-center gap-2.5 px-3 py-2.5 bg-[#202138] border-t border-white/5">
-              <button
-                type="button"
-                onClick={toggleSpeech}
-                className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors cursor-pointer ${
-                  isPlayingAudio ? 'bg-[#ff8a47] text-white' : 'bg-[#2d2e49] text-white hover:bg-[#393a5a]'
-                }`}
-                title={isPlayingAudio ? 'Hentikan Audio' : 'Putar Audio'}
-              >
-                {isPlayingAudio ? <Square className="w-4 h-4 fill-current" /> : <Play className="w-4 h-4 fill-current ml-0.5" />}
-              </button>
-
-              <button
-                type="button"
-                onClick={handleShare}
-                className="w-10 h-10 rounded-full bg-[#2d2e49] text-white hover:bg-[#393a5a] flex items-center justify-center transition-colors cursor-pointer"
-                title="Bagikan Bacaan"
-              >
-                <Share2 className="w-4 h-4" />
-              </button>
-
-              <button
-                type="button"
-                onClick={handleCopy}
-                className="w-10 h-10 rounded-full bg-[#2d2e49] text-white hover:bg-[#393a5a] flex items-center justify-center transition-colors cursor-pointer"
-                title="Salin Teks"
-              >
-                <Copy className="w-4 h-4" />
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setShowCounterInViewer(!showCounterInViewer)}
-                className={`ml-auto w-10 h-10 rounded-full flex items-center justify-center transition-colors cursor-pointer ${
-                  showCounterInViewer ? 'bg-[#ff8a47] text-white' : 'bg-[#2d2e49] text-white/70 hover:bg-[#393a5a]'
-                }`}
-                title="Sembunyikan / Tampilkan Tasbih"
-              >
-                <span className="font-bold text-xs">TASBIH</span>
-              </button>
-            </div>
-          </div>
-
-          {/* Integrated Tasbih Counter in Reading View */}
-          {showCounterInViewer && (
-            <div className="shrink-0 flex flex-col items-center py-2">
-              <div className="relative w-full h-[154px] flex items-center justify-center">
-                {/* Reset button */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    setViewerCount(0);
-                    triggerVibrate(60);
-                  }}
-                  className="absolute left-[calc(25%-50px)] top-[calc(50%+24px)] -translate-x-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-[#c8153f] text-white flex items-center justify-center shadow-md active:scale-95 cursor-pointer z-10"
-                  title="Atur Ulang"
-                >
-                  <RotateCcw className="w-4 h-4" />
-                </button>
-
-                {/* Settings button */}
-                <button
-                  type="button"
-                  onClick={() => setIsCfgDialogOpen(true)}
-                  className="absolute left-[calc(25%-50px)] top-[calc(50%-24px)] -translate-x-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-[#c8153f] text-white flex items-center justify-center shadow-md active:scale-95 cursor-pointer z-10"
-                  title="Pengaturan"
-                >
-                  <Settings className="w-4 h-4" />
-                </button>
-
-                {/* Ring & Tap Button */}
-                <div
-                  className="w-[148px] h-[148px] rounded-full p-[3px] flex items-center justify-center shadow-md"
+              {/* Scrollable Reading Text */}
+              <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4 select-text bg-[#fcfaf5]">
+                {/* Teks Arab dengan Ornamen Nomor Ayat */}
+                <p
+                  className="font-arabic text-right leading-[2.4] text-slate-900"
+                  dir="rtl"
                   style={{
-                    background: `conic-gradient(#ff8a47 ${Math.min(100, (viewerCount / viewerTarget) * 100)}%, #2b2c47 0%)`
+                    fontFamily: "'Amiri Quran', 'Scheherazade New', serif",
+                    fontSize: `${arabicFontSize}px`
                   }}
-                >
-                  <div className="w-full h-full rounded-full bg-[#1b1c2f] flex items-center justify-center p-1.5">
-                    <button
-                      type="button"
-                      onClick={(e) => handleTap('viewer', e)}
-                      className="relative overflow-hidden w-[124px] h-[124px] rounded-full bg-[#2d2e49] hover:bg-[#343555] active:scale-[0.97] transition-all flex items-center justify-center text-white font-bold cursor-pointer shadow-inner select-none"
-                    >
-                      <span
-                        className="relative z-10 font-bold tabular-nums"
-                        style={{
-                          fontSize: String(viewerCount).length >= 5 ? '26px' : String(viewerCount).length === 4 ? '34px' : '44px'
-                        }}
-                      >
-                        {viewerCount}
-                      </span>
-                    </button>
-                  </div>
-                </div>
+                  dangerouslySetInnerHTML={{
+                    __html: currentItem.ar.replace(
+                      /\[([٠-٩]+)\]/g,
+                      "<span class='inline-flex items-center justify-center w-7 h-7 mx-1 border border-amber-700/50 rounded-full text-xs font-sans text-amber-900 font-bold align-middle bg-amber-100/50'>$1</span>"
+                    )
+                  }}
+                />
 
-                {/* Target button */}
+                {/* Teks Latin */}
+                {showLatin && currentItem.la && (
+                  <p className="italic text-xs sm:text-sm text-emerald-950/90 leading-relaxed font-medium pt-2 border-t border-amber-900/10">
+                    {currentItem.la}
+                  </p>
+                )}
+
+                {/* Terjemahan Bahasa Indonesia */}
+                {showTerjemah && currentItem.id && (
+                  <p className="text-xs sm:text-sm text-slate-700 leading-relaxed font-normal pt-2 border-t border-amber-900/10">
+                    {currentItem.id}
+                  </p>
+                )}
+              </div>
+
+              {/* Card Action Buttons Bar */}
+              <div className="shrink-0 flex items-center gap-2.5 px-3 py-2.5 bg-[#f5efe0] border-t border-amber-900/15">
                 <button
                   type="button"
-                  onClick={() => {
-                    setTargetDialogScope('viewer');
-                    setTargetInputValue(String(viewerTarget));
-                    setTargetDialogError('');
-                    setIsTargetDialogOpen(true);
-                  }}
-                  className="absolute left-[calc(75%+50px)] top-1/2 -translate-x-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-[#c8153f] text-white font-bold text-xs flex items-center justify-center shadow-md active:scale-95 cursor-pointer z-10 tabular-nums"
-                  title="Ubah Target"
+                  onClick={toggleSpeech}
+                  className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors cursor-pointer ${
+                    isPlayingAudio ? 'bg-emerald-700 text-white shadow-xs' : 'bg-[#fffefc] border border-amber-900/20 text-slate-700 hover:bg-emerald-50 hover:text-emerald-800 shadow-2xs'
+                  }`}
+                  title={isPlayingAudio ? 'Hentikan Audio' : 'Putar Audio'}
                 >
-                  {viewerTarget}
+                  {isPlayingAudio ? <Square className="w-4 h-4 fill-current" /> : <Play className="w-4 h-4 fill-current ml-0.5" />}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleShare}
+                  className="w-10 h-10 rounded-full bg-[#fffefc] border border-amber-900/20 text-slate-700 hover:bg-emerald-50 hover:text-emerald-800 flex items-center justify-center transition-colors cursor-pointer shadow-2xs"
+                  title="Bagikan Bacaan"
+                >
+                  <Share2 className="w-4 h-4" />
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleCopy}
+                  className="w-10 h-10 rounded-full bg-[#fffefc] border border-amber-900/20 text-slate-700 hover:bg-emerald-50 hover:text-emerald-800 flex items-center justify-center transition-colors cursor-pointer shadow-2xs"
+                  title="Salin Teks"
+                >
+                  <Copy className="w-4 h-4" />
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setShowCounterInViewer(!showCounterInViewer)}
+                  className={`ml-auto px-3.5 h-10 rounded-full flex items-center justify-center transition-colors cursor-pointer text-xs font-bold ${
+                    showCounterInViewer ? 'bg-emerald-700 text-white shadow-xs' : 'bg-[#fffefc] border border-amber-900/20 text-slate-700 hover:bg-emerald-50 hover:text-emerald-900 shadow-2xs'
+                  }`}
+                  title="Sembunyikan / Tampilkan Tasbih"
+                >
+                  TASBIH
                 </button>
               </div>
             </div>
-          )}
 
-          {/* Pager: Previous / Count / Next */}
-          {activeCollection.items.length > 1 && (
-            <div className="shrink-0 flex items-center justify-between h-12 px-2 border-t border-white/5 select-none">
-              <button
-                type="button"
-                disabled={activeItemIndex === 0}
-                onClick={() => goToItem(activeItemIndex - 1)}
-                className={`w-10 h-10 rounded-full flex items-center justify-center text-white/80 hover:text-white hover:bg-white/10 active:bg-white/20 transition-colors cursor-pointer ${
-                  activeItemIndex === 0 ? 'invisible pointer-events-none' : ''
-                }`}
-                title="Dzikir Sebelumnya"
-              >
-                <ChevronLeft className="w-6 h-6" />
-              </button>
+            {/* Integrated Tasbih Counter in Reading View */}
+            {showCounterInViewer && (
+              <div className="shrink-0 flex flex-col items-center py-2">
+                <div className="relative w-full h-[154px] flex items-center justify-center">
+                  {/* Reset button */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setViewerCount(0);
+                      triggerVibrate(60);
+                    }}
+                    className="absolute left-[calc(25%-50px)] top-[calc(50%+24px)] -translate-x-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-[#fffefc] text-emerald-800 border border-amber-900/20 flex items-center justify-center shadow-xs active:scale-95 hover:bg-emerald-50 cursor-pointer z-10 transition-colors"
+                    title="Atur Ulang"
+                  >
+                    <RotateCcw className="w-4 h-4" />
+                  </button>
 
-              <span className="font-bold text-base text-white tabular-nums tracking-wide">
-                {activeItemIndex + 1}/{activeCollection.items.length}
-              </span>
+                  {/* Settings button */}
+                  <button
+                    type="button"
+                    onClick={() => setIsCfgDialogOpen(true)}
+                    className="absolute left-[calc(25%-50px)] top-[calc(50%-24px)] -translate-x-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white text-emerald-800 border border-slate-200 flex items-center justify-center shadow-xs active:scale-95 hover:bg-emerald-50 cursor-pointer z-10 transition-colors"
+                    title="Pengaturan"
+                  >
+                    <Settings className="w-4 h-4" />
+                  </button>
 
-              <button
-                type="button"
-                disabled={activeItemIndex === activeCollection.items.length - 1}
-                onClick={() => goToItem(activeItemIndex + 1)}
-                className={`w-10 h-10 rounded-full flex items-center justify-center text-white/80 hover:text-white hover:bg-white/10 active:bg-white/20 transition-colors cursor-pointer ${
-                  activeItemIndex === activeCollection.items.length - 1 ? 'invisible pointer-events-none' : ''
-                }`}
-                title="Dzikir Berikutnya"
-              >
-                <ChevronRight className="w-6 h-6" />
-              </button>
-            </div>
-          )}
+                  {/* Ring & Tap Button */}
+                  <div
+                    className="w-[148px] h-[148px] rounded-full p-[3px] flex items-center justify-center shadow-sm bg-white border border-slate-200/70"
+                    style={{
+                      background: `conic-gradient(#10b981 ${Math.min(100, (viewerCount / viewerTarget) * 100)}%, #e2e8f0 0%)`
+                    }}
+                  >
+                    <div className="w-full h-full rounded-full bg-[#fbf9f2] flex items-center justify-center p-1.5">
+                      <button
+                        type="button"
+                        onClick={(e) => handleTap('viewer', e)}
+                        className="relative overflow-hidden w-[124px] h-[124px] rounded-full bg-linear-to-b from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800 active:scale-[0.97] transition-all flex items-center justify-center text-white font-extrabold cursor-pointer shadow-md select-none"
+                      >
+                        <span
+                          className="relative z-10 font-bold tabular-nums"
+                          style={{
+                            fontSize: String(viewerCount).length >= 5 ? '26px' : String(viewerCount).length === 4 ? '34px' : '44px'
+                          }}
+                        >
+                          {viewerCount}
+                        </span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Target button */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTargetDialogScope('viewer');
+                      setTargetInputValue(String(viewerTarget));
+                      setTargetDialogError('');
+                      setIsTargetDialogOpen(true);
+                    }}
+                    className="absolute left-[calc(75%+50px)] top-1/2 -translate-x-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white text-emerald-800 border border-slate-200 font-bold text-xs flex items-center justify-center shadow-xs active:scale-95 hover:bg-emerald-50 cursor-pointer z-10 tabular-nums transition-colors"
+                    title="Ubah Target"
+                  >
+                    {viewerTarget}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Pager: Previous / Count / Next */}
+            {activeCollection.items.length > 1 && (
+              <div className="shrink-0 flex items-center justify-between h-12 px-2 border-t border-slate-200/70 select-none">
+                <button
+                  type="button"
+                  disabled={activeItemIndex === 0}
+                  onClick={() => goToItem(activeItemIndex - 1)}
+                  className={`w-10 h-10 rounded-full flex items-center justify-center text-slate-700 hover:bg-slate-200/60 active:bg-slate-300/60 transition-colors cursor-pointer ${
+                    activeItemIndex === 0 ? 'invisible pointer-events-none' : ''
+                  }`}
+                  title="Dzikir Sebelumnya"
+                >
+                  <ChevronLeft className="w-6 h-6" />
+                </button>
+
+                <span className="font-bold text-sm sm:text-base text-slate-800 tabular-nums tracking-wide">
+                  {activeItemIndex + 1} / {activeCollection.items.length}
+                </span>
+
+                <button
+                  type="button"
+                  disabled={activeItemIndex === activeCollection.items.length - 1}
+                  onClick={() => goToItem(activeItemIndex + 1)}
+                  className={`w-10 h-10 rounded-full flex items-center justify-center text-slate-700 hover:bg-slate-200/60 active:bg-slate-300/60 transition-colors cursor-pointer ${
+                    activeItemIndex === activeCollection.items.length - 1 ? 'invisible pointer-events-none' : ''
+                  }`}
+                  title="Dzikir Berikutnya"
+                >
+                  <ChevronRight className="w-6 h-6" />
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       )}
 
       {/* ================= MODAL DIALOG UBAH TARGET HITUNGAN ================= */}
       {isTargetDialogOpen && (
         <div
-          className="fixed inset-0 z-[100060] bg-black/75 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in"
+          className="fixed inset-0 z-[100060] bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in"
           onClick={() => setIsTargetDialogOpen(false)}
         >
           <div
-            className="w-full max-w-[340px] bg-[#1d1e33] rounded-2xl overflow-hidden shadow-2xl border border-white/10 animate-in zoom-in-95"
+            className="w-full max-w-[340px] bg-white rounded-2xl overflow-hidden shadow-2xl border border-slate-200 animate-in zoom-in-95 text-slate-800"
             onClick={(e) => e.stopPropagation()}
           >
-            <h2 className="text-base sm:text-lg font-semibold text-white px-5 pt-5 pb-3">
+            <h2 className="text-base sm:text-lg font-bold text-slate-900 px-5 pt-5 pb-3">
               Masukan Jumlah Dzikir
             </h2>
 
@@ -1358,12 +1360,12 @@ export const DzikirView: React.FC<DzikirViewProps> = ({
                   setTargetDialogError('');
                 }}
                 placeholder="Target hitungan..."
-                className="w-full h-13 px-4 rounded-xl bg-[#3b3c57] text-white text-lg font-bold placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#ff8a47]"
+                className="w-full h-12 px-4 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 text-lg font-bold placeholder:text-slate-400 focus:outline-hidden focus:ring-2 focus:ring-[#4f9a50]"
                 autoFocus
               />
 
               {targetDialogError && (
-                <p className="text-xs text-[#ff8da1]">{targetDialogError}</p>
+                <p className="text-xs text-rose-600 font-medium">{targetDialogError}</p>
               )}
 
               {/* Quick Target Chips */}
@@ -1376,7 +1378,7 @@ export const DzikirView: React.FC<DzikirViewProps> = ({
                       setTargetInputValue(String(v));
                       setTargetDialogError('');
                     }}
-                    className="h-11 rounded-lg bg-[#3b3c57] hover:bg-[#484a6b] active:scale-95 text-white font-bold text-sm transition-all cursor-pointer"
+                    className="h-10 rounded-xl bg-emerald-50 border border-emerald-200/80 hover:bg-emerald-100 active:scale-95 text-emerald-900 font-bold text-sm transition-all cursor-pointer"
                   >
                     {v}x
                   </button>
@@ -1384,11 +1386,11 @@ export const DzikirView: React.FC<DzikirViewProps> = ({
               </div>
             </div>
 
-            <div className="grid grid-cols-2 border-t border-white/10 mt-5">
+            <div className="grid grid-cols-2 border-t border-slate-100 mt-5">
               <button
                 type="button"
                 onClick={() => setIsTargetDialogOpen(false)}
-                className="h-13 text-sm font-bold text-slate-300 hover:bg-white/5 active:bg-white/10 transition-colors cursor-pointer"
+                className="h-12 text-sm font-bold text-slate-600 hover:bg-slate-50 active:bg-slate-100 transition-colors cursor-pointer"
               >
                 BATAL
               </button>
@@ -1410,7 +1412,7 @@ export const DzikirView: React.FC<DzikirViewProps> = ({
                   showToast(`Target diubah menjadi ${val}x`);
                   setIsTargetDialogOpen(false);
                 }}
-                className="h-13 text-sm font-bold text-[#ff8a47] border-l border-white/10 hover:bg-white/5 active:bg-white/10 transition-colors cursor-pointer"
+                className="h-12 text-sm font-bold text-emerald-700 border-l border-slate-100 hover:bg-emerald-50 active:bg-emerald-100 transition-colors cursor-pointer"
               >
                 SIMPAN
               </button>
@@ -1422,27 +1424,27 @@ export const DzikirView: React.FC<DzikirViewProps> = ({
       {/* ================= MODAL DIALOG PENGATURAN TASBIH ================= */}
       {isCfgDialogOpen && (
         <div
-          className="fixed inset-0 z-[100060] bg-black/75 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in"
+          className="fixed inset-0 z-[100060] bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in"
           onClick={() => setIsCfgDialogOpen(false)}
         >
           <div
-            className="w-full max-w-[340px] bg-[#1d1e33] rounded-2xl overflow-hidden shadow-2xl border border-white/10 animate-in zoom-in-95"
+            className="w-full max-w-[340px] bg-white rounded-2xl overflow-hidden shadow-2xl border border-slate-200 animate-in zoom-in-95 text-slate-800"
             onClick={(e) => e.stopPropagation()}
           >
-            <h2 className="text-base sm:text-lg font-semibold text-white px-5 pt-5 pb-2">
+            <h2 className="text-base sm:text-lg font-bold text-slate-900 px-5 pt-5 pb-2">
               Pengaturan Tasbih
             </h2>
 
             <div className="px-5 py-2 space-y-4">
               {/* Group 1: Saat Klik */}
               <div>
-                <p className="text-[11px] font-bold uppercase tracking-wider text-[#ff8a47] mb-2">
+                <p className="text-[11px] font-bold uppercase tracking-wider text-emerald-800 mb-2">
                   Saat Klik
                 </p>
                 <div className="space-y-2">
                   <div className="flex items-center justify-between py-1">
-                    <span className="text-sm font-medium text-white flex items-center gap-2">
-                      <Smartphone className="w-4 h-4 text-slate-400" />
+                    <span className="text-sm font-medium text-slate-700 flex items-center gap-2">
+                      <Smartphone className="w-4 h-4 text-slate-500" />
                       Getar
                     </span>
                     <button
@@ -1453,7 +1455,7 @@ export const DzikirView: React.FC<DzikirViewProps> = ({
                         if (next) triggerVibrate(110);
                       }}
                       className={`w-11 h-6 rounded-full p-0.5 transition-colors cursor-pointer flex items-center ${
-                        cfg.vibTap ? 'bg-[#ff8a47] justify-end' : 'bg-[#3b3c57] justify-start'
+                        cfg.vibTap ? 'bg-emerald-600 justify-end' : 'bg-slate-300 justify-start'
                       }`}
                     >
                       <span className="w-5 h-5 bg-white rounded-full shadow-sm" />
@@ -1461,8 +1463,8 @@ export const DzikirView: React.FC<DzikirViewProps> = ({
                   </div>
 
                   <div className="flex items-center justify-between py-1">
-                    <span className="text-sm font-medium text-white flex items-center gap-2">
-                      <Volume2 className="w-4 h-4 text-slate-400" />
+                    <span className="text-sm font-medium text-slate-700 flex items-center gap-2">
+                      <Volume2 className="w-4 h-4 text-slate-500" />
                       Suara
                     </span>
                     <button
@@ -1473,7 +1475,7 @@ export const DzikirView: React.FC<DzikirViewProps> = ({
                         if (next) playBeep(880, 0.07, 0.25);
                       }}
                       className={`w-11 h-6 rounded-full p-0.5 transition-colors cursor-pointer flex items-center ${
-                        cfg.sndTap ? 'bg-[#ff8a47] justify-end' : 'bg-[#3b3c57] justify-start'
+                        cfg.sndTap ? 'bg-emerald-600 justify-end' : 'bg-slate-300 justify-start'
                       }`}
                     >
                       <span className="w-5 h-5 bg-white rounded-full shadow-sm" />
@@ -1483,14 +1485,14 @@ export const DzikirView: React.FC<DzikirViewProps> = ({
               </div>
 
               {/* Group 2: Saat Target Tercapai */}
-              <div className="pt-2 border-t border-white/5">
-                <p className="text-[11px] font-bold uppercase tracking-wider text-[#ff8a47] mb-2">
+              <div className="pt-2 border-t border-slate-100">
+                <p className="text-[11px] font-bold uppercase tracking-wider text-emerald-800 mb-2">
                   Saat Target Tercapai
                 </p>
                 <div className="space-y-2">
                   <div className="flex items-center justify-between py-1">
-                    <span className="text-sm font-medium text-white flex items-center gap-2">
-                      <Smartphone className="w-4 h-4 text-slate-400" />
+                    <span className="text-sm font-medium text-slate-700 flex items-center gap-2">
+                      <Smartphone className="w-4 h-4 text-slate-500" />
                       Getar
                     </span>
                     <button
@@ -1501,7 +1503,7 @@ export const DzikirView: React.FC<DzikirViewProps> = ({
                         if (next) triggerVibrate([240, 120, 240, 120, 440]);
                       }}
                       className={`w-11 h-6 rounded-full p-0.5 transition-colors cursor-pointer flex items-center ${
-                        cfg.vibDone ? 'bg-[#ff8a47] justify-end' : 'bg-[#3b3c57] justify-start'
+                        cfg.vibDone ? 'bg-emerald-600 justify-end' : 'bg-slate-300 justify-start'
                       }`}
                     >
                       <span className="w-5 h-5 bg-white rounded-full shadow-sm" />
@@ -1509,8 +1511,8 @@ export const DzikirView: React.FC<DzikirViewProps> = ({
                   </div>
 
                   <div className="flex items-center justify-between py-1">
-                    <span className="text-sm font-medium text-white flex items-center gap-2">
-                      <Volume2 className="w-4 h-4 text-slate-400" />
+                    <span className="text-sm font-medium text-slate-700 flex items-center gap-2">
+                      <Volume2 className="w-4 h-4 text-slate-500" />
                       Suara
                     </span>
                     <button
@@ -1521,7 +1523,7 @@ export const DzikirView: React.FC<DzikirViewProps> = ({
                         if (next) playChime();
                       }}
                       className={`w-11 h-6 rounded-full p-0.5 transition-colors cursor-pointer flex items-center ${
-                        cfg.sndDone ? 'bg-[#ff8a47] justify-end' : 'bg-[#3b3c57] justify-start'
+                        cfg.sndDone ? 'bg-emerald-600 justify-end' : 'bg-slate-300 justify-start'
                       }`}
                     >
                       <span className="w-5 h-5 bg-white rounded-full shadow-sm" />
@@ -1531,11 +1533,11 @@ export const DzikirView: React.FC<DzikirViewProps> = ({
               </div>
             </div>
 
-            <div className="border-t border-white/10 mt-4">
+            <div className="border-t border-slate-100 mt-4">
               <button
                 type="button"
                 onClick={() => setIsCfgDialogOpen(false)}
-                className="w-full h-12 text-sm font-bold text-white hover:bg-white/5 active:bg-white/10 transition-colors cursor-pointer"
+                className="w-full h-12 text-sm font-bold text-slate-700 hover:bg-slate-50 active:bg-slate-100 transition-colors cursor-pointer"
               >
                 TUTUP
               </button>
@@ -1546,7 +1548,7 @@ export const DzikirView: React.FC<DzikirViewProps> = ({
 
       {/* ================= FLOATING TOAST NOTIFICATION ================= */}
       {toastMessage && (
-        <div className="fixed left-1/2 -translate-x-1/2 bottom-8 z-[100070] bg-[#e9e9f4] text-[#16172a] px-4 py-2 rounded-full text-xs font-semibold shadow-2xl animate-in fade-in slide-in-from-bottom-2 pointer-events-none text-center max-w-[90vw]">
+        <div className="fixed left-1/2 -translate-x-1/2 bottom-8 z-[100070] bg-slate-900 text-white px-4 py-2 rounded-full text-xs font-semibold shadow-2xl animate-in fade-in slide-in-from-bottom-2 pointer-events-none text-center max-w-[90vw]">
           {toastMessage}
         </div>
       )}

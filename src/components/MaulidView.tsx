@@ -118,6 +118,234 @@ export function getChapterHeaderTitle(book: MaulidBook, idx: number): string {
   return ch.l || ch.t;
 }
 
+interface MaulidChapterContentProps {
+  book: MaulidBook;
+  chapterIndex: number;
+  fontSize: number;
+  showTranslation: boolean;
+  openToggles: Record<string, boolean>;
+  onToggleHeading: (key: string) => void;
+  canGoPrev: boolean;
+  canGoNext: boolean;
+  onGoPrev: () => void;
+  onGoNext: () => void;
+}
+
+const MaulidChapterContent: React.FC<MaulidChapterContentProps> = ({
+  book,
+  chapterIndex,
+  fontSize,
+  showTranslation,
+  openToggles,
+  onToggleHeading,
+  canGoPrev,
+  canGoNext,
+  onGoPrev,
+  onGoNext
+}) => {
+  const chapter = book.ch[chapterIndex];
+  if (!chapter) return null;
+
+  return (
+    <div>
+      {!chapter.b ? (
+        <div className="text-center text-slate-500 py-16 px-4 leading-relaxed text-xs sm:text-sm bg-white rounded-2xl border border-slate-200/80 my-4 shadow-xs">
+          <p className="font-semibold text-slate-700">Teks bab ini belum dimuat.</p>
+          <p className="text-slate-400 mt-1">Teks berharakat dan terjemahan sedang disinkronkan.</p>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {chapter.b.p.map((x: any, pIdx: number) => {
+            // 1. Sholawat Pembuka: "اللَّهُمَّ صَلِّ وَسَلِّمْ وَبَارِكْ عَلَيْهِ"
+            if ((typeof x === 'string' && isSl(x)) || (typeof x === 'string' && x.includes("اللَّهُمَّ صَلِّ وَسَلِّمْ وَبَارِكْ عَلَيْهِ"))) {
+              const tr = getMaulidTextTranslation(x, book.id, chapterIndex, pIdx);
+              return (
+                <div key={`sholawat-cartouche-${pIdx}`} className="my-4 text-center">
+                  <SholawatCartoucheFrame text="اللَّهُمَّ صَلِّ وَسَلِّمْ وَبَارِكْ عَلَيْهِ" />
+                  {showTranslation && (
+                    <p className="text-center text-xs sm:text-sm text-slate-600 mt-2 mb-6 font-normal max-w-md mx-auto leading-relaxed">
+                      {tr || "Ya Allah, limpahkanlah rahmat, keselamatan, dan keberkahan kepada-Nya."}
+                    </p>
+                  )}
+                </div>
+              );
+            }
+
+            // 2. Basmalah Calligraphy: "بِسْمِ اللهِ الرَّحْمٰنِ الرَّحِيمِ"
+            if (
+              (x.c && (x.c.includes("بِسْمِ اللهِ الرَّحْمٰنِ الرَّحِيمِ") || x.c === "بِسْمِ اللهِ الرَّحْمٰنِ الرَّحِيمِ")) ||
+              (typeof x === 'string' && (x.includes("بِسْمِ اللهِ الرَّحْمٰنِ الرَّحِيمِ") || x === "بِسْمِ اللهِ الرَّحْمٰنِ الرَّحِيمِ"))
+            ) {
+              const tr = getMaulidTextTranslation("بِسْمِ اللهِ الرَّحْمٰنِ الرَّحِيمِ", book.id, chapterIndex, pIdx);
+              return (
+                <div key={`basmalah-${pIdx}`} className="my-6 text-center">
+                  <BismillahCalligraphy className="w-56 sm:w-64 max-w-[80vw] h-auto mx-auto my-2 text-slate-800" />
+                  {showTranslation && (
+                    <p className="text-center text-xs sm:text-sm text-slate-600 mt-2 mb-6 font-normal max-w-md mx-auto leading-relaxed">
+                      {tr || "Dengan nama Allah Yang Maha Pengasih, Maha Penyayang."}
+                    </p>
+                  )}
+                </div>
+              );
+            }
+
+            // 3. Ayat / Fasal / Callout Khusus: x.c
+            if (x.c) {
+              const tr = getMaulidTextTranslation(x.c, book.id, chapterIndex, pIdx);
+              return (
+                <div key={`callout-${pIdx}`} className="my-5">
+                  <div
+                    className="font-arabic text-right text-[calc(var(--fs)*1.08)] leading-[2.4] text-slate-900 font-semibold my-2"
+                    dir="rtl"
+                    style={{ fontFamily: "'Amiri Quran', 'Scheherazade New', serif" }}
+                    dangerouslySetInnerHTML={{
+                      __html: x.c.replace(/۝/g, "<span class='inline-block text-amber-700 mx-1 font-normal'>۝</span>")
+                    }}
+                  />
+                  {showTranslation && tr && (
+                    <p className="text-left text-xs sm:text-sm text-slate-700 leading-relaxed font-normal mt-2.5 mb-2">
+                      {tr}
+                    </p>
+                  )}
+                  <div className="w-full border-t border-slate-200/80 my-5" />
+                </div>
+              );
+            }
+
+            // 4. Paragraf Rawi Narasi (string biasa)
+            if (typeof x === 'string') {
+              const tr = getMaulidTextTranslation(x, book.id, chapterIndex, pIdx);
+              return (
+                <div key={`rawi-p-${pIdx}`} className="my-5">
+                  <p
+                    className="font-arabic text-justify text-right text-[var(--fs)] leading-[2.3] mb-3 text-slate-900"
+                    dir="rtl"
+                    style={{ fontFamily: "'Scheherazade New', 'Amiri Quran', serif" }}
+                    dangerouslySetInnerHTML={{
+                      __html: x.replace(/❁/g, "<span class='inline-block text-amber-700 mx-1 font-normal'>❁</span>")
+                    }}
+                  />
+                  {showTranslation && tr && (
+                    <p className="text-left text-xs sm:text-sm text-slate-700 leading-relaxed font-normal mb-3">
+                      {tr}
+                    </p>
+                  )}
+                  <div className="w-full border-t border-slate-200/70 my-5" />
+                </div>
+              );
+            }
+
+            // 5. Bagian Syair / Nadhom Dua Kolom (x.v)
+            if (x.v) {
+              return (
+                <div key={`couplets-${pIdx}`} className="border-y border-slate-200/80 py-3 my-5 space-y-3" dir="rtl">
+                  {x.v.map((r: string[], vIdx: number) => (
+                    <div
+                      key={vIdx}
+                      className="grid grid-cols-2 gap-4 font-arabic text-[calc(var(--fs)*0.95)] leading-loose text-center text-slate-900"
+                      style={{ fontFamily: "'Amiri Quran', 'Scheherazade New', serif" }}
+                    >
+                      <span>{r[0]}</span>
+                      <span>{r[1]}</span>
+                    </div>
+                  ))}
+                </div>
+              );
+            }
+
+            // 6. Bagian dengan Judul Lipat (x.h)
+            if (x.h) {
+              const toggleKey = `${book.id}-${chapterIndex}-${pIdx}`;
+              const isOpened = !!openToggles[toggleKey];
+
+              return (
+                <div key={`heading-section-${pIdx}`} className="my-5">
+                  <button
+                    type="button"
+                    onClick={() => onToggleHeading(toggleKey)}
+                    className="w-full my-3 py-3 px-3.5 border border-amber-600/40 rounded-xl bg-amber-50/70 text-[#1b6837] font-arabic text-[calc(var(--fs)*0.95)] leading-relaxed text-center cursor-pointer flex items-center justify-center gap-1.5 shadow-2xs hover:bg-amber-100/70 transition-colors"
+                    dir="rtl"
+                    style={{ fontFamily: "'Amiri Quran', serif" }}
+                  >
+                    <span>{x.h}</span>
+                    <span className="font-sans text-xs text-[#b45309]">{isOpened ? '▲' : '▼'}</span>
+                  </button>
+                  {isOpened && x.v && (
+                    <div className="border-y border-slate-200/80 py-2 my-4 space-y-2" dir="rtl">
+                      {x.v.map((r: string[], vIdx: number) => (
+                        <div
+                          key={vIdx}
+                          className="grid grid-cols-2 gap-4 font-arabic text-[calc(var(--fs)*0.95)] leading-loose text-center my-1.5 text-slate-900"
+                          style={{ fontFamily: "'Amiri Quran', 'Scheherazade New', serif" }}
+                        >
+                          <span>{r[0]}</span>
+                          <span>{r[1]}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            }
+
+            return null;
+          })}
+
+          {/* Refrain / Sholawat Penutup Rawi: c.b.r */}
+          {chapter.b.r && (
+            <div className="my-6 text-center">
+              <div 
+                className="font-arabic text-center text-[calc(var(--fs)*0.95)] leading-loose text-[#1b6837] border-y border-emerald-300/80 bg-emerald-50/60 py-4 px-3 rounded-2xl shadow-2xs"
+                dir="rtl"
+                style={{ fontFamily: "'Amiri Quran', serif" }}
+                dangerouslySetInnerHTML={{
+                  __html: R.replace(/❁/g, "<span class='inline-block text-amber-700 mx-1 font-normal'>❁</span>")
+                }}
+              />
+              {showTranslation && (
+                <p className="text-center text-xs sm:text-sm text-slate-600 mt-2.5 font-normal max-w-md mx-auto leading-relaxed">
+                  Ya Allah, harumkanlah kuburnya yang mulia dengan keharuman semerbak sholawat dan salam. Ya Allah, limpahkanlah sholawat, salam, dan keberkahan kepada beliau.
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* Navigasi Cepat Bab Bawah: RTL Standard (Kiri = Berikutnya, Kanan = Sebelumnya) */}
+          <div className="pt-6 pb-4 flex items-center justify-between border-t border-slate-200/70 mt-8 text-xs text-slate-500 select-none">
+            <button
+              type="button"
+              disabled={!canGoNext}
+              onClick={onGoNext}
+              className={`flex items-center gap-1.5 px-3 py-2 rounded-xl transition-colors cursor-pointer ${
+                canGoNext ? 'bg-white border border-slate-200 text-slate-700 hover:bg-emerald-50 active:bg-emerald-100 shadow-2xs' : 'opacity-30 cursor-not-allowed'
+              }`}
+            >
+              <ChevronLeft className="w-4 h-4" />
+              <span>Bab Berikutnya</span>
+            </button>
+
+            <span className="text-[11px] text-slate-400 font-medium">
+              Geser layar untuk pindah
+            </span>
+
+            <button
+              type="button"
+              disabled={!canGoPrev}
+              onClick={onGoPrev}
+              className={`flex items-center gap-1.5 px-3 py-2 rounded-xl transition-colors cursor-pointer ${
+                canGoPrev ? 'bg-white border border-slate-200 text-slate-700 hover:bg-emerald-50 active:bg-emerald-100 shadow-2xs' : 'opacity-30 cursor-not-allowed'
+              }`}
+            >
+              <span>Bab Sebelumnya</span>
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
 export const MaulidView: React.FC<MaulidViewProps> = ({
   isOpen,
   onClose,
@@ -156,12 +384,15 @@ export const MaulidView: React.FC<MaulidViewProps> = ({
   const [isPlayingAudio, setIsPlayingAudio] = useState(false);
   const [openToggles, setOpenToggles] = useState<Record<string, boolean>>({});
 
-  // Horizontal Swipe gesture state for chapter navigation (seperti pada Al-Qur'an)
+  // Horizontal Swipe gesture state for chapter navigation (seperti pada Al-Qur'an - RTL push)
   const [dragOffset, setDragOffset] = useState<number>(0);
   const [isAnimatingSwipe, setIsAnimatingSwipe] = useState<boolean>(false);
   const dragOffsetRef = useRef<number>(0);
   const touchStartCoordRef = useRef<{ x: number; y: number } | null>(null);
   const isDraggingHorizontalRef = useRef<boolean>(false);
+  const readerViewportRef = useRef<HTMLDivElement | null>(null);
+  const animationTimeoutRef = useRef<any>(null);
+  const rafRef = useRef<number | null>(null);
 
   // Scroller refs
   const scrollerRef = useRef<HTMLDivElement | null>(null);
@@ -317,7 +548,7 @@ export const MaulidView: React.FC<MaulidViewProps> = ({
     }
   }, [currentView, activeChapterIndex]);
 
-  // ================= SWIPE GESTURE HANDLERS (GESER UNTUK PINDAH BAB) =================
+  // ================= SWIPE GESTURE HANDLERS (SEPERTI AL-QUR'AN - RTL CONTINUOUS PUSH) =================
   const canGoPrev = activeChapterIndex > 0;
   const canGoNext = activeChapterIndex < currentBook.ch.length - 1;
 
@@ -333,8 +564,75 @@ export const MaulidView: React.FC<MaulidViewProps> = ({
     }
   }, [canGoNext, activeChapterIndex, openChapter]);
 
+  const finishSwipe = useCallback(() => {
+    if (rafRef.current) {
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
+    }
+    if (!touchStartCoordRef.current) return;
+    const offset = dragOffsetRef.current;
+    const wasDragging = isDraggingHorizontalRef.current;
+    touchStartCoordRef.current = null;
+    isDraggingHorizontalRef.current = false;
+
+    if (!wasDragging || Math.abs(offset) < 4) {
+      setDragOffset(0);
+      dragOffsetRef.current = 0;
+      return;
+    }
+
+    const containerWidth = readerViewportRef.current?.clientWidth || window.innerWidth || 360;
+    const threshold = Math.min(85, Math.max(35, containerWidth * 0.14));
+
+    if (offset > threshold && canGoNext) {
+      // Geser ke KANAN -> Bab Berikutnya masuk dari KIRI (RTL persis Al-Qur'an)
+      setIsAnimatingSwipe(true);
+      setDragOffset(containerWidth);
+      dragOffsetRef.current = containerWidth;
+      if (animationTimeoutRef.current) clearTimeout(animationTimeoutRef.current);
+      animationTimeoutRef.current = setTimeout(() => {
+        openChapter(activeChapterIndex + 1);
+        setIsAnimatingSwipe(false);
+        setDragOffset(0);
+        dragOffsetRef.current = 0;
+        animationTimeoutRef.current = null;
+      }, 260);
+    } else if (offset < -threshold && canGoPrev) {
+      // Geser ke KIRI -> Bab Sebelumnya masuk dari KANAN (RTL persis Al-Qur'an)
+      setIsAnimatingSwipe(true);
+      setDragOffset(-containerWidth);
+      dragOffsetRef.current = -containerWidth;
+      if (animationTimeoutRef.current) clearTimeout(animationTimeoutRef.current);
+      animationTimeoutRef.current = setTimeout(() => {
+        openChapter(activeChapterIndex - 1);
+        setIsAnimatingSwipe(false);
+        setDragOffset(0);
+        dragOffsetRef.current = 0;
+        animationTimeoutRef.current = null;
+      }, 260);
+    } else {
+      // Balik ke tengah jika tidak melewati batas
+      setIsAnimatingSwipe(true);
+      setDragOffset(0);
+      dragOffsetRef.current = 0;
+      if (animationTimeoutRef.current) clearTimeout(animationTimeoutRef.current);
+      animationTimeoutRef.current = setTimeout(() => {
+        setIsAnimatingSwipe(false);
+        animationTimeoutRef.current = null;
+      }, 260);
+    }
+  }, [activeChapterIndex, canGoNext, canGoPrev, openChapter]);
+
   const handleTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
-    if (isAnimatingSwipe) return;
+    if (animationTimeoutRef.current) {
+      clearTimeout(animationTimeoutRef.current);
+      animationTimeoutRef.current = null;
+    }
+    if (rafRef.current) {
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
+    }
+    setIsAnimatingSwipe(false);
     const touch = e.touches[0];
     touchStartCoordRef.current = { x: touch.clientX, y: touch.clientY };
     isDraggingHorizontalRef.current = false;
@@ -342,15 +640,17 @@ export const MaulidView: React.FC<MaulidViewProps> = ({
   };
 
   const handleTouchMove = (e: React.TouchEvent<HTMLDivElement>) => {
-    if (!touchStartCoordRef.current || isAnimatingSwipe) return;
+    if (!touchStartCoordRef.current) return;
     const touch = e.touches[0];
     const dx = touch.clientX - touchStartCoordRef.current.x;
     const dy = touch.clientY - touchStartCoordRef.current.y;
 
     if (!isDraggingHorizontalRef.current) {
-      if (Math.abs(dx) > 10 && Math.abs(dx) > Math.abs(dy) * 1.25) {
+      if (Math.abs(dx) > 6 && Math.abs(dx) > Math.abs(dy) * 1.15) {
         isDraggingHorizontalRef.current = true;
-      } else if (Math.abs(dy) > 10) {
+        touchStartCoordRef.current = { x: touch.clientX, y: touch.clientY };
+        return;
+      } else if (Math.abs(dy) > 8) {
         touchStartCoordRef.current = null;
         return;
       }
@@ -358,55 +658,72 @@ export const MaulidView: React.FC<MaulidViewProps> = ({
 
     if (isDraggingHorizontalRef.current) {
       let effectiveDx = dx;
-      if ((dx > 0 && !canGoPrev) || (dx < 0 && !canGoNext)) {
-        effectiveDx = dx * 0.28;
+      if ((dx > 0 && !canGoNext) || (dx < 0 && !canGoPrev)) {
+        effectiveDx = dx * 0.22;
       }
       dragOffsetRef.current = effectiveDx;
-      setDragOffset(effectiveDx);
+      if (!rafRef.current) {
+        rafRef.current = requestAnimationFrame(() => {
+          setDragOffset(dragOffsetRef.current);
+          rafRef.current = null;
+        });
+      }
     }
   };
 
   const handleTouchEnd = () => {
-    if (!touchStartCoordRef.current) return;
-    const offset = dragOffsetRef.current;
-    const wasDragging = isDraggingHorizontalRef.current;
-    touchStartCoordRef.current = null;
-    isDraggingHorizontalRef.current = false;
+    finishSwipe();
+  };
 
-    if (!wasDragging) return;
-
-    const threshold = 55;
-    const containerWidth = readerRef.current?.clientWidth || window.innerWidth || 360;
-
-    if (offset < -threshold && canGoNext) {
-      // Geser ke KIRI -> Bab Berikutnya
-      setIsAnimatingSwipe(true);
-      setDragOffset(-containerWidth);
-      setTimeout(() => {
-        openChapter(activeChapterIndex + 1);
-        setIsAnimatingSwipe(false);
-        setDragOffset(0);
-        dragOffsetRef.current = 0;
-      }, 200);
-    } else if (offset > threshold && canGoPrev) {
-      // Geser ke KANAN -> Bab Sebelumnya
-      setIsAnimatingSwipe(true);
-      setDragOffset(containerWidth);
-      setTimeout(() => {
-        openChapter(activeChapterIndex - 1);
-        setIsAnimatingSwipe(false);
-        setDragOffset(0);
-        dragOffsetRef.current = 0;
-      }, 200);
-    } else {
-      // Balik ke tengah jika tidak melewati batas
-      setIsAnimatingSwipe(true);
-      setDragOffset(0);
-      dragOffsetRef.current = 0;
-      setTimeout(() => {
-        setIsAnimatingSwipe(false);
-      }, 200);
+  const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (e.button !== 0) return;
+    if (animationTimeoutRef.current) {
+      clearTimeout(animationTimeoutRef.current);
+      animationTimeoutRef.current = null;
     }
+    if (rafRef.current) {
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
+    }
+    setIsAnimatingSwipe(false);
+    touchStartCoordRef.current = { x: e.clientX, y: e.clientY };
+    isDraggingHorizontalRef.current = false;
+    dragOffsetRef.current = 0;
+  };
+
+  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!touchStartCoordRef.current) return;
+    const dx = e.clientX - touchStartCoordRef.current.x;
+    const dy = e.clientY - touchStartCoordRef.current.y;
+
+    if (!isDraggingHorizontalRef.current) {
+      if (Math.abs(dx) > 6 && Math.abs(dx) > Math.abs(dy) * 1.15) {
+        isDraggingHorizontalRef.current = true;
+        touchStartCoordRef.current = { x: e.clientX, y: e.clientY };
+        return;
+      } else if (Math.abs(dy) > 8) {
+        touchStartCoordRef.current = null;
+        return;
+      }
+    }
+
+    if (isDraggingHorizontalRef.current) {
+      let effectiveDx = dx;
+      if ((dx > 0 && !canGoNext) || (dx < 0 && !canGoPrev)) {
+        effectiveDx = dx * 0.22;
+      }
+      dragOffsetRef.current = effectiveDx;
+      if (!rafRef.current) {
+        rafRef.current = requestAnimationFrame(() => {
+          setDragOffset(dragOffsetRef.current);
+          rafRef.current = null;
+        });
+      }
+    }
+  };
+
+  const handleMouseUp = () => {
+    finishSwipe();
   };
 
   // Enriched books list with structured Indonesian name, author, Arabic title
@@ -785,220 +1102,100 @@ export const MaulidView: React.FC<MaulidViewProps> = ({
             </div>
           </div>
 
-          {/* Reader Scrollable Content dengan Gesture Geser Horizontal (Pindah Bab Seperti Al-Qur'an) */}
+          {/* Reader Viewport dengan Seamless Push Carousel (Identik Al-Qur'an: RTL Push Kanan ke Kiri) */}
           <div
-            ref={readerRef}
+            ref={readerViewportRef}
             onTouchStart={handleTouchStart}
             onTouchMove={handleTouchMove}
             onTouchEnd={handleTouchEnd}
-            className="flex-1 overflow-y-auto px-4 sm:px-6 py-6 pb-28 overscroll-contain select-text bg-[#fbf9f2]"
+            onMouseDown={handleMouseDown}
+            onMouseMove={handleMouseMove}
+            onMouseUp={handleMouseUp}
+            style={{ touchAction: 'pan-y' }}
+            className="flex-1 relative w-full h-full overflow-hidden bg-[#fbf9f2] select-none"
           >
-            <div 
-              className="max-w-[620px] mx-auto transition-transform duration-200 ease-out"
+            {/* 1. Next Chapter in RTL (activeChapterIndex + 1): Berada di sebelah KIRI, masuk mendorong saat digeser ke kanan */}
+            {(dragOffset > 0 || (isAnimatingSwipe && dragOffset > 0)) && canGoNext && (
+              <div
+                className="absolute inset-0 w-full h-full overflow-y-auto px-4 sm:px-6 py-6 pb-28 overscroll-contain bg-[#fbf9f2] pointer-events-none select-none"
+                style={{
+                  left: '-100%',
+                  transform: `translate3d(${dragOffset}px, 0, 0)`,
+                  transition: isAnimatingSwipe ? 'transform 260ms cubic-bezier(0.2, 0.9, 0.3, 1)' : 'none',
+                  willChange: 'transform'
+                }}
+              >
+                <div className="max-w-[620px] mx-auto">
+                  <MaulidChapterContent
+                    book={currentBook}
+                    chapterIndex={activeChapterIndex + 1}
+                    fontSize={fontSize}
+                    showTranslation={showTranslation}
+                    openToggles={openToggles}
+                    onToggleHeading={() => {}}
+                    canGoPrev={true}
+                    canGoNext={activeChapterIndex + 1 < currentBook.ch.length - 1}
+                    onGoPrev={goToPrevChapter}
+                    onGoNext={goToNextChapter}
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* 2. Current Active Chapter: Posisi 0%, terdorong saat digeser */}
+            <div
+              ref={readerRef}
+              className="absolute inset-0 w-full h-full overflow-y-auto px-4 sm:px-6 py-6 pb-28 overscroll-contain select-text bg-[#fbf9f2]"
               style={{
+                left: '0%',
                 transform: `translate3d(${dragOffset}px, 0, 0)`,
-                transition: isAnimatingSwipe ? 'transform 220ms cubic-bezier(0.2, 0.9, 0.3, 1)' : 'none'
+                transition: isAnimatingSwipe ? 'transform 260ms cubic-bezier(0.2, 0.9, 0.3, 1)' : 'none',
+                willChange: 'transform'
               }}
             >
-              {!currentChapter.b ? (
-                <div className="text-center text-slate-500 py-16 px-4 leading-relaxed text-xs sm:text-sm bg-white rounded-2xl border border-slate-200/80 my-4 shadow-xs">
-                  <p className="font-semibold text-slate-700">Teks bab ini belum dimuat.</p>
-                  <p className="text-slate-400 mt-1">Teks berharakat dan terjemahan sedang disinkronkan.</p>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {currentChapter.b.p.map((x: any, pIdx: number) => {
-                    // 1. Sholawat Pembuka: "اللَّهُمَّ صَلِّ وَسَلِّمْ وَبَارِكْ عَلَيْهِ"
-                    // Ditampilkan dalam Bingkai Kartus Kaligrafi Islami Mewah + Terjemahan di bawahnya persis screenshot
-                    if ((typeof x === 'string' && isSl(x)) || (typeof x === 'string' && x.includes("اللَّهُمَّ صَلِّ وَسَلِّمْ وَبَارِكْ عَلَيْهِ"))) {
-                      const tr = getMaulidTextTranslation(x, currentBook.id, activeChapterIndex, pIdx);
-                      return (
-                        <div key={`sholawat-cartouche-${pIdx}`} className="my-4 text-center">
-                          <SholawatCartoucheFrame text="اللَّهُمَّ صَلِّ وَسَلِّمْ وَبَارِكْ عَلَيْهِ" />
-                          {showTranslation && (
-                            <p className="text-center text-xs sm:text-sm text-slate-600 mt-2 mb-6 font-normal max-w-md mx-auto leading-relaxed">
-                              {tr || "Ya Allah, limpahkanlah rahmat, keselamatan, dan keberkahan kepada-Nya."}
-                            </p>
-                          )}
-                        </div>
-                      );
-                    }
-
-                    // 2. Basmalah Calligraphy: "بِسْمِ اللهِ الرَّحْمٰنِ الرَّحِيمِ"
-                    // Ditampilkan dengan Vektor Kaligrafi Indah + Terjemahan di bawahnya persis screenshot
-                    if (
-                      (x.c && (x.c.includes("بِسْمِ اللهِ الرَّحْمٰنِ الرَّحِيمِ") || x.c === "بِسْمِ اللهِ الرَّحْمٰنِ الرَّحِيمِ")) ||
-                      (typeof x === 'string' && (x.includes("بِسْمِ اللهِ الرَّحْمٰنِ الرَّحِيمِ") || x === "بِسْمِ اللهِ الرَّحْمٰنِ الرَّحِيمِ"))
-                    ) {
-                      const tr = getMaulidTextTranslation("بِسْمِ اللهِ الرَّحْمٰنِ الرَّحِيمِ", currentBook.id, activeChapterIndex, pIdx);
-                      return (
-                        <div key={`basmalah-${pIdx}`} className="my-6 text-center">
-                          <BismillahCalligraphy className="w-56 sm:w-64 max-w-[80vw] h-auto mx-auto my-2 text-slate-800" />
-                          {showTranslation && (
-                            <p className="text-center text-xs sm:text-sm text-slate-600 mt-2 mb-6 font-normal max-w-md mx-auto leading-relaxed">
-                              {tr || "Dengan nama Allah Yang Maha Pengasih, Maha Penyayang."}
-                            </p>
-                          )}
-                        </div>
-                      );
-                    }
-
-                    // 3. Ayat / Fasal / Callout Khusus: x.c (contoh: Laqod Jāakum, Innallāha wa malāikatahū)
-                    if (x.c) {
-                      const tr = getMaulidTextTranslation(x.c, currentBook.id, activeChapterIndex, pIdx);
-                      return (
-                        <div key={`callout-${pIdx}`} className="my-5">
-                          <div
-                            className="font-arabic text-right text-[calc(var(--fs)*1.08)] leading-[2.4] text-slate-900 font-semibold my-2"
-                            dir="rtl"
-                            style={{ fontFamily: "'Amiri Quran', 'Scheherazade New', serif" }}
-                            dangerouslySetInnerHTML={{
-                              __html: x.c.replace(/۝/g, "<span class='inline-block text-amber-700 mx-1 font-normal'>۝</span>")
-                            }}
-                          />
-                          {showTranslation && tr && (
-                            <p className="text-left text-xs sm:text-sm text-slate-700 leading-relaxed font-normal mt-2.5 mb-2">
-                              {tr}
-                            </p>
-                          )}
-                          <div className="w-full border-t border-slate-200/80 my-5" />
-                        </div>
-                      );
-                    }
-
-                    // 4. Paragraf Rawi Narasi (string biasa)
-                    if (typeof x === 'string') {
-                      const tr = getMaulidTextTranslation(x, currentBook.id, activeChapterIndex, pIdx);
-                      return (
-                        <div key={`rawi-p-${pIdx}`} className="my-5">
-                          <p
-                            className="font-arabic text-justify text-right text-[var(--fs)] leading-[2.3] mb-3 text-slate-900"
-                            dir="rtl"
-                            style={{ fontFamily: "'Scheherazade New', 'Amiri Quran', serif" }}
-                            dangerouslySetInnerHTML={{
-                              __html: x.replace(/❁/g, "<span class='inline-block text-amber-700 mx-1 font-normal'>❁</span>")
-                            }}
-                          />
-                          {showTranslation && tr && (
-                            <p className="text-left text-xs sm:text-sm text-slate-700 leading-relaxed font-normal mb-3">
-                              {tr}
-                            </p>
-                          )}
-                          <div className="w-full border-t border-slate-200/70 my-5" />
-                        </div>
-                      );
-                    }
-
-                    // 5. Bagian Syair / Nadhom Dua Kolom (x.v)
-                    if (x.v) {
-                      return (
-                        <div key={`couplets-${pIdx}`} className="border-y border-slate-200/80 py-3 my-5 space-y-3" dir="rtl">
-                          {x.v.map((r: string[], vIdx: number) => (
-                            <div
-                              key={vIdx}
-                              className="grid grid-cols-2 gap-4 font-arabic text-[calc(var(--fs)*0.95)] leading-loose text-center text-slate-900"
-                              style={{ fontFamily: "'Amiri Quran', 'Scheherazade New', serif" }}
-                            >
-                              <span>{r[0]}</span>
-                              <span>{r[1]}</span>
-                            </div>
-                          ))}
-                        </div>
-                      );
-                    }
-
-                    // 6. Bagian dengan Judul Lipat (x.h)
-                    if (x.h) {
-                      const toggleKey = `${activeBookIndex}-${activeChapterIndex}-${pIdx}`;
-                      const isOpened = !!openToggles[toggleKey];
-
-                      return (
-                        <div key={`heading-section-${pIdx}`} className="my-5">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setOpenToggles((prev) => ({ ...prev, [toggleKey]: !prev[toggleKey] }));
-                            }}
-                            className="w-full my-3 py-3 px-3.5 border border-amber-600/40 rounded-xl bg-amber-50/70 text-[#1b6837] font-arabic text-[calc(var(--fs)*0.95)] leading-relaxed text-center cursor-pointer flex items-center justify-center gap-1.5 shadow-2xs hover:bg-amber-100/70 transition-colors"
-                            dir="rtl"
-                            style={{ fontFamily: "'Amiri Quran', serif" }}
-                          >
-                            <span>{x.h}</span>
-                            <span className="font-sans text-xs text-[#b45309]">{isOpened ? '▲' : '▼'}</span>
-                          </button>
-                          {isOpened && x.v && (
-                            <div className="border-y border-slate-200/80 py-2 my-4 space-y-2" dir="rtl">
-                              {x.v.map((r: string[], vIdx: number) => (
-                                <div
-                                  key={vIdx}
-                                  className="grid grid-cols-2 gap-4 font-arabic text-[calc(var(--fs)*0.95)] leading-loose text-center my-1.5 text-slate-900"
-                                  style={{ fontFamily: "'Amiri Quran', 'Scheherazade New', serif" }}
-                                >
-                                  <span>{r[0]}</span>
-                                  <span>{r[1]}</span>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      );
-                    }
-
-                    return null;
-                  })}
-
-                  {/* Refrain / Sholawat Penutup Rawi: c.b.r */}
-                  {currentChapter.b.r && (
-                    <div className="my-6 text-center">
-                      <div 
-                        className="font-arabic text-center text-[calc(var(--fs)*0.95)] leading-loose text-[#1b6837] border-y border-emerald-300/80 bg-emerald-50/60 py-4 px-3 rounded-2xl shadow-2xs"
-                        dir="rtl"
-                        style={{ fontFamily: "'Amiri Quran', serif" }}
-                        dangerouslySetInnerHTML={{
-                          __html: R.replace(/❁/g, "<span class='inline-block text-amber-700 mx-1 font-normal'>❁</span>")
-                        }}
-                      />
-                      {showTranslation && (
-                        <p className="text-center text-xs sm:text-sm text-slate-600 mt-2.5 font-normal max-w-md mx-auto leading-relaxed">
-                          Ya Allah, harumkanlah kuburnya yang mulia dengan keharuman semerbak sholawat dan salam. Ya Allah, limpahkanlah sholawat, salam, dan keberkahan kepada beliau.
-                        </p>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Navigasi Cepat Bab Bawah: Geser untuk berpindah */}
-                  <div className="pt-6 pb-4 flex items-center justify-between border-t border-slate-200/70 mt-8 text-xs text-slate-500 select-none">
-                    <button
-                      type="button"
-                      disabled={!canGoPrev}
-                      onClick={goToPrevChapter}
-                      className={`flex items-center gap-1.5 px-3 py-2 rounded-xl transition-colors cursor-pointer ${
-                        canGoPrev ? 'bg-white border border-slate-200 text-slate-700 hover:bg-emerald-50 active:bg-emerald-100 shadow-2xs' : 'opacity-30 cursor-not-allowed'
-                      }`}
-                    >
-                      <ChevronLeft className="w-4 h-4" />
-                      <span>Bab Sebelumnya</span>
-                    </button>
-
-                    <span className="text-[11px] text-slate-400 font-medium">
-                      Geser layar untuk pindah
-                    </span>
-
-                    <button
-                      type="button"
-                      disabled={!canGoNext}
-                      onClick={goToNextChapter}
-                      className={`flex items-center gap-1.5 px-3 py-2 rounded-xl transition-colors cursor-pointer ${
-                        canGoNext ? 'bg-white border border-slate-200 text-slate-700 hover:bg-emerald-50 active:bg-emerald-100 shadow-2xs' : 'opacity-30 cursor-not-allowed'
-                      }`}
-                    >
-                      <span>Bab Berikutnya</span>
-                      <ChevronRight className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-              )}
+              <div className="max-w-[620px] mx-auto">
+                <MaulidChapterContent
+                  book={currentBook}
+                  chapterIndex={activeChapterIndex}
+                  fontSize={fontSize}
+                  showTranslation={showTranslation}
+                  openToggles={openToggles}
+                  onToggleHeading={(key) => setOpenToggles((prev) => ({ ...prev, [key]: !prev[key] }))}
+                  canGoPrev={canGoPrev}
+                  canGoNext={canGoNext}
+                  onGoPrev={goToPrevChapter}
+                  onGoNext={goToNextChapter}
+                />
+              </div>
             </div>
+
+            {/* 3. Previous Chapter in RTL (activeChapterIndex - 1): Berada di sebelah KANAN, masuk mendorong saat digeser ke kiri */}
+            {(dragOffset < 0 || (isAnimatingSwipe && dragOffset < 0)) && canGoPrev && (
+              <div
+                className="absolute inset-0 w-full h-full overflow-y-auto px-4 sm:px-6 py-6 pb-28 overscroll-contain bg-[#fbf9f2] pointer-events-none select-none"
+                style={{
+                  left: '100%',
+                  transform: `translate3d(${dragOffset}px, 0, 0)`,
+                  transition: isAnimatingSwipe ? 'transform 260ms cubic-bezier(0.2, 0.9, 0.3, 1)' : 'none',
+                  willChange: 'transform'
+                }}
+              >
+                <div className="max-w-[620px] mx-auto">
+                  <MaulidChapterContent
+                    book={currentBook}
+                    chapterIndex={activeChapterIndex - 1}
+                    fontSize={fontSize}
+                    showTranslation={showTranslation}
+                    openToggles={openToggles}
+                    onToggleHeading={() => {}}
+                    canGoPrev={activeChapterIndex - 1 > 0}
+                    canGoNext={true}
+                    onGoPrev={goToPrevChapter}
+                    onGoNext={goToNextChapter}
+                  />
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Floating Mini Audio Bar ketika Audio Aktif */}
