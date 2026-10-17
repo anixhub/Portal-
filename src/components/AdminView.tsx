@@ -2044,8 +2044,8 @@ export const AdminView: React.FC<AdminViewProps> = ({
                         <BookMarked className="w-5 h-5" />
                       </div>
                       <div className="text-left">
-                        <p className="font-bold text-sm text-teal-950">Kitab Majmu'ah Putra 2024</p>
-                        <p className="text-[11px] font-normal text-teal-700">PDF Asli Ponpes At-Taroqqy Sedan (223 Halaman)</p>
+                        <p className="font-bold text-sm text-teal-950">Kitab Majmu'ah At-Taroqqy</p>
+                        <p className="text-[11px] font-normal text-teal-700">Revisi 2024 (223 Halaman)</p>
                       </div>
                     </div>
                     <ChevronRight className="w-4 h-4 text-teal-600 group-hover:translate-x-0.5 transition-transform" />

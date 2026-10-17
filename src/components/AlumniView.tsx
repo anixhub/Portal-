@@ -4415,7 +4415,7 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
                 <div>
                   <h3 className="font-bold text-sm text-slate-900 capitalize">
                     {activeIslamicMenu === 'quran' && "Al-Qur'an 30 Juz"}
-                    {activeIslamicMenu === 'majmuah' && "Kitab Majmu'ah Syarif"}
+                    {activeIslamicMenu === 'majmuah' && "Kitab Majmu'ah At-Taroqqy"}
                     {activeIslamicMenu === 'maulid' && 'Kitab Maulid Nabi'}
                     {(activeIslamicMenu === 'dzikir' || activeIslamicMenu === 'aurod') && 'Dzikir & Wirid Santri'}
                   </h3>
@@ -4492,35 +4492,38 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
                   <button
                     type="button"
                     onClick={() => {
-                      setSelectedMajmuahPage(1);
+                      setSelectedMajmuahPage(3);
                       setActiveIslamicMenu(null);
                       setIsMajmuahViewOpen(true);
                     }}
-                    className="w-full mb-3 py-3 px-4 bg-gradient-to-r from-sky-700 via-sky-800 to-indigo-800 hover:from-sky-800 hover:to-indigo-900 text-white rounded-2xl font-bold text-xs flex items-center justify-center gap-2 shadow-sm active:scale-[0.98] transition-all cursor-pointer"
+                    className="w-full mb-3 py-3 px-4 bg-gradient-to-r from-emerald-700 via-teal-800 to-emerald-900 hover:from-emerald-800 hover:to-teal-900 text-white rounded-2xl font-bold text-xs flex items-center justify-center gap-2 shadow-sm active:scale-[0.98] transition-all cursor-pointer"
                   >
-                    <BookMarked className="w-4 h-4 text-sky-200" />
-                    <span>Buka Kitab Majmu'ah Putra 2024 (PDF 223 Hal)</span>
+                    <BookMarked className="w-4 h-4 text-emerald-200" />
+                    <span>Buka Kitab Majmu'ah At-Taroqqy (Revisi 2024)</span>
                   </button>
-                  {MAJMUAH_SECTIONS.slice(1).map((m, idx) => (
+                  {MAJMUAH_SECTIONS.map((m, idx) => (
                     <div
-                      key={idx}
+                      key={m.page}
                       onClick={() => {
                         setSelectedMajmuahPage(m.page);
                         setActiveIslamicMenu(null);
                         setIsMajmuahViewOpen(true);
                       }}
-                      className="p-3 rounded-2xl border border-slate-100 hover:border-sky-300 hover:bg-sky-50/50 transition-colors flex items-center justify-between cursor-pointer group"
+                      className="p-3 rounded-2xl border border-slate-100 hover:border-emerald-300 hover:bg-emerald-50/50 transition-colors flex items-center justify-between cursor-pointer group"
                     >
                       <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-xl bg-sky-100 text-sky-800 font-bold text-xs flex items-center justify-center group-hover:bg-sky-700 group-hover:text-white transition-colors shrink-0">
-                          {m.page}
+                        <div className="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-800 font-bold text-xs flex items-center justify-center group-hover:bg-emerald-700 group-hover:text-white transition-colors shrink-0">
+                          {idx + 1}
                         </div>
                         <div>
-                          <p className="font-bold text-slate-800 text-xs group-hover:text-sky-800 transition-colors">{m.title}</p>
-                          <p className="text-[11px] text-slate-400 font-arabic" dir="rtl">{m.arabic}</p>
+                          <p className="font-bold text-slate-800 text-xs group-hover:text-emerald-800 transition-colors">{m.title}</p>
+                          <p className="text-[11px] text-emerald-700 font-medium">Hal. {m.page}</p>
                         </div>
                       </div>
-                      <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-sky-600 transition-colors" />
+                      <div className="flex items-center gap-2">
+                        <span className="font-arabic text-sm text-slate-700" dir="rtl">{m.arabic}</span>
+                        <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-emerald-600 transition-colors" />
+                      </div>
                     </div>
                   ))}
                 </div>

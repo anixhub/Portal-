@@ -3,7 +3,9 @@ import * as pdfjsLib from 'pdfjs-dist';
 import {
   ArrowLeft,
   Search,
-  BookOpen
+  BookOpen,
+  List,
+  X
 } from 'lucide-react';
 import { AyahCircleMedallion, LpmqSvgDefs } from './lpmqAyahCirclePath';
 import { useBackHandler } from '../utils/navigationHistory';
@@ -20,8 +22,8 @@ export interface MajmuahSection {
   category: 'surah' | 'wirid' | 'qasidah' | 'doa' | 'istighotsah' | 'nadhom';
 }
 
+// Daftar bab tanpa halaman sampul dan biodata santri (dimulai langsung dari Surat Yasin hal. 3)
 export const MAJMUAH_SECTIONS: MajmuahSection[] = [
-  { page: 1, arabic: 'مقروءات يومية وأسبوعية', title: 'Sampul & Biodata Santri', category: 'doa' },
   { page: 3, arabic: 'سورة يس', title: 'Surat Yasin', category: 'surah' },
   { page: 13, arabic: 'سورة الواقعة', title: 'Surat Al-Waqi’ah', category: 'surah' },
   { page: 21, arabic: 'سورة الملك', title: 'Surat Al-Mulk', category: 'surah' },
@@ -55,6 +57,7 @@ export const MAJMUAH_SECTIONS: MajmuahSection[] = [
 const PDF_URL = '/majmuah_putra.pdf';
 const STORAGE_LAST_PAGE = 'majmuah_last_page';
 const TOTAL_PAGES_COUNT = 223;
+const DEFAULT_FIRST_PAGE = 3; // Halaman awal surat Yasin
 
 interface MajmuahViewProps {
   isOpen: boolean;
@@ -65,6 +68,7 @@ interface MajmuahViewProps {
 export const MajmuahView: React.FC<MajmuahViewProps> = ({ isOpen, onClose, initialPage }) => {
   // View mode: 'toc' (Daftar Isi) or 'read' (Tampilan Kitab)
   const [currentView, setCurrentView] = useState<'toc' | 'read'>('toc');
+  const [isRightSidebarOpen, setIsRightSidebarOpen] = useState<boolean>(false);
 
   const [currentPage, setCurrentPage] = useState<number>(() => {
     if (initialPage && initialPage > 0) return initialPage;
@@ -72,27 +76,32 @@ export const MajmuahView: React.FC<MajmuahViewProps> = ({ isOpen, onClose, initi
       const saved = localStorage.getItem(STORAGE_LAST_PAGE);
       if (saved) {
         const p = parseInt(saved, 10);
-        if (!isNaN(p) && p >= 1 && p <= TOTAL_PAGES_COUNT) return p;
+        if (!isNaN(p) && p >= 3 && p <= TOTAL_PAGES_COUNT) return p;
       }
     } catch {
       // ignore
     }
-    return 1;
+    return DEFAULT_FIRST_PAGE;
   });
 
   const [totalPages, setTotalPages] = useState<number>(TOTAL_PAGES_COUNT);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [searchQuery, setSearchQuery] = useState<string>('');
+  const [sidebarSearch, setSidebarSearch] = useState<string>('');
 
-  // Interactive push-swipe gesture state (Identik dengan Al-Qur'an Mushaf)
+  // Interactive push-swipe gesture state
   const [dragOffset, setDragOffset] = useState<number>(0);
   const [isAnimatingPage, setIsAnimatingPage] = useState<boolean>(false);
 
-  // References for multi-page canvas rendering
-  const currentCanvasRef = useRef<HTMLCanvasElement | null>(null);
-  const nextCanvasRef = useRef<HTMLCanvasElement | null>(null);
-  const prevCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  // Pre-rendered cached images for current, next, and previous page slots
+  const [renderedPages, setRenderedPages] = useState<{
+    current: string | null;
+    next: string | null;
+    prev: string | null;
+  }>({ current: null, next: null, prev: null });
 
+  // In-memory page image cache
+  const pageImageCacheRef = useRef<Map<number, string>>(new Map());
   const pdfDocRef = useRef<any>(null);
   const pageContainerRef = useRef<HTMLDivElement | null>(null);
 
@@ -102,12 +111,16 @@ export const MajmuahView: React.FC<MajmuahViewProps> = ({ isOpen, onClose, initi
   const dragDirectionRef = useRef<'horizontal' | 'vertical' | null>(null);
   const isDraggingPageRef = useRef<boolean>(false);
 
-  // Back button handler: in 'read' goes back to 'toc', in 'toc' closes modal
-  useBackHandler(isOpen && currentView === 'read', 'majmuah-read-back', () => {
+  // Back button handler
+  useBackHandler(isOpen && isRightSidebarOpen, 'majmuah-sidebar-back', () => {
+    setIsRightSidebarOpen(false);
+  });
+
+  useBackHandler(isOpen && !isRightSidebarOpen && currentView === 'read', 'majmuah-read-back', () => {
     setCurrentView('toc');
   });
 
-  // When opening, reset view to 'toc' unless initialPage was passed
+  // When opening, reset view
   useEffect(() => {
     if (isOpen) {
       if (initialPage && initialPage >= 1) {
@@ -116,6 +129,7 @@ export const MajmuahView: React.FC<MajmuahViewProps> = ({ isOpen, onClose, initi
       } else {
         setCurrentView('toc');
       }
+      setIsRightSidebarOpen(false);
     }
   }, [isOpen, initialPage]);
 
@@ -157,66 +171,94 @@ export const MajmuahView: React.FC<MajmuahViewProps> = ({ isOpen, onClose, initi
     };
   }, [isOpen]);
 
-  // Render a specific page onto a designated canvas with fit-width scaling
-  const renderSinglePage = useCallback(async (pageNum: number, targetCanvas: HTMLCanvasElement | null) => {
-    if (!pdfDocRef.current || !targetCanvas || pageNum < 1 || pageNum > totalPages) return;
+  // Render a specific page to high-quality image URL with fit-width scaling
+  const getOrRenderPageImage = useCallback(async (pageNum: number): Promise<string | null> => {
+    if (pageNum < 1 || pageNum > totalPages) return null;
+    if (pageImageCacheRef.current.has(pageNum)) {
+      return pageImageCacheRef.current.get(pageNum)!;
+    }
+    if (!pdfDocRef.current) return null;
 
     try {
       const page = await pdfDocRef.current.getPage(pageNum);
-      const context = targetCanvas.getContext('2d');
-      if (!context) return;
-
       const containerWidth = pageContainerRef.current?.clientWidth || window.innerWidth || 360;
       const unscaledViewport = page.getViewport({ scale: 1 });
       const fitWidthScale = containerWidth / unscaledViewport.width;
 
       const pixelRatio = Math.min(window.devicePixelRatio || 1, 2.5);
-      const viewport = page.getViewport({ scale: fitWidthScale });
+      const viewport = page.getViewport({ scale: fitWidthScale * pixelRatio });
 
-      targetCanvas.width = Math.floor(viewport.width * pixelRatio);
-      targetCanvas.height = Math.floor(viewport.height * pixelRatio);
-      targetCanvas.style.width = '100%';
-      targetCanvas.style.height = 'auto';
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.floor(viewport.width);
+      canvas.height = Math.floor(viewport.height);
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return null;
 
-      context.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
-
-      const renderContext = {
-        canvasContext: context,
-        viewport: viewport,
-      };
-
-      await page.render(renderContext).promise;
+      await page.render({ canvasContext: ctx, viewport }).promise;
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.92);
+      pageImageCacheRef.current.set(pageNum, dataUrl);
+      return dataUrl;
     } catch (err: any) {
       if (err.name !== 'RenderingCancelledException') {
         console.warn(`Render error on page ${pageNum}:`, err);
       }
+      return null;
     }
   }, [totalPages]);
 
-  // Render active page and pre-render adjacent pages for instantaneous swipe transitions
-  const renderAllVisiblePages = useCallback((activePageNum: number) => {
-    if (!pdfDocRef.current) return;
-    renderSinglePage(activePageNum, currentCanvasRef.current);
-    if (activePageNum < totalPages) {
-      renderSinglePage(activePageNum + 1, nextCanvasRef.current);
+  // Synchronously set already cached image and fetch adjacent pages
+  const updateVisiblePages = useCallback(async (activePage: number) => {
+    // 1. Instant update if current page is already in cache
+    const cachedCurrent = pageImageCacheRef.current.get(activePage) || null;
+    const cachedNext = pageImageCacheRef.current.get(activePage + 1) || null;
+    const cachedPrev = pageImageCacheRef.current.get(activePage - 1) || null;
+
+    setRenderedPages({
+      current: cachedCurrent,
+      next: cachedNext,
+      prev: cachedPrev,
+    });
+
+    // 2. Fetch/render current if not cached
+    if (!cachedCurrent) {
+      const currentUrl = await getOrRenderPageImage(activePage);
+      setRenderedPages((prev) => ({ ...prev, current: currentUrl }));
     }
-    if (activePageNum > 1) {
-      renderSinglePage(activePageNum - 1, prevCanvasRef.current);
+
+    // 3. Pre-render adjacent pages
+    if (activePage < totalPages && !cachedNext) {
+      getOrRenderPageImage(activePage + 1).then((nextUrl) => {
+        setRenderedPages((prev) => ({ ...prev, next: nextUrl }));
+      });
     }
-  }, [renderSinglePage, totalPages]);
+
+    if (activePage > 1 && !cachedPrev) {
+      getOrRenderPageImage(activePage - 1).then((prevUrl) => {
+        setRenderedPages((prev) => ({ ...prev, prev: prevUrl }));
+      });
+    }
+
+    // Background pre-fetch next + 2 and prev - 2
+    if (activePage + 2 <= totalPages && !pageImageCacheRef.current.has(activePage + 2)) {
+      getOrRenderPageImage(activePage + 2);
+    }
+    if (activePage - 2 >= 1 && !pageImageCacheRef.current.has(activePage - 2)) {
+      getOrRenderPageImage(activePage - 2);
+    }
+  }, [getOrRenderPageImage, totalPages]);
 
   useEffect(() => {
     if (isOpen && currentView === 'read' && pdfDocRef.current) {
-      renderAllVisiblePages(currentPage);
+      updateVisiblePages(currentPage);
       try {
         localStorage.setItem(STORAGE_LAST_PAGE, String(currentPage));
       } catch {
         // ignore
       }
     }
-  }, [isOpen, currentView, currentPage, renderAllVisiblePages]);
+  }, [isOpen, currentView, currentPage, updateVisiblePages]);
 
-  // Handle window resize for fit-width recalculation
+  // Window resize handler: clear cache and re-render with new fit-width
   useEffect(() => {
     if (!isOpen || currentView !== 'read') return;
 
@@ -224,8 +266,9 @@ export const MajmuahView: React.FC<MajmuahViewProps> = ({ isOpen, onClose, initi
     const handleResize = () => {
       clearTimeout(resizeTimer);
       resizeTimer = setTimeout(() => {
-        renderAllVisiblePages(currentPage);
-      }, 150);
+        pageImageCacheRef.current.clear();
+        updateVisiblePages(currentPage);
+      }, 200);
     };
 
     window.addEventListener('resize', handleResize);
@@ -235,18 +278,19 @@ export const MajmuahView: React.FC<MajmuahViewProps> = ({ isOpen, onClose, initi
       window.removeEventListener('resize', handleResize);
       window.removeEventListener('orientationchange', handleResize);
     };
-  }, [isOpen, currentView, currentPage, renderAllVisiblePages]);
+  }, [isOpen, currentView, currentPage, updateVisiblePages]);
 
   // Jump to page
   const goToPage = useCallback((pageNum: number) => {
     const valid = Math.max(1, Math.min(totalPages, pageNum));
     setCurrentPage(valid);
+    setIsRightSidebarOpen(false);
   }, [totalPages]);
 
   // ================= PUSH SWIPE GESTURE (IDENTIK DENGAN AL-QUR'AN) =================
   // Arah halaman RTL: Nomor 1 di KANAN, nomor berikutnya ke KIRI.
-  // Saat digeser ke kanan (dragOffset > 0): Halaman berikutnya (currentPage + 1) masuk dari kiri mendorong halaman saat ini.
-  // Saat digeser ke kiri (dragOffset < 0): Halaman sebelumnya (currentPage - 1) masuk dari kanan mendorong halaman saat ini.
+  // Geser ke kanan (dragOffset > 0): Halaman berikutnya (currentPage + 1) masuk dari kiri mendorong halaman saat ini.
+  // Geser ke kiri (dragOffset < 0): Halaman sebelumnya (currentPage - 1) masuk dari kanan mendorong halaman saat ini.
 
   const finishPageDrag = useCallback(() => {
     if (!touchStartCoordRef.current) return;
@@ -270,8 +314,16 @@ export const MajmuahView: React.FC<MajmuahViewProps> = ({ isOpen, onClose, initi
       setIsAnimatingPage(true);
       setDragOffset(containerWidth);
       dragOffsetRef.current = containerWidth;
+
       setTimeout(() => {
-        goToPage(currentPage + 1);
+        const nextP = currentPage + 1;
+        // Seamless handoff: next page image becomes current immediately without re-render flash
+        setRenderedPages((prev) => ({
+          current: prev.next,
+          next: pageImageCacheRef.current.get(nextP + 1) || null,
+          prev: prev.current,
+        }));
+        setCurrentPage(nextP);
         setIsAnimatingPage(false);
         setDragOffset(0);
         dragOffsetRef.current = 0;
@@ -281,8 +333,16 @@ export const MajmuahView: React.FC<MajmuahViewProps> = ({ isOpen, onClose, initi
       setIsAnimatingPage(true);
       setDragOffset(-containerWidth);
       dragOffsetRef.current = -containerWidth;
+
       setTimeout(() => {
-        goToPage(currentPage - 1);
+        const prevP = currentPage - 1;
+        // Seamless handoff: prev page image becomes current immediately
+        setRenderedPages((prev) => ({
+          current: prev.prev,
+          next: prev.current,
+          prev: pageImageCacheRef.current.get(prevP - 1) || null,
+        }));
+        setCurrentPage(prevP);
         setIsAnimatingPage(false);
         setDragOffset(0);
         dragOffsetRef.current = 0;
@@ -296,7 +356,7 @@ export const MajmuahView: React.FC<MajmuahViewProps> = ({ isOpen, onClose, initi
         setIsAnimatingPage(false);
       }, 260);
     }
-  }, [currentPage, totalPages, goToPage]);
+  }, [currentPage, totalPages]);
 
   const handleTouchStart = (e: React.TouchEvent) => {
     if (isAnimatingPage) return;
@@ -382,6 +442,7 @@ export const MajmuahView: React.FC<MajmuahViewProps> = ({ isOpen, onClose, initi
   const openSection = (page: number) => {
     setCurrentPage(page);
     setCurrentView('read');
+    setIsRightSidebarOpen(false);
   };
 
   // Keyboard navigation
@@ -390,28 +451,41 @@ export const MajmuahView: React.FC<MajmuahViewProps> = ({ isOpen, onClose, initi
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'ArrowLeft') {
-        // In RTL mushaf: arrow left moves to next page (curPage + 1)
         if (currentPage < totalPages) {
           goToPage(currentPage + 1);
         }
       } else if (e.key === 'ArrowRight') {
-        // In RTL mushaf: arrow right moves to previous page (curPage - 1)
         if (currentPage > 1) {
           goToPage(currentPage - 1);
         }
       } else if (e.key === 'Escape') {
-        setCurrentView('toc');
+        if (isRightSidebarOpen) {
+          setIsRightSidebarOpen(false);
+        } else {
+          setCurrentView('toc');
+        }
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, currentView, currentPage, totalPages, goToPage]);
+  }, [isOpen, currentView, currentPage, totalPages, goToPage, isRightSidebarOpen]);
 
   // Filter sections in TOC
   const filteredSections = MAJMUAH_SECTIONS.filter((s) => {
     if (!searchQuery.trim()) return true;
     const q = searchQuery.toLowerCase();
+    return (
+      s.title.toLowerCase().includes(q) ||
+      s.arabic.toLowerCase().includes(q) ||
+      String(s.page).includes(q)
+    );
+  });
+
+  // Filter sections in Sidebar
+  const filteredSidebarSections = MAJMUAH_SECTIONS.filter((s) => {
+    if (!sidebarSearch.trim()) return true;
+    const q = sidebarSearch.toLowerCase();
     return (
       s.title.toLowerCase().includes(q) ||
       s.arabic.toLowerCase().includes(q) ||
@@ -433,23 +507,23 @@ export const MajmuahView: React.FC<MajmuahViewProps> = ({ isOpen, onClose, initi
       {/* ================= 1. DAFTAR ISI VIEW (SEPERTI DI MAULID) ================= */}
       {currentView === 'toc' && (
         <div className="flex-1 flex flex-col h-full bg-[#fbf9f2] overflow-hidden">
-          {/* Header Bersih Warna Putih (Tanpa tombol X) */}
-          <header className="bg-white text-slate-800 border-b border-slate-200/90 flex items-center justify-between px-3 h-14 shrink-0 shadow-2xs z-20">
+          {/* Header Warna Hijau Seperti di Al-Qur'an (#4f9a50) */}
+          <header className="bg-[#4f9a50] text-white flex items-center justify-between px-3 h-14 shrink-0 shadow-sm z-20">
             <button
               type="button"
               onClick={onClose}
-              className="w-10 h-10 rounded-full flex items-center justify-center hover:bg-slate-100 active:bg-slate-200 transition-colors cursor-pointer text-slate-700"
+              className="w-10 h-10 rounded-full flex items-center justify-center hover:bg-white/20 active:bg-white/30 transition-colors cursor-pointer text-white"
               title="Kembali"
             >
               <ArrowLeft className="w-5 h-5" />
             </button>
 
             <div className="text-center">
-              <h1 className="font-bold text-base sm:text-lg text-slate-900 leading-tight">
-                Kitab Majmu'ah Putra
+              <h1 className="font-bold text-base sm:text-lg text-white leading-tight">
+                Kitab Majmu'ah At-Taroqqy
               </h1>
-              <p className="text-[11px] text-emerald-800 font-semibold tracking-wide">
-                Revisi 2024 • Ponpes At-Taroqqy
+              <p className="text-[11px] text-emerald-100 font-medium tracking-wide">
+                Revisi 2024
               </p>
             </div>
 
@@ -472,7 +546,7 @@ export const MajmuahView: React.FC<MajmuahViewProps> = ({ isOpen, onClose, initi
             </div>
 
             {/* 2. Banner Lanjutkan Terakhir Dibaca (Jika ada) */}
-            {currentPage > 1 && !searchQuery && (
+            {currentPage > DEFAULT_FIRST_PAGE && !searchQuery && (
               <button
                 type="button"
                 onClick={() => openSection(currentPage)}
@@ -497,30 +571,31 @@ export const MajmuahView: React.FC<MajmuahViewProps> = ({ isOpen, onClose, initi
               </button>
             )}
 
-            {/* 3. Daftar Bab / Pasal Kitab Majmu'ah */}
+            {/* 3. Daftar Bab Kitab Majmu'ah: Nomor Urut Saja + Keterangan Halaman Saja */}
             <div className="bg-white rounded-2xl border border-slate-200/80 shadow-2xs divide-y divide-slate-100 overflow-hidden">
               {filteredSections.map((sec, idx) => (
                 <button
-                  key={idx}
+                  key={sec.page}
                   type="button"
                   onClick={() => openSection(sec.page)}
                   className="w-full flex items-center justify-between p-3.5 sm:p-4 text-left transition-colors cursor-pointer group hover:bg-emerald-50/60 active:bg-emerald-100/60"
                 >
-                  {/* Sisi Kiri: Medallion Nomor Halaman & Judul Bab */}
+                  {/* Sisi Kiri: Medallion Nomor Urut (1, 2, 3...) & Judul Bab */}
                   <div className="flex items-center gap-3 min-w-0 pr-3">
                     <AyahCircleMedallion
-                      num={sec.page}
+                      num={idx + 1}
                       size={38}
                       circleColorClass="text-amber-900/75 group-hover:text-emerald-800"
                       textColorClass="text-slate-800 group-hover:text-emerald-950 font-extrabold"
-                      title={`Halaman ${sec.page}`}
+                      title={`Bab ke-${idx + 1}`}
                     />
                     <div className="truncate">
                       <div className="text-sm sm:text-base font-bold text-slate-900 group-hover:text-emerald-800 truncate leading-snug">
                         {sec.title}
                       </div>
-                      <div className="text-[11px] text-slate-400 group-hover:text-emerald-800/80 truncate mt-0.5 font-normal">
-                        Majmu'ah Putra 2024
+                      {/* Keterangan hanya nomer halaman saja */}
+                      <div className="text-[11px] text-emerald-700 font-medium group-hover:text-emerald-800 mt-0.5">
+                        Hal. {sec.page}
                       </div>
                     </div>
                   </div>
@@ -558,28 +633,40 @@ export const MajmuahView: React.FC<MajmuahViewProps> = ({ isOpen, onClose, initi
         </div>
       )}
 
-      {/* ================= 2. TAMPILAN KITAB (READER VIEW - CENTER VERTICAL & PUSH SWIPE) ================= */}
+      {/* ================= 2. TAMPILAN KITAB (READER VIEW - HEADER AL-QURAN & SEAMLESS PUSH SWIPE) ================= */}
       {currentView === 'read' && (
         <div className="flex-1 flex flex-col h-full bg-[#fbf9f2] overflow-hidden select-none">
-          {/* Header Bersih Warna Putih (Tanpa tombol X) */}
-          <header className="bg-white text-slate-800 border-b border-slate-200/90 flex items-center justify-between px-3 h-14 shrink-0 shadow-2xs z-20">
-            {/* Tombol Kembali ke Daftar Isi */}
+          {/* Header Warna Hijau Seperti di Al-Qur'an (#4f9a50) */}
+          <header className="bg-[#4f9a50] text-white flex items-center justify-between px-3 h-14 shrink-0 shadow-sm z-20">
+            {/* Tombol Kembali ke Daftar Isi Utama */}
             <button
               type="button"
               onClick={() => setCurrentView('toc')}
-              className="w-10 h-10 rounded-full flex items-center justify-center hover:bg-slate-100 active:bg-slate-200 transition-colors cursor-pointer text-slate-700"
+              className="w-10 h-10 rounded-full flex items-center justify-center hover:bg-white/20 active:bg-white/30 transition-colors cursor-pointer text-white"
               title="Kembali ke Daftar Isi"
             >
               <ArrowLeft className="w-5 h-5" />
             </button>
 
             {/* Judul Bab Bersih di Tengah */}
-            <h2 className="font-bold text-sm sm:text-base text-slate-900 truncate max-w-[260px] sm:max-w-[320px] text-center">
-              {currentSection.title}
-            </h2>
+            <div className="text-center truncate px-2">
+              <h2 className="font-bold text-sm sm:text-base text-white truncate max-w-[220px] sm:max-w-[280px]">
+                {currentSection.title}
+              </h2>
+              <p className="text-[11px] text-emerald-100 font-medium">
+                Revisi 2024
+              </p>
+            </div>
 
-            {/* Spacer penyeimbang tombol kiri */}
-            <div className="w-10 h-10" />
+            {/* Tombol Kanan Atas: Membuka Sidebar Kanan Daftar Isi */}
+            <button
+              type="button"
+              onClick={() => setIsRightSidebarOpen(true)}
+              className="w-10 h-10 rounded-full flex items-center justify-center hover:bg-white/20 active:bg-white/30 transition-colors cursor-pointer text-white"
+              title="Buka Daftar Isi"
+            >
+              <List className="w-5 h-5" />
+            </button>
           </header>
 
           {/* Area Baca Kitab - Background #fbf9f2 & Center Vertical Layar Penuh */}
@@ -594,71 +681,162 @@ export const MajmuahView: React.FC<MajmuahViewProps> = ({ isOpen, onClose, initi
             className="flex-1 relative w-full h-full overflow-hidden bg-[#fbf9f2] flex items-center justify-center cursor-grab active:cursor-grabbing select-none"
           >
             {/* Indikator Memuat Awal */}
-            {isLoading && (
+            {isLoading && !renderedPages.current && (
               <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#fbf9f2]/85 z-30">
                 <div className="w-9 h-9 border-3 border-emerald-600 border-t-transparent rounded-full animate-spin mb-3" />
-                <p className="text-xs text-slate-700 font-semibold">Memuat Kitab Majmu'ah...</p>
+                <p className="text-xs text-slate-700 font-semibold">Memuat Kitab Majmu'ah At-Taroqqy...</p>
               </div>
             )}
 
             {/* 1. Next Page in RTL (currentPage + 1): Berada di sebelah KIRI, masuk mendorong halaman saat digeser ke kanan */}
             {currentPage < totalPages && (
               <div
-                className="absolute inset-0 w-full h-full flex items-center justify-center overscroll-contain bg-[#fbf9f2] pointer-events-none"
+                className="absolute inset-0 w-full h-full flex items-center justify-center overscroll-contain bg-[#fbf9f2] pointer-events-none select-none"
                 style={{
                   left: '-100%',
-                  transform: `translateX(${dragOffset}px)`,
+                  transform: `translate3d(${dragOffset}px, 0, 0)`,
                   transition: isAnimatingPage ? 'transform 260ms cubic-bezier(0.2, 0.9, 0.3, 1)' : 'none',
                   willChange: 'transform'
                 }}
               >
-                <div className="w-full max-h-full my-auto flex items-center justify-center">
-                  <canvas
-                    ref={nextCanvasRef}
-                    className="w-full max-w-full block shadow-xs bg-[#fbf9f2]"
+                {renderedPages.next && (
+                  <img
+                    src={renderedPages.next}
+                    alt={`Halaman ${currentPage + 1}`}
+                    className="w-full h-auto max-h-full object-contain my-auto block shadow-xs select-none pointer-events-none"
                   />
-                </div>
+                )}
               </div>
             )}
 
             {/* 2. Current Active Page: Terpusat secara vertikal di tengah layar, terdorong halus saat digeser */}
             <div
-              className="absolute inset-0 w-full h-full flex items-center justify-center overscroll-contain bg-[#fbf9f2]"
+              className="absolute inset-0 w-full h-full flex items-center justify-center overscroll-contain bg-[#fbf9f2] select-none"
               style={{
                 left: '0%',
-                transform: `translateX(${dragOffset}px)`,
+                transform: `translate3d(${dragOffset}px, 0, 0)`,
                 transition: isAnimatingPage ? 'transform 260ms cubic-bezier(0.2, 0.9, 0.3, 1)' : 'none',
                 willChange: 'transform'
               }}
             >
-              <div className="w-full max-h-full my-auto flex items-center justify-center">
-                <canvas
-                  ref={currentCanvasRef}
-                  className="w-full max-w-full block shadow-xs bg-[#fbf9f2]"
+              {renderedPages.current ? (
+                <img
+                  src={renderedPages.current}
+                  alt={`Halaman ${currentPage}`}
+                  className="w-full h-auto max-h-full object-contain my-auto block shadow-xs select-none pointer-events-none"
                 />
-              </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center">
+                  <div className="w-8 h-8 border-3 border-emerald-600 border-t-transparent rounded-full animate-spin" />
+                </div>
+              )}
             </div>
 
             {/* 3. Previous Page in RTL (currentPage - 1): Berada di sebelah KANAN, masuk mendorong halaman saat digeser ke kiri */}
             {currentPage > 1 && (
               <div
-                className="absolute inset-0 w-full h-full flex items-center justify-center overscroll-contain bg-[#fbf9f2] pointer-events-none"
+                className="absolute inset-0 w-full h-full flex items-center justify-center overscroll-contain bg-[#fbf9f2] pointer-events-none select-none"
                 style={{
                   left: '100%',
-                  transform: `translateX(${dragOffset}px)`,
+                  transform: `translate3d(${dragOffset}px, 0, 0)`,
                   transition: isAnimatingPage ? 'transform 260ms cubic-bezier(0.2, 0.9, 0.3, 1)' : 'none',
                   willChange: 'transform'
                 }}
               >
-                <div className="w-full max-h-full my-auto flex items-center justify-center">
-                  <canvas
-                    ref={prevCanvasRef}
-                    className="w-full max-w-full block shadow-xs bg-[#fbf9f2]"
+                {renderedPages.prev && (
+                  <img
+                    src={renderedPages.prev}
+                    alt={`Halaman ${currentPage - 1}`}
+                    className="w-full h-auto max-h-full object-contain my-auto block shadow-xs select-none pointer-events-none"
                   />
-                </div>
+                )}
               </div>
             )}
           </div>
+        </div>
+      )}
+
+      {/* ================= 3. SIDEBAR KANAN DAFTAR ISI ================= */}
+      {isRightSidebarOpen && (
+        <div className="fixed inset-0 z-[100060] flex justify-end animate-in fade-in duration-200">
+          {/* Backdrop gelap transparan */}
+          <div
+            onClick={() => setIsRightSidebarOpen(false)}
+            className="absolute inset-0 bg-black/40 backdrop-blur-xs transition-opacity cursor-pointer"
+          />
+
+          {/* Panel Laci Kanan */}
+          <aside className="relative w-80 max-w-[85vw] h-full bg-[#fbf9f2] z-10 shadow-2xl flex flex-col border-l border-slate-200 animate-in slide-in-from-right duration-250">
+            {/* Header Sidebar Kanan (#4f9a50) */}
+            <header className="bg-[#4f9a50] text-white flex items-center justify-between px-4 h-14 shrink-0 shadow-sm">
+              <div className="flex items-center gap-2">
+                <List className="w-5 h-5 text-emerald-100" />
+                <div>
+                  <h3 className="font-bold text-sm text-white leading-tight">Daftar Isi</h3>
+                  <p className="text-[10px] text-emerald-100 font-medium">Revisi 2024</p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setIsRightSidebarOpen(false)}
+                className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-white/20 active:bg-white/30 text-white transition-colors cursor-pointer"
+                title="Tutup Sidebar"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </header>
+
+            {/* Kotak Cari di Sidebar */}
+            <div className="p-3 border-b border-slate-200/80 bg-white">
+              <div className="relative">
+                <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  placeholder="Cari bab..."
+                  value={sidebarSearch}
+                  onChange={(e) => setSidebarSearch(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-8 pr-3 py-1.5 text-xs text-slate-800 placeholder-slate-400 focus:outline-hidden focus:ring-1 focus:ring-[#4f9a50]"
+                />
+              </div>
+            </div>
+
+            {/* Daftar Bab di Sidebar */}
+            <div className="flex-1 overflow-y-auto p-2 space-y-1 no-scrollbar">
+              {filteredSidebarSections.map((sec, idx) => {
+                const isActive = currentSection?.page === sec.page;
+                return (
+                  <button
+                    key={sec.page}
+                    type="button"
+                    onClick={() => goToPage(sec.page)}
+                    className={`w-full text-left p-2.5 rounded-xl transition-all flex items-center justify-between group cursor-pointer ${
+                      isActive
+                        ? 'bg-emerald-100/90 text-emerald-950 font-bold border border-emerald-300'
+                        : 'hover:bg-emerald-50/70 text-slate-700 hover:text-slate-900 border border-transparent'
+                    }`}
+                  >
+                    <div className="min-w-0 pr-2">
+                      <p className={`text-xs leading-snug truncate ${isActive ? 'text-emerald-950 font-bold' : 'text-slate-800'}`}>
+                        {sec.title}
+                      </p>
+                      <p className="text-[11px] text-emerald-700 font-medium mt-0.5">
+                        Hal. {sec.page}
+                      </p>
+                    </div>
+
+                    <span
+                      className="font-arabic text-sm text-slate-700 group-hover:text-emerald-900 shrink-0 select-none"
+                      style={{ fontFamily: "'Amiri Quran', serif" }}
+                      dir="rtl"
+                    >
+                      {sec.arabic}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </aside>
         </div>
       )}
     </div>
