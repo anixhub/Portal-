@@ -174,11 +174,11 @@ export default function App() {
         if (!silent) setIsDbConnected(false);
       }
 
-      if (eventsRes.success && eventsRes.data && eventsRes.data.length > 0) {
+      if (eventsRes.success && Array.isArray(eventsRes.data)) {
         setEvents(eventsRes.data);
       }
 
-      if (annRes.success && annRes.data && annRes.data.length > 0) {
+      if (annRes.success && Array.isArray(annRes.data)) {
         setAnnouncements(annRes.data);
       }
     } catch (err) {
@@ -627,6 +627,8 @@ export default function App() {
           onUpdateProfile={handleUpdateAlumniProfile}
           onRsvpEvent={handleRsvpEvent}
           onAddAnnouncement={handleAddAnnouncement}
+          onDeleteEvent={handleDeleteEvent}
+          onDeleteAnnouncement={handleDeleteAnnouncement}
           isDbLoading={isDbLoading}
           isDbConnected={isDbConnected}
           onRefreshData={() => loadData(false)}

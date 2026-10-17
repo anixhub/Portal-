@@ -83,40 +83,10 @@ import { MajmuahView } from './MajmuahView';
 import logoPonpesImg from '../assets/images/logo_ponpes_attaroqqy_1790648746461.jpg';
 import posterReuniImg from '../assets/images/poster_reuni_akbar_1790648045947.jpg';
 
-const indonesianMonthMap: Record<string, string> = {
-  januari: '01', februari: '02', maret: '03', april: '04',
-  mei: '05', juni: '06', juli: '07', agustus: '08',
-  september: '09', oktober: '10', november: '11', desember: '12'
-};
+import { formatToDDMMYYYY, parseDateToISO } from '../utils/dateUtils';
 
-const indonesianMonths = [
-  'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
-  'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
-];
-
-const formatToIndonesianDate = (isoStr: string) => {
-  if (!isoStr) return '';
-  const [y, m, d] = isoStr.split('-');
-  if (!y || !m || !d) return isoStr;
-  const monthIdx = parseInt(m, 10) - 1;
-  const monthName = indonesianMonths[monthIdx] || m;
-  return `${parseInt(d, 10)} ${monthName} ${y}`;
-};
-
-const parseIndonesianDateToIso = (str: string): string => {
-  if (!str) return '';
-  if (/^\d{4}-\d{2}-\d{2}$/.test(str)) return str;
-  const parts = str.trim().split(/\s+/);
-  if (parts.length >= 3) {
-    const day = parts[0].padStart(2, '0');
-    const month = indonesianMonthMap[parts[1].toLowerCase()];
-    const year = parts[2];
-    if (day && month && year) {
-      return `${year}-${month}-${day}`;
-    }
-  }
-  return '';
-};
+const formatToIndonesianDate = (isoStr: string) => formatToDDMMYYYY(isoStr);
+const parseIndonesianDateToIso = (str: string) => parseDateToISO(str);
 
 const calculateAge = (birthDateStr?: string): number | null => {
   if (!birthDateStr) return null;
@@ -791,7 +761,10 @@ export const AdminView: React.FC<AdminViewProps> = ({
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [passwordError, setPasswordError] = useState<string | null>(null);
 
+  const [eventToDelete, setEventToDelete] = useState<EventAgenda | null>(null);
+
   // Penanganan tombol fisik kembali (Android hardware back & swipe back) di Dashboard Admin
+  useBackHandler(Boolean(eventToDelete), 'admin-delete-event', () => setEventToDelete(null));
   useBackHandler(isDistributionMapOpen, 'admin-distribution-map', () => setIsDistributionMapOpen(false));
   useBackHandler(Boolean(detailAlumni), 'admin-detail-alumni', () => setDetailAlumni(null));
   useBackHandler(Boolean(selectedAuthorProfile), 'admin-author-profile', () => setSelectedAuthorProfile(null));
@@ -1082,10 +1055,34 @@ export const AdminView: React.FC<AdminViewProps> = ({
   };
 
   const handlePublish = () => {
-    if (!eventTitle.trim()) {
-      triggerToast('Masukkan nama agenda');
+    const cleanTitle = eventTitle.trim();
+    const cleanDesc = eventDesc.trim();
+    const cleanDate = eventDate.trim();
+    const cleanTime = eventTime.trim();
+    const cleanLocation = eventLocation.trim();
+
+    if (!cleanTitle) {
+      triggerToast('Judul agenda wajib diisi');
       return;
     }
+    if (!cleanDesc) {
+      triggerToast('Keterangan agenda wajib diisi');
+      return;
+    }
+    if (!cleanDate || cleanDate.toLowerCase() === 'belum ditentukan') {
+      triggerToast('Waktu tanggal agenda wajib dipilih');
+      return;
+    }
+    if (!cleanTime || cleanTime.toLowerCase() === 'belum ditentukan') {
+      triggerToast('Jam pelaksanaan agenda wajib diatur');
+      return;
+    }
+    if (!cleanLocation || cleanLocation.toLowerCase() === 'belum ditentukan') {
+      triggerToast('Tempat / lokasi agenda wajib diisi');
+      return;
+    }
+
+    const formattedDate = formatToDDMMYYYY(cleanDate);
 
     const finalPoster = eventImages.length > 0 
       ? eventImages[0] 
@@ -1099,11 +1096,11 @@ export const AdminView: React.FC<AdminViewProps> = ({
     if (editingEvent) {
       const updated: EventAgenda = {
         ...editingEvent,
-        title: eventTitle.trim(),
-        date: eventDate.trim() || 'Belum ditentukan',
-        time: eventTime.trim() || 'Belum ditentukan',
-        location: eventLocation.trim() || 'Belum ditentukan',
-        description: eventDesc.trim(),
+        title: cleanTitle,
+        date: formattedDate,
+        time: cleanTime,
+        location: cleanLocation,
+        description: cleanDesc,
         posterUrl: finalPoster,
         images: finalImages,
         targetAudience: eventAudienceTarget,
@@ -1117,12 +1114,12 @@ export const AdminView: React.FC<AdminViewProps> = ({
     } else {
       const created: EventAgenda = {
         id: 'ev-' + Date.now(),
-        title: eventTitle.trim(),
-        date: eventDate.trim() || 'Belum ditentukan',
-        time: eventTime.trim() || 'Belum ditentukan',
-        location: eventLocation.trim() || 'Belum ditentukan',
+        title: cleanTitle,
+        date: formattedDate,
+        time: cleanTime,
+        location: cleanLocation,
         category: 'reuni',
-        description: eventDesc.trim() || 'Agenda pertemuan silaturahmi alumni pondok pesantren.',
+        description: cleanDesc,
         attendeesCount: 0,
         notAttendingCount: 0,
         uncertainCount: 0,
@@ -1389,7 +1386,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
                           <div className="flex items-center gap-2">
                             <Calendar className="w-4 h-4 text-sky-600 shrink-0" />
                             <span className="text-slate-500 font-medium">Tanggal:</span>
-                            <span className="font-semibold text-slate-800">{ev.date}</span>
+                            <span className="font-semibold text-slate-800">{formatToDDMMYYYY(ev.date)}</span>
                           </div>
                           <div className="flex items-center gap-2">
                             <Clock className="w-4 h-4 text-amber-600 shrink-0" />
@@ -3500,6 +3497,68 @@ export const AdminView: React.FC<AdminViewProps> = ({
               >
                 <Download className="w-5 h-5 text-slate-700 shrink-0" />
                 <span>Unduh</span>
+              </button>
+
+              {/* 4. Hapus Agenda */}
+              <button
+                type="button"
+                onClick={() => {
+                  const evToDelete = activeMenuEvent;
+                  setActiveMenuEvent(null);
+                  setEventToDelete(evToDelete);
+                }}
+                className="w-full flex items-center gap-3.5 px-4 py-3 rounded-2xl hover:bg-rose-50 text-rose-600 font-semibold text-sm transition-colors cursor-pointer text-left"
+              >
+                <Trash2 className="w-5 h-5 text-rose-600 shrink-0" />
+                <span>Hapus Agenda</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ================= MODAL KONFIRMASI HAPUS AGENDA ================= */}
+      {eventToDelete && (
+        <div 
+          className="fixed inset-0 z-[100030] bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150 select-none"
+          onClick={() => setEventToDelete(null)}
+        >
+          <div 
+            className="bg-white rounded-3xl p-5 max-w-sm w-full space-y-3.5 shadow-2xl border border-slate-100 text-center animate-in zoom-in-95 duration-150"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="w-12 h-12 rounded-full bg-rose-50 text-rose-600 mx-auto flex items-center justify-center">
+              <Trash2 className="w-6 h-6" />
+            </div>
+            <div>
+              <h3 className="font-display font-bold text-base text-slate-900">
+                Hapus Agenda?
+              </h3>
+              <p className="text-xs text-slate-500 mt-1">
+                Agenda <b>"{eventToDelete.title}"</b> akan dihapus secara permanen dari sistem.
+              </p>
+            </div>
+            <div className="flex items-center gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setEventToDelete(null)}
+                className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs cursor-pointer"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const id = eventToDelete.id;
+                  setEventList((prev) => prev.filter((e) => e.id !== id));
+                  onDeleteEvent?.(id);
+                  deleteEventFromHostinger(id);
+                  setEventToDelete(null);
+                  triggerToast('Agenda berhasil dihapus');
+                }}
+                className="flex-1 py-2.5 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-xl text-xs cursor-pointer shadow-md shadow-rose-600/20"
+              >
+                Hapus
               </button>
             </div>
           </div>

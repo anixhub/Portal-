@@ -360,9 +360,9 @@ async function startServer() {
     }
   });
 
-  // Events API: DELETE
-  app.delete('/api/events/:id', async (req, res) => {
-    const { id } = req.params;
+  // Events API: DELETE (DELETE & POST)
+  const handleEventDeletion = async (id: string, res: any) => {
+    if (!id) return res.status(400).json({ success: false, message: 'ID required' });
     cachedEvents = cachedEvents.filter((e: any) => e.id !== id);
     saveJsonStore(eventsStorePath, cachedEvents);
     try {
@@ -376,7 +376,20 @@ async function startServer() {
         signal: AbortSignal.timeout(10000),
       }).catch(() => {});
     } catch (err: any) {}
-    res.json({ success: true });
+    res.json({ success: true, message: 'Event berhasil dihapus' });
+  };
+
+  app.delete('/api/events/:id', async (req, res) => {
+    await handleEventDeletion(req.params.id, res);
+  });
+
+  app.post('/api/events/delete', async (req, res) => {
+    const id = req.body?.id;
+    await handleEventDeletion(id, res);
+  });
+
+  app.post('/api/events/:id/delete', async (req, res) => {
+    await handleEventDeletion(req.params.id, res);
   });
 
   // Events API: RSVP
@@ -448,9 +461,9 @@ async function startServer() {
     }
   });
 
-  // Announcements API: DELETE
-  app.delete('/api/announcements/:id', async (req, res) => {
-    const { id } = req.params;
+  // Announcements API: DELETE (DELETE & POST)
+  const handleAnnouncementDeletion = async (id: string, res: any) => {
+    if (!id) return res.status(400).json({ success: false, message: 'ID required' });
     cachedAnnouncements = cachedAnnouncements.filter((a: any) => a.id !== id);
     saveJsonStore(announcementsStorePath, cachedAnnouncements);
     try {
@@ -464,7 +477,20 @@ async function startServer() {
         signal: AbortSignal.timeout(10000),
       }).catch(() => {});
     } catch (err: any) {}
-    res.json({ success: true });
+    res.json({ success: true, message: 'Pengumuman berhasil dihapus' });
+  };
+
+  app.delete('/api/announcements/:id', async (req, res) => {
+    await handleAnnouncementDeletion(req.params.id, res);
+  });
+
+  app.post('/api/announcements/delete', async (req, res) => {
+    const id = req.body?.id;
+    await handleAnnouncementDeletion(id, res);
+  });
+
+  app.post('/api/announcements/:id/delete', async (req, res) => {
+    await handleAnnouncementDeletion(req.params.id, res);
   });
 
   // Comments API: GET

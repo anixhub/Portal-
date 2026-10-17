@@ -19,6 +19,7 @@ import { formatAudienceSummary } from '../common/AudienceTargetModal';
 import { EventCommentsModal } from '../common/EventCommentsModal';
 import { INITIAL_ANNOUNCEMENT_COMMENTS } from '../../data/mockData';
 import { formatAuthorUsername, resolveAuthorAlumniRecord } from '../../utils/authorUtils';
+import { formatToDDMMYYYY } from '../../utils/dateUtils';
 import { 
   fetchCommentsFromDatabase, 
   saveCommentToDatabase, 
@@ -61,7 +62,7 @@ const AnnouncementCardItem: React.FC<{
 
 ${ann.content}
 
-📅 Tanggal: ${ann.date}
+📅 Tanggal: ${formatToDDMMYYYY(ann.date)}
 Diterbitkan oleh: ${ann.authorName || 'Pondok Pesantren At-taroqqy'}`;
 
     await shareMediaWithCaption({
@@ -94,7 +95,7 @@ Diterbitkan oleh: ${ann.authorName || 'Pondok Pesantren At-taroqqy'}`;
             </h4>
             <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
               <span className="text-[11px] text-slate-400">
-                {ann.date}
+                {formatToDDMMYYYY(ann.date)}
               </span>
               <span className="text-[10px] font-bold text-sky-700 bg-sky-50 border border-sky-200 px-2 py-0.5 rounded-full flex items-center gap-1">
                 <Globe className="w-2.5 h-2.5 text-sky-600" />

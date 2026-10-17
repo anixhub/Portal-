@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { X, Calendar, Check, ChevronRight } from 'lucide-react';
 import { EventAgenda } from '../../types';
 import { DateWheelPicker } from '../common/DateWheelPicker';
+import { formatToDDMMYYYY, parseDateToISO } from '../../utils/dateUtils';
 
 interface CreateAttendanceModalProps {
   isOpen: boolean;
@@ -42,40 +43,8 @@ export const CreateAttendanceModal: React.FC<CreateAttendanceModalProps> = ({
     }
   }, [initialEvent, isOpen]);
 
-  const indonesianMonthMap: Record<string, string> = {
-    januari: '01', februari: '02', maret: '03', april: '04',
-    mei: '05', juni: '06', juli: '07', agustus: '08',
-    september: '09', oktober: '10', november: '11', desember: '12'
-  };
-
-  const indonesianMonths = [
-    'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
-    'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
-  ];
-
-  const parseIndonesianDateToIso = (str: string): string => {
-    if (!str) return '';
-    if (/^\d{4}-\d{2}-\d{2}$/.test(str)) return str;
-    const parts = str.trim().split(/\s+/);
-    if (parts.length >= 3) {
-      const day = parts[0].padStart(2, '0');
-      const month = indonesianMonthMap[parts[1].toLowerCase()];
-      const year = parts[2];
-      if (day && month && year) {
-        return `${year}-${month}-${day}`;
-      }
-    }
-    return '';
-  };
-
-  const formatToIndonesianDate = (isoStr: string) => {
-    if (!isoStr) return '';
-    const [y, m, d] = isoStr.split('-');
-    if (!y || !m || !d) return isoStr;
-    const monthIdx = parseInt(m, 10) - 1;
-    const monthName = indonesianMonths[monthIdx] || m;
-    return `${parseInt(d, 10)} ${monthName} ${y}`;
-  };
+  const parseIndonesianDateToIso = (str: string): string => parseDateToISO(str);
+  const formatToIndonesianDate = (isoStr: string): string => formatToDDMMYYYY(isoStr);
 
   const handleSelectEvent = (ev: EventAgenda) => {
     setSelectedEventId(ev.id);

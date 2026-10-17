@@ -908,10 +908,10 @@ if ($action === 'save_event' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     exit;
 }
 
-if ($action === 'delete_event' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+if ($action === 'delete_event') {
     ensureTablesExist($pdo);
-    $input = json_decode(file_get_contents('php://input'), true);
-    $id = $input['id'] ?? '';
+    $input = json_decode(file_get_contents('php://input'), true) ?? [];
+    $id = $input['id'] ?? $_POST['id'] ?? $_GET['id'] ?? '';
     try {
         $stmt = $pdo->prepare("DELETE FROM events WHERE id = :id");
         $stmt->execute([':id' => $id]);
@@ -1057,10 +1057,10 @@ if ($action === 'save_announcement' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     exit;
 }
 
-if ($action === 'delete_announcement' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+if ($action === 'delete_announcement') {
     ensureTablesExist($pdo);
-    $input = json_decode(file_get_contents('php://input'), true);
-    $id = $input['id'] ?? '';
+    $input = json_decode(file_get_contents('php://input'), true) ?? [];
+    $id = $input['id'] ?? $_POST['id'] ?? $_GET['id'] ?? '';
     try {
         $stmt = $pdo->prepare("DELETE FROM announcements WHERE id = :id");
         $stmt->execute([':id' => $id]);

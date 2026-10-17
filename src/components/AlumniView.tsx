@@ -97,8 +97,11 @@ import {
   fetchCommentsFromDatabase, 
   saveCommentToDatabase, 
   toggleCommentLikeInDatabase, 
-  togglePostLikeInDatabase 
+  togglePostLikeInDatabase,
+  deleteEventFromHostinger,
+  deleteAnnouncementFromHostinger
 } from '../services/apiService';
+import { formatToDDMMYYYY } from '../utils/dateUtils';
 import { RealQrCode } from './common/RealQrCode';
 import { generateNisFromEntryDate } from '../utils/alumniIdentityUtils';
 import posterReuniImg from '../assets/images/poster_reuni_akbar_1790648045947.jpg';
@@ -172,6 +175,8 @@ interface AlumniViewProps {
   onUpdateProfile: (updated: Partial<AlumniRecord>) => void;
   onRsvpEvent: (eventId: string, rsvp: 'hadir' | 'belum_pasti' | 'tidak_hadir', note?: string) => void;
   onAddAnnouncement?: (newAnn: AnnouncementItem) => void;
+  onDeleteEvent?: (id: string) => void;
+  onDeleteAnnouncement?: (id: string) => void;
   isDbLoading?: boolean;
   isDbConnected?: boolean;
   onRefreshData?: () => void;
@@ -397,6 +402,8 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
   onUpdateProfile,
   onRsvpEvent,
   onAddAnnouncement,
+  onDeleteEvent,
+  onDeleteAnnouncement,
   isDbLoading = false,
   isDbConnected = true,
   onRefreshData,
@@ -662,9 +669,12 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
     };
   }, []);
 
-  // Komentar & Menu Pengumuman untuk Akun Alumni
+  // Komentar & Menu Pengumuman & Agenda untuk Akun Alumni
   const [activeCommentsAnnouncement, setActiveCommentsAnnouncement] = useState<AnnouncementItem | null>(null);
   const [activeMenuAnnouncement, setActiveMenuAnnouncement] = useState<AnnouncementItem | null>(null);
+  const [activeMenuEvent, setActiveMenuEvent] = useState<EventAgenda | null>(null);
+  const [eventToDelete, setEventToDelete] = useState<EventAgenda | null>(null);
+  const [announcementToDelete, setAnnouncementToDelete] = useState<AnnouncementItem | null>(null);
 
   const handleToggleLikeAnnouncement = (annId: string) => {
     let targetLiked = false;
@@ -760,26 +770,13 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
   const [rsvpNoteInput, setRsvpNoteInput] = useState('');
 
   const formatTanggalIndonesia = (dateStr?: string) => {
-    if (!dateStr) return '14 Mei 1998';
-    try {
-      const d = new Date(dateStr);
-      if (isNaN(d.getTime())) return dateStr;
-      return d.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
-    } catch {
-      return dateStr;
-    }
+    if (!dateStr) return '';
+    return formatToDDMMYYYY(dateStr);
   };
 
   const formatTanggalSingkat = (dateStr?: string, fallbackYear?: string) => {
-    if (!dateStr && fallbackYear) return fallbackYear;
-    if (!dateStr) return '';
-    try {
-      const d = new Date(dateStr);
-      if (isNaN(d.getTime())) return fallbackYear || dateStr;
-      return d.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
-    } catch {
-      return fallbackYear || dateStr;
-    }
+    if (dateStr) return formatToDDMMYYYY(dateStr);
+    return fallbackYear || '';
   };
 
   useEffect(() => {
@@ -902,6 +899,10 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
   const [filterDesa, setFilterDesa] = useState('');
 
   // Penanganan tombol fisik kembali (Android hardware back & swipe back) di Tampilan Alumni
+  useBackHandler(Boolean(eventToDelete), 'alumni-delete-event', () => setEventToDelete(null));
+  useBackHandler(Boolean(announcementToDelete), 'alumni-delete-announcement', () => setAnnouncementToDelete(null));
+  useBackHandler(Boolean(activeMenuEvent), 'alumni-menu-event', () => setActiveMenuEvent(null));
+  useBackHandler(Boolean(activeMenuAnnouncement), 'alumni-menu-announcement', () => setActiveMenuAnnouncement(null));
   useBackHandler(isDistributionMapOpen, 'alumni-distribution-map', () => setIsDistributionMapOpen(false));
   useBackHandler(Boolean(selectedAlumniDetail), 'alumni-detail-card', () => setSelectedAlumniDetail(null));
   useBackHandler(showQrModal, 'alumni-qr-modal', () => setShowQrModal(false));
@@ -1752,7 +1753,7 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
                   <div className="flex flex-wrap items-center gap-2">
                     <div className="backdrop-blur-md bg-black/50 border border-white/20 text-white text-[11px] font-semibold px-3 py-1.5 rounded-full flex items-center gap-1.5 shadow-xs">
                       <Calendar className="w-3.5 h-3.5 text-sky-400" />
-                      <span>{events[0]?.date || 'Belum ditentukan'}</span>
+                      <span>{events[0]?.date ? formatToDDMMYYYY(events[0].date) : 'Belum ditentukan'}</span>
                     </div>
                     <div className="backdrop-blur-md bg-black/50 border border-white/20 text-white text-[11px] font-semibold px-3 py-1.5 rounded-full flex items-center gap-1.5 shadow-xs">
                       <MapPin className="w-3.5 h-3.5 text-rose-400" />

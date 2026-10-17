@@ -14,6 +14,7 @@ import {
 import { AnnouncementItem, AudienceTarget } from '../../types';
 import logoPonpesImg from '../../assets/images/logo_ponpes_attaroqqy_1790648746461.jpg';
 import { AudienceTargetModal, formatAudienceSummary } from './AudienceTargetModal';
+import { formatToDDMMYYYY } from '../../utils/dateUtils';
 
 interface CreateAnnouncementModalProps {
   isOpen: boolean;
@@ -151,12 +152,7 @@ export const CreateAnnouncementModal: React.FC<CreateAnnouncementModalProps> = (
       return;
     }
 
-    const now = new Date();
-    const indonesianMonths = [
-      'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
-      'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
-    ];
-    const formattedDate = `${now.getDate()} ${indonesianMonths[now.getMonth()]} ${now.getFullYear()}`;
+    const formattedDate = formatToDDMMYYYY(new Date());
 
     const newAnnouncement: AnnouncementItem = {
       id: `ann-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,

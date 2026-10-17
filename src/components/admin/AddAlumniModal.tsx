@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { AlumniRecord } from '../../types';
 import { WilayahAddressFilter } from '../common/WilayahAddressFilter';
+import { formatToDDMMYYYY } from '../../utils/dateUtils';
 import { LocationCoordinates } from '../common/FullscreenLocationMapModal';
 import { generateNisFromEntryDate, generateUniqueUsername } from '../../utils/alumniIdentityUtils';
 import { DateWheelPicker } from '../common/DateWheelPicker';
@@ -45,20 +46,7 @@ export const AddAlumniModal: React.FC<AddAlumniModalProps> = ({
   const [activeDateModal, setActiveDateModal] = useState<'entry' | 'grad' | null>(null);
   const [tempPickerDate, setTempPickerDate] = useState<string>('2021-07-15');
 
-  const formatIndonesianDate = (iso: string) => {
-    if (!iso) return '';
-    try {
-      const [y, m, d] = iso.split('-').map(Number);
-      if (!y || !m || !d) return iso;
-      const months = [
-        'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
-        'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
-      ];
-      return `${d} ${months[m - 1]} ${y}`;
-    } catch {
-      return iso;
-    }
-  };
+  const formatIndonesianDate = (iso: string) => formatToDDMMYYYY(iso);
 
   // Form State - Step 3: Kontak & Domisili
   const [phone, setPhone] = useState('');

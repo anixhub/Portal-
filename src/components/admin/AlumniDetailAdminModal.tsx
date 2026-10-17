@@ -28,6 +28,7 @@ import { useBackHandler } from '../../utils/navigationHistory';
 import { getAlumniPhotoUrl } from '../../utils/photoUtils';
 import { generateNisFromEntryDate, isUsernameTaken, formatBaseUsername } from '../../utils/alumniIdentityUtils';
 import { DateWheelPicker } from '../common/DateWheelPicker';
+import { formatToDDMMYYYY } from '../../utils/dateUtils';
 
 interface AlumniDetailAdminModalProps {
   isOpen: boolean;
@@ -426,7 +427,7 @@ export const AlumniDetailAdminModal: React.FC<AlumniDetailAdminModalProps> = ({
                     <div className="min-w-0">
                       <p className="text-[11px] text-slate-400 font-medium leading-tight">Tempat, Tanggal Lahir</p>
                       <p className="text-sm font-semibold text-slate-800 truncate mt-0.5">
-                        {editTempatLahir}, {editTanggalLahir}
+                        {editTempatLahir ? `${editTempatLahir}, ` : ''}{editTanggalLahir ? formatToDDMMYYYY(editTanggalLahir) : 'Belum diisi'}
                       </p>
                     </div>
                   </div>
@@ -611,7 +612,7 @@ export const AlumniDetailAdminModal: React.FC<AlumniDetailAdminModalProps> = ({
                     <div className="min-w-0">
                       <p className="text-[11px] text-slate-400 font-medium leading-tight">Tanggal Masuk</p>
                       <p className="text-sm font-semibold text-slate-800 truncate mt-0.5">
-                        {editEntryDate || 'Belum diisi'}
+                        {editEntryDate ? formatToDDMMYYYY(editEntryDate) : 'Belum diisi'}
                       </p>
                     </div>
                   </div>
@@ -630,7 +631,7 @@ export const AlumniDetailAdminModal: React.FC<AlumniDetailAdminModalProps> = ({
                     <div className="min-w-0">
                       <p className="text-[11px] text-slate-400 font-medium leading-tight">Tanggal Keluar (Boyong)</p>
                       <p className="text-sm font-semibold text-slate-800 truncate mt-0.5">
-                        {editGradDate || (alumni.gradYear ? `Tahun ${alumni.gradYear}` : 'Belum diisi')}
+                        {editGradDate ? formatToDDMMYYYY(editGradDate) : (alumni.gradYear ? `Tahun ${alumni.gradYear}` : 'Belum diisi')}
                       </p>
                     </div>
                   </div>

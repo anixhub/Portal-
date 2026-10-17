@@ -748,12 +748,10 @@ export async function fetchEventsFromHostinger(): Promise<{ success: boolean; da
           const json = JSON.parse(text);
           const list = Array.isArray(json) ? json : (Array.isArray(json?.data) ? json.data : null);
           if (Array.isArray(list)) {
-            if (list.length > 0) {
-              try {
-                localStorage.setItem('attaroqqy_events_cache_v1', JSON.stringify(list));
-              } catch (e) {}
-              return { success: true, data: list };
-            }
+            try {
+              localStorage.setItem('attaroqqy_events_cache_v1', JSON.stringify(list));
+            } catch (e) {}
+            return { success: true, data: list };
           }
         }
       }
@@ -765,15 +763,15 @@ export async function fetchEventsFromHostinger(): Promise<{ success: boolean; da
   // Fallback to local cache if present
   try {
     const cached = localStorage.getItem('attaroqqy_events_cache_v1');
-    if (cached) {
+    if (cached !== null) {
       const parsed = JSON.parse(cached);
-      if (Array.isArray(parsed) && parsed.length > 0) {
+      if (Array.isArray(parsed)) {
         return { success: true, data: parsed };
       }
     }
   } catch (e) {}
 
-  return { success: true, data: INITIAL_EVENTS };
+  return { success: true, data: [] };
 }
 
 export async function saveEventToHostinger(event: EventAgenda): Promise<{ success: boolean; id?: string }> {
@@ -781,7 +779,7 @@ export async function saveEventToHostinger(event: EventAgenda): Promise<{ succes
     // 1. Simpan segera ke localStorage agar responsif
     try {
       const raw = localStorage.getItem('attaroqqy_events_cache_v1');
-      const list = raw ? JSON.parse(raw) : [...INITIAL_EVENTS];
+      const list = raw ? JSON.parse(raw) : [];
       const idx = list.findIndex((e: any) => e.id === event.id);
       if (idx >= 0) list[idx] = event;
       else list.unshift(event);
@@ -825,22 +823,31 @@ export async function deleteEventFromHostinger(id: string): Promise<{ success: b
       }
     } catch (e) {}
 
-    const endpoints = [
-      `${HOSTINGER_API_URL}?action=delete_event`,
-      'https://alumni.attaroqqy.com/api_alumni.php?action=delete_event',
-      `/api/events/${encodeURIComponent(id)}`,
-    ];
-
-    await Promise.allSettled(
-      endpoints.map((ep) =>
-        fetch(ep, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ id }),
-          signal: AbortSignal.timeout(10000),
-        })
-      )
-    );
+    await Promise.allSettled([
+      fetch(`${HOSTINGER_API_URL}?action=delete_event`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id }),
+        signal: AbortSignal.timeout(10000),
+      }),
+      fetch('https://alumni.attaroqqy.com/api_alumni.php?action=delete_event', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id }),
+        signal: AbortSignal.timeout(10000),
+      }),
+      fetch(`/api/events/${encodeURIComponent(id)}`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        signal: AbortSignal.timeout(10000),
+      }),
+      fetch('/api/events/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id }),
+        signal: AbortSignal.timeout(10000),
+      }),
+    ]);
 
     broadcastSyncEvent('events');
   } catch (e) {}
@@ -902,12 +909,10 @@ export async function fetchAnnouncementsFromHostinger(): Promise<{ success: bool
           const json = JSON.parse(text);
           const list = Array.isArray(json) ? json : (Array.isArray(json?.data) ? json.data : null);
           if (Array.isArray(list)) {
-            if (list.length > 0) {
-              try {
-                localStorage.setItem('attaroqqy_announcements_cache_v1', JSON.stringify(list));
-              } catch (e) {}
-              return { success: true, data: list };
-            }
+            try {
+              localStorage.setItem('attaroqqy_announcements_cache_v1', JSON.stringify(list));
+            } catch (e) {}
+            return { success: true, data: list };
           }
         }
       }
@@ -917,15 +922,15 @@ export async function fetchAnnouncementsFromHostinger(): Promise<{ success: bool
   // Fallback to local cache
   try {
     const cached = localStorage.getItem('attaroqqy_announcements_cache_v1');
-    if (cached) {
+    if (cached !== null) {
       const parsed = JSON.parse(cached);
-      if (Array.isArray(parsed) && parsed.length > 0) {
+      if (Array.isArray(parsed)) {
         return { success: true, data: parsed };
       }
     }
   } catch (e) {}
 
-  return { success: true, data: INITIAL_ANNOUNCEMENTS };
+  return { success: true, data: [] };
 }
 
 export async function saveAnnouncementToHostinger(
@@ -935,7 +940,7 @@ export async function saveAnnouncementToHostinger(
     // 1. Simpan segera ke localStorage
     try {
       const raw = localStorage.getItem('attaroqqy_announcements_cache_v1');
-      const list = raw ? JSON.parse(raw) : [...INITIAL_ANNOUNCEMENTS];
+      const list = raw ? JSON.parse(raw) : [];
       const idx = list.findIndex((a: any) => a.id === announcement.id);
       if (idx >= 0) list[idx] = announcement;
       else list.unshift(announcement);
@@ -979,22 +984,31 @@ export async function deleteAnnouncementFromHostinger(id: string): Promise<{ suc
       }
     } catch (e) {}
 
-    const endpoints = [
-      `${HOSTINGER_API_URL}?action=delete_announcement`,
-      'https://alumni.attaroqqy.com/api_alumni.php?action=delete_announcement',
-      `/api/announcements/${encodeURIComponent(id)}`,
-    ];
-
-    await Promise.allSettled(
-      endpoints.map((ep) =>
-        fetch(ep, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ id }),
-          signal: AbortSignal.timeout(10000),
-        })
-      )
-    );
+    await Promise.allSettled([
+      fetch(`${HOSTINGER_API_URL}?action=delete_announcement`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id }),
+        signal: AbortSignal.timeout(10000),
+      }),
+      fetch('https://alumni.attaroqqy.com/api_alumni.php?action=delete_announcement', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id }),
+        signal: AbortSignal.timeout(10000),
+      }),
+      fetch(`/api/announcements/${encodeURIComponent(id)}`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        signal: AbortSignal.timeout(10000),
+      }),
+      fetch('/api/announcements/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id }),
+        signal: AbortSignal.timeout(10000),
+      }),
+    ]);
 
     broadcastSyncEvent('announcements');
   } catch (e) {}
