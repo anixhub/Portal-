@@ -39,7 +39,8 @@ import {
   FileText,
   RotateCw,
   BookOpen,
-  Scroll
+  Scroll,
+  Flame
 } from 'lucide-react';
 import { AlumniRecord, AdminUser, EventAgenda, EventComment, EventCommentReply, AnnouncementItem, AttendanceSession, AttendanceAttendee, AudienceTarget } from '../types';
 import { AddAlumniModal } from './admin/AddAlumniModal';
@@ -69,6 +70,7 @@ import { useBackHandler } from '../utils/navigationHistory';
 import { getAlumniPhotoUrl } from '../utils/photoUtils';
 import { QuranView } from './QuranView';
 import { MaulidView } from './MaulidView';
+import { DzikirView } from './DzikirView';
 import logoPonpesImg from '../assets/images/logo_ponpes_attaroqqy_1790648746461.jpg';
 import posterReuniImg from '../assets/images/poster_reuni_akbar_1790648045947.jpg';
 
@@ -177,6 +179,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
   );
   const [isQuranViewOpen, setIsQuranViewOpen] = useState(false);
   const [isMaulidViewOpen, setIsMaulidViewOpen] = useState(false);
+  const [isDzikirViewOpen, setIsDzikirViewOpen] = useState(false);
 
   // Admin Profile Edit State
   const [adminUser, setAdminUser] = useState<AdminUser>(admin);
@@ -2026,6 +2029,26 @@ export const AdminView: React.FC<AdminViewProps> = ({
                   </button>
                 </div>
 
+                {/* Tombol Akses Panduan Dzikir & Wirid */}
+                <div className="pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsDzikirViewOpen(true)}
+                    className="w-full py-3.5 px-4 bg-sky-50 hover:bg-sky-100/80 text-sky-950 font-bold rounded-2xl flex items-center justify-between border border-sky-200/80 transition-all cursor-pointer text-sm shadow-2xs active:scale-[0.99] group"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-xl bg-sky-600 text-white flex items-center justify-center shadow-xs shrink-0">
+                        <Flame className="w-5 h-5 text-amber-300" />
+                      </div>
+                      <div className="text-left">
+                        <p className="font-bold text-sm text-sky-950">Panduan Dzikir & Wirid</p>
+                        <p className="text-[11px] font-normal text-sky-700">Tasbih digital, Dzikir shalat, Rotib & Shalawat</p>
+                      </div>
+                    </div>
+                    <ChevronRight className="w-4 h-4 text-sky-600 group-hover:translate-x-0.5 transition-transform" />
+                  </button>
+                </div>
+
                 {/* Tombol Keluar dari Akun Admin */}
                 <div className="pt-4">
                   <button
@@ -3543,6 +3566,12 @@ export const AdminView: React.FC<AdminViewProps> = ({
       <MaulidView
         isOpen={isMaulidViewOpen}
         onClose={() => setIsMaulidViewOpen(false)}
+      />
+
+      {/* ================= PANDUAN DZIKIR & WIRID ================= */}
+      <DzikirView
+        isOpen={isDzikirViewOpen}
+        onClose={() => setIsDzikirViewOpen(false)}
       />
     </div>
   );

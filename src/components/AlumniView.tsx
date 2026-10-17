@@ -90,6 +90,7 @@ import { formatAuthorUsername, resolveAuthorAlumniRecord } from '../utils/author
 import { useBackHandler } from '../utils/navigationHistory';
 import { QuranView } from './QuranView';
 import { MaulidView } from './MaulidView';
+import { DzikirView } from './DzikirView';
 import { getAlumniPhotoUrl } from '../utils/photoUtils';
 import { RealQrCode } from './common/RealQrCode';
 import { generateNisFromEntryDate } from '../utils/alumniIdentityUtils';
@@ -424,11 +425,12 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
       );
     }
   }, []);
-  const [activeIslamicMenu, setActiveIslamicMenu] = useState<'quran' | 'majmuah' | 'maulid' | 'aurod' | null>(null);
+  const [activeIslamicMenu, setActiveIslamicMenu] = useState<'quran' | 'majmuah' | 'maulid' | 'dzikir' | 'aurod' | null>(null);
   const [isQuranViewOpen, setIsQuranViewOpen] = useState(false);
   const [selectedQuranSurah, setSelectedQuranSurah] = useState<number | undefined>(undefined);
   const [isMaulidViewOpen, setIsMaulidViewOpen] = useState(false);
   const [selectedMaulidBookId, setSelectedMaulidBookId] = useState<string | undefined>(undefined);
+  const [isDzikirViewOpen, setIsDzikirViewOpen] = useState(false);
   const [fullscreenPosterUrl, setFullscreenPosterUrl] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
@@ -1597,14 +1599,14 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
                   </div>
                 </div>
 
-                {/* 4. Aurod */}
+                {/* 4. Dzikir & Wirid */}
                 <div
-                  onClick={() => setActiveIslamicMenu('aurod')}
+                  onClick={() => setIsDzikirViewOpen(true)}
                   className="relative rounded-[26px] overflow-hidden shadow-sm flex flex-col justify-between h-36 cursor-pointer hover:shadow-md transition-all active:scale-[0.98] group select-none border border-sky-100"
                 >
                   <img
                     src={bgMenuAurodImg}
-                    alt="Aurod"
+                    alt="Dzikir"
                     className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-sky-950/85 via-sky-900/45 to-sky-950/30" />
@@ -1615,7 +1617,7 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
                     </div>
                     <div>
                       <span className="text-xl font-bold font-display text-white drop-shadow-sm">
-                        Aurod
+                        Dzikir
                       </span>
                     </div>
                   </div>
@@ -4401,20 +4403,20 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
                   {activeIslamicMenu === 'quran' && <BookOpen className="w-4 h-4 text-sky-600" />}
                   {activeIslamicMenu === 'majmuah' && <BookMarked className="w-4 h-4 text-sky-600" />}
                   {activeIslamicMenu === 'maulid' && <Scroll className="w-4 h-4 text-emerald-600" />}
-                  {activeIslamicMenu === 'aurod' && <Flame className="w-4 h-4 text-amber-500" />}
+                  {(activeIslamicMenu === 'dzikir' || activeIslamicMenu === 'aurod') && <Flame className="w-4 h-4 text-amber-500" />}
                 </div>
                 <div>
                   <h3 className="font-bold text-sm text-slate-900 capitalize">
                     {activeIslamicMenu === 'quran' && "Al-Qur'an 30 Juz"}
                     {activeIslamicMenu === 'majmuah' && "Kitab Majmu'ah Syarif"}
                     {activeIslamicMenu === 'maulid' && 'Kitab Maulid Nabi'}
-                    {activeIslamicMenu === 'aurod' && 'Aurod & Wirid Santri'}
+                    {(activeIslamicMenu === 'dzikir' || activeIslamicMenu === 'aurod') && 'Dzikir & Wirid Santri'}
                   </h3>
                   <p className="text-[11px] text-slate-500">
                     {activeIslamicMenu === 'quran' && 'Bacaan mushaf digital & terjemahan resmi'}
                     {activeIslamicMenu === 'majmuah' && 'Kumpulan doa mustajab & istighotsah masyayikh'}
                     {activeIslamicMenu === 'maulid' && "Simtudduror, Diba'i, Al-Barzanji, & Qasidah"}
-                    {activeIslamicMenu === 'aurod' && 'Wirid ba’da sholat, Rotib Al-Haddad & Hizib'}
+                    {(activeIslamicMenu === 'dzikir' || activeIslamicMenu === 'aurod') && 'Dzikir shalat, tasbih digital, Rotib Al-Haddad & Hizib'}
                   </p>
                 </div>
               </div>
@@ -4551,19 +4553,37 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
                 </div>
               )}
 
-              {activeIslamicMenu === 'aurod' && (
+              {(activeIslamicMenu === 'dzikir' || activeIslamicMenu === 'aurod') && (
                 <div className="space-y-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveIslamicMenu(null);
+                      setIsDzikirViewOpen(true);
+                    }}
+                    className="w-full mb-3 p-3.5 rounded-2xl bg-gradient-to-r from-amber-500 to-amber-600 text-white font-bold text-xs flex items-center justify-between shadow-sm hover:from-amber-600 hover:to-amber-700 transition-all cursor-pointer"
+                  >
+                    <div className="flex items-center gap-2">
+                      <Flame className="w-4 h-4 text-white" />
+                      <span>Buka Aplikasi Panduan Dzikir & Tasbih Digital</span>
+                    </div>
+                    <ChevronRight className="w-4 h-4 text-white" />
+                  </button>
+
                   {[
                     { title: 'Wirid Ba’da Sholat Maktubah', desc: 'Dzikir harian santri usai 5 waktu' },
-                    { title: 'Rotib Al-Haddad', desc: 'Al-Imam Abdullah bin Alwi Al-Haddad' },
+                    { title: 'Rotib Al-Haddad Lengkap', desc: 'Al-Imam Abdullah bin Alwi Al-Haddad' },
                     { title: 'Rotib Al-Athos', desc: 'Al-Habib Umar bin Abdurrahman Al-Athos' },
-                    { title: 'Hizib Bahr', desc: 'Al-Imam Abul Hasan Asy-Syadzili' },
+                    { title: 'Hizib Bahr (Asy-Syadzili)', desc: 'Al-Imam Abul Hasan Asy-Syadzili' },
                     { title: 'Hizib Nashr', desc: 'Doa perlindungan & kemenangan umat' },
                     { title: 'Sholawat Nariyah & Munjiyat', desc: 'Amalan pelepas kesulitan & hajat' },
                   ].map((a, idx) => (
                     <div
                       key={idx}
-                      onClick={() => triggerToast(`Membuka ${a.title}`)}
+                      onClick={() => {
+                        setActiveIslamicMenu(null);
+                        setIsDzikirViewOpen(true);
+                      }}
                       className="p-3 rounded-2xl border border-slate-100 hover:border-amber-300 hover:bg-amber-50/50 transition-colors flex items-center justify-between cursor-pointer"
                     >
                       <div>
@@ -5183,6 +5203,12 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
         isOpen={isMaulidViewOpen}
         onClose={() => setIsMaulidViewOpen(false)}
         initialBookId={selectedMaulidBookId}
+      />
+
+      {/* ================= PANDUAN DZIKIR & WIRID SANTRI ================= */}
+      <DzikirView
+        isOpen={isDzikirViewOpen}
+        onClose={() => setIsDzikirViewOpen(false)}
       />
     </div>
   );
