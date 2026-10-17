@@ -91,6 +91,7 @@ import { useBackHandler } from '../utils/navigationHistory';
 import { QuranView } from './QuranView';
 import { MaulidView } from './MaulidView';
 import { DzikirView } from './DzikirView';
+import { MajmuahView, MAJMUAH_SECTIONS } from './MajmuahView';
 import { getAlumniPhotoUrl } from '../utils/photoUtils';
 import { RealQrCode } from './common/RealQrCode';
 import { generateNisFromEntryDate } from '../utils/alumniIdentityUtils';
@@ -431,6 +432,8 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
   const [isMaulidViewOpen, setIsMaulidViewOpen] = useState(false);
   const [selectedMaulidBookId, setSelectedMaulidBookId] = useState<string | undefined>(undefined);
   const [isDzikirViewOpen, setIsDzikirViewOpen] = useState(false);
+  const [isMajmuahViewOpen, setIsMajmuahViewOpen] = useState(false);
+  const [selectedMajmuahPage, setSelectedMajmuahPage] = useState<number | undefined>(undefined);
   const [fullscreenPosterUrl, setFullscreenPosterUrl] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
@@ -874,6 +877,7 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
   useBackHandler(isSortSheetOpen, 'alumni-sort-sheet', () => setIsSortSheetOpen(false));
   useBackHandler(Boolean(activeCommentsModalEvent), 'alumni-event-comments', () => setActiveCommentsModalEvent(null));
   useBackHandler(Boolean(activeIslamicMenu), 'alumni-islamic-menu', () => setActiveIslamicMenu(null));
+  useBackHandler(isMajmuahViewOpen, 'alumni-majmuah-view', () => setIsMajmuahViewOpen(false));
   useBackHandler(Boolean(fullscreenPosterUrl), 'alumni-fullscreen-poster', () => setFullscreenPosterUrl(null));
   // Jika sedang berada di tab selain Home/Direktori, tekan tombol fisik kembali ke tab Beranda
   useBackHandler(activeTab !== 'home', 'alumni-tab-home', () => setActiveTab('home'));
@@ -1550,7 +1554,10 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
 
                 {/* 2. Majmuah */}
                 <div
-                  onClick={() => setActiveIslamicMenu('majmuah')}
+                  onClick={() => {
+                    setSelectedMajmuahPage(undefined);
+                    setIsMajmuahViewOpen(true);
+                  }}
                   className="relative rounded-[26px] overflow-hidden shadow-sm flex flex-col justify-between h-36 cursor-pointer hover:shadow-md transition-all active:scale-[0.98] group select-none border border-sky-100"
                 >
                   <img
@@ -4482,23 +4489,38 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
 
               {activeIslamicMenu === 'majmuah' && (
                 <div className="space-y-2">
-                  {[
-                    { title: 'Doa Kanzul Arsy', desc: 'Doa agung perbendaharaan Arsy' },
-                    { title: 'Doa Akasyah', desc: 'Doa amalan para sholihin & sahabat' },
-                    { title: 'Istighotsah Masyayikh Ponpes At-taroqqy', desc: 'Kumpulan munajat & doa pengetuk pintu langit' },
-                    { title: 'Tahlil Lengkap & Doa Arwah', desc: 'Bacaan tahlil khususi masyayikh & ahlul bait' },
-                    { title: 'Doa Nisfu Sya’ban & Akhir Tahun', desc: 'Doa pergantian masa penuh keberkahan' },
-                  ].map((m, idx) => (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedMajmuahPage(1);
+                      setActiveIslamicMenu(null);
+                      setIsMajmuahViewOpen(true);
+                    }}
+                    className="w-full mb-3 py-3 px-4 bg-gradient-to-r from-sky-700 via-sky-800 to-indigo-800 hover:from-sky-800 hover:to-indigo-900 text-white rounded-2xl font-bold text-xs flex items-center justify-center gap-2 shadow-sm active:scale-[0.98] transition-all cursor-pointer"
+                  >
+                    <BookMarked className="w-4 h-4 text-sky-200" />
+                    <span>Buka Kitab Majmu'ah Putra 2024 (PDF 223 Hal)</span>
+                  </button>
+                  {MAJMUAH_SECTIONS.slice(1).map((m, idx) => (
                     <div
                       key={idx}
-                      onClick={() => triggerToast(`Membuka ${m.title}`)}
-                      className="p-3 rounded-2xl border border-slate-100 hover:border-slate-300 hover:bg-slate-50 transition-colors flex items-center justify-between cursor-pointer"
+                      onClick={() => {
+                        setSelectedMajmuahPage(m.page);
+                        setActiveIslamicMenu(null);
+                        setIsMajmuahViewOpen(true);
+                      }}
+                      className="p-3 rounded-2xl border border-slate-100 hover:border-sky-300 hover:bg-sky-50/50 transition-colors flex items-center justify-between cursor-pointer group"
                     >
-                      <div>
-                        <p className="font-bold text-slate-800 text-xs">{m.title}</p>
-                        <p className="text-[11px] text-slate-400">{m.desc}</p>
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-xl bg-sky-100 text-sky-800 font-bold text-xs flex items-center justify-center group-hover:bg-sky-700 group-hover:text-white transition-colors shrink-0">
+                          {m.page}
+                        </div>
+                        <div>
+                          <p className="font-bold text-slate-800 text-xs group-hover:text-sky-800 transition-colors">{m.title}</p>
+                          <p className="text-[11px] text-slate-400 font-arabic" dir="rtl">{m.arabic}</p>
+                        </div>
                       </div>
-                      <ChevronRight className="w-4 h-4 text-slate-400" />
+                      <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-sky-600 transition-colors" />
                     </div>
                   ))}
                 </div>
@@ -5209,6 +5231,13 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
       <DzikirView
         isOpen={isDzikirViewOpen}
         onClose={() => setIsDzikirViewOpen(false)}
+      />
+
+      {/* ================= KITAB MAJMU'AH PUTRA REVISI 2024 (PDF) ================= */}
+      <MajmuahView
+        isOpen={isMajmuahViewOpen}
+        onClose={() => setIsMajmuahViewOpen(false)}
+        initialPage={selectedMajmuahPage}
       />
     </div>
   );

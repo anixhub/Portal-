@@ -39,6 +39,7 @@ import {
   FileText,
   RotateCw,
   BookOpen,
+  BookMarked,
   Scroll,
   Flame
 } from 'lucide-react';
@@ -71,6 +72,7 @@ import { getAlumniPhotoUrl } from '../utils/photoUtils';
 import { QuranView } from './QuranView';
 import { MaulidView } from './MaulidView';
 import { DzikirView } from './DzikirView';
+import { MajmuahView } from './MajmuahView';
 import logoPonpesImg from '../assets/images/logo_ponpes_attaroqqy_1790648746461.jpg';
 import posterReuniImg from '../assets/images/poster_reuni_akbar_1790648045947.jpg';
 
@@ -180,6 +182,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
   const [isQuranViewOpen, setIsQuranViewOpen] = useState(false);
   const [isMaulidViewOpen, setIsMaulidViewOpen] = useState(false);
   const [isDzikirViewOpen, setIsDzikirViewOpen] = useState(false);
+  const [isMajmuahViewOpen, setIsMajmuahViewOpen] = useState(false);
 
   // Admin Profile Edit State
   const [adminUser, setAdminUser] = useState<AdminUser>(admin);
@@ -2029,6 +2032,26 @@ export const AdminView: React.FC<AdminViewProps> = ({
                   </button>
                 </div>
 
+                {/* Tombol Akses Kitab Majmu'ah Putra (PDF) */}
+                <div className="pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsMajmuahViewOpen(true)}
+                    className="w-full py-3.5 px-4 bg-teal-50 hover:bg-teal-100/80 text-teal-950 font-bold rounded-2xl flex items-center justify-between border border-teal-200/80 transition-all cursor-pointer text-sm shadow-2xs active:scale-[0.99] group"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-xl bg-teal-700 text-white flex items-center justify-center shadow-xs shrink-0">
+                        <BookMarked className="w-5 h-5" />
+                      </div>
+                      <div className="text-left">
+                        <p className="font-bold text-sm text-teal-950">Kitab Majmu'ah Putra 2024</p>
+                        <p className="text-[11px] font-normal text-teal-700">PDF Asli Ponpes At-Taroqqy Sedan (223 Halaman)</p>
+                      </div>
+                    </div>
+                    <ChevronRight className="w-4 h-4 text-teal-600 group-hover:translate-x-0.5 transition-transform" />
+                  </button>
+                </div>
+
                 {/* Tombol Akses Panduan Dzikir & Wirid */}
                 <div className="pt-2">
                   <button
@@ -3572,6 +3595,12 @@ export const AdminView: React.FC<AdminViewProps> = ({
       <DzikirView
         isOpen={isDzikirViewOpen}
         onClose={() => setIsDzikirViewOpen(false)}
+      />
+
+      {/* ================= KITAB MAJMU'AH PUTRA (PDF) ================= */}
+      <MajmuahView
+        isOpen={isMajmuahViewOpen}
+        onClose={() => setIsMajmuahViewOpen(false)}
       />
     </div>
   );

@@ -682,26 +682,42 @@ export const DzikirView: React.FC<DzikirViewProps> = ({
   const createRipple = (e: React.MouseEvent<HTMLButtonElement>) => {
     const btn = e.currentTarget;
     const rect = btn.getBoundingClientRect();
-    const size = Math.max(rect.width, rect.height) * 1.5;
-    const x = e.clientX - rect.left - size / 2;
-    const y = e.clientY - rect.top - size / 2;
+    const radius = rect.width / 2;
+
+    // Titik klik relatif terhadap tombol (fallback ke titik tengah bila tidak ada koordinat)
+    const hasValidCoords = typeof e.clientX === 'number' && e.clientX > 0;
+    const clickX = hasValidCoords ? e.clientX - rect.left : radius;
+    const clickY = hasValidCoords ? e.clientY - rect.top : radius;
+
+    // Jarak dari pusat tombol ke titik klik
+    const distFromCenter = Math.hypot(clickX - radius, clickY - radius);
+
+    // Jarak terjauh dari titik klik ke tepi lingkaran tombol
+    // Pada lingkaran berjari-jari R, titik tepi terjauh dari titik klik berjarak R + distFromCenter
+    const maxReach = radius + distFromCenter;
+    const diameter = maxReach * 2;
 
     const span = document.createElement('span');
     span.style.position = 'absolute';
-    span.style.width = `${size}px`;
-    span.style.height = `${size}px`;
-    span.style.left = `${x}px`;
-    span.style.top = `${y}px`;
+    span.style.width = `${diameter}px`;
+    span.style.height = `${diameter}px`;
+    span.style.left = `${clickX - maxReach}px`;
+    span.style.top = `${clickY - maxReach}px`;
     span.style.borderRadius = '50%';
-    span.style.backgroundColor = 'rgba(255, 255, 255, 0.25)';
+    span.style.backgroundColor = 'rgba(255, 255, 255, 0.45)';
     span.style.pointerEvents = 'none';
     span.style.transform = 'scale(0)';
-    span.style.animation = 'ripple 0.6s ease-out forwards';
+    span.style.animation = 'ripple 0.6s linear forwards';
+
+    const cleanup = () => {
+      if (span.parentNode) {
+        span.remove();
+      }
+    };
+    span.addEventListener('animationend', cleanup);
+    setTimeout(cleanup, 650);
 
     btn.appendChild(span);
-    setTimeout(() => {
-      span.remove();
-    }, 600);
   };
 
   // Open Category
@@ -814,9 +830,14 @@ export const DzikirView: React.FC<DzikirViewProps> = ({
     <div className="fixed inset-0 z-[100050] bg-[#1b1c2f] text-[#f4f4fa] font-sans flex flex-col select-none overflow-hidden max-w-lg mx-auto shadow-2xl border-x border-slate-800">
       <style>{`
         @keyframes ripple {
-          0% { transform: scale(0); opacity: 0.9; }
-          70% { transform: scale(1); opacity: 0.4; }
-          100% { transform: scale(1.4); opacity: 0; }
+          0% {
+            transform: scale(0);
+            opacity: 1;
+          }
+          100% {
+            transform: scale(1);
+            opacity: 0;
+          }
         }
       `}</style>
 
