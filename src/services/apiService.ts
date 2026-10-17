@@ -1052,7 +1052,7 @@ export async function fetchCommentsFromDatabase(postId?: string): Promise<EventC
 }
 
 export async function saveCommentToDatabase(
-  comment: EventComment,
+  comment: EventComment & { commentId?: string },
   postType: 'event' | 'announcement' = 'event'
 ): Promise<{ success: boolean; id?: string }> {
   try {

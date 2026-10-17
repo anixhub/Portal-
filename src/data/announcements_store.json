@@ -1,0 +1,75 @@
+[
+  {
+    "id": "ann-1790900000001",
+    "title": "Maklumat Khidmah Alumni & Haul",
+    "date": "2026-10-12",
+    "category": "maklumat",
+    "content": "Diberitahukan kepada seluruh ikatan alumni santri Pondok Pesantren At-taroqqy agar senantiasa menjaga ukhuwah dan menghadiri silaturahmi berkala.",
+    "authorName": "Pondok Pesantren At-taroqqy",
+    "authorHandle": "@admin_pusat",
+    "authorAvatar": "",
+    "authorRole": "Pengurus Pusat",
+    "isImportant": true,
+    "images": [],
+    "targetAudience": {
+      "gender": "semua",
+      "regionScope": "semua",
+      "provinceName": null,
+      "regencyName": null,
+      "districtName": null,
+      "villageName": null
+    },
+    "likesCount": 0,
+    "commentsCount": 0
+  },
+  {
+    "id": "ann-1791826483527-9lqkk",
+    "title": "Seeeee",
+    "date": "13 Oktober 2026",
+    "category": "maklumat",
+    "content": "Lepeoe",
+    "authorName": "Ust. H. Abdurrahman, M.Pd.",
+    "authorHandle": "@admin_pusat",
+    "authorAvatar": "/assets/logo_ponpes_attaroqqy_1790648746461-BBOUf_69.jpg",
+    "authorRole": "Kepala Bidang Kesantrian & Alumni Ponpes At-taroqqy",
+    "isImportant": false,
+    "images": [
+      "/api/uploads/pas_foto/ann_img_1791826493585_d4837.jpg"
+    ],
+    "targetAudience": {
+      "gender": "semua",
+      "regionScope": "semua",
+      "provinceName": null,
+      "regencyName": null,
+      "districtName": null,
+      "villageName": null
+    },
+    "likesCount": 0,
+    "commentsCount": 0
+  },
+  {
+    "id": "ann-1791826404664-8ddbp",
+    "title": "Jajal",
+    "date": "13 Oktober 2026",
+    "category": "maklumat",
+    "content": "Jajal",
+    "authorName": "Ust. H. Abdurrahman, M.Pd.",
+    "authorHandle": "@admin_pusat",
+    "authorAvatar": "/assets/logo_ponpes_attaroqqy_1790648746461-BBOUf_69.jpg",
+    "authorRole": "Kepala Bidang Kesantrian & Alumni Ponpes At-taroqqy",
+    "isImportant": false,
+    "images": [
+      "/api/uploads/pas_foto/ann_img_1791826415832_f1f19.jpg"
+    ],
+    "targetAudience": {
+      "gender": "semua",
+      "regionScope": "semua",
+      "provinceName": null,
+      "regencyName": null,
+      "districtName": null,
+      "villageName": null
+    },
+    "likesCount": 0,
+    "commentsCount": 0
+  }
+]
