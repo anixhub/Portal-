@@ -75,7 +75,7 @@ import {
   saveCommentToDatabase, 
   toggleCommentLikeInDatabase 
 } from '../services/apiService';
-import { formatAuthorUsername, resolveAuthorAlumniRecord } from '../utils/authorUtils';
+import { formatAuthorUsername, resolveAuthorAlumniRecord, resolvePostAuthorAvatar } from '../utils/authorUtils';
 import { shareMediaWithCaption } from '../utils/shareUtils';
 import { useBackHandler } from '../utils/navigationHistory';
 import { getAlumniPhotoUrl } from '../utils/photoUtils';
@@ -242,7 +242,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
   const [selectedAuthorProfile, setSelectedAuthorProfile] = useState<AlumniRecord | null>(null);
 
   const handleAuthorClick = (authorName?: string, authorHandle?: string, authorAvatar?: string) => {
-    const record = resolveAuthorAlumniRecord(authorName, authorHandle, authorAvatar, alumniList, adminUser);
+    const record = resolveAuthorAlumniRecord(authorName, authorHandle, authorAvatar, alumniList, adminUser, adminAccountsList || adminList);
     setSelectedAuthorProfile(record);
   };
 
@@ -1311,7 +1311,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
                       >
                         <div className="w-10 h-10 rounded-full bg-slate-100 border border-slate-200 overflow-hidden shrink-0 flex items-center justify-center group-hover:ring-2 group-hover:ring-sky-400 transition-all">
                           <img
-                            src={ev.authorAvatar || logoPonpesImg}
+                            src={resolvePostAuthorAvatar(ev.authorName, ev.authorHandle, ev.authorAvatar, adminUser, adminAccountsList || adminList, alumniList)}
                             alt={ev.authorHandle || ev.authorName || adminUser.name}
                             className="w-full h-full object-cover"
                           />
@@ -1362,7 +1362,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
                           Hadir: {ev.attendeesCount || 0}
                         </span>
                         <span className="font-bold text-rose-700 bg-rose-50 border border-rose-200 px-2.5 py-1 rounded-full text-[11px] sm:text-xs">
-                          Tidak: {ev.notAttendingCount || 0}
+                          Tidak: {ev.absentCount || ev.notAttendingCount || 0}
                         </span>
                       </div>
 
@@ -1732,6 +1732,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
             announcements={announcementList}
             adminUser={adminUser}
             alumniList={alumniList}
+            adminList={adminAccountsList || adminList}
             onAddAnnouncement={handleAddAnnouncement}
             onUpdateAnnouncement={handleUpdateAnnouncement}
             onDeleteAnnouncement={handleDeleteAnnouncement}

@@ -11,7 +11,7 @@ import { FirstLoginModal } from './components/FirstLoginModal';
 import { RegisterModal } from './components/RegisterModal';
 import { ForgotPasswordModal } from './components/ForgotPasswordModal';
 import { INITIAL_ALUMNI, INITIAL_ADMIN, INITIAL_ADMIN_LIST, INITIAL_EVENTS, INITIAL_ANNOUNCEMENTS } from './data/mockData';
-import { AlumniRecord, AdminUser, EventAgenda, UserRole, ActiveSession, AnnouncementItem } from './types';
+import { AlumniRecord, AdminUser, EventAgenda, UserRole, ActiveSession, AnnouncementItem, EventComment } from './types';
 import { useBackHandler } from './utils/navigationHistory';
 import {
   fetchAlumniFromHostinger,
@@ -23,6 +23,7 @@ import {
   saveEventToHostinger,
   deleteEventFromHostinger,
   saveRsvpToHostinger,
+  saveCommentToDatabase,
   fetchAnnouncementsFromHostinger,
   saveAnnouncementToHostinger,
   deleteAnnouncementFromHostinger,
@@ -664,8 +665,6 @@ export default function App() {
         attendeesCount: newAttendees,
         absentCount: newAbsent,
       }
-    );
-  };
     );
   };
 

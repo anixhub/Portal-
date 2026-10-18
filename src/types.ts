@@ -54,7 +54,7 @@ export interface AlumniRecord {
   pendidikanIbu?: string;
 }
 
-export type AdminRegionLevel = 'pusat' | 'provinsi' | 'kota' | 'kecamatan';
+export type AdminRegionLevel = 'pusat' | 'provinsi' | 'kota' | 'kecamatan' | 'desa';
 
 export interface AdminUser {
   id: string;
@@ -179,7 +179,7 @@ export interface EventComment {
   authorHandle?: string;
   authorAvatar?: string;
   avatarRing?: boolean;
-  status?: 'hadir' | 'tidak_hadir';
+  status?: 'hadir' | 'tidak_hadir' | 'belum_pasti' | 'netral';
   content: string;
   timeAgo: string;
   likesCount?: number;
@@ -216,4 +216,7 @@ export interface NotificationItem {
   read: boolean;
   authorName?: string;
   tag?: string;
+  targetTab?: 'home' | 'events' | 'directory' | 'finance' | 'profile' | 'notifications' | 'announcements';
+  targetId?: string;
+  actionType?: 'open_comments' | 'open_detail' | 'view_tab';
 }

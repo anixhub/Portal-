@@ -24,8 +24,9 @@ interface AdminAccountEditModalProps {
   onDelete?: (adminId: string) => void;
 }
 
-const DEFAULT_ADMIN_AVATAR =
-  'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=256';
+import logoPonpesImg from '../../assets/images/logo_ponpes_attaroqqy_1790648746461.jpg';
+
+const DEFAULT_ADMIN_AVATAR = logoPonpesImg;
 
 export const AdminAccountEditModal: React.FC<AdminAccountEditModalProps> = ({
   isOpen,

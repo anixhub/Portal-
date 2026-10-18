@@ -17,6 +17,9 @@ export const formatAdminAuthorityLabel = (admin: AdminUser): string => {
   if (level === 'kecamatan') {
     return `Kecamatan ${admin.kecamatan || '-'}, ${admin.city || ''}`;
   }
+  if (level === 'desa') {
+    return `Desa ${admin.desa || '-'}, Kec. ${admin.kecamatan || ''}`;
+  }
   return 'Wilayah Khusus';
 };
 

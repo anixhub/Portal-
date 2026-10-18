@@ -284,6 +284,7 @@ async function startServer() {
   const deletedAnnouncementsStorePath = path.resolve(__dirname, 'src/data/deleted_announcements_store.json');
   const commentsStorePath = path.resolve(__dirname, 'src/data/comments_store.json');
   const quranBookmarksStorePath = path.resolve(__dirname, 'src/data/quran_bookmarks_store.json');
+  const adminProfileStorePath = path.resolve(__dirname, 'src/data/admin_profile_store.json');
 
   const loadJsonStore = (filePath: string, fallback: any = []) => {
     try {
@@ -310,6 +311,7 @@ async function startServer() {
   let cachedAnnouncements: any[] = loadJsonStore(announcementsStorePath, []).filter((a: any) => a && a.id && !deletedAnnouncementIds.includes(a.id));
   let cachedComments: any[] = loadJsonStore(commentsStorePath, []);
   let cachedQuranBookmarks: Record<string, any> = loadJsonStore(quranBookmarksStorePath, {});
+  let cachedAdminProfile: any = loadJsonStore(adminProfileStorePath, null);
 
   // Events API: GET
   app.get('/api/events', async (req, res) => {
@@ -330,19 +332,31 @@ async function startServer() {
 
             const merged = cachedEvents.map((localEv: any) => {
               const remoteEv = remoteMap.get(localEv.id);
-              if (!remoteEv) return localEv;
-              remoteMap.delete(localEv.id);
+              if (remoteEv) remoteMap.delete(localEv.id);
+              const baseEv = remoteEv ? { ...remoteEv, ...localEv } : localEv;
+
+              const rsvpHadir = cachedComments.filter((c: any) => (c.eventId === baseEv.id || c.postId === baseEv.id) && c.status === 'hadir').length;
+              const rsvpTidak = cachedComments.filter((c: any) => (c.eventId === baseEv.id || c.postId === baseEv.id) && c.status === 'tidak_hadir').length;
+              const finalHadir = Math.max(Number(baseEv.attendeesCount || 0), rsvpHadir);
+              const finalTidak = Math.max(Number(baseEv.absentCount || baseEv.notAttendingCount || 0), rsvpTidak);
+
+              let effectiveAvatar = baseEv.authorAvatar;
+              const cleanH = (baseEv.authorHandle || '').replace(/^@/, '').toLowerCase();
+              const isPusatAdmin = cleanH === 'admin_pusat' || cleanH === '' || baseEv.authorName === 'Davidko' || baseEv.authorName === 'Davidson' || baseEv.authorName === 'Ust. H. Abdurrahman, M.Pd.';
+              if (isPusatAdmin && cachedAdminProfile?.avatar && !cachedAdminProfile.avatar.includes('unsplash.com')) {
+                effectiveAvatar = cachedAdminProfile.avatar;
+              }
+
               return {
-                ...remoteEv,
-                ...localEv,
-                attendeesCount: Math.max(Number(remoteEv.attendeesCount || 0), Number(localEv.attendeesCount || 0)),
-                absentCount: Math.max(Number(remoteEv.absentCount || remoteEv.notAttendingCount || 0), Number(localEv.absentCount || localEv.notAttendingCount || 0)),
-                notAttendingCount: Math.max(Number(remoteEv.absentCount || remoteEv.notAttendingCount || 0), Number(localEv.absentCount || localEv.notAttendingCount || 0)),
-                userRsvp: localEv.userRsvp || remoteEv.userRsvp,
-                rsvpNote: localEv.rsvpNote || remoteEv.rsvpNote,
-                authorName: localEv.authorName || remoteEv.authorName,
-                authorHandle: localEv.authorHandle || remoteEv.authorHandle,
-                authorAvatar: localEv.authorAvatar || remoteEv.authorAvatar,
+                ...baseEv,
+                attendeesCount: finalHadir,
+                absentCount: finalTidak,
+                notAttendingCount: finalTidak,
+                userRsvp: localEv.userRsvp || remoteEv?.userRsvp,
+                rsvpNote: localEv.rsvpNote || remoteEv?.rsvpNote,
+                authorName: (isPusatAdmin && cachedAdminProfile?.name) ? cachedAdminProfile.name : (localEv.authorName || remoteEv?.authorName),
+                authorHandle: (isPusatAdmin && cachedAdminProfile?.username) ? cachedAdminProfile.username : (localEv.authorHandle || remoteEv?.authorHandle),
+                authorAvatar: effectiveAvatar,
               };
             });
             for (const rem of remoteMap.values()) {
@@ -357,7 +371,23 @@ async function startServer() {
     } catch (err: any) {
       // Ignore network/remote formatting errors safely
     }
-    const filteredCached = cachedEvents.filter((e: any) => e && e.id && !deletedEventIds.includes(e.id));
+    const filteredCached = cachedEvents.filter((e: any) => e && e.id && !deletedEventIds.includes(e.id)).map((ev: any) => {
+      const rsvpHadir = cachedComments.filter((c: any) => (c.eventId === ev.id || c.postId === ev.id) && c.status === 'hadir').length;
+      const rsvpTidak = cachedComments.filter((c: any) => (c.eventId === ev.id || c.postId === ev.id) && c.status === 'tidak_hadir').length;
+      const cleanH = (ev.authorHandle || '').replace(/^@/, '').toLowerCase();
+      const isPusatAdmin = cleanH === 'admin_pusat' || cleanH === '' || ev.authorName === 'Davidko' || ev.authorName === 'Davidson' || ev.authorName === 'Ust. H. Abdurrahman, M.Pd.';
+      const effectiveAvatar = (isPusatAdmin && cachedAdminProfile?.avatar && !cachedAdminProfile.avatar.includes('unsplash.com'))
+        ? cachedAdminProfile.avatar
+        : ev.authorAvatar;
+
+      return {
+        ...ev,
+        attendeesCount: Math.max(Number(ev.attendeesCount || 0), rsvpHadir),
+        absentCount: Math.max(Number(ev.absentCount || ev.notAttendingCount || 0), rsvpTidak),
+        notAttendingCount: Math.max(Number(ev.absentCount || ev.notAttendingCount || 0), rsvpTidak),
+        authorAvatar: effectiveAvatar,
+      };
+    });
     res.json({ success: true, data: filteredCached });
   });
 
@@ -525,6 +555,15 @@ async function startServer() {
     const newName = (name || '').trim();
     const newUsername = username ? (username.startsWith('@') ? username : `@${username}`) : undefined;
 
+    cachedAdminProfile = {
+      ...(cachedAdminProfile || {}),
+      name: newName || cachedAdminProfile?.name || 'Ust. H. Abdurrahman, M.Pd.',
+      username: newUsername || cachedAdminProfile?.username || '@admin_pusat',
+      avatar: avatar !== undefined ? avatar : cachedAdminProfile?.avatar,
+      updatedAt: new Date().toISOString(),
+    };
+    saveJsonStore(adminProfileStorePath, cachedAdminProfile);
+
     let eventsChanged = false;
     cachedEvents = cachedEvents.map((ev: any) => {
       const evUser = (ev.authorHandle || '').replace(/^@/, '').toLowerCase().trim();
@@ -535,6 +574,7 @@ async function startServer() {
         ev.authorName === pName ||
         ev.authorName === 'Ust. H. Abdurrahman, M.Pd.' ||
         ev.authorName === 'Davidko' ||
+        ev.authorName === 'Davidson' ||
         ev.authorName === newName;
 
       if (isAuthor) {
@@ -569,6 +609,7 @@ async function startServer() {
         ann.authorName === pName ||
         ann.authorName === 'Ust. H. Abdurrahman, M.Pd.' ||
         ann.authorName === 'Davidko' ||
+        ann.authorName === 'Davidson' ||
         ann.authorName === 'Pondok Pesantren At-taroqqy' ||
         ann.authorName === newName;
 
@@ -623,6 +664,10 @@ async function startServer() {
     res.json({ success: true, message: 'Admin profile synced to all posts & comments' });
   };
 
+  app.get('/api/admin/profile', (req, res) => {
+    res.json({ success: true, data: cachedAdminProfile });
+  });
+
   app.post('/api/admin/profile', handleAdminProfileSync);
   app.post('/api/admin/sync-profile', handleAdminProfileSync);
 
@@ -640,7 +685,14 @@ async function startServer() {
           const data = JSON.parse(text);
           const list = Array.isArray(data) ? data : (Array.isArray(data?.data) ? data.data : null);
           if (Array.isArray(list)) {
-            const filtered = list.filter((a: any) => a && a.id && !deletedAnnouncementIds.includes(a.id));
+            const filtered = list.filter((a: any) => a && a.id && !deletedAnnouncementIds.includes(a.id)).map((a: any) => {
+              const cleanH = (a.authorHandle || '').replace(/^@/, '').toLowerCase();
+              const isPusat = cleanH === 'admin_pusat' || cleanH === '' || a.authorName === 'Ust. H. Abdurrahman, M.Pd.' || a.authorName === 'Davidson' || a.authorName === 'Davidko';
+              if (isPusat && cachedAdminProfile?.avatar && !cachedAdminProfile.avatar.includes('unsplash.com')) {
+                return { ...a, authorAvatar: cachedAdminProfile.avatar };
+              }
+              return a;
+            });
             cachedAnnouncements = filtered;
             saveJsonStore(announcementsStorePath, cachedAnnouncements);
             return res.json({ success: true, data: filtered });
@@ -650,7 +702,14 @@ async function startServer() {
     } catch (err: any) {
       // Ignore network/remote formatting errors safely
     }
-    const filteredCached = cachedAnnouncements.filter((a: any) => a && a.id && !deletedAnnouncementIds.includes(a.id));
+    const filteredCached = cachedAnnouncements.filter((a: any) => a && a.id && !deletedAnnouncementIds.includes(a.id)).map((a: any) => {
+      const cleanH = (a.authorHandle || '').replace(/^@/, '').toLowerCase();
+      const isPusat = cleanH === 'admin_pusat' || cleanH === '' || a.authorName === 'Ust. H. Abdurrahman, M.Pd.' || a.authorName === 'Davidson' || a.authorName === 'Davidko';
+      if (isPusat && cachedAdminProfile?.avatar && !cachedAdminProfile.avatar.includes('unsplash.com')) {
+        return { ...a, authorAvatar: cachedAdminProfile.avatar };
+      }
+      return a;
+    });
     res.json({ success: true, data: filteredCached });
   });
 

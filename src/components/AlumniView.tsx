@@ -73,7 +73,7 @@ import {
   MoreVertical,
   Copy
 } from 'lucide-react';
-import { AlumniRecord, EventAgenda, AnnouncementItem, EventComment, EventCommentReply, NotificationItem, AudienceTarget } from '../types';
+import { AlumniRecord, AdminUser, EventAgenda, AnnouncementItem, EventComment, EventCommentReply, NotificationItem, AudienceTarget } from '../types';
 import { INITIAL_ANNOUNCEMENTS, INITIAL_EVENT_COMMENTS } from '../data/mockData';
 import { WilayahAddressFilter } from './common/WilayahAddressFilter';
 import { DateWheelPicker } from './common/DateWheelPicker';
@@ -86,7 +86,7 @@ import { CleanMediaPreviewModal } from './common/CleanMediaPreviewModal';
 import { PostMediaCarousel } from './common/PostMediaCarousel';
 import { formatAudienceSummary } from './common/AudienceTargetModal';
 import { AlumniFinanceView } from './AlumniFinanceView';
-import { formatAuthorUsername, resolveAuthorAlumniRecord } from '../utils/authorUtils';
+import { formatAuthorUsername, resolveAuthorAlumniRecord, resolvePostAuthorAvatar } from '../utils/authorUtils';
 import { useBackHandler } from '../utils/navigationHistory';
 import { QuranView } from './QuranView';
 import { MaulidView } from './MaulidView';
@@ -171,6 +171,8 @@ interface AlumniViewProps {
   allAlumni: AlumniRecord[];
   events: EventAgenda[];
   announcements?: AnnouncementItem[];
+  defaultAdmin?: AdminUser;
+  adminList?: AdminUser[];
   onLogout: () => void;
   onUpdateProfile: (updated: Partial<AlumniRecord>) => void;
   onRsvpEvent: (eventId: string, rsvp: 'hadir' | 'belum_pasti' | 'tidak_hadir', note?: string) => void;
@@ -184,58 +186,7 @@ interface AlumniViewProps {
 
 type TabType = 'home' | 'events' | 'directory' | 'finance' | 'profile' | 'notifications' | 'announcements';
 
-const INITIAL_NOTIFICATIONS: NotificationItem[] = [
-  {
-    id: 'notif-1',
-    type: 'reply',
-    title: 'Balasan Tanggapan Agenda',
-    message: 'Ust. Fauzi Rahman membalas tanggapan Anda di agenda Reuni Akbar Ke-42: "InsyaAllah siap, nanti stan santri wilayah Malang disatukan di aula utama."',
-    time: '25 mnt lalu',
-    read: false,
-    authorName: 'Ust. Fauzi Rahman',
-    tag: 'Interaksi Balasan'
-  },
-  {
-    id: 'notif-2',
-    type: 'finance',
-    title: 'Pembayaran Sukses Diverifikasi',
-    message: 'Pembayaran pelunasan tunggakan infaq & syahriyah pondok sebesar Rp 250.000 telah sukses diverifikasi oleh bagian keuangan pondok.',
-    time: '1 jam lalu',
-    read: false,
-    authorName: 'Bendahara Pondok',
-    tag: 'Keuangan Sukses'
-  },
-  {
-    id: 'notif-3',
-    type: 'reply',
-    title: 'Balasan Komentar Diskusi',
-    message: 'Ahmad Rifai menanggapi diskusi Anda di agenda Haul Masyayikh: "Sampai jumpa di pondok ya Kang, kami rombongan dari Jawa Timur berangkat bareng."',
-    time: '3 jam lalu',
-    read: false,
-    authorName: 'Ahmad Rifai',
-    tag: 'Interaksi Balasan'
-  },
-  {
-    id: 'notif-4',
-    type: 'system',
-    title: 'Verifikasi Akun KTA Digital',
-    message: 'Pembaruan data induk KTA Digital Santri Anda telah disetujui resmi oleh Bagian Kesantrian Pondok Pesantren Attaroqqy.',
-    time: 'Kemarin',
-    read: true,
-    authorName: 'Admin Kesantrian',
-    tag: 'Sistem Pondok'
-  },
-  {
-    id: 'notif-5',
-    type: 'finance',
-    title: 'Fitur Keuangan Alumni Tersedia',
-    message: 'Alumni kini dapat mengecek rincian tagihan lama pondok dan melakukan pembayaran langsung lewat aplikasi secara praktis dan transparan.',
-    time: '2 hari lalu',
-    read: true,
-    authorName: 'Sistem Keuangan',
-    tag: 'Fitur Keuangan'
-  }
-];
+const INITIAL_NOTIFICATIONS: NotificationItem[] = [];
 
 /**
  * Komponen Viewer Foto Profil Layar Penuh Bersih
@@ -398,6 +349,8 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
   allAlumni,
   events,
   announcements: propAnnouncements,
+  defaultAdmin,
+  adminList,
   onLogout,
   onUpdateProfile,
   onRsvpEvent,
@@ -450,8 +403,27 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
   const [fullscreenPosterUrl, setFullscreenPosterUrl] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
-  // Dedicated notifications state
-  const [notifications, setNotifications] = useState<NotificationItem[]>(INITIAL_NOTIFICATIONS);
+  // Dedicated notifications state (bersih tanpa dummy data dan tersimpan di localStorage)
+  const [notifications, setNotifications] = useState<NotificationItem[]>(() => {
+    try {
+      const saved = localStorage.getItem('attaroqqy_notifications_v1');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          // Bersihkan data dummy lama (seperti notif-1, notif-2, dst)
+          return parsed.filter((n: any) => n && n.id && !/^notif-[1-5]$/.test(n.id));
+        }
+      }
+    } catch (e) {}
+    return [];
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('attaroqqy_notifications_v1', JSON.stringify(notifications));
+    } catch (e) {}
+  }, [notifications]);
+
   const [notifFilter, setNotifFilter] = useState<'all' | 'interaction' | 'finance'>('all');
   const unreadNotifsCount = notifications.filter((n) => !n.read).length;
 
@@ -464,6 +436,58 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
     setNotifications((prev) =>
       prev.map((n) => (n.id === id ? { ...n, read: true } : n))
     );
+  };
+
+  const handleNotificationClick = (item: NotificationItem) => {
+    // 1. Tandai sudah dibaca
+    setNotifications((prev) =>
+      prev.map((n) => (n.id === item.id ? { ...n, read: true } : n))
+    );
+
+    // 2. Arahkan langsung ke halaman / tab terkait sesuai isi notifikasi
+    let destinationTab: TabType = 'home';
+    if (item.targetTab) {
+      destinationTab = item.targetTab;
+    } else if (item.type === 'finance') {
+      destinationTab = 'finance';
+    } else if (item.type === 'system') {
+      const lower = (item.title + ' ' + item.message).toLowerCase();
+      if (lower.includes('pengumuman')) {
+        destinationTab = 'announcements';
+      } else if (lower.includes('agenda') || lower.includes('event') || lower.includes('kehadiran')) {
+        destinationTab = 'events';
+      } else {
+        destinationTab = 'profile';
+      }
+    } else if (item.type === 'reply' || item.type === 'like') {
+      const lower = (item.title + ' ' + item.message).toLowerCase();
+      if (lower.includes('pengumuman')) {
+        destinationTab = 'announcements';
+      } else {
+        destinationTab = 'events';
+      }
+    }
+
+    setActiveTab(destinationTab);
+
+    // 3. Jika ada targetId (ID event atau pengumuman), buka modal tanggapan terkait
+    if (item.targetId) {
+      if (destinationTab === 'events') {
+        const targetEv = events.find((e) => e.id === item.targetId);
+        if (targetEv) {
+          setTimeout(() => {
+            setActiveCommentsModalEvent(targetEv);
+          }, 200);
+        }
+      } else if (destinationTab === 'announcements') {
+        const targetAnn = (propAnnouncements || announcements)?.find((a) => a.id === item.targetId);
+        if (targetAnn) {
+          setTimeout(() => {
+            setActiveCommentsModalAnnouncement(targetAnn);
+          }, 200);
+        }
+      }
+    }
   };
 
   const filteredNotifications = notifications.filter((n) => {
@@ -881,7 +905,7 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
   const [selectedAlumniDetail, setSelectedAlumniDetail] = useState<AlumniRecord | null>(null);
 
   const handleOpenAuthorProfile = (authorName?: string, authorHandle?: string, authorAvatar?: string) => {
-    const record = resolveAuthorAlumniRecord(authorName, authorHandle, authorAvatar, allAlumni);
+    const record = resolveAuthorAlumniRecord(authorName, authorHandle, authorAvatar, allAlumni, defaultAdmin, adminList);
     setSelectedAlumniDetail(record);
   };
 
@@ -1157,6 +1181,20 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
     };
     setCommentsList([newComment, ...updatedComments]);
     saveCommentToDatabase(newComment, 'event');
+
+    const rsvpNotif: NotificationItem = {
+      id: `notif-real-rsvp-${Date.now()}`,
+      type: 'reply',
+      title: rsvpModalData.type === 'hadir' ? 'Konfirmasi Kehadiran Dicatat' : 'Konfirmasi Ketidakhadiran Dicatat',
+      message: `Tanggapan kehadiran Anda untuk agenda "${rsvpModalData.eventTitle}" berhasil tercatat di database: "${finalNote}".`,
+      time: 'Baru saja',
+      read: false,
+      authorName: 'Sistem Agenda',
+      tag: rsvpModalData.type === 'hadir' ? 'Kehadiran: Hadir' : 'Kehadiran: Tidak Hadir',
+      targetTab: 'events',
+      targetId: rsvpModalData.eventId,
+    };
+    setNotifications((prev) => [rsvpNotif, ...prev]);
 
     triggerToast(
       rsvpModalData.type === 'hadir'

@@ -18,7 +18,7 @@ import { PostMediaCarousel } from '../common/PostMediaCarousel';
 import { formatAudienceSummary } from '../common/AudienceTargetModal';
 import { EventCommentsModal } from '../common/EventCommentsModal';
 import { INITIAL_ANNOUNCEMENT_COMMENTS } from '../../data/mockData';
-import { formatAuthorUsername, resolveAuthorAlumniRecord } from '../../utils/authorUtils';
+import { formatAuthorUsername, resolveAuthorAlumniRecord, resolvePostAuthorAvatar } from '../../utils/authorUtils';
 import { formatToDDMMYYYY } from '../../utils/dateUtils';
 import { 
   fetchCommentsFromDatabase, 
@@ -31,6 +31,7 @@ interface AdminAnnouncementsTabProps {
   announcements: AnnouncementItem[];
   adminUser: AdminUser;
   alumniList?: AlumniRecord[];
+  adminList?: AdminUser[];
   onAddAnnouncement: (ann: AnnouncementItem) => void;
   onUpdateAnnouncement: (id: string, updated: Partial<AnnouncementItem>) => void;
   onDeleteAnnouncement: (id: string) => void;
@@ -43,15 +44,27 @@ interface AdminAnnouncementsTabProps {
 // Item Kartu Pengumuman
 const AnnouncementCardItem: React.FC<{
   ann: AnnouncementItem;
+  adminUser?: AdminUser;
+  adminList?: AdminUser[];
+  alumniList?: AlumniRecord[];
   onPreview: (url: string) => void;
   onOpenMenu: (ann: AnnouncementItem) => void;
   onToggleLike: (id: string) => void;
   onOpenComments: (ann: AnnouncementItem) => void;
   onOpenAuthorProfile: (ann: AnnouncementItem) => void;
   triggerToast: (msg: string) => void;
-}> = ({ ann, onPreview, onOpenMenu, onToggleLike, onOpenComments, onOpenAuthorProfile, triggerToast }) => {
+}> = ({ ann, adminUser, adminList, alumniList, onPreview, onOpenMenu, onToggleLike, onOpenComments, onOpenAuthorProfile, triggerToast }) => {
   const [activeSlide, setActiveSlide] = useState(0);
   const [isExpanded, setIsExpanded] = useState(false);
+
+  const effectiveAvatar = resolvePostAuthorAvatar(
+    ann.authorName,
+    ann.authorHandle,
+    ann.authorAvatar,
+    adminUser,
+    adminList,
+    alumniList
+  );
 
   const handleShare = async () => {
     const imageToShare = ann.images && ann.images.length > 0
@@ -84,7 +97,7 @@ Diterbitkan oleh: ${ann.authorName || 'Pondok Pesantren At-taroqqy'}`;
         >
           <div className="w-10 h-10 rounded-full bg-slate-100 border border-slate-200 overflow-hidden shrink-0 flex items-center justify-center group-hover:ring-2 group-hover:ring-sky-400 transition-all">
             <img
-              src={ann.authorAvatar || logoPonpesImg}
+              src={effectiveAvatar}
               alt={ann.authorHandle || ann.authorName}
               className="w-full h-full object-cover"
             />
@@ -443,12 +456,15 @@ export const AdminAnnouncementsTab: React.FC<AdminAnnouncementsTabProps> = ({
           <AnnouncementCardItem
             key={ann.id}
             ann={ann}
+            adminUser={adminUser}
+            adminList={adminList}
+            alumniList={alumniList}
             onPreview={(url) => setPreviewPhotoUrl(url)}
             onOpenMenu={(item) => setActiveMenuAnnouncement(item)}
             onToggleLike={handleToggleLike}
             onOpenComments={(item) => setActiveCommentsAnnouncement(item)}
             onOpenAuthorProfile={(item) => {
-              const record = resolveAuthorAlumniRecord(item.authorName, item.authorHandle, item.authorAvatar, alumniList, adminUser);
+              const record = resolveAuthorAlumniRecord(item.authorName, item.authorHandle, item.authorAvatar, alumniList, adminUser, adminList);
               onOpenAuthorProfile?.(record);
             }}
             triggerToast={triggerToast}
