@@ -325,10 +325,32 @@ async function startServer() {
           const data = JSON.parse(text);
           const list = Array.isArray(data) ? data : (Array.isArray(data?.data) ? data.data : null);
           if (Array.isArray(list)) {
-            const filtered = list.filter((e: any) => e && e.id && !deletedEventIds.includes(e.id));
-            cachedEvents = filtered;
+            const remoteClean = list.filter((e: any) => e && e.id && !deletedEventIds.includes(e.id));
+            const remoteMap = new Map(remoteClean.map((e: any) => [e.id, e]));
+
+            const merged = cachedEvents.map((localEv: any) => {
+              const remoteEv = remoteMap.get(localEv.id);
+              if (!remoteEv) return localEv;
+              remoteMap.delete(localEv.id);
+              return {
+                ...remoteEv,
+                ...localEv,
+                attendeesCount: Math.max(Number(remoteEv.attendeesCount || 0), Number(localEv.attendeesCount || 0)),
+                absentCount: Math.max(Number(remoteEv.absentCount || remoteEv.notAttendingCount || 0), Number(localEv.absentCount || localEv.notAttendingCount || 0)),
+                notAttendingCount: Math.max(Number(remoteEv.absentCount || remoteEv.notAttendingCount || 0), Number(localEv.absentCount || localEv.notAttendingCount || 0)),
+                userRsvp: localEv.userRsvp || remoteEv.userRsvp,
+                rsvpNote: localEv.rsvpNote || remoteEv.rsvpNote,
+                authorName: localEv.authorName || remoteEv.authorName,
+                authorHandle: localEv.authorHandle || remoteEv.authorHandle,
+                authorAvatar: localEv.authorAvatar || remoteEv.authorAvatar,
+              };
+            });
+            for (const rem of remoteMap.values()) {
+              merged.push(rem);
+            }
+            cachedEvents = merged.filter((e: any) => e && e.id && !deletedEventIds.includes(e.id));
             saveJsonStore(eventsStorePath, cachedEvents);
-            return res.json({ success: true, data: filtered });
+            return res.json({ success: true, data: cachedEvents });
           }
         }
       }
@@ -406,9 +428,41 @@ async function startServer() {
 
   // Events API: RSVP
   app.post('/api/events/rsvp', async (req, res) => {
-    const { eventId, alumniId, status, note, authorName, authorHandle, authorAvatar } = req.body || {};
-    if (eventId && alumniId) {
-      const commId = `comm-rsvp-${alumniId}-${eventId}`;
+    const { eventId, alumniId, status, note, authorName, authorHandle, authorAvatar, attendeesCount, absentCount } = req.body || {};
+    let updatedEvent: any = null;
+
+    if (eventId) {
+      const idx = cachedEvents.findIndex((e: any) => e.id === eventId);
+      if (idx >= 0) {
+        const ev = cachedEvents[idx];
+        let newAttendees = attendeesCount !== undefined ? attendeesCount : (ev.attendeesCount || 0);
+        let newAbsent = absentCount !== undefined ? absentCount : (ev.absentCount || ev.notAttendingCount || 0);
+
+        // If specific counts weren't supplied, adjust based on previous rsvp
+        if (attendeesCount === undefined && absentCount === undefined) {
+          const prevStatus = ev.userRsvp;
+          if (prevStatus === 'hadir') newAttendees = Math.max(0, newAttendees - 1);
+          if (prevStatus === 'tidak_hadir') newAbsent = Math.max(0, newAbsent - 1);
+          if (status === 'hadir') newAttendees += 1;
+          if (status === 'tidak_hadir') newAbsent += 1;
+        }
+
+        cachedEvents[idx] = {
+          ...ev,
+          userRsvp: status,
+          attendeesCount: newAttendees,
+          absentCount: newAbsent,
+          notAttendingCount: newAbsent,
+          rsvpNote: note !== undefined ? note : ev.rsvpNote,
+        };
+        updatedEvent = cachedEvents[idx];
+        saveJsonStore(eventsStorePath, cachedEvents);
+      }
+    }
+
+    if (eventId) {
+      const effectiveUserKey = alumniId || 'admin_user';
+      const commId = `comm-rsvp-${effectiveUserKey}-${eventId}`;
       const defaultNote = status === 'hadir' ? 'Insya Allah saya hadir' : status === 'tidak_hadir' ? 'Mohon maaf belum bisa hadir' : '';
       const finalContent = (note && String(note).trim()) ? String(note).trim() : defaultNote;
 
@@ -416,8 +470,9 @@ async function startServer() {
         const rsvpComment = {
           id: commId,
           eventId,
+          postId: eventId,
           postType: 'event',
-          authorId: alumniId,
+          authorId: alumniId || 'admin',
           authorName: authorName || 'Alumni',
           authorHandle: authorHandle || '@alumni',
           authorAvatar: authorAvatar || '',
@@ -436,6 +491,14 @@ async function startServer() {
           cachedComments.unshift(rsvpComment);
         }
         saveJsonStore(commentsStorePath, cachedComments);
+
+        // Forward comment to Hostinger save_comment endpoint
+        fetch('https://alumni.attaroqqy.com/api_alumni.php?action=save_comment', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(rsvpComment),
+          signal: AbortSignal.timeout(10000),
+        }).catch(() => {});
       }
     }
 
@@ -450,8 +513,118 @@ async function startServer() {
         signal: AbortSignal.timeout(10000),
       }).catch(() => {});
     } catch (err: any) {}
-    res.json({ success: true });
+
+    res.json({ success: true, event: updatedEvent });
   });
+
+  // Admin Profile Sync across all events, announcements, and comments
+  const handleAdminProfileSync = (req: any, res: any) => {
+    const { prevName, prevUsername, name, username, avatar } = req.body || {};
+    const pName = (prevName || '').trim();
+    const pUser = (prevUsername || '').replace(/^@/, '').toLowerCase().trim();
+    const newName = (name || '').trim();
+    const newUsername = username ? (username.startsWith('@') ? username : `@${username}`) : undefined;
+
+    let eventsChanged = false;
+    cachedEvents = cachedEvents.map((ev: any) => {
+      const evUser = (ev.authorHandle || '').replace(/^@/, '').toLowerCase().trim();
+      const isAuthor =
+        !ev.authorHandle ||
+        evUser === pUser ||
+        evUser === 'admin_pusat' ||
+        ev.authorName === pName ||
+        ev.authorName === 'Ust. H. Abdurrahman, M.Pd.' ||
+        ev.authorName === 'Davidko' ||
+        ev.authorName === newName;
+
+      if (isAuthor) {
+        eventsChanged = true;
+        const updatedEv = {
+          ...ev,
+          authorName: newName || ev.authorName,
+          authorHandle: newUsername || ev.authorHandle,
+          authorAvatar: avatar !== undefined ? avatar : ev.authorAvatar,
+        };
+        fetch('https://alumni.attaroqqy.com/api_alumni.php?action=save_event', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(updatedEv),
+          signal: AbortSignal.timeout(10000),
+        }).catch(() => {});
+        return updatedEv;
+      }
+      return ev;
+    });
+    if (eventsChanged) {
+      saveJsonStore(eventsStorePath, cachedEvents);
+    }
+
+    let annChanged = false;
+    cachedAnnouncements = cachedAnnouncements.map((ann: any) => {
+      const annUser = (ann.authorHandle || '').replace(/^@/, '').toLowerCase().trim();
+      const isAuthor =
+        !ann.authorHandle ||
+        annUser === pUser ||
+        annUser === 'admin_pusat' ||
+        ann.authorName === pName ||
+        ann.authorName === 'Ust. H. Abdurrahman, M.Pd.' ||
+        ann.authorName === 'Davidko' ||
+        ann.authorName === 'Pondok Pesantren At-taroqqy' ||
+        ann.authorName === newName;
+
+      if (isAuthor) {
+        annChanged = true;
+        const updatedAnn = {
+          ...ann,
+          authorName: newName || ann.authorName,
+          authorHandle: newUsername || ann.authorHandle,
+          authorAvatar: avatar !== undefined ? avatar : ann.authorAvatar,
+        };
+        fetch('https://alumni.attaroqqy.com/api_alumni.php?action=save_announcement', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(updatedAnn),
+          signal: AbortSignal.timeout(10000),
+        }).catch(() => {});
+        return updatedAnn;
+      }
+      return ann;
+    });
+    if (annChanged) {
+      saveJsonStore(announcementsStorePath, cachedAnnouncements);
+    }
+
+    let commChanged = false;
+    cachedComments = cachedComments.map((c: any) => {
+      const cUser = (c.authorHandle || '').replace(/^@/, '').toLowerCase().trim();
+      const isAuthor = cUser === pUser || cUser === 'admin_pusat' || c.authorName === pName || c.authorName === newName;
+      if (isAuthor) {
+        commChanged = true;
+        const updatedComm = {
+          ...c,
+          authorName: newName || c.authorName,
+          authorHandle: newUsername || c.authorHandle,
+          authorAvatar: avatar !== undefined ? avatar : c.authorAvatar,
+        };
+        fetch('https://alumni.attaroqqy.com/api_alumni.php?action=save_comment', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(updatedComm),
+          signal: AbortSignal.timeout(10000),
+        }).catch(() => {});
+        return updatedComm;
+      }
+      return c;
+    });
+    if (commChanged) {
+      saveJsonStore(commentsStorePath, cachedComments);
+    }
+
+    res.json({ success: true, message: 'Admin profile synced to all posts & comments' });
+  };
+
+  app.post('/api/admin/profile', handleAdminProfileSync);
+  app.post('/api/admin/sync-profile', handleAdminProfileSync);
 
   // Announcements API: GET
   app.get('/api/announcements', async (req, res) => {
@@ -561,9 +734,17 @@ async function startServer() {
       if (remoteRes.ok && contentType.includes('application/json')) {
         const json = await remoteRes.json();
         if (json && Array.isArray(json.data) && json.data.length > 0) {
-          cachedComments = json.data;
+          // Merge remote comments with cachedComments without destroying locally created RSVP comments
+          const remoteList = json.data;
+          remoteList.forEach((rComm: any) => {
+            const idx = cachedComments.findIndex((c: any) => c.id === rComm.id);
+            if (idx >= 0) {
+              cachedComments[idx] = { ...cachedComments[idx], ...rComm };
+            } else {
+              cachedComments.push(rComm);
+            }
+          });
           saveJsonStore(commentsStorePath, cachedComments);
-          return res.json({ success: true, data: json.data });
         }
       }
     } catch (e) {}
@@ -579,6 +760,9 @@ async function startServer() {
   app.post('/api/comments', async (req, res) => {
     const comm = req.body;
     if (comm && comm.id) {
+      comm.eventId = comm.eventId || comm.postId;
+      comm.postId = comm.postId || comm.eventId;
+
       if (comm.commentId) {
         // It is a reply to an existing parent comment
         const parent = cachedComments.find((c: any) => c.id === comm.commentId);
@@ -591,7 +775,7 @@ async function startServer() {
         }
       } else {
         const idx = cachedComments.findIndex((c: any) => c.id === comm.id);
-        if (idx >= 0) cachedComments[idx] = comm;
+        if (idx >= 0) cachedComments[idx] = { ...cachedComments[idx], ...comm };
         else cachedComments.unshift(comm);
       }
       saveJsonStore(commentsStorePath, cachedComments);

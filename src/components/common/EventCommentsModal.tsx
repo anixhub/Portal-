@@ -45,7 +45,7 @@ export const EventCommentsModal: React.FC<EventCommentsModalProps> = ({
   const inputRef = useRef<HTMLInputElement>(null);
 
   const effectiveId = targetId || event?.id || '';
-  const eventComments = comments.filter((c) => c.eventId === effectiveId);
+  const eventComments = comments.filter((c) => c.eventId === effectiveId || (c as any).postId === effectiveId);
 
   const handleSubmit = (e?: React.FormEvent) => {
     if (e) e.preventDefault();

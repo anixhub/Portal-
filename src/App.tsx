@@ -29,6 +29,7 @@ import {
   getDeletedEventIds,
   getDeletedAnnouncementIds,
   syncChannel,
+  syncAdminProfileAcrossApp,
 } from './services/apiService';
 
 export default function App() {
@@ -441,69 +442,136 @@ export default function App() {
     await deleteAlumniFromHostinger(id);
   };
 
-  const handleUpdateAdmin = (updated: Partial<AdminUser>) => {
-    const prevName = adminAccount.name;
-    const prevUsername = adminAccount.username;
+  const handleUpdateAdmin = async (updated: Partial<AdminUser>) => {
+    const currentAdmin = (currentSession?.role === 'admin' && currentSession.adminData) ? currentSession.adminData : adminAccount;
+    const prevName = currentAdmin.name;
+    const prevUsername = currentAdmin.username;
+    const adminId = currentAdmin.id;
 
-    setAdminAccount((prev) => {
-      const next = { ...prev, ...updated };
-      if (currentSession?.role === 'admin' && currentSession.adminData) {
-        setCurrentSession({
-          ...currentSession,
-          adminData: next,
-        });
-      }
-      return next;
+    const nextAdmin: AdminUser = { ...currentAdmin, ...updated };
+
+    setAdminAccount(nextAdmin);
+
+    if (currentSession?.role === 'admin' && currentSession.adminData) {
+      const nextSession = {
+        ...currentSession,
+        adminData: nextAdmin,
+      };
+      setCurrentSession(nextSession);
+      try {
+        localStorage.setItem('attaroqqy_active_session_v1', JSON.stringify(nextSession));
+      } catch (e) {}
+    }
+
+    setAdminList((prev) => {
+      const updatedList = prev.map((a) => (a.id === adminId || a.username === prevUsername ? { ...a, ...updated } : a));
+      try {
+        localStorage.setItem('attaroqqy_admin_list_v1', JSON.stringify(updatedList));
+      } catch (e) {}
+      return updatedList;
     });
 
-    // Sync all existing events authored by admin
-    setEvents((prevEvents) =>
-      prevEvents.map((ev) => {
-        const evHandle = ev.authorHandle ? ev.authorHandle.replace(/^@/, '').toLowerCase() : '';
-        const prevH = prevUsername ? prevUsername.replace(/^@/, '').toLowerCase() : '';
-        const isAuthor =
-          !ev.authorHandle ||
-          evHandle === prevH ||
-          evHandle === 'admin_pusat' ||
-          ev.authorName === prevName ||
-          ev.authorName === 'Ust. H. Abdurrahman, M.Pd.';
+    const newHandle = updated.username
+      ? (updated.username.startsWith('@') ? updated.username : `@${updated.username}`)
+      : undefined;
+    const newName = updated.name ?? currentAdmin.name;
+    const newAvatar = updated.avatar !== undefined ? updated.avatar : currentAdmin.avatar;
 
-        if (isAuthor) {
-          return {
-            ...ev,
-            authorName: updated.name ?? ev.authorName,
-            authorHandle: updated.username ?? ev.authorHandle,
-            authorAvatar: updated.avatar !== undefined ? updated.avatar : ev.authorAvatar,
-          };
-        }
-        return ev;
-      })
-    );
+    // Sync and PERMANENTLY save all existing events authored by admin (synchronously computed)
+    const prevH = prevUsername ? prevUsername.replace(/^@/, '').toLowerCase().trim() : '';
+    const nextEvents = events.map((ev) => {
+      const evHandle = ev.authorHandle ? ev.authorHandle.replace(/^@/, '').toLowerCase().trim() : '';
+      const isAuthor =
+        !ev.authorHandle ||
+        evHandle === prevH ||
+        evHandle === 'admin_pusat' ||
+        ev.authorName === prevName ||
+        ev.authorName === 'Ust. H. Abdurrahman, M.Pd.' ||
+        ev.authorName === 'Davidko' ||
+        ev.authorName === newName;
 
-    // Sync all existing announcements authored by admin
-    setAnnouncements((prevAnn) =>
-      prevAnn.map((ann) => {
-        const annHandle = ann.authorHandle ? ann.authorHandle.replace(/^@/, '').toLowerCase() : '';
-        const prevH = prevUsername ? prevUsername.replace(/^@/, '').toLowerCase() : '';
-        const isAuthor =
-          !ann.authorHandle ||
-          annHandle === prevH ||
-          annHandle === 'admin_pusat' ||
-          ann.authorName === prevName ||
-          ann.authorName === 'Ust. H. Abdurrahman, M.Pd.' ||
-          ann.authorName === 'Pondok Pesantren At-taroqqy';
+      if (isAuthor) {
+        return {
+          ...ev,
+          authorName: newName,
+          authorHandle: newHandle ?? ev.authorHandle,
+          authorAvatar: newAvatar,
+        };
+      }
+      return ev;
+    });
+    setEvents(nextEvents);
 
-        if (isAuthor) {
-          return {
-            ...ann,
-            authorName: updated.name ?? ann.authorName,
-            authorHandle: updated.username ?? ann.authorHandle,
-            authorAvatar: updated.avatar !== undefined ? updated.avatar : ann.authorAvatar,
-          };
-        }
-        return ann;
-      })
-    );
+    // Save each updated event to database/server so it is never overwritten by polling
+    for (const ev of nextEvents) {
+      const evHandle = ev.authorHandle ? ev.authorHandle.replace(/^@/, '').toLowerCase().trim() : '';
+      const isAuthor =
+        !ev.authorHandle ||
+        evHandle === prevH ||
+        evHandle === 'admin_pusat' ||
+        ev.authorName === prevName ||
+        ev.authorName === newName;
+      if (isAuthor) {
+        await saveEventToHostinger(ev);
+      }
+    }
+
+    // Sync and PERMANENTLY save all existing announcements authored by admin (synchronously computed)
+    const nextAnns = announcements.map((ann) => {
+      const annHandle = ann.authorHandle ? ann.authorHandle.replace(/^@/, '').toLowerCase().trim() : '';
+      const isAuthor =
+        !ann.authorHandle ||
+        annHandle === prevH ||
+        annHandle === 'admin_pusat' ||
+        ann.authorName === prevName ||
+        ann.authorName === 'Ust. H. Abdurrahman, M.Pd.' ||
+        ann.authorName === 'Davidko' ||
+        ann.authorName === 'Pondok Pesantren At-taroqqy' ||
+        ann.authorName === newName;
+
+      if (isAuthor) {
+        return {
+          ...ann,
+          authorName: newName,
+          authorHandle: newHandle ?? ann.authorHandle,
+          authorAvatar: newAvatar,
+        };
+      }
+      return ann;
+    });
+    setAnnouncements(nextAnns);
+
+    // Save each updated announcement to database/server
+    for (const ann of nextAnns) {
+      const annHandle = ann.authorHandle ? ann.authorHandle.replace(/^@/, '').toLowerCase().trim() : '';
+      const isAuthor =
+        !ann.authorHandle ||
+        annHandle === prevH ||
+        annHandle === 'admin_pusat' ||
+        ann.authorName === prevName ||
+        ann.authorName === newName;
+      if (isAuthor) {
+        await saveAnnouncementToHostinger(ann);
+      }
+    }
+
+    // Sync admin profile to server and MySQL backend
+    await syncAdminProfileAcrossApp({
+      prevName,
+      prevUsername,
+      name: newName,
+      username: newHandle ?? currentAdmin.username,
+      avatar: newAvatar,
+      jabatan: updated.jabatan ?? currentAdmin.jabatan,
+      bio: updated.bio ?? currentAdmin.bio,
+      phone: updated.phone ?? currentAdmin.phone,
+      province: updated.province ?? currentAdmin.province,
+      city: updated.city ?? currentAdmin.city,
+      kecamatan: updated.kecamatan ?? currentAdmin.kecamatan,
+      desa: updated.desa ?? currentAdmin.desa,
+      alamatLengkap: updated.alamatLengkap ?? currentAdmin.alamatLengkap,
+      coordinates: updated.coordinates !== undefined ? updated.coordinates : currentAdmin.coordinates,
+    });
   };
 
   const handleRsvpEvent = async (
@@ -511,38 +579,94 @@ export default function App() {
     rsvp: 'hadir' | 'belum_pasti' | 'tidak_hadir',
     note?: string
   ) => {
-    setEvents((prev) =>
-      prev.map((ev) => {
-        if (ev.id !== eventId) return ev;
-        const prevRsvp = ev.userRsvp;
-        let newAttendees = ev.attendeesCount;
-        let newAbsent = ev.absentCount || 0;
+    const targetEvent = events.find((ev) => ev.id === eventId);
+    if (!targetEvent) return;
 
-        // Decrement previous selection count
-        if (prevRsvp === 'hadir') newAttendees = Math.max(0, newAttendees - 1);
-        if (prevRsvp === 'tidak_hadir') newAbsent = Math.max(0, newAbsent - 1);
+    const prevRsvp = targetEvent.userRsvp;
+    let newAttendees = targetEvent.attendeesCount || 0;
+    let newAbsent = targetEvent.absentCount || targetEvent.notAttendingCount || 0;
 
-        // Increment new selection count
-        if (rsvp === 'hadir') newAttendees += 1;
-        if (rsvp === 'tidak_hadir') newAbsent += 1;
+    // Decrement previous selection count
+    if (prevRsvp === 'hadir') newAttendees = Math.max(0, newAttendees - 1);
+    if (prevRsvp === 'tidak_hadir') newAbsent = Math.max(0, newAbsent - 1);
 
-        return {
-          ...ev,
-          userRsvp: rsvp,
-          attendeesCount: newAttendees,
-          absentCount: newAbsent,
-          rsvpNote: note !== undefined ? note : ev.rsvpNote,
+    // Increment new selection count
+    if (rsvp === 'hadir') newAttendees += 1;
+    if (rsvp === 'tidak_hadir') newAbsent += 1;
+
+    const updatedEv: EventAgenda = {
+      ...targetEvent,
+      userRsvp: rsvp,
+      attendeesCount: newAttendees,
+      absentCount: newAbsent,
+      notAttendingCount: newAbsent,
+      rsvpNote: note !== undefined ? note : targetEvent.rsvpNote,
+    };
+
+    // Update state immediately
+    setEvents((prev) => prev.map((ev) => (ev.id === eventId ? updatedEv : ev)));
+
+    // Save event with updated attendees count immediately to server so polling doesn't overwrite it
+    await saveEventToHostinger(updatedEv);
+
+    const activeUser = currentSession?.role === 'admin' && currentSession.adminData
+      ? {
+          id: currentSession.adminData.id || 'adm-001',
+          name: currentSession.adminData.name,
+          username: currentSession.adminData.username,
+          photoUrl: currentSession.adminData.avatar,
+        }
+      : currentSession?.alumniData
+      ? {
+          id: currentSession.alumniData.id,
+          name: currentSession.alumniData.name,
+          username: currentSession.alumniData.username,
+          photoUrl: currentSession.alumniData.photoUrl,
+        }
+      : {
+          id: 'user-' + Date.now(),
+          name: 'Alumni',
+          username: '@alumni',
+          photoUrl: '',
         };
-      })
-    );
 
-    if (currentSession?.alumniData?.id) {
-      await saveRsvpToHostinger(eventId, currentSession.alumniData.id, rsvp, note, {
-        name: currentSession.alumniData.name,
-        username: currentSession.alumniData.username,
-        photoUrl: currentSession.alumniData.photoUrl,
-      });
+    const finalContent = note || (rsvp === 'hadir' ? 'Insya Allah saya hadir' : rsvp === 'tidak_hadir' ? 'Mohon maaf belum bisa hadir' : '');
+    if (rsvp !== 'belum_pasti') {
+      const rsvpComment: EventComment = {
+        id: `comm-rsvp-${activeUser.id}-${eventId}`,
+        eventId,
+        authorName: activeUser.name,
+        authorHandle: activeUser.username || '@alumni',
+        authorAvatar: activeUser.photoUrl,
+        avatarRing: true,
+        status: rsvp,
+        content: finalContent,
+        timeAgo: 'Baru saja',
+        likesCount: 0,
+        repliesCount: 0,
+        replies: [],
+        isCurrentUser: true,
+      };
+      await saveCommentToDatabase(rsvpComment, 'event');
     }
+
+    await saveRsvpToHostinger(
+      eventId,
+      activeUser.id,
+      rsvp,
+      finalContent,
+      {
+        name: activeUser.name,
+        username: activeUser.username,
+        photoUrl: activeUser.photoUrl,
+      },
+      {
+        attendeesCount: newAttendees,
+        absentCount: newAbsent,
+      }
+    );
+  };
+    );
   };
 
   const handleAddEvent = async (newEvent: EventAgenda) => {

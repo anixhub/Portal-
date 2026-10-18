@@ -863,7 +863,9 @@ if ($action === 'save_event' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         ) ON DUPLICATE KEY UPDATE
             title = VALUES(title), date = VALUES(date), time = VALUES(time), location = VALUES(location),
             category = VALUES(category), description = VALUES(description), poster_url = VALUES(poster_url),
-            images = VALUES(images), target_gender = VALUES(target_gender), target_region_scope = VALUES(target_region_scope),
+            images = VALUES(images), author_name = VALUES(author_name), author_handle = VALUES(author_handle),
+            author_avatar = VALUES(author_avatar), attendees_count = VALUES(attendees_count), absent_count = VALUES(absent_count),
+            target_gender = VALUES(target_gender), target_region_scope = VALUES(target_region_scope),
             target_province_name = VALUES(target_province_name), target_regency_name = VALUES(target_regency_name),
             target_district_name = VALUES(target_district_name), target_village_name = VALUES(target_village_name)";
 
@@ -932,11 +934,15 @@ if ($action === 'save_rsvp' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $note = $input['note'] ?? '';
     if ($eventId && $alumniId) {
         try {
-            $id = 'rsvp-' . md5($eventId . '_' . $alumniId);
-            $stmt = $pdo->prepare("INSERT INTO event_rsvps (id, event_id, alumni_id, status, note, updated_at) 
-                VALUES (:id, :eid, :aid, :st, :nt, NOW()) 
-                ON DUPLICATE KEY UPDATE status = VALUES(status), note = VALUES(note), updated_at = NOW()");
-            $stmt->execute([':id' => $id, ':eid' => $eventId, ':aid' => $alumniId, ':st' => $status, ':nt' => $note]);
+            try {
+                $id = 'rsvp-' . md5($eventId . '_' . $alumniId);
+                $stmt = $pdo->prepare("INSERT INTO event_rsvps (id, event_id, alumni_id, status, note, updated_at) 
+                    VALUES (:id, :eid, :aid, :st, :nt, NOW()) 
+                    ON DUPLICATE KEY UPDATE status = VALUES(status), note = VALUES(note), updated_at = NOW()");
+                $stmt->execute([':id' => $id, ':eid' => $eventId, ':aid' => $alumniId, ':st' => $status, ':nt' => $note]);
+            } catch (Exception $fkEx) {
+                // If foreign key fails because event wasn't in DB yet, continue to comment & count update
+            }
 
             // Sync tanggapan kehadiran ke post_comments agar akun admin dan publik dapat langsung melihat komentar konfirmasi kehadiran
             $defaultNote = ($status === 'hadir') ? 'Insya Allah saya hadir' : (($status === 'tidak_hadir') ? 'Mohon maaf belum bisa hadir' : '');
@@ -976,6 +982,27 @@ if ($action === 'save_rsvp' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                     ':cnt' => $finalContent,
                 ]);
             }
+
+            // Update attendees_count dan absent_count pada tabel events
+            try {
+                $countHadirStmt = $pdo->prepare("SELECT COUNT(*) FROM event_rsvps WHERE event_id = :eid AND status = 'hadir'");
+                $countHadirStmt->execute([':eid' => $eventId]);
+                $hadirCount = (int)$countHadirStmt->fetchColumn();
+
+                $countTidakStmt = $pdo->prepare("SELECT COUNT(*) FROM event_rsvps WHERE event_id = :eid AND status = 'tidak_hadir'");
+                $countTidakStmt->execute([':eid' => $eventId]);
+                $tidakCount = (int)$countTidakStmt->fetchColumn();
+
+                if (isset($input['attendeesCount'])) {
+                    $hadirCount = max($hadirCount, (int)$input['attendeesCount']);
+                }
+                if (isset($input['absentCount'])) {
+                    $tidakCount = max($tidakCount, (int)$input['absentCount']);
+                }
+
+                $updStmt = $pdo->prepare("UPDATE events SET attendees_count = :hc, absent_count = :tc WHERE id = :eid");
+                $updStmt->execute([':hc' => $hadirCount, ':tc' => $tidakCount, ':eid' => $eventId]);
+            } catch (Exception $evEx) {}
 
             echo json_encode(['success' => true, 'message' => 'RSVP berhasil disimpan']);
         } catch (Exception $e) {
@@ -1055,6 +1082,7 @@ if ($action === 'save_announcement' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         ) ON DUPLICATE KEY UPDATE
             title = VALUES(title), date = VALUES(date), category = VALUES(category),
             content = VALUES(content), is_important = VALUES(is_important), images = VALUES(images),
+            author_name = VALUES(author_name), author_handle = VALUES(author_handle), author_avatar = VALUES(author_avatar),
             target_gender = VALUES(target_gender), target_region_scope = VALUES(target_region_scope),
             target_province_name = VALUES(target_province_name), target_regency_name = VALUES(target_regency_name),
             target_district_name = VALUES(target_district_name), target_village_name = VALUES(target_village_name)";

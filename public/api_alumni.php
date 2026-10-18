@@ -863,7 +863,9 @@ if ($action === 'save_event' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         ) ON DUPLICATE KEY UPDATE
             title = VALUES(title), date = VALUES(date), time = VALUES(time), location = VALUES(location),
             category = VALUES(category), description = VALUES(description), poster_url = VALUES(poster_url),
-            images = VALUES(images), target_gender = VALUES(target_gender), target_region_scope = VALUES(target_region_scope),
+            images = VALUES(images), author_name = VALUES(author_name), author_handle = VALUES(author_handle),
+            author_avatar = VALUES(author_avatar), attendees_count = VALUES(attendees_count), absent_count = VALUES(absent_count),
+            target_gender = VALUES(target_gender), target_region_scope = VALUES(target_region_scope),
             target_province_name = VALUES(target_province_name), target_regency_name = VALUES(target_regency_name),
             target_district_name = VALUES(target_district_name), target_village_name = VALUES(target_village_name)";
 
@@ -1055,6 +1057,7 @@ if ($action === 'save_announcement' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         ) ON DUPLICATE KEY UPDATE
             title = VALUES(title), date = VALUES(date), category = VALUES(category),
             content = VALUES(content), is_important = VALUES(is_important), images = VALUES(images),
+            author_name = VALUES(author_name), author_handle = VALUES(author_handle), author_avatar = VALUES(author_avatar),
             target_gender = VALUES(target_gender), target_region_scope = VALUES(target_region_scope),
             target_province_name = VALUES(target_province_name), target_regency_name = VALUES(target_regency_name),
             target_district_name = VALUES(target_district_name), target_village_name = VALUES(target_village_name)";

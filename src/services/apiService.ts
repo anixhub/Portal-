@@ -17,7 +17,7 @@ export const syncChannel =
     ? new BroadcastChannel('attaroqqy_portal_sync_v1')
     : null;
 
-export function broadcastSyncEvent(type: 'alumni' | 'events' | 'announcements' | 'all') {
+export function broadcastSyncEvent(type: 'alumni' | 'events' | 'announcements' | 'comments' | 'all') {
   if (syncChannel) {
     try {
       syncChannel.postMessage({ type, timestamp: Date.now() });
@@ -927,8 +927,9 @@ export async function saveRsvpToHostinger(
   alumniId: string,
   status: 'hadir' | 'belum_pasti' | 'tidak_hadir',
   note?: string,
-  author?: { name?: string; username?: string; photoUrl?: string }
-): Promise<{ success: boolean }> {
+  author?: { name?: string; username?: string; photoUrl?: string },
+  counts?: { attendeesCount?: number; absentCount?: number }
+): Promise<{ success: boolean; event?: any }> {
   const endpoints = [
     `${HOSTINGER_API_URL}?action=save_rsvp`,
     'https://alumni.attaroqqy.com/api_alumni.php?action=save_rsvp',
@@ -943,6 +944,8 @@ export async function saveRsvpToHostinger(
     authorName: author?.name,
     authorHandle: author?.username,
     authorAvatar: author?.photoUrl,
+    attendeesCount: counts?.attendeesCount,
+    absentCount: counts?.absentCount,
   };
 
   await Promise.allSettled(
@@ -959,6 +962,74 @@ export async function saveRsvpToHostinger(
   broadcastSyncEvent('events');
   broadcastSyncEvent('comments');
   return { success: true };
+}
+
+export async function syncAdminProfileAcrossApp(data: {
+  prevName?: string;
+  prevUsername?: string;
+  name?: string;
+  username?: string;
+  avatar?: string;
+  jabatan?: string;
+  bio?: string;
+  phone?: string;
+  province?: string;
+  city?: string;
+  kecamatan?: string;
+  desa?: string;
+  alamatLengkap?: string;
+  coordinates?: any;
+}): Promise<{ success: boolean }> {
+  try {
+    await Promise.allSettled([
+      fetch('/api/admin/profile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      }),
+      fetch(`${HOSTINGER_API_URL}?action=save_admin_user`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: data.name,
+          username: data.username,
+          avatar: data.avatar,
+          jabatan: data.jabatan,
+          bio: data.bio,
+          phone: data.phone,
+          province: data.province,
+          city: data.city,
+          kecamatan: data.kecamatan,
+          desa: data.desa,
+          alamatLengkap: data.alamatLengkap,
+          coordinates: data.coordinates,
+        }),
+      }),
+      fetch('https://alumni.attaroqqy.com/api_alumni.php?action=save_admin_user', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: data.name,
+          username: data.username,
+          avatar: data.avatar,
+          jabatan: data.jabatan,
+          bio: data.bio,
+          phone: data.phone,
+          province: data.province,
+          city: data.city,
+          kecamatan: data.kecamatan,
+          desa: data.desa,
+          alamatLengkap: data.alamatLengkap,
+          coordinates: data.coordinates,
+        }),
+      }),
+    ]);
+    broadcastSyncEvent('events');
+    broadcastSyncEvent('announcements');
+    return { success: true };
+  } catch (e) {
+    return { success: false };
+  }
 }
 
 /**
