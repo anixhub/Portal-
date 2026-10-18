@@ -483,7 +483,17 @@ if ($action === 'update_alumni' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         if (!empty($fields)) {
+            $nikLookup = $input['nik_lookup'] ?? ($input['nik'] ?? '');
+            $nisLookup = $input['nis_lookup'] ?? ($input['nis'] ?? '');
             $sql = "UPDATE santri SET " . implode(", ", $fields) . " WHERE id = :id";
+            if (!empty($nikLookup)) {
+                $sql .= " OR (nik IS NOT NULL AND nik != '' AND nik = :nik_lookup)";
+                $params[':nik_lookup'] = $nikLookup;
+            }
+            if (!empty($nisLookup)) {
+                $sql .= " OR (nis IS NOT NULL AND nis != '' AND nis = :nis_lookup)";
+                $params[':nis_lookup'] = $nisLookup;
+            }
             $stmt = $pdo->prepare($sql);
             $stmt->execute($params);
         }

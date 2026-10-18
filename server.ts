@@ -14,8 +14,8 @@ const CACHE_TTL_MS = 60 * 1000; // 60 seconds cache to prevent repeated remote o
 
 // Load local fallback snapshot if available
 let localSnapshot: any = null;
+const snapshotPath = path.resolve(__dirname, 'src/data/santri_snapshot.json');
 try {
-  const snapshotPath = path.resolve(__dirname, 'src/data/santri_snapshot.json');
   if (fs.existsSync(snapshotPath)) {
     const raw = fs.readFileSync(snapshotPath, 'utf-8');
     localSnapshot = JSON.parse(raw);
@@ -186,9 +186,109 @@ async function startServer() {
   app.put('/api/db/santri/:id', async (req, res) => {
     const { id } = req.params;
     try {
-      console.log(`[Server] Forwarding PUT update for santri ID: ${id} to alumni.attaroqqy.com and attaroqqy.com`);
+      console.log(`[Server] Forwarding PUT update for santri ID: ${id}`);
       const payload = { id, ...req.body };
-      await Promise.allSettled([
+
+      // Normalize both snake_case and camelCase aliases for full compatibility
+      const normalizedPayload: Record<string, any> = { ...payload };
+      if (payload.nama) { normalizedPayload.name = payload.nama; normalizedPayload.nama = payload.nama; }
+      if (payload.name) { normalizedPayload.nama = payload.name; normalizedPayload.name = payload.name; }
+      if (payload.tempatLahir !== undefined) { normalizedPayload.tempat_lahir = payload.tempatLahir; normalizedPayload.tempatLahir = payload.tempatLahir; }
+      if (payload.tempat_lahir !== undefined) { normalizedPayload.tempatLahir = payload.tempat_lahir; normalizedPayload.tempat_lahir = payload.tempat_lahir; }
+      if (payload.tanggalLahir !== undefined) { normalizedPayload.tanggal_lahir = payload.tanggalLahir; normalizedPayload.tanggalLahir = payload.tanggalLahir; }
+      if (payload.tanggal_lahir !== undefined) { normalizedPayload.tanggalLahir = payload.tanggal_lahir; normalizedPayload.tanggal_lahir = payload.tanggal_lahir; }
+      if (payload.alamatLengkap !== undefined) {
+        normalizedPayload.alamat = payload.alamatLengkap;
+        normalizedPayload.address = payload.alamatLengkap;
+        normalizedPayload.alamatLengkap = payload.alamatLengkap;
+      }
+      if (payload.alamat !== undefined) {
+        normalizedPayload.alamatLengkap = payload.alamat;
+        normalizedPayload.alamat = payload.alamat;
+      }
+      if (payload.city !== undefined) { normalizedPayload.kabupaten = payload.city; normalizedPayload.city = payload.city; }
+      if (payload.kabupaten !== undefined) { normalizedPayload.city = payload.kabupaten; normalizedPayload.kabupaten = payload.kabupaten; }
+      if (payload.province !== undefined) { normalizedPayload.provinsi = payload.province; normalizedPayload.province = payload.province; }
+      if (payload.provinsi !== undefined) { normalizedPayload.province = payload.provinsi; normalizedPayload.provinsi = payload.provinsi; }
+      if (payload.phone !== undefined) { normalizedPayload.no_hp = payload.phone; normalizedPayload.phone = payload.phone; }
+      if (payload.no_hp !== undefined) { normalizedPayload.phone = payload.no_hp; normalizedPayload.no_hp = payload.no_hp; }
+      if (payload.occupation !== undefined) { normalizedPayload.pekerjaan = payload.occupation; normalizedPayload.occupation = payload.occupation; }
+      if (payload.pekerjaan !== undefined) { normalizedPayload.occupation = payload.pekerjaan; normalizedPayload.pekerjaan = payload.pekerjaan; }
+      if (payload.institution !== undefined) { normalizedPayload.instansi = payload.institution; normalizedPayload.institution = payload.institution; }
+      if (payload.instansi !== undefined) { normalizedPayload.institution = payload.instansi; normalizedPayload.instansi = payload.instansi; }
+      if (payload.namaAyah !== undefined) { normalizedPayload.nama_ayah = payload.namaAyah; normalizedPayload.namaAyah = payload.namaAyah; }
+      if (payload.nama_ayah !== undefined) { normalizedPayload.namaAyah = payload.nama_ayah; normalizedPayload.nama_ayah = payload.nama_ayah; }
+      if (payload.nikAyah !== undefined) { normalizedPayload.nik_ayah = payload.nikAyah; normalizedPayload.nikAyah = payload.nikAyah; }
+      if (payload.nik_ayah !== undefined) { normalizedPayload.nikAyah = payload.nik_ayah; normalizedPayload.nik_ayah = payload.nik_ayah; }
+      if (payload.pekerjaanAyah !== undefined) { normalizedPayload.pekerjaan_ayah = payload.pekerjaanAyah; normalizedPayload.pekerjaanAyah = payload.pekerjaanAyah; }
+      if (payload.pekerjaan_ayah !== undefined) { normalizedPayload.pekerjaanAyah = payload.pekerjaan_ayah; normalizedPayload.pekerjaan_ayah = payload.pekerjaan_ayah; }
+      if (payload.pendidikanAyah !== undefined) { normalizedPayload.pendidikan_ayah = payload.pendidikanAyah; normalizedPayload.pendidikanAyah = payload.pendidikanAyah; }
+      if (payload.pendidikan_ayah !== undefined) { normalizedPayload.pendidikanAyah = payload.pendidikan_ayah; normalizedPayload.pendidikan_ayah = payload.pendidikan_ayah; }
+      if (payload.namaIbu !== undefined) { normalizedPayload.nama_ibu = payload.namaIbu; normalizedPayload.namaIbu = payload.namaIbu; }
+      if (payload.nama_ibu !== undefined) { normalizedPayload.namaIbu = payload.nama_ibu; normalizedPayload.nama_ibu = payload.nama_ibu; }
+      if (payload.nikIbu !== undefined) { normalizedPayload.nik_ibu = payload.nikIbu; normalizedPayload.nikIbu = payload.nikIbu; }
+      if (payload.nik_ibu !== undefined) { normalizedPayload.nikIbu = payload.nik_ibu; normalizedPayload.nik_ibu = payload.nik_ibu; }
+      if (payload.pekerjaanIbu !== undefined) { normalizedPayload.pekerjaan_ibu = payload.pekerjaanIbu; normalizedPayload.pekerjaanIbu = payload.pekerjaanIbu; }
+      if (payload.pekerjaan_ibu !== undefined) { normalizedPayload.pekerjaanIbu = payload.pekerjaan_ibu; normalizedPayload.pekerjaan_ibu = payload.pekerjaan_ibu; }
+      if (payload.pendidikanIbu !== undefined) { normalizedPayload.pendidikan_ibu = payload.pendidikanIbu; normalizedPayload.pendidikanIbu = payload.pendidikanIbu; }
+      if (payload.pendidikan_ibu !== undefined) { normalizedPayload.pendidikanIbu = payload.pendidikan_ibu; normalizedPayload.pendidikan_ibu = payload.pendidikan_ibu; }
+      if (payload.urutanAnak !== undefined) { normalizedPayload.anak_ke = payload.urutanAnak; normalizedPayload.urutanAnak = payload.urutanAnak; }
+      if (payload.anak_ke !== undefined) { normalizedPayload.urutanAnak = payload.anak_ke; normalizedPayload.anak_ke = payload.anak_ke; }
+      if (payload.jumlahSaudara !== undefined) { normalizedPayload.dari_bersaudara = payload.jumlahSaudara; normalizedPayload.jumlahSaudara = payload.jumlahSaudara; }
+      if (payload.dari_bersaudara !== undefined) { normalizedPayload.jumlahSaudara = payload.dari_bersaudara; normalizedPayload.dari_bersaudara = payload.dari_bersaudara; }
+      if (payload.entryDate !== undefined) { normalizedPayload.tanggal_masuk = payload.entryDate; normalizedPayload.entryDate = payload.entryDate; }
+      if (payload.tanggal_masuk !== undefined) { normalizedPayload.entryDate = payload.tanggal_masuk; normalizedPayload.tanggal_masuk = payload.tanggal_masuk; }
+      if (payload.gradDate !== undefined) { normalizedPayload.tanggal_keluar = payload.gradDate; normalizedPayload.gradDate = payload.gradDate; }
+      if (payload.tanggal_keluar !== undefined) { normalizedPayload.gradDate = payload.tanggal_keluar; normalizedPayload.tanggal_keluar = payload.tanggal_keluar; }
+      if (payload.gradYear !== undefined) { normalizedPayload.tahun_lulus = payload.gradYear; normalizedPayload.gradYear = payload.gradYear; }
+      if (payload.tahun_lulus !== undefined) { normalizedPayload.gradYear = payload.tahun_lulus; normalizedPayload.tahun_lulus = payload.tahun_lulus; }
+      if (payload.asramaDulu !== undefined) { normalizedPayload.kamar = payload.asramaDulu; normalizedPayload.asramaDulu = payload.asramaDulu; }
+      if (payload.kamar !== undefined) { normalizedPayload.asramaDulu = payload.kamar; normalizedPayload.kamar = payload.kamar; }
+      if (payload.coordinates !== undefined) {
+        normalizedPayload.latitude = payload.coordinates?.lat ?? payload.latitude;
+        normalizedPayload.longitude = payload.coordinates?.lng ?? payload.longitude;
+      }
+
+      // Update in-memory localSnapshot and persist to disk immediately
+      if (localSnapshot && Array.isArray(localSnapshot.data)) {
+        const idx = localSnapshot.data.findIndex(
+          (s: any) =>
+            String(s.id) === String(id) ||
+            (payload.nik && String(s.nik) === String(payload.nik)) ||
+            (payload.nis && String(s.nis) === String(payload.nis))
+        );
+        if (idx >= 0) {
+          localSnapshot.data[idx] = { ...localSnapshot.data[idx], ...normalizedPayload };
+        } else {
+          localSnapshot.data.unshift(normalizedPayload);
+        }
+        try {
+          fs.writeFileSync(snapshotPath, JSON.stringify(localSnapshot, null, 2), 'utf-8');
+        } catch (e) {
+          console.warn('[Server] Error persisting santri_snapshot.json:', e);
+        }
+      }
+
+      // Update in-memory cache
+      if (cachedSantriData && Array.isArray(cachedSantriData.data)) {
+        const idx = cachedSantriData.data.findIndex(
+          (s: any) =>
+            String(s.id) === String(id) ||
+            (payload.nik && String(s.nik) === String(payload.nik)) ||
+            (payload.nis && String(s.nis) === String(payload.nis))
+        );
+        if (idx >= 0) {
+          cachedSantriData.data[idx] = { ...cachedSantriData.data[idx], ...normalizedPayload };
+        } else {
+          cachedSantriData.data.unshift(normalizedPayload);
+        }
+      } else {
+        cachedSantriData = localSnapshot;
+      }
+      lastCacheTime = Date.now();
+
+      // Forward to remote Hostinger backend in background
+      Promise.allSettled([
         fetch('https://alumni.attaroqqy.com/api_alumni.php?action=update_alumni', {
           method: 'POST',
           headers: {
@@ -196,7 +296,7 @@ async function startServer() {
             Accept: 'application/json',
           },
           body: JSON.stringify(payload),
-          signal: AbortSignal.timeout(12000),
+          signal: AbortSignal.timeout(10000),
         }),
         fetch(`https://attaroqqy.com/api/db/santri/${id}`, {
           method: 'PUT',
@@ -205,15 +305,13 @@ async function startServer() {
             Accept: 'application/json',
           },
           body: JSON.stringify(payload),
-          signal: AbortSignal.timeout(12000),
+          signal: AbortSignal.timeout(10000),
         }),
-      ]);
+      ]).catch(() => {});
 
-      cachedSantriData = null;
-      lastCacheTime = 0;
       res.json({ success: true, message: 'Data santri berhasil diperbarui' });
     } catch (err: any) {
-      console.warn(`[Server] Error proxying PUT for ${id}:`, err?.message);
+      console.warn(`[Server] Error processing PUT for ${id}:`, err?.message);
       res.status(500).json({ success: false, message: err?.message });
     }
   });
@@ -221,16 +319,38 @@ async function startServer() {
   // Santri API: POST (create)
   app.post('/api/db/santri', async (req, res) => {
     try {
-      console.log('[Server] Forwarding POST new santri to alumni.attaroqqy.com and attaroqqy.com');
-      await Promise.allSettled([
+      console.log('[Server] Adding new santri:', req.body?.name || req.body?.nama);
+      const newRecord = { ...req.body };
+      if (!newRecord.id) {
+        newRecord.id = `alm-${Date.now()}`;
+      }
+
+      if (localSnapshot && Array.isArray(localSnapshot.data)) {
+        localSnapshot.data.unshift(newRecord);
+        try {
+          fs.writeFileSync(snapshotPath, JSON.stringify(localSnapshot, null, 2), 'utf-8');
+        } catch (e) {
+          console.warn('[Server] Error persisting new santri to snapshot:', e);
+        }
+      }
+
+      if (cachedSantriData && Array.isArray(cachedSantriData.data)) {
+        cachedSantriData.data.unshift(newRecord);
+      } else {
+        cachedSantriData = localSnapshot;
+      }
+      lastCacheTime = Date.now();
+
+      // Forward to remote Hostinger backend in background
+      Promise.allSettled([
         fetch('https://alumni.attaroqqy.com/api_alumni.php?action=add_alumni', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             Accept: 'application/json',
           },
-          body: JSON.stringify(req.body),
-          signal: AbortSignal.timeout(12000),
+          body: JSON.stringify(newRecord),
+          signal: AbortSignal.timeout(10000),
         }),
         fetch('https://attaroqqy.com/api/db/santri', {
           method: 'POST',
@@ -238,16 +358,14 @@ async function startServer() {
             'Content-Type': 'application/json',
             Accept: 'application/json',
           },
-          body: JSON.stringify(req.body),
-          signal: AbortSignal.timeout(12000),
+          body: JSON.stringify(newRecord),
+          signal: AbortSignal.timeout(10000),
         }),
-      ]);
+      ]).catch(() => {});
 
-      cachedSantriData = null;
-      lastCacheTime = 0;
-      res.json({ success: true, message: 'Santri/alumni baru berhasil ditambahkan' });
+      res.json({ success: true, message: 'Santri/alumni baru berhasil ditambahkan', id: newRecord.id });
     } catch (err: any) {
-      console.warn('[Server] Error proxying POST santri:', err?.message);
+      console.warn('[Server] Error adding santri:', err?.message);
       res.status(500).json({ success: false, message: err?.message });
     }
   });
@@ -256,23 +374,34 @@ async function startServer() {
   app.delete('/api/db/santri/:id', async (req, res) => {
     const { id } = req.params;
     try {
-      console.log(`[Server] Forwarding DELETE for santri ID: ${id} to alumni.attaroqqy.com`);
-      const remoteRes = await fetch('https://alumni.attaroqqy.com/api_alumni.php?action=delete_alumni', {
+      console.log(`[Server] Deleting santri ID: ${id}`);
+      if (localSnapshot && Array.isArray(localSnapshot.data)) {
+        localSnapshot.data = localSnapshot.data.filter((s: any) => String(s.id) !== String(id));
+        try {
+          fs.writeFileSync(snapshotPath, JSON.stringify(localSnapshot, null, 2), 'utf-8');
+        } catch (e) {
+          console.warn('[Server] Error deleting from snapshot:', e);
+        }
+      }
+
+      if (cachedSantriData && Array.isArray(cachedSantriData.data)) {
+        cachedSantriData.data = cachedSantriData.data.filter((s: any) => String(s.id) !== String(id));
+      }
+      lastCacheTime = Date.now();
+
+      fetch('https://alumni.attaroqqy.com/api_alumni.php?action=delete_alumni', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Accept: 'application/json',
         },
         body: JSON.stringify({ id }),
-        signal: AbortSignal.timeout(12000),
-      });
+        signal: AbortSignal.timeout(8000),
+      }).catch(() => {});
 
-      const responseData = await remoteRes.json().catch(() => ({ success: remoteRes.ok }));
-      cachedSantriData = null;
-      lastCacheTime = 0;
-      res.status(remoteRes.status || 200).json(responseData);
+      res.json({ success: true, message: 'Alumni berhasil dihapus' });
     } catch (err: any) {
-      console.warn(`[Server] Error proxying DELETE for ${id}:`, err?.message);
+      console.warn(`[Server] Error deleting santri ${id}:`, err?.message);
       res.status(500).json({ success: false, message: err?.message });
     }
   });

@@ -339,10 +339,11 @@ export async function uploadFileToHostinger(
  */
 export async function updateAlumniInHostinger(
   id: string,
-  updates: Partial<AlumniRecord>
+  updates: Partial<AlumniRecord>,
+  fullRecord?: Partial<AlumniRecord>
 ): Promise<{ success: boolean; message?: string }> {
   try {
-    const rawGender = updates.gender;
+    const rawGender = updates.gender ?? fullRecord?.gender;
     const isPutri =
       rawGender === 'P' ||
       rawGender === 'Putri' ||
@@ -353,27 +354,55 @@ export async function updateAlumniInHostinger(
 
     const finalAnakKe = updates.anak_ke !== undefined
       ? Number(updates.anak_ke)
-      : (updates.urutanAnak !== undefined ? Number(updates.urutanAnak) : undefined);
+      : (updates.urutanAnak !== undefined ? Number(updates.urutanAnak) : (fullRecord?.anak_ke ?? fullRecord?.urutanAnak));
 
     const finalJumlahSaudara = updates.dari_bersaudara !== undefined
       ? Number(updates.dari_bersaudara)
-      : (updates.jumlahSaudara !== undefined ? Number(updates.jumlahSaudara) : undefined);
+      : (updates.jumlahSaudara !== undefined ? Number(updates.jumlahSaudara) : (fullRecord?.dari_bersaudara ?? fullRecord?.jumlahSaudara));
+
+    const effectiveNik = updates.nik ?? fullRecord?.nik;
+    const effectiveNis = updates.nis ?? fullRecord?.nis;
 
     // 1. Siapkan payload untuk Express SmartSantri API (/api/db/santri/:id)
     // yang digunakan oleh aplikasi lama
     const expressPayload: Record<string, any> = {
       id,
+      ...updates,
     };
+    if (effectiveNik !== undefined) {
+      expressPayload.nik = effectiveNik;
+      expressPayload.nik_lookup = effectiveNik;
+    }
+    if (effectiveNis !== undefined) {
+      expressPayload.nis = effectiveNis;
+      expressPayload.nis_lookup = effectiveNis;
+    }
+    if (updates.noKk !== undefined || fullRecord?.noKk !== undefined) {
+      const val = updates.noKk ?? fullRecord?.noKk;
+      expressPayload.noKk = val;
+      expressPayload.no_kk = val;
+    }
     if (expressGender !== undefined) {
-      expressPayload.gender = expressGender; // Tersimpan 'Putra' atau 'Putri' persis database aplikasi lama
+      expressPayload.gender = expressGender;
       expressPayload.jenis_kelamin = expressGender;
       expressPayload.jk = expressGender;
     }
-    if (updates.name !== undefined) expressPayload.nama = updates.name;
+    if (updates.name !== undefined || fullRecord?.name !== undefined) {
+      const nm = updates.name ?? fullRecord?.name;
+      expressPayload.nama = nm;
+      expressPayload.name = nm;
+    }
     if (updates.username !== undefined) expressPayload.username = updates.username;
-    if (updates.nis !== undefined) expressPayload.nis = updates.nis;
-    if (updates.tempatLahir !== undefined) expressPayload.tempat_lahir = updates.tempatLahir;
-    if (updates.tanggalLahir !== undefined) expressPayload.tanggal_lahir = updates.tanggalLahir;
+    if (updates.tempatLahir !== undefined || fullRecord?.tempatLahir !== undefined) {
+      const tl = updates.tempatLahir ?? fullRecord?.tempatLahir;
+      expressPayload.tempat_lahir = tl;
+      expressPayload.tempatLahir = tl;
+    }
+    if (updates.tanggalLahir !== undefined || fullRecord?.tanggalLahir !== undefined) {
+      const tgl = updates.tanggalLahir ?? fullRecord?.tanggalLahir;
+      expressPayload.tanggal_lahir = tgl;
+      expressPayload.tanggalLahir = tgl;
+    }
     if (finalAnakKe !== undefined) {
       expressPayload.anak_ke = finalAnakKe;
       expressPayload.anakKe = finalAnakKe;
@@ -385,26 +414,93 @@ export async function updateAlumniInHostinger(
       expressPayload.jumlahSaudara = finalJumlahSaudara;
       expressPayload.jumlah_saudara = finalJumlahSaudara;
     }
-    if (updates.namaAyah !== undefined) expressPayload.nama_ayah = updates.namaAyah;
-    if (updates.nikAyah !== undefined) expressPayload.nik_ayah = updates.nikAyah;
-    if (updates.pekerjaanAyah !== undefined) expressPayload.pekerjaan_ayah = updates.pekerjaanAyah;
-    if (updates.pendidikanAyah !== undefined) expressPayload.pendidikan_ayah = updates.pendidikanAyah;
-    if (updates.namaIbu !== undefined) expressPayload.nama_ibu = updates.namaIbu;
-    if (updates.nikIbu !== undefined) expressPayload.nik_ibu = updates.nikIbu;
-    if (updates.pekerjaanIbu !== undefined) expressPayload.pekerjaan_ibu = updates.pekerjaanIbu;
-    if (updates.pendidikanIbu !== undefined) expressPayload.pendidikan_ibu = updates.pendidikanIbu;
-    if (updates.phone !== undefined) expressPayload.no_hp = updates.phone;
-    if (updates.email !== undefined) expressPayload.email = updates.email;
-    if (updates.alamatLengkap !== undefined || (updates as any).address !== undefined) {
-      expressPayload.alamat = updates.alamatLengkap ?? (updates as any).address;
+    if (updates.namaAyah !== undefined || fullRecord?.namaAyah !== undefined) {
+      const v = updates.namaAyah ?? fullRecord?.namaAyah;
+      expressPayload.nama_ayah = v;
+      expressPayload.namaAyah = v;
     }
-    if (updates.desa !== undefined) expressPayload.desa = updates.desa;
-    if (updates.kecamatan !== undefined) expressPayload.kecamatan = updates.kecamatan;
-    if (updates.city !== undefined) expressPayload.kabupaten = updates.city;
-    if (updates.province !== undefined) expressPayload.provinsi = updates.province;
-    if (updates.occupation !== undefined) expressPayload.pekerjaan = updates.occupation;
-    if (updates.institution !== undefined) expressPayload.instansi = updates.institution;
-    if (updates.bio !== undefined) expressPayload.bio = updates.bio;
+    if (updates.nikAyah !== undefined || fullRecord?.nikAyah !== undefined) {
+      const v = updates.nikAyah ?? fullRecord?.nikAyah;
+      expressPayload.nik_ayah = v;
+      expressPayload.nikAyah = v;
+    }
+    if (updates.pekerjaanAyah !== undefined || fullRecord?.pekerjaanAyah !== undefined) {
+      const v = updates.pekerjaanAyah ?? fullRecord?.pekerjaanAyah;
+      expressPayload.pekerjaan_ayah = v;
+      expressPayload.pekerjaanAyah = v;
+    }
+    if (updates.pendidikanAyah !== undefined || fullRecord?.pendidikanAyah !== undefined) {
+      const v = updates.pendidikanAyah ?? fullRecord?.pendidikanAyah;
+      expressPayload.pendidikan_ayah = v;
+      expressPayload.pendidikanAyah = v;
+    }
+    if (updates.namaIbu !== undefined || fullRecord?.namaIbu !== undefined) {
+      const v = updates.namaIbu ?? fullRecord?.namaIbu;
+      expressPayload.nama_ibu = v;
+      expressPayload.namaIbu = v;
+    }
+    if (updates.nikIbu !== undefined || fullRecord?.nikIbu !== undefined) {
+      const v = updates.nikIbu ?? fullRecord?.nikIbu;
+      expressPayload.nik_ibu = v;
+      expressPayload.nikIbu = v;
+    }
+    if (updates.pekerjaanIbu !== undefined || fullRecord?.pekerjaanIbu !== undefined) {
+      const v = updates.pekerjaanIbu ?? fullRecord?.pekerjaanIbu;
+      expressPayload.pekerjaan_ibu = v;
+      expressPayload.pekerjaanIbu = v;
+    }
+    if (updates.pendidikanIbu !== undefined || fullRecord?.pendidikanIbu !== undefined) {
+      const v = updates.pendidikanIbu ?? fullRecord?.pendidikanIbu;
+      expressPayload.pendidikan_ibu = v;
+      expressPayload.pendidikanIbu = v;
+    }
+    if (updates.phone !== undefined || fullRecord?.phone !== undefined) {
+      const v = updates.phone ?? fullRecord?.phone;
+      expressPayload.no_hp = v;
+      expressPayload.phone = v;
+    }
+    if (updates.email !== undefined || fullRecord?.email !== undefined) {
+      const v = updates.email ?? fullRecord?.email;
+      expressPayload.email = v;
+    }
+    if (updates.alamatLengkap !== undefined || (updates as any).address !== undefined || fullRecord?.alamatLengkap !== undefined) {
+      const v = updates.alamatLengkap ?? (updates as any).address ?? fullRecord?.alamatLengkap;
+      expressPayload.alamat = v;
+      expressPayload.alamatLengkap = v;
+      expressPayload.address = v;
+    }
+    if (updates.desa !== undefined || fullRecord?.desa !== undefined) {
+      const v = updates.desa ?? fullRecord?.desa;
+      expressPayload.desa = v;
+    }
+    if (updates.kecamatan !== undefined || fullRecord?.kecamatan !== undefined) {
+      const v = updates.kecamatan ?? fullRecord?.kecamatan;
+      expressPayload.kecamatan = v;
+    }
+    if (updates.city !== undefined || fullRecord?.city !== undefined) {
+      const v = updates.city ?? fullRecord?.city;
+      expressPayload.kabupaten = v;
+      expressPayload.city = v;
+    }
+    if (updates.province !== undefined || fullRecord?.province !== undefined) {
+      const v = updates.province ?? fullRecord?.province;
+      expressPayload.provinsi = v;
+      expressPayload.province = v;
+    }
+    if (updates.occupation !== undefined || fullRecord?.occupation !== undefined) {
+      const v = updates.occupation ?? fullRecord?.occupation;
+      expressPayload.pekerjaan = v;
+      expressPayload.occupation = v;
+    }
+    if (updates.institution !== undefined || fullRecord?.institution !== undefined) {
+      const v = updates.institution ?? fullRecord?.institution;
+      expressPayload.instansi = v;
+      expressPayload.institution = v;
+    }
+    if (updates.bio !== undefined || fullRecord?.bio !== undefined) {
+      const v = updates.bio ?? fullRecord?.bio;
+      expressPayload.bio = v;
+    }
 
     // Sinkronisasi Foto: Upload base64 ke server agar aplikasi lama dan aplikasi ini mengakses file yang sama persis
     if (updates.photoUrl !== undefined || (updates as any).avatarUrl !== undefined) {
@@ -452,10 +548,16 @@ export async function updateAlumniInHostinger(
       expressPayload.tahun_masuk = updates.entryYear || null;
     }
 
-    if (updates.asramaDulu !== undefined) expressPayload.kamar = updates.asramaDulu;
-    if (updates.coordinates !== undefined) {
-      expressPayload.latitude = updates.coordinates ? updates.coordinates.lat : null;
-      expressPayload.longitude = updates.coordinates ? updates.coordinates.lng : null;
+    if (updates.asramaDulu !== undefined || fullRecord?.asramaDulu !== undefined) {
+      const v = updates.asramaDulu ?? fullRecord?.asramaDulu;
+      expressPayload.kamar = v;
+      expressPayload.asramaDulu = v;
+    }
+    if (updates.coordinates !== undefined || fullRecord?.coordinates !== undefined) {
+      const coords = updates.coordinates !== undefined ? updates.coordinates : fullRecord?.coordinates;
+      expressPayload.latitude = coords ? coords.lat : null;
+      expressPayload.longitude = coords ? coords.lng : null;
+      expressPayload.coordinates = coords;
     }
     expressPayload.status_keanggotaan = 'Alumni';
 
@@ -463,18 +565,62 @@ export async function updateAlumniInHostinger(
     const phpPayload: Record<string, any> = {
       id,
       ...updates,
-      nama: updates.name ?? (updates as any).nama,
-      name: updates.name ?? (updates as any).nama,
-      nik: updates.nik,
-      no_kk: updates.noKk ?? (updates as any).no_kk,
-      noKk: updates.noKk ?? (updates as any).no_kk,
-      kamar: updates.asramaDulu ?? (updates as any).kamar,
-      asramaDulu: updates.asramaDulu ?? (updates as any).kamar,
-      kelas: updates.jenjang ?? (updates as any).kelas,
-      jenjang: updates.jenjang ?? (updates as any).kelas,
-      tahun_lulus: updates.gradYear ?? (updates as any).tahun_lulus,
-      tanggal_masuk: updates.entryDate ?? (updates as any).tanggal_masuk,
-      tanggal_keluar: updates.gradDate ?? (updates as any).tanggal_keluar,
+      nama: updates.name ?? (updates as any).nama ?? fullRecord?.name,
+      name: updates.name ?? (updates as any).nama ?? fullRecord?.name,
+      nik: effectiveNik,
+      nik_lookup: effectiveNik,
+      nis: effectiveNis,
+      nis_lookup: effectiveNis,
+      no_kk: updates.noKk ?? (updates as any).no_kk ?? fullRecord?.noKk,
+      noKk: updates.noKk ?? (updates as any).no_kk ?? fullRecord?.noKk,
+      tempat_lahir: updates.tempatLahir ?? (updates as any).tempat_lahir ?? fullRecord?.tempatLahir,
+      tempatLahir: updates.tempatLahir ?? (updates as any).tempat_lahir ?? fullRecord?.tempatLahir,
+      tanggal_lahir: updates.tanggalLahir ?? (updates as any).tanggal_lahir ?? fullRecord?.tanggalLahir,
+      tanggalLahir: updates.tanggalLahir ?? (updates as any).tanggal_lahir ?? fullRecord?.tanggalLahir,
+      alamat: updates.alamatLengkap ?? (updates as any).alamat ?? (updates as any).address ?? fullRecord?.alamatLengkap,
+      alamatLengkap: updates.alamatLengkap ?? (updates as any).alamat ?? (updates as any).address ?? fullRecord?.alamatLengkap,
+      address: updates.alamatLengkap ?? (updates as any).alamat ?? (updates as any).address ?? fullRecord?.alamatLengkap,
+      desa: updates.desa ?? fullRecord?.desa,
+      kecamatan: updates.kecamatan ?? fullRecord?.kecamatan,
+      kabupaten: updates.city ?? (updates as any).kabupaten ?? fullRecord?.city,
+      city: updates.city ?? (updates as any).kabupaten ?? fullRecord?.city,
+      provinsi: updates.province ?? (updates as any).provinsi ?? fullRecord?.province,
+      province: updates.province ?? (updates as any).provinsi ?? fullRecord?.province,
+      no_hp: updates.phone ?? (updates as any).no_hp ?? fullRecord?.phone,
+      phone: updates.phone ?? (updates as any).no_hp ?? fullRecord?.phone,
+      email: updates.email ?? fullRecord?.email,
+      pekerjaan: updates.occupation ?? (updates as any).pekerjaan ?? fullRecord?.occupation,
+      occupation: updates.occupation ?? (updates as any).pekerjaan ?? fullRecord?.occupation,
+      instansi: updates.institution ?? (updates as any).instansi ?? fullRecord?.institution,
+      institution: updates.institution ?? (updates as any).instansi ?? fullRecord?.institution,
+      bio: updates.bio ?? fullRecord?.bio,
+      kamar: updates.asramaDulu ?? (updates as any).kamar ?? fullRecord?.asramaDulu,
+      asramaDulu: updates.asramaDulu ?? (updates as any).kamar ?? fullRecord?.asramaDulu,
+      kelas: updates.jenjang ?? (updates as any).kelas ?? fullRecord?.jenjang,
+      jenjang: updates.jenjang ?? (updates as any).kelas ?? fullRecord?.jenjang,
+      nama_ayah: updates.namaAyah ?? (updates as any).nama_ayah ?? fullRecord?.namaAyah,
+      namaAyah: updates.namaAyah ?? (updates as any).nama_ayah ?? fullRecord?.namaAyah,
+      nik_ayah: updates.nikAyah ?? (updates as any).nik_ayah ?? fullRecord?.nikAyah,
+      nikAyah: updates.nikAyah ?? (updates as any).nik_ayah ?? fullRecord?.nikAyah,
+      pekerjaan_ayah: updates.pekerjaanAyah ?? (updates as any).pekerjaan_ayah ?? fullRecord?.pekerjaanAyah,
+      pekerjaanAyah: updates.pekerjaanAyah ?? (updates as any).pekerjaan_ayah ?? fullRecord?.pekerjaanAyah,
+      pendidikan_ayah: updates.pendidikanAyah ?? (updates as any).pendidikan_ayah ?? fullRecord?.pendidikanAyah,
+      pendidikanAyah: updates.pendidikanAyah ?? (updates as any).pendidikan_ayah ?? fullRecord?.pendidikanAyah,
+      nama_ibu: updates.namaIbu ?? (updates as any).nama_ibu ?? fullRecord?.namaIbu,
+      namaIbu: updates.namaIbu ?? (updates as any).nama_ibu ?? fullRecord?.namaIbu,
+      nik_ibu: updates.nikIbu ?? (updates as any).nik_ibu ?? fullRecord?.nikIbu,
+      nikIbu: updates.nikIbu ?? (updates as any).nik_ibu ?? fullRecord?.nikIbu,
+      pekerjaan_ibu: updates.pekerjaanIbu ?? (updates as any).pekerjaan_ibu ?? fullRecord?.pekerjaanIbu,
+      pekerjaanIbu: updates.pekerjaanIbu ?? (updates as any).pekerjaan_ibu ?? fullRecord?.pekerjaanIbu,
+      pendidikan_ibu: updates.pendidikanIbu ?? (updates as any).pendidikan_ibu ?? fullRecord?.pendidikanIbu,
+      pendidikanIbu: updates.pendidikanIbu ?? (updates as any).pendidikan_ibu ?? fullRecord?.pendidikanIbu,
+      tahun_lulus: updates.gradYear ?? (updates as any).tahun_lulus ?? fullRecord?.gradYear,
+      gradYear: updates.gradYear ?? (updates as any).tahun_lulus ?? fullRecord?.gradYear,
+      tanggal_masuk: updates.entryDate ?? (updates as any).tanggal_masuk ?? fullRecord?.entryDate,
+      entryDate: updates.entryDate ?? (updates as any).tanggal_masuk ?? fullRecord?.entryDate,
+      tanggal_keluar: updates.gradDate ?? (updates as any).tanggal_keluar ?? fullRecord?.gradDate,
+      gradDate: updates.gradDate ?? (updates as any).tanggal_keluar ?? fullRecord?.gradDate,
+      status_keanggotaan: 'Alumni',
       ...(standardGender !== undefined
         ? {
             gender: standardGender,
@@ -501,6 +647,12 @@ export async function updateAlumniInHostinger(
           }
         : {}),
     };
+    if (updates.coordinates !== undefined || fullRecord?.coordinates !== undefined) {
+      const c = updates.coordinates !== undefined ? updates.coordinates : fullRecord?.coordinates;
+      phpPayload.latitude = c ? c.lat : null;
+      phpPayload.longitude = c ? c.lng : null;
+      phpPayload.coordinates = c;
+    }
 
     // Eksekusi pembaruan ke kedua backend secara bersamaan
     const targets = [

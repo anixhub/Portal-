@@ -211,6 +211,7 @@ export const AdminAnnouncementsTab: React.FC<AdminAnnouncementsTabProps> = ({
   announcements,
   adminUser,
   alumniList = [],
+  adminList = [],
   onAddAnnouncement: _onAddAnnouncement,
   onUpdateAnnouncement,
   onDeleteAnnouncement,

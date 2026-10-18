@@ -483,7 +483,7 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
         const targetAnn = (propAnnouncements || announcements)?.find((a) => a.id === item.targetId);
         if (targetAnn) {
           setTimeout(() => {
-            setActiveCommentsModalAnnouncement(targetAnn);
+            setActiveCommentsAnnouncement(targetAnn);
           }, 200);
         }
       }
@@ -537,6 +537,40 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
   const [editName, setEditName] = useState(alumni.name);
   const [editTempatLahir, setEditTempatLahir] = useState(alumni.tempatLahir || '');
   const [editTanggalLahir, setEditTanggalLahir] = useState(alumni.tanggalLahir || '');
+  const [birthDayInput, setBirthDayInput] = useState(() => {
+    if (alumni.tanggalLahir) {
+      const parts = alumni.tanggalLahir.split('-');
+      if (parts.length === 3 && parts[2]) return String(parseInt(parts[2], 10));
+    }
+    return '';
+  });
+  const [birthMonthInput, setBirthMonthInput] = useState(() => {
+    if (alumni.tanggalLahir) {
+      const parts = alumni.tanggalLahir.split('-');
+      if (parts.length === 3 && parts[1]) return String(parseInt(parts[1], 10));
+    }
+    return '';
+  });
+  const [birthYearInput, setBirthYearInput] = useState(() => {
+    if (alumni.tanggalLahir) {
+      const parts = alumni.tanggalLahir.split('-');
+      if (parts.length === 3 && parts[0]) return parts[0];
+    }
+    return '';
+  });
+
+  const getMaxDaysForMonth = (mStr: string, yStr: string) => {
+    const m = parseInt(mStr, 10);
+    const y = parseInt(yStr, 10) || 2024;
+    if (isNaN(m) || m < 1 || m > 12) return 31;
+    if (m === 2) {
+      const isLeap = (y % 4 === 0 && y % 100 !== 0) || y % 400 === 0;
+      return isLeap ? 29 : 28;
+    }
+    if ([4, 6, 9, 11].includes(m)) return 30;
+    return 31;
+  };
+
   const [editGender, setEditGender] = useState<'L' | 'P'>((alumni.gender as 'L' | 'P') || 'L');
   const [editUrutanAnak, setEditUrutanAnak] = useState<number>(Number(alumni.anak_ke ?? alumni.urutanAnak) || 1);
   const [editJumlahSaudara, setEditJumlahSaudara] = useState<number>(Number(alumni.dari_bersaudara ?? alumni.jumlahSaudara) || 1);
@@ -809,6 +843,18 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
     setEditName(alumni.name);
     setEditTempatLahir(alumni.tempatLahir || '');
     setEditTanggalLahir(alumni.tanggalLahir || '');
+    if (alumni.tanggalLahir) {
+      const parts = alumni.tanggalLahir.split('-');
+      if (parts.length === 3) {
+        setBirthYearInput(parts[0] || '');
+        setBirthMonthInput(parts[1] ? String(parseInt(parts[1], 10)) : '');
+        setBirthDayInput(parts[2] ? String(parseInt(parts[2], 10)) : '');
+      }
+    } else {
+      setBirthYearInput('');
+      setBirthMonthInput('');
+      setBirthDayInput('');
+    }
     setEditGender((alumni.gender as 'L' | 'P') || 'L');
     setEditUrutanAnak(Number(alumni.anak_ke ?? alumni.urutanAnak) || 1);
     setEditJumlahSaudara(Number(alumni.dari_bersaudara ?? alumni.jumlahSaudara) || 1);
@@ -1993,53 +2039,7 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
                       />
                     )}
 
-                    {/* 3. BARIS KONFIRMASI KEHADIRAN */}
-                    {!ev.userRsvp || ev.userRsvp === 'belum_pasti' ? (
-                      /* Belum konfirmasi: Teks 2 baris tanpa kontainer & 2 tombol sejajar horizontal (Ya / Tidak) */
-                      <div className="px-4 py-3 flex items-center justify-between gap-3 border-b border-slate-100 bg-white">
-                        <p className="text-xs font-semibold text-slate-800 leading-snug select-none">
-                          Apakah anda<br />akan menghadirinya?
-                        </p>
-
-                        <div className="flex items-center gap-2 shrink-0">
-                          <button
-                            type="button"
-                            onClick={() => handleOpenRsvpModal(ev, 'hadir')}
-                            className="px-4 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer select-none active:scale-95 bg-slate-100 hover:bg-emerald-50 text-slate-700 hover:text-emerald-700 border border-slate-200"
-                          >
-                            Ya
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={() => handleOpenRsvpModal(ev, 'tidak_hadir')}
-                            className="px-4 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer select-none active:scale-95 bg-slate-100 hover:bg-rose-50 text-slate-700 hover:text-rose-700 border border-slate-200"
-                          >
-                            Tidak
-                          </button>
-                        </div>
-                      </div>
-                    ) : (
-                      /* Sudah konfirmasi: Kata 'Hadir' di baris ke dua dan pesan tidak ditampilkan */
-                      <div className="px-4 py-3 flex items-center justify-between gap-3 border-b border-slate-100 bg-white">
-                        <div className="text-xs select-none min-w-0 pr-2 leading-tight">
-                          <p className="text-slate-600 font-medium">Anda sudah mengonfirmasi</p>
-                          <p className={`font-bold mt-0.5 ${ev.userRsvp === 'hadir' ? 'text-emerald-600' : 'text-rose-600'}`}>
-                            {ev.userRsvp === 'hadir' ? 'Hadir' : 'Tidak Hadir'}
-                          </p>
-                        </div>
-
-                        <button
-                          type="button"
-                          onClick={() => handleOpenRsvpModal(ev, ev.userRsvp)}
-                          className="px-3.5 py-1.5 rounded-full text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 transition-all cursor-pointer shrink-0 active:scale-95"
-                        >
-                          Ubah
-                        </button>
-                      </div>
-                    )}
-
-                    {/* 4. CAPTION & DETAIL INFORMASI ACARA */}
+                    {/* 3. CAPTION & DETAIL INFORMASI ACARA */}
                     <div className="px-4 py-3 space-y-2.5 text-xs">
                       {/* Judul & Caption Deskripsi Ala Instagram (Default Terpotong, Cukup Klik Caption atau Tombol untuk Membuka/Menyembunyikan Selengkapnya) */}
                       <div className="text-slate-800 text-xs">
@@ -2097,7 +2097,7 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
                         </div>
                       )}
 
-                      {/* Link Keterangan Jumlah Orang yang Sudah Memberi Tanggapan (Membuka Bottom Sheet Persis Screenshot 2) */}
+                      {/* Link Keterangan Jumlah Orang yang Sudah Memberi Tanggapan (Membuka Bottom Sheet Tanggapan) */}
                       <div className="pt-0.5">
                         <button
                           type="button"
@@ -2106,6 +2106,54 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
                         >
                           Lihat semua {((ev.attendeesCount || 0) + (ev.absentCount || 0)) || commentsList.filter(c => c.eventId === ev.id).length || 0} tanggapan
                         </button>
+                      </div>
+
+                      {/* 4. KOTAK KONFIRMASI KEHADIRAN (DI BAWAH TOMBOL LIHAT TANGGAPAN) */}
+                      <div className="mt-3 pt-3 border-t border-slate-100">
+                        {!ev.userRsvp || ev.userRsvp === 'belum_pasti' ? (
+                          /* Belum konfirmasi: Teks 2 baris & 2 tombol sejajar horizontal (Ya / Tidak) */
+                          <div className="flex items-center justify-between gap-3 bg-white">
+                            <p className="text-xs font-semibold text-slate-800 leading-snug select-none">
+                              Apakah anda<br />akan menghadirinya?
+                            </p>
+
+                            <div className="flex items-center gap-2 shrink-0">
+                              <button
+                                type="button"
+                                onClick={() => handleOpenRsvpModal(ev, 'hadir')}
+                                className="px-4 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer select-none active:scale-95 bg-slate-100 hover:bg-emerald-50 text-slate-700 hover:text-emerald-700 border border-slate-200"
+                              >
+                                Ya
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => handleOpenRsvpModal(ev, 'tidak_hadir')}
+                                className="px-4 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer select-none active:scale-95 bg-slate-100 hover:bg-rose-50 text-slate-700 hover:text-rose-700 border border-slate-200"
+                              >
+                                Tidak
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          /* Sudah konfirmasi: Kata 'Hadir' / 'Tidak Hadir' */
+                          <div className="flex items-center justify-between gap-3 bg-white">
+                            <div className="text-xs select-none min-w-0 pr-2 leading-tight">
+                              <p className="text-slate-500 font-medium">Anda sudah mengonfirmasi</p>
+                              <p className={`font-bold mt-0.5 ${ev.userRsvp === 'hadir' ? 'text-emerald-600' : 'text-rose-600'}`}>
+                                {ev.userRsvp === 'hadir' ? 'Hadir' : 'Tidak Hadir'}
+                              </p>
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={() => handleOpenRsvpModal(ev, ev.userRsvp)}
+                              className="px-3.5 py-1.5 rounded-full text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 transition-all cursor-pointer shrink-0 active:scale-95"
+                            >
+                              Ubah
+                            </button>
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -3046,24 +3094,154 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
             {/* ================= EDIT MODAL: TEMPAT TANGGAL LAHIR ================= */}
             {activeEditModal === 'ttl' && (
               <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in" onClick={() => setActiveEditModal(null)}>
-                <div className="bg-white rounded-3xl p-5 w-full max-w-sm space-y-4 shadow-2xl border border-slate-100" onClick={(e) => e.stopPropagation()}>
+                <div className="bg-white rounded-3xl p-5 w-full max-w-sm space-y-4 shadow-2xl border border-slate-100 animate-in zoom-in-95 duration-150" onClick={(e) => e.stopPropagation()}>
                   <div className="flex justify-between items-center border-b border-slate-100 pb-2.5">
                     <h3 className="font-bold text-sm text-slate-900">Ubah Tempat & Tanggal Lahir</h3>
-                    <button type="button" onClick={() => setActiveEditModal(null)} className="text-slate-400 hover:text-slate-600 cursor-pointer"><X className="w-4 h-4" /></button>
+                    <button type="button" onClick={() => setActiveEditModal(null)} className="text-slate-400 hover:text-slate-600 cursor-pointer p-1"><X className="w-4 h-4" /></button>
                   </div>
-                  <div className="space-y-3 text-xs">
+                  <div className="space-y-3.5 text-xs">
                     <div>
                       <label className="block font-semibold text-slate-700 mb-1">Tempat Lahir (Kota/Kabupaten)</label>
-                      <input type="text" value={editTempatLahir} onChange={(e) => setEditTempatLahir(e.target.value)} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-medium focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500 text-xs" placeholder="Contoh: Rembang" />
+                      <input 
+                        type="text" 
+                        value={editTempatLahir} 
+                        onChange={(e) => setEditTempatLahir(e.target.value)} 
+                        className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-medium focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500 text-xs shadow-2xs" 
+                        placeholder="Contoh: Rembang" 
+                      />
                     </div>
+
                     <div>
-                      <label className="block font-semibold text-slate-700 mb-1">Tanggal Lahir</label>
-                      <input type="date" value={editTanggalLahir} onChange={(e) => setEditTanggalLahir(e.target.value)} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-medium focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500 text-xs" />
+                      <div className="flex items-center justify-between mb-1.5">
+                        <label className="font-semibold text-slate-700">Tanggal Lahir</label>
+                        <span className="text-[10px] text-sky-600 font-medium">
+                          {birthMonthInput ? `Bulan ${birthMonthInput}: maks. ${getMaxDaysForMonth(birthMonthInput, birthYearInput)} hari` : 'Ketik angka'}
+                        </span>
+                      </div>
+                      
+                      {/* Segmented Numeric Keyboard Inputs */}
+                      <div className="grid grid-cols-3 gap-2">
+                        <div>
+                          <label className="block text-[10px] text-slate-400 font-medium mb-0.5 text-center">Hari / Tgl</label>
+                          <input
+                            type="text"
+                            inputMode="numeric"
+                            pattern="[0-9]*"
+                            placeholder="DD"
+                            maxLength={2}
+                            value={birthDayInput}
+                            onChange={(e) => {
+                              const val = e.target.value.replace(/[^0-9]/g, '');
+                              if (!val) {
+                                setBirthDayInput('');
+                                return;
+                              }
+                              const num = parseInt(val, 10);
+                              const maxD = getMaxDaysForMonth(birthMonthInput, birthYearInput);
+                              const clamped = Math.max(1, Math.min(num, maxD));
+                              setBirthDayInput(String(clamped));
+                            }}
+                            className="w-full text-center px-2 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-sm text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500 shadow-2xs"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-[10px] text-slate-400 font-medium mb-0.5 text-center">Bulan (1-12)</label>
+                          <input
+                            type="text"
+                            inputMode="numeric"
+                            pattern="[0-9]*"
+                            placeholder="MM"
+                            maxLength={2}
+                            value={birthMonthInput}
+                            onChange={(e) => {
+                              const val = e.target.value.replace(/[^0-9]/g, '');
+                              if (!val) {
+                                setBirthMonthInput('');
+                                return;
+                              }
+                              const num = parseInt(val, 10);
+                              const clampedM = Math.max(1, Math.min(num, 12));
+                              setBirthMonthInput(String(clampedM));
+
+                              // Re-clamp day if needed
+                              if (birthDayInput) {
+                                const currentD = parseInt(birthDayInput, 10);
+                                const maxD = getMaxDaysForMonth(String(clampedM), birthYearInput);
+                                if (currentD > maxD) {
+                                  setBirthDayInput(String(maxD));
+                                }
+                              }
+                            }}
+                            className="w-full text-center px-2 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-sm text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500 shadow-2xs"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-[10px] text-slate-400 font-medium mb-0.5 text-center">Tahun</label>
+                          <input
+                            type="text"
+                            inputMode="numeric"
+                            pattern="[0-9]*"
+                            placeholder="YYYY"
+                            maxLength={4}
+                            value={birthYearInput}
+                            onChange={(e) => {
+                              const val = e.target.value.replace(/[^0-9]/g, '').slice(0, 4);
+                              if (!val) {
+                                setBirthYearInput('');
+                                return;
+                              }
+                              const currentYr = new Date().getFullYear();
+                              const num = parseInt(val, 10);
+                              const clampedY = val.length === 4 ? Math.min(num, currentYr) : num;
+                              setBirthYearInput(String(clampedY));
+
+                              // Re-clamp for leap year if Feb
+                              if (birthDayInput && birthMonthInput === '2') {
+                                const currentD = parseInt(birthDayInput, 10);
+                                const maxD = getMaxDaysForMonth('2', String(clampedY));
+                                if (currentD > maxD) {
+                                  setBirthDayInput(String(maxD));
+                                }
+                              }
+                            }}
+                            className="w-full text-center px-2 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-sm text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500 shadow-2xs"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Preview Tanggal Lahir Terpilih */}
+                      {birthDayInput && birthMonthInput && birthYearInput.length === 4 && (
+                        <div className="mt-2 p-2 bg-sky-50 border border-sky-100 rounded-xl text-center animate-in fade-in">
+                          <p className="text-[11px] text-sky-800 font-semibold">
+                            {birthDayInput} {['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'][parseInt(birthMonthInput, 10) - 1] || ''} {birthYearInput}
+                          </p>
+                        </div>
+                      )}
                     </div>
                   </div>
-                  <div className="flex gap-2 pt-2">
-                    <button type="button" onClick={() => setActiveEditModal(null)} className="flex-1 py-2 rounded-xl border border-slate-200 text-slate-600 font-semibold text-xs cursor-pointer">Batal</button>
-                    <button type="button" onClick={() => { onUpdateProfile({ tempatLahir: editTempatLahir, tanggalLahir: editTanggalLahir }); setActiveEditModal(null); triggerToast('TTL berhasil diperbarui'); }} className="flex-1 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs cursor-pointer">Simpan</button>
+
+                  <div className="flex gap-2 pt-2 border-t border-slate-100">
+                    <button type="button" onClick={() => setActiveEditModal(null)} className="flex-1 py-2.5 rounded-xl border border-slate-200 text-slate-600 font-semibold text-xs cursor-pointer hover:bg-slate-50 transition-colors">Batal</button>
+                    <button 
+                      type="button" 
+                      onClick={() => { 
+                        const dStr = birthDayInput ? String(parseInt(birthDayInput, 10)).padStart(2, '0') : '';
+                        const mStr = birthMonthInput ? String(parseInt(birthMonthInput, 10)).padStart(2, '0') : '';
+                        const yStr = birthYearInput ? String(parseInt(birthYearInput, 10)).padStart(4, '0') : '';
+                        const finalBirthDate = (dStr && mStr && yStr.length === 4) ? `${yStr}-${mStr}-${dStr}` : editTanggalLahir;
+                        
+                        setEditTempatLahir(editTempatLahir);
+                        setEditTanggalLahir(finalBirthDate);
+                        onUpdateProfile({ tempatLahir: editTempatLahir, tanggalLahir: finalBirthDate }); 
+                        setActiveEditModal(null); 
+                        triggerToast('Tempat & tanggal lahir berhasil disimpan'); 
+                      }} 
+                      className="flex-1 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs cursor-pointer shadow-xs active:scale-95 transition-all"
+                    >
+                      Simpan
+                    </button>
                   </div>
                 </div>
               </div>
@@ -3320,47 +3498,65 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
               </div>
             )}
 
-            {/* ================= EDIT MODAL: TANGGAL MASUK (BOTTOM SHEET PERSIS SCREENSHOT) ================= */}
+            {/* ================= EDIT MODAL: TANGGAL MASUK (MODAL DIALOG) ================= */}
             {activeEditModal === 'tanggal_masuk' && (
               <div 
-                className="fixed inset-0 z-50 bg-black/60 backdrop-blur-2xs flex flex-col justify-end animate-in fade-in"
+                className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in"
                 onClick={() => setActiveEditModal(null)}
               >
                 <div 
-                  className="w-full max-w-md mx-auto bg-white rounded-t-[32px] sm:rounded-3xl shadow-2xl p-6 pt-5 pb-8 flex flex-col items-center animate-in slide-in-from-bottom duration-200"
+                  className="bg-white rounded-3xl p-5 w-full max-w-sm space-y-4 shadow-2xl border border-slate-100 animate-in zoom-in-95 duration-150"
                   onClick={(e) => e.stopPropagation()}
                 >
-                  {/* Handle Drag Bar */}
-                  <div className="w-10 h-1 bg-slate-300 rounded-full mx-auto mb-4" />
-
-                  {/* Header Title (Tanpa Tab Date/Time & Tanpa June 2026) */}
-                  <h3 className="font-display font-bold text-base sm:text-lg text-slate-900 text-center mb-5 tracking-tight">
-                    Atur Tanggal Masuk
-                  </h3>
+                  <div className="flex justify-between items-center border-b border-slate-100 pb-2.5">
+                    <h3 className="font-bold text-sm text-slate-900">Atur Tanggal Masuk</h3>
+                    <button type="button" onClick={() => setActiveEditModal(null)} className="text-slate-400 hover:text-slate-600 cursor-pointer p-1">
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
                   
                   {/* Date Wheel Picker 3 Kolom (Tgl - Bln - Thn) */}
                   <DateWheelPicker
-                    value={tempEntryDate}
+                    value={tempEntryDate || '2016-07-15'}
                     onChange={(newVal) => setTempEntryDate(newVal)}
+                    minYear={1940}
+                    maxYear={2050}
                   />
 
-                  {/* Tombol Bawah Bahasa Indonesia: Batal | Simpan (Mati jika tidak ada perubahan) */}
-                  <div className="w-full mt-6 pt-4 border-t border-slate-100 flex items-center justify-between">
+                  {/* Tombol Mengosongkan Tanggal Masuk */}
+                  <div className="pt-1">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditEntryDate('');
+                        setEditEntryYear('');
+                        setTempEntryDate('');
+                        onUpdateProfile({ entryDate: '', entryYear: '' });
+                        setActiveEditModal(null);
+                        triggerToast('Tanggal masuk berhasil dikosongkan');
+                      }}
+                      className="w-full py-2.5 px-3 rounded-2xl bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-600 font-semibold text-xs transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>Kosongkan Tanggal Masuk</span>
+                    </button>
+                  </div>
+
+                  {/* Tombol Bawah: Batal | Simpan */}
+                  <div className="flex gap-2 pt-2 border-t border-slate-100">
                     <button
                       type="button"
                       onClick={() => setActiveEditModal(null)}
-                      className="flex-1 py-2 text-center text-sm font-semibold text-slate-600 hover:text-slate-900 cursor-pointer transition-colors"
+                      className="flex-1 py-2.5 rounded-xl border border-slate-200 text-slate-600 font-semibold text-xs cursor-pointer hover:bg-slate-50 transition-colors"
                     >
                       Batal
                     </button>
 
-                    <div className="h-6 w-px bg-slate-200" />
-
                     <button
                       type="button"
-                      disabled={tempEntryDate === editEntryDate}
+                      disabled={!tempEntryDate && !editEntryDate}
                       onClick={() => {
-                        if (tempEntryDate === editEntryDate) return;
+                        if (!tempEntryDate) return;
                         setEditEntryDate(tempEntryDate);
                         const yr = tempEntryDate.split('-')[0] || editEntryYear;
                         setEditEntryYear(yr);
@@ -3368,11 +3564,7 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
                         setActiveEditModal(null);
                         triggerToast('Tanggal masuk berhasil diperbarui');
                       }}
-                      className={`flex-1 py-2 text-center text-sm transition-all ${
-                        tempEntryDate === editEntryDate
-                          ? 'text-slate-300 font-semibold cursor-not-allowed select-none'
-                          : 'text-sky-600 hover:text-sky-700 font-bold cursor-pointer active:scale-95'
-                      }`}
+                      className="flex-1 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs cursor-pointer shadow-xs active:scale-95 transition-all"
                     >
                       Simpan
                     </button>
@@ -3381,47 +3573,65 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
               </div>
             )}
 
-            {/* ================= EDIT MODAL: TANGGAL KELUAR (BOTTOM SHEET PERSIS SCREENSHOT) ================= */}
+            {/* ================= EDIT MODAL: TANGGAL KELUAR (MODAL DIALOG) ================= */}
             {activeEditModal === 'tanggal_keluar' && (
               <div 
-                className="fixed inset-0 z-50 bg-black/60 backdrop-blur-2xs flex flex-col justify-end animate-in fade-in"
+                className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in"
                 onClick={() => setActiveEditModal(null)}
               >
                 <div 
-                  className="w-full max-w-md mx-auto bg-white rounded-t-[32px] sm:rounded-3xl shadow-2xl p-6 pt-5 pb-8 flex flex-col items-center animate-in slide-in-from-bottom duration-200"
+                  className="bg-white rounded-3xl p-5 w-full max-w-sm space-y-4 shadow-2xl border border-slate-100 animate-in zoom-in-95 duration-150"
                   onClick={(e) => e.stopPropagation()}
                 >
-                  {/* Handle Drag Bar */}
-                  <div className="w-10 h-1 bg-slate-300 rounded-full mx-auto mb-4" />
-
-                  {/* Header Title (Tanpa Tab Date/Time & Tanpa June 2026) */}
-                  <h3 className="font-display font-bold text-base sm:text-lg text-slate-900 text-center mb-5 tracking-tight">
-                    Atur Tanggal Keluar
-                  </h3>
+                  <div className="flex justify-between items-center border-b border-slate-100 pb-2.5">
+                    <h3 className="font-bold text-sm text-slate-900">Atur Tanggal Keluar</h3>
+                    <button type="button" onClick={() => setActiveEditModal(null)} className="text-slate-400 hover:text-slate-600 cursor-pointer p-1">
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
                   
                   {/* Date Wheel Picker 3 Kolom (Tgl - Bln - Thn) */}
                   <DateWheelPicker
-                    value={tempGradDate}
+                    value={tempGradDate || '2022-05-20'}
                     onChange={(newVal) => setTempGradDate(newVal)}
+                    minYear={1940}
+                    maxYear={2050}
                   />
 
-                  {/* Tombol Bawah Bahasa Indonesia: Batal | Simpan (Mati jika tidak ada perubahan) */}
-                  <div className="w-full mt-6 pt-4 border-t border-slate-100 flex items-center justify-between">
+                  {/* Tombol Mengosongkan Tanggal Keluar */}
+                  <div className="pt-1">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditGradDate('');
+                        setEditGradYear('');
+                        setTempGradDate('');
+                        onUpdateProfile({ gradDate: '', gradYear: '' });
+                        setActiveEditModal(null);
+                        triggerToast('Tanggal keluar berhasil dikosongkan');
+                      }}
+                      className="w-full py-2.5 px-3 rounded-2xl bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-600 font-semibold text-xs transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>Kosongkan Tanggal Keluar</span>
+                    </button>
+                  </div>
+
+                  {/* Tombol Bawah: Batal | Simpan */}
+                  <div className="flex gap-2 pt-2 border-t border-slate-100">
                     <button
                       type="button"
                       onClick={() => setActiveEditModal(null)}
-                      className="flex-1 py-2 text-center text-sm font-semibold text-slate-600 hover:text-slate-900 cursor-pointer transition-colors"
+                      className="flex-1 py-2.5 rounded-xl border border-slate-200 text-slate-600 font-semibold text-xs cursor-pointer hover:bg-slate-50 transition-colors"
                     >
                       Batal
                     </button>
 
-                    <div className="h-6 w-px bg-slate-200" />
-
                     <button
                       type="button"
-                      disabled={tempGradDate === editGradDate}
+                      disabled={!tempGradDate && !editGradDate}
                       onClick={() => {
-                        if (tempGradDate === editGradDate) return;
+                        if (!tempGradDate) return;
                         setEditGradDate(tempGradDate);
                         const yr = tempGradDate.split('-')[0] || editGradYear;
                         setEditGradYear(yr);
@@ -3429,11 +3639,7 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
                         setActiveEditModal(null);
                         triggerToast('Tanggal keluar berhasil diperbarui');
                       }}
-                      className={`flex-1 py-2 text-center text-sm transition-all ${
-                        tempGradDate === editGradDate
-                          ? 'text-slate-300 font-semibold cursor-not-allowed select-none'
-                          : 'text-sky-600 hover:text-sky-700 font-bold cursor-pointer active:scale-95'
-                      }`}
+                      className="flex-1 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs cursor-pointer shadow-xs active:scale-95 transition-all"
                     >
                       Simpan
                     </button>

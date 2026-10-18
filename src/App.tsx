@@ -320,14 +320,20 @@ export default function App() {
       delete (updatedAlumni as any).coverPhotoUrl;
     }
 
-    setCurrentSession({
+    const nextSession = {
       ...currentSession,
       alumniData: updatedAlumni,
-    });
+    };
+    setCurrentSession(nextSession);
+    try {
+      localStorage.setItem('attaroqqy_active_session_v1', JSON.stringify(nextSession));
+    } catch (e) {}
 
-    setAlumniList((prev) =>
-      prev.map((item) => (item.id === updatedAlumni.id ? updatedAlumni : item))
-    );
+    const updatedList = alumniList.map((item) => (item.id === updatedAlumni.id ? updatedAlumni : item));
+    setAlumniList(updatedList);
+    try {
+      localStorage.setItem('attaroqqy_alumni_list_v1', JSON.stringify(updatedList));
+    } catch (e) {}
 
     // Sync all existing events and announcements authored by this alumni
     if (updates.name || updates.username || updates.photoUrl !== undefined) {
@@ -373,8 +379,8 @@ export default function App() {
       );
     }
 
-    // Sync secara realtime ke database Hostinger
-    await updateAlumniInHostinger(updatedAlumni.id, updates);
+    // Sync secara realtime ke database Hostinger & Express SmartSantri
+    await updateAlumniInHostinger(updatedAlumni.id, updates, updatedAlumni);
   };
 
   // First-time modal save
