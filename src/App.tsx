@@ -168,16 +168,47 @@ export default function App() {
         setAlumniList(alumniRes.data);
         setIsDbConnected(true);
 
-        // Perbarui data sesi alumni yang sedang aktif agar selalu sinkron dengan database
+        // Perbarui data sesi alumni yang sedang aktif secara aman tanpa menghapus field lokal yang telah diubah
         setCurrentSession((prev) => {
           if (prev?.role === 'alumni' && prev.alumniData) {
             const freshMe = alumniRes.data.find(
               (a) => a.id === prev.alumniData!.id || (a.nik && a.nik === prev.alumniData!.nik)
             );
             if (freshMe) {
-              // Username tidak boleh ikut berubah saat nama berubah
-              const persistentUsername = prev.alumniData.username || freshMe.username;
-              return { ...prev, alumniData: { ...freshMe, username: persistentUsername } };
+              const prevData = prev.alumniData;
+              const mergedAlumni: AlumniRecord = {
+                ...prevData,
+                ...freshMe,
+                // Pertahankan editan pengguna jika database belum memiliki kolomnya atau nilainya masih kosong
+                username: prevData.username || freshMe.username,
+                bio: freshMe.bio || prevData.bio || '',
+                occupation: freshMe.occupation || prevData.occupation || '',
+                institution: freshMe.institution || prevData.institution || '',
+                namaAyah: freshMe.namaAyah || prevData.namaAyah || '',
+                nikAyah: freshMe.nikAyah || prevData.nikAyah || '',
+                pekerjaanAyah: freshMe.pekerjaanAyah || prevData.pekerjaanAyah || '',
+                pendidikanAyah: freshMe.pendidikanAyah || prevData.pendidikanAyah || '',
+                namaIbu: freshMe.namaIbu || prevData.namaIbu || '',
+                nikIbu: freshMe.nikIbu || prevData.nikIbu || '',
+                pekerjaanIbu: freshMe.pekerjaanIbu || prevData.pekerjaanIbu || '',
+                pendidikanIbu: freshMe.pendidikanIbu || prevData.pendidikanIbu || '',
+                entryDate: freshMe.entryDate || prevData.entryDate || '',
+                entryYear: freshMe.entryYear || prevData.entryYear || '',
+                gradDate: freshMe.gradDate || prevData.gradDate || '',
+                gradYear: freshMe.gradYear || prevData.gradYear || '',
+                tempatLahir: freshMe.tempatLahir || prevData.tempatLahir || '',
+                tanggalLahir: freshMe.tanggalLahir || prevData.tanggalLahir || '',
+                phone: freshMe.phone || prevData.phone || '',
+                email: freshMe.email || prevData.email || '',
+                alamatLengkap: freshMe.alamatLengkap || prevData.alamatLengkap || '',
+                desa: freshMe.desa || prevData.desa || '',
+                kecamatan: freshMe.kecamatan || prevData.kecamatan || '',
+                city: freshMe.city || prevData.city || '',
+                province: freshMe.province || prevData.province || '',
+                photoUrl: freshMe.photoUrl || prevData.photoUrl,
+                coverPhotoUrl: freshMe.coverPhotoUrl || prevData.coverPhotoUrl,
+              };
+              return { ...prev, alumniData: mergedAlumni };
             }
           }
           return prev;

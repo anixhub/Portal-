@@ -173,7 +173,72 @@ function ensureTablesExist($pdo) {
             // Already altered or non-fatal
         }
 
+        // Pastikan kolom-kolom baru profil alumni tersedia di tabel santri
+        ensureSantriColumnsExist($pdo);
+
         $checked = true;
+    } catch (Exception $e) {
+        // Silent catch
+    }
+}
+
+/**
+ * Memastikan kolom-kolom tabel santri lengkap (bio, pekerjaan, instansi, nama_ayah, dll)
+ * Dijalankan secara otomatis dan aman agar data editan tidak gagal disimpan
+ */
+function ensureSantriColumnsExist($pdo) {
+    static $columnsVerified = false;
+    if ($columnsVerified) return;
+
+    $requiredCols = [
+        'nism' => "VARCHAR(32) DEFAULT NULL",
+        'nisn' => "VARCHAR(32) DEFAULT NULL",
+        'username' => "VARCHAR(80) DEFAULT NULL",
+        'no_kk' => "VARCHAR(32) DEFAULT NULL",
+        'anak_ke' => "INT(11) DEFAULT 1",
+        'dari_bersaudara' => "INT(11) DEFAULT 0",
+        'nama_ayah' => "VARCHAR(150) DEFAULT NULL",
+        'nik_ayah' => "VARCHAR(32) DEFAULT NULL",
+        'pekerjaan_ayah' => "VARCHAR(100) DEFAULT NULL",
+        'pendidikan_ayah' => "VARCHAR(80) DEFAULT NULL",
+        'nama_ibu' => "VARCHAR(150) DEFAULT NULL",
+        'nik_ibu' => "VARCHAR(32) DEFAULT NULL",
+        'pekerjaan_ibu' => "VARCHAR(100) DEFAULT NULL",
+        'pendidikan_ibu' => "VARCHAR(80) DEFAULT NULL",
+        'pekerjaan' => "VARCHAR(100) DEFAULT NULL",
+        'instansi' => "VARCHAR(150) DEFAULT NULL",
+        'bio' => "TEXT DEFAULT NULL",
+        'tanggal_masuk' => "DATE DEFAULT NULL",
+        'tanggal_keluar' => "DATE DEFAULT NULL",
+        'kamar' => "VARCHAR(80) DEFAULT NULL",
+        'is_password_changed' => "TINYINT(1) DEFAULT 0",
+        'foto_sampul' => "TEXT DEFAULT NULL",
+        'latitude' => "DECIMAL(10, 8) DEFAULT NULL",
+        'longitude' => "DECIMAL(11, 8) DEFAULT NULL",
+        'share_contact' => "TINYINT(1) DEFAULT 1",
+    ];
+
+    try {
+        $existingCols = [];
+        $colStmt = $pdo->query("SHOW COLUMNS FROM santri");
+        if ($colStmt) {
+            while ($cRow = $colStmt->fetch(PDO::FETCH_ASSOC)) {
+                if (!empty($cRow['Field'])) {
+                    $existingCols[strtolower($cRow['Field'])] = true;
+                }
+            }
+        }
+
+        foreach ($requiredCols as $cName => $cDef) {
+            if (!isset($existingCols[strtolower($cName)])) {
+                try {
+                    $pdo->exec("ALTER TABLE santri ADD COLUMN `$cName` $cDef");
+                } catch (Exception $ex) {
+                    // Abaikan jika sudah ada atau hak akses terbatas
+                }
+            }
+        }
+        $columnsVerified = true;
     } catch (Exception $e) {
         // Silent catch
     }
@@ -425,28 +490,58 @@ if ($action === 'update_alumni' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         // Data Orang Tua
-        if (isset($input['namaAyah'])) { $fields[] = "nama_ayah = :namaAyah"; $params[':namaAyah'] = $input['namaAyah']; }
-        if (isset($input['nikAyah'])) { $fields[] = "nik_ayah = :nikAyah"; $params[':nikAyah'] = $input['nikAyah']; }
-        if (isset($input['pekerjaanAyah'])) { $fields[] = "pekerjaan_ayah = :pekerjaanAyah"; $params[':pekerjaanAyah'] = $input['pekerjaanAyah']; }
-        if (isset($input['pendidikanAyah'])) { $fields[] = "pendidikan_ayah = :pendidikanAyah"; $params[':pendidikanAyah'] = $input['pendidikanAyah']; }
-        if (isset($input['namaIbu'])) { $fields[] = "nama_ibu = :namaIbu"; $params[':namaIbu'] = $input['namaIbu']; }
-        if (isset($input['nikIbu'])) { $fields[] = "nik_ibu = :nikIbu"; $params[':nikIbu'] = $input['nikIbu']; }
-        if (isset($input['pekerjaanIbu'])) { $fields[] = "pekerjaan_ibu = :pekerjaanIbu"; $params[':pekerjaanIbu'] = $input['pekerjaanIbu']; }
-        if (isset($input['pendidikanIbu'])) { $fields[] = "pendidikan_ibu = :pendidikanIbu"; $params[':pendidikanIbu'] = $input['pendidikanIbu']; }
+        $namaAyahVal = $input['namaAyah'] ?? $input['nama_ayah'] ?? $input['nama_bapak'] ?? $input['ayah'] ?? null;
+        if ($namaAyahVal !== null) { $fields[] = "nama_ayah = :namaAyah"; $params[':namaAyah'] = $namaAyahVal; }
+
+        $nikAyahVal = $input['nikAyah'] ?? $input['nik_ayah'] ?? null;
+        if ($nikAyahVal !== null) { $fields[] = "nik_ayah = :nikAyah"; $params[':nikAyah'] = $nikAyahVal; }
+
+        $pekAyahVal = $input['pekerjaanAyah'] ?? $input['pekerjaan_ayah'] ?? null;
+        if ($pekAyahVal !== null) { $fields[] = "pekerjaan_ayah = :pekerjaanAyah"; $params[':pekerjaanAyah'] = $pekAyahVal; }
+
+        $pendAyahVal = $input['pendidikanAyah'] ?? $input['pendidikan_ayah'] ?? null;
+        if ($pendAyahVal !== null) { $fields[] = "pendidikan_ayah = :pendidikanAyah"; $params[':pendidikanAyah'] = $pendAyahVal; }
+
+        $namaIbuVal = $input['namaIbu'] ?? $input['nama_ibu'] ?? $input['ibu'] ?? null;
+        if ($namaIbuVal !== null) { $fields[] = "nama_ibu = :namaIbu"; $params[':namaIbu'] = $namaIbuVal; }
+
+        $nikIbuVal = $input['nikIbu'] ?? $input['nik_ibu'] ?? null;
+        if ($nikIbuVal !== null) { $fields[] = "nik_ibu = :nikIbu"; $params[':nikIbu'] = $nikIbuVal; }
+
+        $pekIbuVal = $input['pekerjaanIbu'] ?? $input['pekerjaan_ibu'] ?? null;
+        if ($pekIbuVal !== null) { $fields[] = "pekerjaan_ibu = :pekerjaanIbu"; $params[':pekerjaanIbu'] = $pekIbuVal; }
+
+        $pendIbuVal = $input['pendidikanIbu'] ?? $input['pendidikan_ibu'] ?? null;
+        if ($pendIbuVal !== null) { $fields[] = "pendidikan_ibu = :pendidikanIbu"; $params[':pendidikanIbu'] = $pendIbuVal; }
 
         // Kontak & Alamat
-        if (isset($input['phone'])) { $fields[] = "no_hp = :phone"; $params[':phone'] = $input['phone']; }
+        if (isset($input['phone']) || isset($input['no_hp'])) { 
+            $fields[] = "no_hp = :phone"; 
+            $params[':phone'] = $input['phone'] ?? $input['no_hp']; 
+        }
         if (isset($input['email'])) { $fields[] = "email = :email"; $params[':email'] = $input['email']; }
-        if (isset($input['address']) || isset($input['alamatLengkap'])) { 
+        if (isset($input['address']) || isset($input['alamatLengkap']) || isset($input['alamat'])) { 
             $fields[] = "alamat = :address"; 
-            $params[':address'] = $input['alamatLengkap'] ?? $input['address']; 
+            $params[':address'] = $input['alamatLengkap'] ?? $input['alamat'] ?? $input['address']; 
         }
         if (isset($input['desa'])) { $fields[] = "desa = :desa"; $params[':desa'] = $input['desa']; }
         if (isset($input['kecamatan'])) { $fields[] = "kecamatan = :kecamatan"; $params[':kecamatan'] = $input['kecamatan']; }
-        if (isset($input['city'])) { $fields[] = "kabupaten = :city"; $params[':city'] = $input['city']; }
-        if (isset($input['province'])) { $fields[] = "provinsi = :province"; $params[':province'] = $input['province']; }
-        if (isset($input['occupation'])) { $fields[] = "pekerjaan = :occupation"; $params[':occupation'] = $input['occupation']; }
-        if (isset($input['institution'])) { $fields[] = "instansi = :institution"; $params[':institution'] = $input['institution']; }
+        if (isset($input['city']) || isset($input['kabupaten'])) { 
+            $fields[] = "kabupaten = :city"; 
+            $params[':city'] = $input['city'] ?? $input['kabupaten']; 
+        }
+        if (isset($input['province']) || isset($input['provinsi'])) { 
+            $fields[] = "provinsi = :province"; 
+            $params[':province'] = $input['province'] ?? $input['provinsi']; 
+        }
+        if (isset($input['occupation']) || isset($input['pekerjaan'])) { 
+            $fields[] = "pekerjaan = :occupation"; 
+            $params[':occupation'] = $input['occupation'] ?? $input['pekerjaan']; 
+        }
+        if (isset($input['institution']) || isset($input['instansi'])) { 
+            $fields[] = "instansi = :institution"; 
+            $params[':institution'] = $input['institution'] ?? $input['instansi']; 
+        }
         if (isset($input['bio'])) { $fields[] = "bio = :bio"; $params[':bio'] = $input['bio']; }
         if (isset($input['avatarUrl']) || isset($input['photoUrl'])) { 
             $rawPhotoVal = $input['avatarUrl'] ?? $input['photoUrl'];
@@ -468,7 +563,10 @@ if ($action === 'update_alumni' && $_SERVER['REQUEST_METHOD'] === 'POST') {
             $fields[] = "tanggal_masuk = :entryDate"; 
             $params[':entryDate'] = $input['entryDate'] ?? $input['tanggal_masuk']; 
         }
-        if (isset($input['gradYear'])) { $fields[] = "tahun_lulus = :gradYear"; $params[':gradYear'] = $input['gradYear']; }
+        if (isset($input['gradYear']) || isset($input['tahun_lulus'])) { 
+            $fields[] = "tahun_lulus = :gradYear"; 
+            $params[':gradYear'] = $input['gradYear'] ?? $input['tahun_lulus']; 
+        }
         if (isset($input['gradDate']) || isset($input['tanggal_keluar'])) { 
             $fields[] = "tanggal_keluar = :gradDate"; 
             $params[':gradDate'] = $input['gradDate'] ?? $input['tanggal_keluar']; 
@@ -483,8 +581,13 @@ if ($action === 'update_alumni' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         if (!empty($fields)) {
+            // Pastikan kolom santri sudah ada sebelum update dijalankan
+            ensureSantriColumnsExist($pdo);
+
             $nikLookup = $input['nik_lookup'] ?? ($input['nik'] ?? '');
             $nisLookup = $input['nis_lookup'] ?? ($input['nis'] ?? '');
+            $usernameLookup = $input['username_lookup'] ?? ($input['username'] ?? '');
+
             $sql = "UPDATE santri SET " . implode(", ", $fields) . " WHERE id = :id";
             if (!empty($nikLookup)) {
                 $sql .= " OR (nik IS NOT NULL AND nik != '' AND nik = :nik_lookup)";
@@ -494,8 +597,20 @@ if ($action === 'update_alumni' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 $sql .= " OR (nis IS NOT NULL AND nis != '' AND nis = :nis_lookup)";
                 $params[':nis_lookup'] = $nisLookup;
             }
-            $stmt = $pdo->prepare($sql);
-            $stmt->execute($params);
+            if (!empty($usernameLookup)) {
+                $sql .= " OR (username IS NOT NULL AND username != '' AND username = :username_lookup)";
+                $params[':username_lookup'] = $usernameLookup;
+            }
+
+            try {
+                $stmt = $pdo->prepare($sql);
+                $stmt->execute($params);
+            } catch (Exception $execEx) {
+                // Jika ada kendala kolom belum terdaftar, jalankan ulang pembuatan kolom lalu update lagi
+                ensureSantriColumnsExist($pdo);
+                $stmt = $pdo->prepare($sql);
+                $stmt->execute($params);
+            }
         }
 
         echo json_encode(['success' => true, 'message' => 'Data berhasil diperbarui di database Hostinger']);
@@ -607,6 +722,7 @@ if ($action === 'delete_alumni' && $_SERVER['REQUEST_METHOD'] === 'POST') {
 if ($action === 'migrate_db') {
     try {
         // 1. Kolom tambahan santri
+        ensureSantriColumnsExist($pdo);
         $pdo->exec("
             ALTER TABLE santri 
                 ADD COLUMN IF NOT EXISTS nism VARCHAR(32) DEFAULT NULL,
@@ -623,6 +739,9 @@ if ($action === 'migrate_db') {
                 ADD COLUMN IF NOT EXISTS nik_ibu VARCHAR(32) DEFAULT NULL,
                 ADD COLUMN IF NOT EXISTS pekerjaan_ibu VARCHAR(100) DEFAULT NULL,
                 ADD COLUMN IF NOT EXISTS pendidikan_ibu VARCHAR(80) DEFAULT NULL,
+                ADD COLUMN IF NOT EXISTS pekerjaan VARCHAR(100) DEFAULT NULL,
+                ADD COLUMN IF NOT EXISTS instansi VARCHAR(150) DEFAULT NULL,
+                ADD COLUMN IF NOT EXISTS bio TEXT DEFAULT NULL,
                 ADD COLUMN IF NOT EXISTS tanggal_masuk DATE DEFAULT NULL,
                 ADD COLUMN IF NOT EXISTS tanggal_keluar DATE DEFAULT NULL,
                 ADD COLUMN IF NOT EXISTS is_password_changed TINYINT(1) DEFAULT 0,
@@ -944,11 +1063,15 @@ if ($action === 'save_rsvp' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $note = $input['note'] ?? '';
     if ($eventId && $alumniId) {
         try {
-            $id = 'rsvp-' . md5($eventId . '_' . $alumniId);
-            $stmt = $pdo->prepare("INSERT INTO event_rsvps (id, event_id, alumni_id, status, note, updated_at) 
-                VALUES (:id, :eid, :aid, :st, :nt, NOW()) 
-                ON DUPLICATE KEY UPDATE status = VALUES(status), note = VALUES(note), updated_at = NOW()");
-            $stmt->execute([':id' => $id, ':eid' => $eventId, ':aid' => $alumniId, ':st' => $status, ':nt' => $note]);
+            try {
+                $id = 'rsvp-' . md5($eventId . '_' . $alumniId);
+                $stmt = $pdo->prepare("INSERT INTO event_rsvps (id, event_id, alumni_id, status, note, updated_at) 
+                    VALUES (:id, :eid, :aid, :st, :nt, NOW()) 
+                    ON DUPLICATE KEY UPDATE status = VALUES(status), note = VALUES(note), updated_at = NOW()");
+                $stmt->execute([':id' => $id, ':eid' => $eventId, ':aid' => $alumniId, ':st' => $status, ':nt' => $note]);
+            } catch (Exception $fkEx) {
+                // If foreign key fails because event wasn't in DB yet, continue to comment & count update
+            }
 
             // Sync tanggapan kehadiran ke post_comments agar akun admin dan publik dapat langsung melihat komentar konfirmasi kehadiran
             $defaultNote = ($status === 'hadir') ? 'Insya Allah saya hadir' : (($status === 'tidak_hadir') ? 'Mohon maaf belum bisa hadir' : '');
@@ -988,6 +1111,27 @@ if ($action === 'save_rsvp' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                     ':cnt' => $finalContent,
                 ]);
             }
+
+            // Update attendees_count dan absent_count pada tabel events
+            try {
+                $countHadirStmt = $pdo->prepare("SELECT COUNT(*) FROM event_rsvps WHERE event_id = :eid AND status = 'hadir'");
+                $countHadirStmt->execute([':eid' => $eventId]);
+                $hadirCount = (int)$countHadirStmt->fetchColumn();
+
+                $countTidakStmt = $pdo->prepare("SELECT COUNT(*) FROM event_rsvps WHERE event_id = :eid AND status = 'tidak_hadir'");
+                $countTidakStmt->execute([':eid' => $eventId]);
+                $tidakCount = (int)$countTidakStmt->fetchColumn();
+
+                if (isset($input['attendeesCount'])) {
+                    $hadirCount = max($hadirCount, (int)$input['attendeesCount']);
+                }
+                if (isset($input['absentCount'])) {
+                    $tidakCount = max($tidakCount, (int)$input['absentCount']);
+                }
+
+                $updStmt = $pdo->prepare("UPDATE events SET attendees_count = :hc, absent_count = :tc WHERE id = :eid");
+                $updStmt->execute([':hc' => $hadirCount, ':tc' => $tidakCount, ':eid' => $eventId]);
+            } catch (Exception $evEx) {}
 
             echo json_encode(['success' => true, 'message' => 'RSVP berhasil disimpan']);
         } catch (Exception $e) {

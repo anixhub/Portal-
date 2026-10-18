@@ -244,6 +244,9 @@ async function startServer() {
       if (payload.tahun_lulus !== undefined) { normalizedPayload.gradYear = payload.tahun_lulus; normalizedPayload.tahun_lulus = payload.tahun_lulus; }
       if (payload.asramaDulu !== undefined) { normalizedPayload.kamar = payload.asramaDulu; normalizedPayload.asramaDulu = payload.asramaDulu; }
       if (payload.kamar !== undefined) { normalizedPayload.asramaDulu = payload.kamar; normalizedPayload.kamar = payload.kamar; }
+      if (payload.bio !== undefined) {
+        normalizedPayload.bio = payload.bio;
+      }
       if (payload.coordinates !== undefined) {
         normalizedPayload.latitude = payload.coordinates?.lat ?? payload.latitude;
         normalizedPayload.longitude = payload.coordinates?.lng ?? payload.longitude;
@@ -295,7 +298,7 @@ async function startServer() {
             'Content-Type': 'application/json',
             Accept: 'application/json',
           },
-          body: JSON.stringify(payload),
+          body: JSON.stringify(normalizedPayload),
           signal: AbortSignal.timeout(10000),
         }),
         fetch(`https://attaroqqy.com/api/db/santri/${id}`, {
@@ -304,7 +307,7 @@ async function startServer() {
             'Content-Type': 'application/json',
             Accept: 'application/json',
           },
-          body: JSON.stringify(payload),
+          body: JSON.stringify(normalizedPayload),
           signal: AbortSignal.timeout(10000),
         }),
       ]).catch(() => {});
