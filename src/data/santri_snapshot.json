@@ -154736,7 +154736,7 @@
       "status_verval": "Proses",
       "tanggal_keluar": "2022-01-01",
       "catatan": "Tgl keluar - tanggal & bulan dilengkapi otomatis jadi 01-01 (hanya tahun 2022 yang tercatat)",
-      "pekerjaan": null,
+      "pekerjaan": "",
       "instansi": null,
       "bio": null,
       "file_kk": null,
@@ -154759,7 +154759,8 @@
       "semester": null,
       "kelas_mhd": null,
       "tahun_lulus": null,
-      "pendidikanFormal": null
+      "pendidikanFormal": null,
+      "occupation": ""
     },
     {
       "id": "S1785422448489_2122",

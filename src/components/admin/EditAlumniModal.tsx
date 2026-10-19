@@ -46,38 +46,46 @@ export const EditAlumniModal: React.FC<EditAlumniModalProps> = ({
   const [occupation, setOccupation] = useState(alumni?.occupation || '');
   const [institution, setInstitution] = useState(alumni?.institution || '');
 
+  const prevAlumniIdRef = React.useRef<string | null>(null);
+
   useEffect(() => {
-    if (alumni) {
-      setName(alumni.name || '');
-      setNik(alumni.nik || '');
-      setNoKk(alumni.noKk || '');
-      setNis(alumni.nis || '');
-      setGender((alumni.gender as 'L' | 'P') || 'L');
-      setAnakKe(
-        alumni.anak_ke !== undefined && alumni.anak_ke !== null
-          ? Number(alumni.anak_ke)
-          : (alumni.urutanAnak !== undefined && alumni.urutanAnak !== null ? Number(alumni.urutanAnak) : 1)
-      );
-      setDariBersaudara(
-        alumni.dari_bersaudara !== undefined && alumni.dari_bersaudara !== null
-          ? Number(alumni.dari_bersaudara)
-          : (alumni.jumlahSaudara !== undefined && alumni.jumlahSaudara !== null ? Number(alumni.jumlahSaudara) : 0)
-      );
-      setGradYear(alumni.gradYear || '');
-      setJenjang(alumni.jenjang || '');
-      setAsramaDulu(alumni.asramaDulu || '');
-      setPhone(alumni.phone || '');
-      setEmail(alumni.email || '');
-      setProvince(alumni.province || '');
-      setCity(alumni.city || '');
-      setKecamatan(alumni.kecamatan || '');
-      setDesa(alumni.desa || '');
-      setAlamatLengkap(alumni.alamatLengkap || '');
-      setCoordinates(alumni.coordinates || null);
-      setOccupation(alumni.occupation || '');
-      setInstitution(alumni.institution || '');
+    if (isOpen && alumni) {
+      // Hanya inisialisasi ulang jika baru dibuka atau alumni yang dipilih berganti ID
+      if (prevAlumniIdRef.current !== alumni.id) {
+        prevAlumniIdRef.current = alumni.id;
+        setName(alumni.name || '');
+        setNik(alumni.nik || '');
+        setNoKk(alumni.noKk || '');
+        setNis(alumni.nis || '');
+        setGender((alumni.gender as 'L' | 'P') || 'L');
+        setAnakKe(
+          alumni.anak_ke !== undefined && alumni.anak_ke !== null
+            ? Number(alumni.anak_ke)
+            : (alumni.urutanAnak !== undefined && alumni.urutanAnak !== null ? Number(alumni.urutanAnak) : 1)
+        );
+        setDariBersaudara(
+          alumni.dari_bersaudara !== undefined && alumni.dari_bersaudara !== null
+            ? Number(alumni.dari_bersaudara)
+            : (alumni.jumlahSaudara !== undefined && alumni.jumlahSaudara !== null ? Number(alumni.jumlahSaudara) : 0)
+        );
+        setGradYear(alumni.gradYear || '');
+        setJenjang(alumni.jenjang || '');
+        setAsramaDulu(alumni.asramaDulu || '');
+        setPhone(alumni.phone || '');
+        setEmail(alumni.email || '');
+        setProvince(alumni.province || '');
+        setCity(alumni.city || '');
+        setKecamatan(alumni.kecamatan || '');
+        setDesa(alumni.desa || '');
+        setAlamatLengkap(alumni.alamatLengkap || '');
+        setCoordinates(alumni.coordinates || null);
+        setOccupation(alumni.occupation || '');
+        setInstitution(alumni.institution || '');
+      }
+    } else if (!isOpen) {
+      prevAlumniIdRef.current = null;
     }
-  }, [alumni]);
+  }, [isOpen, alumni]);
 
   if (!isOpen || !alumni) return null;
 

@@ -481,8 +481,17 @@ async function startServer() {
       }
       lastCacheTime = Date.now();
 
-      // Forward to remote Hostinger backend in background
+      // Forward to remote Hostinger backend in background (keduanya: attaroqqy.com dan alumni.attaroqqy.com)
       Promise.allSettled([
+        fetch('https://attaroqqy.com/api_alumni.php?action=update_alumni', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Accept: 'application/json',
+          },
+          body: JSON.stringify(normalizedPayload),
+          signal: AbortSignal.timeout(10000),
+        }),
         fetch('https://alumni.attaroqqy.com/api_alumni.php?action=update_alumni', {
           method: 'POST',
           headers: {

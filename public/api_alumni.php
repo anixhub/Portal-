@@ -490,8 +490,14 @@ if ($action === 'update_alumni' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         $fields[] = "status_keanggotaan = 'Alumni'";
 
         // Biodata Santri
-        $namaVal = $input['nama'] ?? $input['name'] ?? null;
-        if ($namaVal !== null) { $fields[] = "nama = :name"; $params[':name'] = $namaVal; }
+        $rawNama = $input['nama'] ?? $input['name'] ?? null;
+        if ($rawNama !== null) {
+            $cleanNama = trim((string)$rawNama);
+            if ($cleanNama !== '') {
+                $fields[] = "nama = :name";
+                $params[':name'] = $cleanNama;
+            }
+        }
         if (isset($input['nis'])) { $fields[] = "nis = :nis"; $params[':nis'] = $input['nis']; }
         if (isset($input['nism'])) { $fields[] = "nism = :nism"; $params[':nism'] = $input['nism']; }
         if (isset($input['nisn'])) { $fields[] = "nisn = :nisn"; $params[':nisn'] = $input['nisn']; }

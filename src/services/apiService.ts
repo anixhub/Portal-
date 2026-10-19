@@ -4,11 +4,14 @@ import { getAlumniPhotoUrl, formatPhotoUrlForHostinger } from '../utils/photoUti
 import { ensureConsistentAlumniIdentities } from '../utils/alumniIdentityUtils';
 import { wsClient } from './websocketService';
 
-// URL Endpoint API di Hostinger (Domain Portal Alumni)
+// URL Endpoint API di Hostinger (Domain Utama & Subdomain Portal Alumni)
+export const HOSTINGER_MAIN_API_URL = 'https://attaroqqy.com/api_alumni.php';
+export const HOSTINGER_SUB_API_URL = 'https://alumni.attaroqqy.com/api_alumni.php';
 export const HOSTINGER_API_URL =
-  import.meta.env.VITE_HOSTINGER_API_URL || 'https://alumni.attaroqqy.com/api_alumni.php';
+  import.meta.env.VITE_HOSTINGER_API_URL || HOSTINGER_MAIN_API_URL;
 
 // URL Endpoint Express DB Backend SmartSantri (aplikasi lama)
+export const HOSTINGER_EXPRESS_REMOTE_URL = 'https://attaroqqy.com/api/db';
 export const HOSTINGER_EXPRESS_DB_URL =
   import.meta.env.VITE_HOSTINGER_EXPRESS_DB_URL || '/api/db';
 
@@ -217,9 +220,9 @@ export async function fetchAlumniFromHostinger(forceFresh: boolean = false): Pro
   const freshParam = forceFresh ? `&fresh=true&_t=${ts}` : `&_t=${ts}`;
   const endpointsToTry = [
     `/api/db/santri?_t=${ts}`,
-    `${HOSTINGER_API_URL}?action=get_alumni${freshParam}`,
+    `https://attaroqqy.com/api_alumni.php?action=get_alumni${freshParam}`,
     `https://alumni.attaroqqy.com/api_alumni.php?action=get_alumni${freshParam}`,
-    `${HOSTINGER_EXPRESS_DB_URL}/santri?fresh=true&_t=${ts}`,
+    `https://attaroqqy.com/api/db/santri?fresh=true&_t=${ts}`,
   ];
 
   for (const url of endpointsToTry) {
@@ -658,9 +661,10 @@ export async function updateAlumniInHostinger(
       phpPayload.coordinates = c;
     }
 
-    // Eksekusi pembaruan ke kedua backend secara bersamaan
+    // Eksekusi pembaruan ke database Hostinger (domain utama attaroqqy.com, subdomain alumni.attaroqqy.com, dan Express DB backend)
     const targets = [
-      fetch(`${HOSTINGER_API_URL}?action=update_alumni`, {
+      // 1. Hostinger Utama (Domain Web Pesantren & Aplikasi Lama)
+      fetch(`https://attaroqqy.com/api_alumni.php?action=update_alumni`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -668,9 +672,11 @@ export async function updateAlumniInHostinger(
         },
         body: JSON.stringify(phpPayload),
       }).catch((err) => {
-        console.warn('Gagal sync ke PHP API:', err?.message);
+        console.warn('Gagal sync ke attaroqqy.com/api_alumni.php:', err?.message);
         return null;
       }),
+
+      // 2. Hostinger Portal Alumni Subdomain
       fetch(`https://alumni.attaroqqy.com/api_alumni.php?action=update_alumni`, {
         method: 'POST',
         headers: {
@@ -678,8 +684,13 @@ export async function updateAlumniInHostinger(
           Accept: 'application/json',
         },
         body: JSON.stringify(phpPayload),
-      }).catch(() => null),
-      fetch(`${HOSTINGER_EXPRESS_DB_URL}/santri/${id}`, {
+      }).catch((err) => {
+        console.warn('Gagal sync ke alumni.attaroqqy.com/api_alumni.php:', err?.message);
+        return null;
+      }),
+
+      // 3. Express DB Backend on main domain
+      fetch(`https://attaroqqy.com/api/db/santri/${id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -687,9 +698,19 @@ export async function updateAlumniInHostinger(
         },
         body: JSON.stringify(expressPayload),
       }).catch((err) => {
-        console.warn('Gagal sync ke Express backend:', err?.message);
+        console.warn('Gagal sync ke attaroqqy.com/api/db/santri:', err?.message);
         return null;
       }),
+
+      // 4. Local dev proxy (if available)
+      fetch(`/api/db/santri/${id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+        },
+        body: JSON.stringify(expressPayload),
+      }).catch(() => null),
     ];
 
     const responses = await Promise.all(targets);
@@ -787,14 +808,14 @@ export async function addAlumniToHostinger(
     };
 
     await Promise.all([
-      fetch(`${HOSTINGER_API_URL}?action=add_alumni`, {
+      fetch(`https://attaroqqy.com/api_alumni.php?action=add_alumni`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Accept: 'application/json',
         },
         body: JSON.stringify(phpPayload),
-      }).catch((err) => console.warn('Gagal add santri ke PHP API:', err?.message)),
+      }).catch((err) => console.warn('Gagal add santri ke attaroqqy.com PHP:', err?.message)),
       fetch(`https://alumni.attaroqqy.com/api_alumni.php?action=add_alumni`, {
         method: 'POST',
         headers: {
@@ -802,15 +823,23 @@ export async function addAlumniToHostinger(
           Accept: 'application/json',
         },
         body: JSON.stringify(phpPayload),
-      }).catch(() => null),
-      fetch(`${HOSTINGER_EXPRESS_DB_URL}/santri`, {
+      }).catch((err) => console.warn('Gagal add santri ke alumni.attaroqqy.com PHP:', err?.message)),
+      fetch(`https://attaroqqy.com/api/db/santri`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Accept: 'application/json',
         },
         body: JSON.stringify(expressPayload),
-      }).catch((err) => console.warn('Gagal add santri ke Express backend:', err?.message)),
+      }).catch(() => null),
+      fetch(`/api/db/santri`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+        },
+        body: JSON.stringify(expressPayload),
+      }).catch(() => null),
     ]);
 
     broadcastSyncEvent('alumni');
@@ -837,13 +866,13 @@ export async function deleteAlumniFromHostinger(
 ): Promise<{ success: boolean; message?: string }> {
   try {
     await Promise.all([
-      fetch(`${HOSTINGER_API_URL}?action=delete_alumni`, {
+      fetch(`https://attaroqqy.com/api_alumni.php?action=delete_alumni`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ id }),
-      }).catch((err) => console.warn('Gagal delete di PHP:', err?.message)),
+      }).catch((err) => console.warn('Gagal delete di attaroqqy.com PHP:', err?.message)),
       fetch(`https://alumni.attaroqqy.com/api_alumni.php?action=delete_alumni`, {
         method: 'POST',
         headers: {
@@ -851,12 +880,18 @@ export async function deleteAlumniFromHostinger(
         },
         body: JSON.stringify({ id }),
       }).catch(() => null),
-      fetch(`${HOSTINGER_EXPRESS_DB_URL}/santri/${id}`, {
+      fetch(`https://attaroqqy.com/api/db/santri/${id}`, {
         method: 'DELETE',
         headers: {
           Accept: 'application/json',
         },
-      }).catch((err) => console.warn('Gagal delete di Express:', err?.message)),
+      }).catch(() => null),
+      fetch(`/api/db/santri/${id}`, {
+        method: 'DELETE',
+        headers: {
+          Accept: 'application/json',
+        },
+      }).catch(() => null),
     ]);
 
     broadcastSyncEvent('alumni');

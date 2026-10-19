@@ -690,6 +690,74 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
   >(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const openEditModal = (modal: typeof activeEditModal) => {
+    activeEditModalRef.current = modal;
+    if (modal === 'nama') setEditName(editName || alumni.name || '');
+    else if (modal === 'ttl') {
+      const curTempat = editTempatLahir || alumni.tempatLahir || '';
+      const curTgl = editTanggalLahir || alumni.tanggalLahir || '';
+      setEditTempatLahir(curTempat);
+      setEditTanggalLahir(curTgl);
+      if (curTgl) {
+        const parts = curTgl.split('-');
+        if (parts.length === 3) {
+          setBirthYearInput(parts[0] || '');
+          setBirthMonthInput(parts[1] ? String(parseInt(parts[1], 10)) : '');
+          setBirthDayInput(parts[2] ? String(parseInt(parts[2], 10)) : '');
+        }
+      } else {
+        setBirthYearInput('');
+        setBirthMonthInput('');
+        setBirthDayInput('');
+      }
+    } else if (modal === 'saudara') {
+      setEditGender((editGender || (alumni.gender as 'L' | 'P')) || 'L');
+      setEditUrutanAnak(Number(editUrutanAnak || (alumni.anak_ke ?? alumni.urutanAnak)) || 1);
+      setEditJumlahSaudara(Number(editJumlahSaudara || (alumni.dari_bersaudara ?? alumni.jumlahSaudara)) || 1);
+    } else if (modal === 'nik_kk') {
+      setEditNik(editNik || alumni.nik || '');
+      setEditNoKk(editNoKk || alumni.noKk || '');
+    } else if (modal === 'kontak') {
+      setEditPhone(editPhone || alumni.phone || '');
+      setEditEmail(editEmail || alumni.email || '');
+    } else if (modal === 'pekerjaan') {
+      setEditOccupation(editOccupation || alumni.occupation || '');
+      setEditInstitution(editInstitution || alumni.institution || '');
+    } else if (modal === 'bio') {
+      setEditBio(editBio || alumni.bio || '');
+    } else if (modal === 'tanggal_masuk') {
+      setTempEntryDate(editEntryDate || alumni.entryDate || '');
+      setEditEntryDate(editEntryDate || alumni.entryDate || '');
+    } else if (modal === 'tanggal_keluar') {
+      setTempGradDate(editGradDate || alumni.gradDate || '');
+      setEditGradDate(editGradDate || alumni.gradDate || '');
+    } else if (modal === 'ayah') {
+      setEditNamaAyah(editNamaAyah || alumni.namaAyah || '');
+      setEditNikAyah(editNikAyah || alumni.nikAyah || '');
+      setEditPekerjaanAyah(editPekerjaanAyah || alumni.pekerjaanAyah || '');
+      setEditPendidikanAyah(editPendidikanAyah || alumni.pendidikanAyah || '');
+    } else if (modal === 'ibu') {
+      setEditNamaIbu(editNamaIbu || alumni.namaIbu || '');
+      setEditNikIbu(editNikIbu || alumni.nikIbu || '');
+      setEditPekerjaanIbu(editPekerjaanIbu || alumni.pekerjaanIbu || '');
+      setEditPendidikanIbu(editPendidikanIbu || alumni.pendidikanIbu || '');
+    } else if (modal === 'alamat') {
+      setEditProvince(editProvince || alumni.province || '');
+      setEditCity(editCity || alumni.city || '');
+      setEditKecamatan(editKecamatan || alumni.kecamatan || '');
+      setEditDesa(editDesa || alumni.desa || '');
+      setEditAlamatLengkap(editAlamatLengkap || alumni.alamatLengkap || '');
+      setEditCoordinates(editCoordinates || alumni.coordinates || null);
+    } else if (modal === 'username') {
+      setNewUsernameInput('');
+      setUsernameStatus('idle');
+    } else if (modal === 'password') {
+      setNewPassword('');
+      setConfirmPassword('');
+    }
+    setActiveEditModal(modal);
+  };
+
   // Sub-tab Event & Pengumuman
   const [eventSubTab, setEventSubTab] = useState<'event' | 'pengumuman'>('event');
   const [announcements, setAnnouncements] = useState<AnnouncementItem[]>(propAnnouncements || INITIAL_ANNOUNCEMENTS);
@@ -837,59 +905,70 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
     return fallbackYear || '';
   };
 
+  const prevAlumniIdRef = useRef<string>(alumni.id);
+  const activeEditModalRef = useRef(activeEditModal);
+  // Sinkronkan ref modal aktif secara langsung saat render agar tidak terjadi race condition
+  activeEditModalRef.current = activeEditModal;
+
   useEffect(() => {
-    setEditNik(alumni.nik);
-    setEditNoKk(alumni.noKk || '');
-    setEditName(alumni.name);
-    setEditTempatLahir(alumni.tempatLahir || '');
-    setEditTanggalLahir(alumni.tanggalLahir || '');
-    if (alumni.tanggalLahir) {
-      const parts = alumni.tanggalLahir.split('-');
-      if (parts.length === 3) {
-        setBirthYearInput(parts[0] || '');
-        setBirthMonthInput(parts[1] ? String(parseInt(parts[1], 10)) : '');
-        setBirthDayInput(parts[2] ? String(parseInt(parts[2], 10)) : '');
+    // Hanya inisialisasi ulang form jika berganti akun alumni yang berbeda (ID berubah)
+    const isNewUser = alumni.id !== prevAlumniIdRef.current;
+    if (isNewUser) {
+      prevAlumniIdRef.current = alumni.id;
+
+      setEditNik(alumni.nik);
+      setEditNoKk(alumni.noKk || '');
+      setEditName(alumni.name);
+      setEditTempatLahir(alumni.tempatLahir || '');
+      setEditTanggalLahir(alumni.tanggalLahir || '');
+      if (alumni.tanggalLahir) {
+        const parts = alumni.tanggalLahir.split('-');
+        if (parts.length === 3) {
+          setBirthYearInput(parts[0] || '');
+          setBirthMonthInput(parts[1] ? String(parseInt(parts[1], 10)) : '');
+          setBirthDayInput(parts[2] ? String(parseInt(parts[2], 10)) : '');
+        }
+      } else {
+        setBirthYearInput('');
+        setBirthMonthInput('');
+        setBirthDayInput('');
       }
-    } else {
-      setBirthYearInput('');
-      setBirthMonthInput('');
-      setBirthDayInput('');
+      setEditGender((alumni.gender as 'L' | 'P') || 'L');
+      setEditUrutanAnak(Number(alumni.anak_ke ?? alumni.urutanAnak) || 1);
+      setEditJumlahSaudara(Number(alumni.dari_bersaudara ?? alumni.jumlahSaudara) || 1);
+      setEditUsername(alumni.username || '');
+      setEditPhone(alumni.phone);
+      setEditEmail(alumni.email);
+      setEditCity(alumni.city);
+      setEditProvince(alumni.province);
+      setEditKecamatan(alumni.kecamatan || '');
+      setEditDesa(alumni.desa || '');
+      setEditAlamatLengkap(alumni.alamatLengkap || '');
+      setEditCoordinates(alumni.coordinates || null);
+      setEditOccupation(alumni.occupation);
+      setEditInstitution(alumni.institution);
+      setEditBio(alumni.bio || '');
+      setEditPhotoUrl(alumni.photoUrl);
+      setEditShareContact(alumni.shareContact);
+      setEditShareEmail(alumni.shareEmail !== false);
+      setEditShareFullAddress(alumni.shareFullAddress !== false);
+      setEditShareLocationTag(alumni.shareLocationTag !== false);
+      setEditNism(alumni.nism || '');
+      setEditNisn(alumni.nisn || '');
+      setEditEntryYear(alumni.entryYear || '');
+      setEditGradYear(alumni.gradYear || '');
+      setEditEntryDate(alumni.entryDate || '');
+      setEditGradDate(alumni.gradDate || '');
+      setEditNamaAyah(alumni.namaAyah || '');
+      setEditNikAyah(alumni.nikAyah || '');
+      setEditPekerjaanAyah(alumni.pekerjaanAyah || '');
+      setEditPendidikanAyah(alumni.pendidikanAyah || '');
+      setEditNamaIbu(alumni.namaIbu || '');
+      setEditNikIbu(alumni.nikIbu || '');
+      setEditPekerjaanIbu(alumni.pekerjaanIbu || '');
+      setEditPendidikanIbu(alumni.pendidikanIbu || '');
     }
-    setEditGender((alumni.gender as 'L' | 'P') || 'L');
-    setEditUrutanAnak(Number(alumni.anak_ke ?? alumni.urutanAnak) || 1);
-    setEditJumlahSaudara(Number(alumni.dari_bersaudara ?? alumni.jumlahSaudara) || 1);
-    setEditUsername(alumni.username || '');
-    setEditPhone(alumni.phone);
-    setEditEmail(alumni.email);
-    setEditCity(alumni.city);
-    setEditProvince(alumni.province);
-    setEditKecamatan(alumni.kecamatan || '');
-    setEditDesa(alumni.desa || '');
-    setEditAlamatLengkap(alumni.alamatLengkap || '');
-    setEditCoordinates(alumni.coordinates || null);
-    setEditOccupation(alumni.occupation);
-    setEditInstitution(alumni.institution);
-    setEditBio(alumni.bio || '');
-    setEditPhotoUrl(alumni.photoUrl);
-    setEditShareContact(alumni.shareContact);
-    setEditShareEmail(alumni.shareEmail !== false);
-    setEditShareFullAddress(alumni.shareFullAddress !== false);
-    setEditShareLocationTag(alumni.shareLocationTag !== false);
-    setEditNism(alumni.nism || '');
-    setEditNisn(alumni.nisn || '');
-    setEditEntryYear(alumni.entryYear || '');
-    setEditGradYear(alumni.gradYear || '');
-    setEditEntryDate(alumni.entryDate || '');
-    setEditGradDate(alumni.gradDate || '');
-    setEditNamaAyah(alumni.namaAyah || '');
-    setEditNikAyah(alumni.nikAyah || '');
-    setEditPekerjaanAyah(alumni.pekerjaanAyah || '');
-    setEditPendidikanAyah(alumni.pendidikanAyah || '');
-    setEditNamaIbu(alumni.namaIbu || '');
-    setEditNikIbu(alumni.nikIbu || '');
-    setEditPekerjaanIbu(alumni.pekerjaanIbu || '');
-    setEditPendidikanIbu(alumni.pendidikanIbu || '');
-  }, [alumni]);
+  }, [alumni.id]);
 
   // Handle uploading and scaling photo
   const handlePhotoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -2523,7 +2602,7 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
                 <div className="divide-y divide-slate-100">
                   {/* 1. Nama Lengkap */}
                   <div
-                    onClick={() => setActiveEditModal('nama')}
+                    onClick={() => openEditModal('nama')}
                     className="flex items-center justify-between py-3.5 cursor-pointer hover:bg-slate-50/70 -mx-3 px-3 rounded-2xl transition-colors group"
                   >
                     <div className="flex items-center gap-4 min-w-0 pr-2">
@@ -2542,7 +2621,7 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
 
                   {/* 2. Tempat, Tanggal Lahir (TTL) */}
                   <div
-                    onClick={() => setActiveEditModal('ttl')}
+                    onClick={() => openEditModal('ttl')}
                     className="flex items-center justify-between py-3.5 cursor-pointer hover:bg-slate-50/70 -mx-3 px-3 rounded-2xl transition-colors group"
                   >
                     <div className="flex items-center gap-4 min-w-0 pr-2">
@@ -2563,7 +2642,7 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
 
                   {/* 3. Gender & Saudara */}
                   <div
-                    onClick={() => setActiveEditModal('saudara')}
+                    onClick={() => openEditModal('saudara')}
                     className="flex items-center justify-between py-3.5 cursor-pointer hover:bg-slate-50/70 -mx-3 px-3 rounded-2xl transition-colors group"
                   >
                     <div className="flex items-center gap-4 min-w-0 pr-2">
@@ -2586,7 +2665,7 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
 
                   {/* 4. NIK & Nomor KK */}
                   <div
-                    onClick={() => setActiveEditModal('nik_kk')}
+                    onClick={() => openEditModal('nik_kk')}
                     className="flex items-center justify-between py-3.5 cursor-pointer hover:bg-slate-50/70 -mx-3 px-3 rounded-2xl transition-colors group"
                   >
                     <div className="flex items-center gap-4 min-w-0 pr-2">
@@ -2605,7 +2684,7 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
 
                   {/* 5. Alamat */}
                   <div
-                    onClick={() => setActiveEditModal('alamat')}
+                    onClick={() => openEditModal('alamat')}
                     className="flex items-center justify-between py-3.5 cursor-pointer hover:bg-slate-50/70 -mx-3 px-3 rounded-2xl transition-colors group"
                   >
                     <div className="flex items-center gap-4 min-w-0 pr-2">
@@ -2626,7 +2705,7 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
 
                   {/* 6. Kontak */}
                   <div
-                    onClick={() => setActiveEditModal('kontak')}
+                    onClick={() => openEditModal('kontak')}
                     className="flex items-center justify-between py-3.5 cursor-pointer hover:bg-slate-50/70 -mx-3 px-3 rounded-2xl transition-colors group"
                   >
                     <div className="flex items-center gap-4 min-w-0 pr-2">
@@ -2645,7 +2724,7 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
 
                   {/* 7. Pekerjaan */}
                   <div
-                    onClick={() => setActiveEditModal('pekerjaan')}
+                    onClick={() => openEditModal('pekerjaan')}
                     className="flex items-center justify-between py-3.5 cursor-pointer hover:bg-slate-50/70 -mx-3 px-3 rounded-2xl transition-colors group"
                   >
                     <div className="flex items-center gap-4 min-w-0 pr-2">
@@ -2665,7 +2744,7 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
 
                   {/* 8. Bio */}
                   <div
-                    onClick={() => setActiveEditModal('bio')}
+                    onClick={() => openEditModal('bio')}
                     className="flex items-center justify-between py-3.5 cursor-pointer hover:bg-slate-50/70 -mx-3 px-3 rounded-2xl transition-colors group"
                   >
                     <div className="flex items-center gap-4 min-w-0 pr-2">
@@ -2738,10 +2817,7 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
 
                   {/* 4. Tanggal Masuk */}
                   <div
-                    onClick={() => {
-                      setTempEntryDate(editEntryDate || '');
-                      setActiveEditModal('tanggal_masuk');
-                    }}
+                    onClick={() => openEditModal('tanggal_masuk')}
                     className="flex items-center justify-between py-3.5 cursor-pointer hover:bg-slate-50/70 -mx-3 px-3 rounded-2xl transition-colors group"
                   >
                     <div className="flex items-center gap-4 min-w-0 pr-2">
@@ -2760,10 +2836,7 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
 
                   {/* 5. Tanggal Keluar */}
                   <div
-                    onClick={() => {
-                      setTempGradDate(editGradDate || '');
-                      setActiveEditModal('tanggal_keluar');
-                    }}
+                    onClick={() => openEditModal('tanggal_keluar')}
                     className="flex items-center justify-between py-3.5 cursor-pointer hover:bg-slate-50/70 -mx-3 px-3 rounded-2xl transition-colors group"
                   >
                     <div className="flex items-center gap-4 min-w-0 pr-2">
@@ -2791,7 +2864,7 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
                 <div className="divide-y divide-slate-100">
                   {/* 1. Data Ayah */}
                   <div
-                    onClick={() => setActiveEditModal('ayah')}
+                    onClick={() => openEditModal('ayah')}
                     className="flex items-center justify-between py-3.5 cursor-pointer hover:bg-slate-50/70 -mx-3 px-3 rounded-2xl transition-colors group"
                   >
                     <div className="flex items-center gap-4 min-w-0 pr-2">
@@ -2817,7 +2890,7 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
 
                   {/* 2. Data Ibu (Icon User sama seperti Ayah) */}
                   <div
-                    onClick={() => setActiveEditModal('ibu')}
+                    onClick={() => openEditModal('ibu')}
                     className="flex items-center justify-between py-3.5 cursor-pointer hover:bg-slate-50/70 -mx-3 px-3 rounded-2xl transition-colors group"
                   >
                     <div className="flex items-center gap-4 min-w-0 pr-2">
@@ -2852,11 +2925,7 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
                 <div className="divide-y divide-slate-100">
                   {/* 1. Ganti Username */}
                   <div
-                    onClick={() => {
-                      setNewUsernameInput('');
-                      setUsernameStatus('idle');
-                      setActiveEditModal('username');
-                    }}
+                    onClick={() => openEditModal('username')}
                     className="flex items-center justify-between py-3.5 cursor-pointer hover:bg-slate-50/70 -mx-3 px-3 rounded-2xl transition-colors group"
                   >
                     <div className="flex items-center gap-4 min-w-0 pr-2">
@@ -2875,7 +2944,7 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
 
                   {/* 2. Ganti Kata Sandi */}
                   <div
-                    onClick={() => setActiveEditModal('password')}
+                    onClick={() => openEditModal('password')}
                     className="flex items-center justify-between py-3.5 cursor-pointer hover:bg-slate-50/70 -mx-3 px-3 rounded-2xl transition-colors group"
                   >
                     <div className="flex items-center gap-4 min-w-0 pr-2">
@@ -3087,7 +3156,23 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
                   </div>
                   <div className="flex gap-2 pt-2">
                     <button type="button" onClick={() => setActiveEditModal(null)} className="flex-1 py-2 rounded-xl border border-slate-200 text-slate-600 font-semibold text-xs cursor-pointer">Batal</button>
-                    <button type="button" onClick={() => { onUpdateProfile({ name: editName, username: alumni.username }); setActiveEditModal(null); triggerToast('Nama berhasil diperbarui'); }} className="flex-1 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs cursor-pointer">Simpan</button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const trimmed = editName.trim();
+                        if (!trimmed) {
+                          triggerToast('Nama tidak boleh kosong');
+                          return;
+                        }
+                        setEditName(trimmed);
+                        onUpdateProfile({ name: trimmed, username: alumni.username });
+                        setActiveEditModal(null);
+                        triggerToast('Nama berhasil diperbarui');
+                      }}
+                      className="flex-1 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs cursor-pointer"
+                    >
+                      Simpan
+                    </button>
                   </div>
                 </div>
               </div>

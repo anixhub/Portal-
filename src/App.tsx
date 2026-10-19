@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { LoginScreen } from './components/LoginScreen';
 import { AlumniView } from './components/AlumniView';
 import { AdminView } from './components/AdminView';
@@ -157,8 +157,14 @@ export default function App() {
   const [isDbLoading, setIsDbLoading] = useState(true);
   const [isDbConnected, setIsDbConnected] = useState(false);
 
+  // Kunci perlindungan: jangan timpa editan lokal aktif saat background sync / polling berjalan
+  const isSyncingRef = useRef(false);
+  const lastSelfUpdateTimeRef = useRef<number>(0);
+
   // Load real data from Hostinger MySQL database on mount & support manual refresh and background polling
   const loadData = async (silent: boolean = false) => {
+    // Jika sedang dalam proses simpan aktif atau baru saja mengedit, cegah polling menimpa state
+    if (silent && isSyncingRef.current) return;
     if (!silent) setIsDbLoading(true);
     try {
       const [alumniRes, eventsRes, annRes] = await Promise.all([
@@ -170,14 +176,37 @@ export default function App() {
       if (alumniRes.success && alumniRes.data && alumniRes.data.length > 0) {
         setIsDbConnected(true);
 
+        const isRecentlyUpdated = Date.now() - lastSelfUpdateTimeRef.current < 30000;
+
         // Perbarui data sesi alumni yang sedang aktif secara aman tanpa menghapus field lokal yang telah diubah
         setCurrentSession((prev) => {
           if (prev?.role === 'alumni' && prev.alumniData) {
+            // Jika user baru saja mengedit profil dalam 30 detik terakhir, kunci data lokal 100%
+            if (isRecentlyUpdated) {
+              return prev;
+            }
+
             const freshMe = alumniRes.data.find(
               (a) => a.id === prev.alumniData!.id || (a.nik && a.nik === prev.alumniData!.nik)
             );
             if (freshMe) {
               const prevData = prev.alumniData;
+
+              // Jangan membuat referensi object baru jika data tidak berubah sama sekali
+              const isMeaningfullyDifferent = Object.keys(freshMe).some((key) => {
+                const k = key as keyof AlumniRecord;
+                return (
+                  freshMe[k] !== undefined &&
+                  freshMe[k] !== '' &&
+                  freshMe[k] !== null &&
+                  freshMe[k] !== prevData[k]
+                );
+              });
+
+              if (!isMeaningfullyDifferent) {
+                return prev;
+              }
+
               // PENTING: Pertahankan data sesi aktif lokal (prevData) agar editan pengguna tidak ditimpa oleh data polling lama dari server
               const mergedAlumni: AlumniRecord = {
                 ...freshMe,
@@ -304,12 +333,16 @@ export default function App() {
 
     // 1. Sinkronisasi otomatis setiap 8 detik (Fallback polling background)
     const pollInterval = setInterval(() => {
-      loadData(true);
+      if (navigator.onLine && !isSyncingRef.current) {
+        loadData(true);
+      }
     }, 8000);
 
     // 2. Auto-refresh saat jendela browser mendapatkan fokus kembali atau kembali online
     const handleWindowFocus = () => {
-      loadData(true);
+      if (!isSyncingRef.current) {
+        loadData(true);
+      }
     };
 
     window.addEventListener('focus', handleWindowFocus);
@@ -397,6 +430,10 @@ export default function App() {
   const handleUpdateAlumniProfile = async (updates: Partial<AlumniRecord>) => {
     if (!currentSession?.alumniData) return;
 
+    // Kunci proses sync agar polling background tidak menimpa data yang sedang disimpan
+    lastSelfUpdateTimeRef.current = Date.now();
+    isSyncingRef.current = true;
+
     const prevAlumni = currentSession.alumniData;
     // Jangan ubah username saat nama diubah
     const lockedUsername = updates.username !== undefined ? updates.username : prevAlumni.username;
@@ -477,8 +514,15 @@ export default function App() {
       );
     }
 
-    // Sync secara realtime ke database Hostinger & Express SmartSantri
-    await updateAlumniInHostinger(updatedAlumni.id, updates, updatedAlumni);
+    try {
+      // Sync secara realtime ke database Hostinger (attaroqqy.com, alumni.attaroqqy.com, & Express)
+      await updateAlumniInHostinger(updatedAlumni.id, finalUpdates, updatedAlumni);
+    } finally {
+      // Pertahankan lock selama 3 detik setelah network call selesai agar database server stabil
+      setTimeout(() => {
+        isSyncingRef.current = false;
+      }, 3000);
+    }
   };
 
   // First-time modal save
