@@ -814,8 +814,10 @@ export const AlumniDetailAdminModal: React.FC<AlumniDetailAdminModalProps> = ({
             <div className="flex gap-2 pt-2">
               <button type="button" onClick={() => setActiveEditModal(null)} className="flex-1 py-2 rounded-xl border border-slate-200 text-slate-600 font-semibold text-xs cursor-pointer">Batal</button>
               <button type="button" onClick={() => { 
-                setEditName(draftName);
-                handleUpdate({ name: draftName }); 
+                const trimmed = draftName.trim();
+                if (!trimmed) return;
+                setEditName(trimmed);
+                handleUpdate({ name: trimmed }); 
                 setActiveEditModal(null); 
               }} className="flex-1 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs cursor-pointer">Simpan</button>
             </div>

@@ -252,8 +252,27 @@ export default function App() {
           return prev;
         });
 
-        // Simpan daftar alumni dengan memastikan data alumni yang sedang login tetap memegang status terbarunya
+        // Simpan daftar alumni dengan memastikan data alumni yang sedang diedit lokal tidak tertimpa polling basi
         setAlumniList((prevList) => {
+          if (isRecentlyUpdated && prevList && prevList.length > 0) {
+            const prevMap = new Map(prevList.map((a) => [a.id, a]));
+            return alumniRes.data.map((freshItem) => {
+              const localItem = prevMap.get(freshItem.id);
+              if (localItem) {
+                return {
+                  ...freshItem,
+                  name: localItem.name || freshItem.name,
+                  username: localItem.username || freshItem.username,
+                  phone: localItem.phone || freshItem.phone,
+                  email: localItem.email || freshItem.email,
+                  city: localItem.city || freshItem.city,
+                  province: localItem.province || freshItem.province,
+                  alamatLengkap: localItem.alamatLengkap || freshItem.alamatLengkap,
+                };
+              }
+              return freshItem;
+            });
+          }
           if (currentSession?.role === 'alumni' && currentSession.alumniData) {
             const activeId = currentSession.alumniData.id;
             return alumniRes.data.map((item) => (item.id === activeId ? { ...item, ...currentSession.alumniData } : item));
@@ -560,35 +579,80 @@ export default function App() {
   };
 
   const handleUpdateAlumniByAdmin = async (id: string, updated: Partial<AlumniRecord>) => {
-    setAlumniList((prev) =>
-      prev.map((item) => (item.id === id ? { ...item, ...updated } : item))
-    );
+    // Kunci proses sync agar polling background tidak menimpa data yang sedang disimpan admin
+    lastSelfUpdateTimeRef.current = Date.now();
+    isSyncingRef.current = true;
+
+    const existingAlumni = alumniList.find((item) => item.id === id);
+    const fullRecord: AlumniRecord = existingAlumni
+      ? { ...existingAlumni, ...updated }
+      : ({ id, ...updated } as AlumniRecord);
+
+    const updatedList = alumniList.map((item) => (item.id === id ? fullRecord : item));
+    setAlumniList(updatedList);
+    try {
+      localStorage.setItem('attaroqqy_alumni_list_v1', JSON.stringify(updatedList));
+    } catch (e) {}
+
     // If current alumni is the one updated
     if (currentSession?.alumniData?.id === id) {
-      setCurrentSession({
+      const nextSession = {
         ...currentSession,
-        alumniData: { ...currentSession.alumniData, ...updated },
-      });
+        alumniData: fullRecord,
+      };
+      setCurrentSession(nextSession);
+      try {
+        localStorage.setItem('attaroqqy_active_session_v1', JSON.stringify(nextSession));
+      } catch (e) {}
     }
-    // Simpan ke database Hostinger
-    await updateAlumniInHostinger(id, updated);
+
+    try {
+      // Simpan ke database Hostinger & Express SmartSantri (aplikasi lama)
+      await updateAlumniInHostinger(id, updated, fullRecord);
+    } finally {
+      // Tahan lock selama 3.5 detik agar penulisan database server stabil
+      setTimeout(() => {
+        isSyncingRef.current = false;
+      }, 3500);
+    }
   };
 
   const handleResetAlumniPassword = async (id: string) => {
-    setAlumniList((prev) =>
-      prev.map((item) =>
-        item.id === id
-          ? { ...item, password: '1234', isPasswordChanged: false }
-          : item
-      )
+    lastSelfUpdateTimeRef.current = Date.now();
+    isSyncingRef.current = true;
+    const updatedList = alumniList.map((item) =>
+      item.id === id
+        ? { ...item, password: '1234', isPasswordChanged: false }
+        : item
     );
-    // Reset di database Hostinger
-    await resetAlumniPasswordInHostinger(id);
+    setAlumniList(updatedList);
+    try {
+      localStorage.setItem('attaroqqy_alumni_list_v1', JSON.stringify(updatedList));
+    } catch (e) {}
+    try {
+      await resetAlumniPasswordInHostinger(id);
+    } finally {
+      setTimeout(() => {
+        isSyncingRef.current = false;
+      }, 3000);
+    }
   };
 
   const handleDeleteAlumniByAdmin = async (id: string) => {
-    setAlumniList((prev) => prev.filter((item) => item.id !== id));
-    await deleteAlumniFromHostinger(id);
+    lastSelfUpdateTimeRef.current = Date.now();
+    isSyncingRef.current = true;
+    const updatedList = alumniList.filter((item) => item.id !== id);
+    setAlumniList(updatedList);
+    try {
+      localStorage.setItem('attaroqqy_alumni_list_v1', JSON.stringify(updatedList));
+    } catch (e) {}
+    try {
+      await deleteAlumniFromHostinger(id);
+    } finally {
+      setTimeout(() => {
+        isSyncingRef.current = false;
+      }, 3000);
+    }
   };
 
   const handleUpdateAdmin = async (updated: Partial<AdminUser>) => {
