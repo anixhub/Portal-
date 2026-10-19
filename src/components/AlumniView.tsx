@@ -692,10 +692,10 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
 
   const openEditModal = (modal: typeof activeEditModal) => {
     activeEditModalRef.current = modal;
-    if (modal === 'nama') setEditName(editName || alumni.name || '');
+    if (modal === 'nama') setEditName(alumni.name || '');
     else if (modal === 'ttl') {
-      const curTempat = editTempatLahir || alumni.tempatLahir || '';
-      const curTgl = editTanggalLahir || alumni.tanggalLahir || '';
+      const curTempat = alumni.tempatLahir || '';
+      const curTgl = alumni.tanggalLahir || '';
       setEditTempatLahir(curTempat);
       setEditTanggalLahir(curTgl);
       if (curTgl) {
@@ -711,43 +711,43 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
         setBirthDayInput('');
       }
     } else if (modal === 'saudara') {
-      setEditGender((editGender || (alumni.gender as 'L' | 'P')) || 'L');
-      setEditUrutanAnak(Number(editUrutanAnak || (alumni.anak_ke ?? alumni.urutanAnak)) || 1);
-      setEditJumlahSaudara(Number(editJumlahSaudara || (alumni.dari_bersaudara ?? alumni.jumlahSaudara)) || 1);
+      setEditGender((alumni.gender as 'L' | 'P') || 'L');
+      setEditUrutanAnak(Number(alumni.anak_ke ?? alumni.urutanAnak) || 1);
+      setEditJumlahSaudara(Number(alumni.dari_bersaudara ?? alumni.jumlahSaudara) || 1);
     } else if (modal === 'nik_kk') {
-      setEditNik(editNik || alumni.nik || '');
-      setEditNoKk(editNoKk || alumni.noKk || '');
+      setEditNik(alumni.nik || '');
+      setEditNoKk(alumni.noKk || '');
     } else if (modal === 'kontak') {
-      setEditPhone(editPhone || alumni.phone || '');
-      setEditEmail(editEmail || alumni.email || '');
+      setEditPhone(alumni.phone || '');
+      setEditEmail(alumni.email || '');
     } else if (modal === 'pekerjaan') {
-      setEditOccupation(editOccupation || alumni.occupation || '');
-      setEditInstitution(editInstitution || alumni.institution || '');
+      setEditOccupation(alumni.occupation || '');
+      setEditInstitution(alumni.institution || '');
     } else if (modal === 'bio') {
-      setEditBio(editBio || alumni.bio || '');
+      setEditBio(alumni.bio || '');
     } else if (modal === 'tanggal_masuk') {
-      setTempEntryDate(editEntryDate || alumni.entryDate || '');
-      setEditEntryDate(editEntryDate || alumni.entryDate || '');
+      setTempEntryDate(alumni.entryDate || '');
+      setEditEntryDate(alumni.entryDate || '');
     } else if (modal === 'tanggal_keluar') {
-      setTempGradDate(editGradDate || alumni.gradDate || '');
-      setEditGradDate(editGradDate || alumni.gradDate || '');
+      setTempGradDate(alumni.gradDate || '');
+      setEditGradDate(alumni.gradDate || '');
     } else if (modal === 'ayah') {
-      setEditNamaAyah(editNamaAyah || alumni.namaAyah || '');
-      setEditNikAyah(editNikAyah || alumni.nikAyah || '');
-      setEditPekerjaanAyah(editPekerjaanAyah || alumni.pekerjaanAyah || '');
-      setEditPendidikanAyah(editPendidikanAyah || alumni.pendidikanAyah || '');
+      setEditNamaAyah(alumni.namaAyah || '');
+      setEditNikAyah(alumni.nikAyah || '');
+      setEditPekerjaanAyah(alumni.pekerjaanAyah || '');
+      setEditPendidikanAyah(alumni.pendidikanAyah || '');
     } else if (modal === 'ibu') {
-      setEditNamaIbu(editNamaIbu || alumni.namaIbu || '');
-      setEditNikIbu(editNikIbu || alumni.nikIbu || '');
-      setEditPekerjaanIbu(editPekerjaanIbu || alumni.pekerjaanIbu || '');
-      setEditPendidikanIbu(editPendidikanIbu || alumni.pendidikanIbu || '');
+      setEditNamaIbu(alumni.namaIbu || '');
+      setEditNikIbu(alumni.nikIbu || '');
+      setEditPekerjaanIbu(alumni.pekerjaanIbu || '');
+      setEditPendidikanIbu(alumni.pendidikanIbu || '');
     } else if (modal === 'alamat') {
-      setEditProvince(editProvince || alumni.province || '');
-      setEditCity(editCity || alumni.city || '');
-      setEditKecamatan(editKecamatan || alumni.kecamatan || '');
-      setEditDesa(editDesa || alumni.desa || '');
-      setEditAlamatLengkap(editAlamatLengkap || alumni.alamatLengkap || '');
-      setEditCoordinates(editCoordinates || alumni.coordinates || null);
+      setEditProvince(alumni.province || '');
+      setEditCity(alumni.city || '');
+      setEditKecamatan(alumni.kecamatan || '');
+      setEditDesa(alumni.desa || '');
+      setEditAlamatLengkap(alumni.alamatLengkap || '');
+      setEditCoordinates(alumni.coordinates || null);
     } else if (modal === 'username') {
       setNewUsernameInput('');
       setUsernameStatus('idle');
@@ -911,64 +911,63 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
   activeEditModalRef.current = activeEditModal;
 
   useEffect(() => {
-    // Hanya inisialisasi ulang form jika berganti akun alumni yang berbeda (ID berubah)
-    const isNewUser = alumni.id !== prevAlumniIdRef.current;
-    if (isNewUser) {
-      prevAlumniIdRef.current = alumni.id;
+    // Jangan overwrite form jika user sedang membuka salah satu modal edit
+    if (activeEditModalRef.current || activeEditModal) return;
 
-      setEditNik(alumni.nik);
-      setEditNoKk(alumni.noKk || '');
-      setEditName(alumni.name);
-      setEditTempatLahir(alumni.tempatLahir || '');
-      setEditTanggalLahir(alumni.tanggalLahir || '');
-      if (alumni.tanggalLahir) {
-        const parts = alumni.tanggalLahir.split('-');
-        if (parts.length === 3) {
-          setBirthYearInput(parts[0] || '');
-          setBirthMonthInput(parts[1] ? String(parseInt(parts[1], 10)) : '');
-          setBirthDayInput(parts[2] ? String(parseInt(parts[2], 10)) : '');
-        }
-      } else {
-        setBirthYearInput('');
-        setBirthMonthInput('');
-        setBirthDayInput('');
+    prevAlumniIdRef.current = alumni.id;
+
+    setEditNik(alumni.nik);
+    setEditNoKk(alumni.noKk || '');
+    setEditName(alumni.name);
+    setEditTempatLahir(alumni.tempatLahir || '');
+    setEditTanggalLahir(alumni.tanggalLahir || '');
+    if (alumni.tanggalLahir) {
+      const parts = alumni.tanggalLahir.split('-');
+      if (parts.length === 3) {
+        setBirthYearInput(parts[0] || '');
+        setBirthMonthInput(parts[1] ? String(parseInt(parts[1], 10)) : '');
+        setBirthDayInput(parts[2] ? String(parseInt(parts[2], 10)) : '');
       }
-      setEditGender((alumni.gender as 'L' | 'P') || 'L');
-      setEditUrutanAnak(Number(alumni.anak_ke ?? alumni.urutanAnak) || 1);
-      setEditJumlahSaudara(Number(alumni.dari_bersaudara ?? alumni.jumlahSaudara) || 1);
-      setEditUsername(alumni.username || '');
-      setEditPhone(alumni.phone);
-      setEditEmail(alumni.email);
-      setEditCity(alumni.city);
-      setEditProvince(alumni.province);
-      setEditKecamatan(alumni.kecamatan || '');
-      setEditDesa(alumni.desa || '');
-      setEditAlamatLengkap(alumni.alamatLengkap || '');
-      setEditCoordinates(alumni.coordinates || null);
-      setEditOccupation(alumni.occupation);
-      setEditInstitution(alumni.institution);
-      setEditBio(alumni.bio || '');
-      setEditPhotoUrl(alumni.photoUrl);
-      setEditShareContact(alumni.shareContact);
-      setEditShareEmail(alumni.shareEmail !== false);
-      setEditShareFullAddress(alumni.shareFullAddress !== false);
-      setEditShareLocationTag(alumni.shareLocationTag !== false);
-      setEditNism(alumni.nism || '');
-      setEditNisn(alumni.nisn || '');
-      setEditEntryYear(alumni.entryYear || '');
-      setEditGradYear(alumni.gradYear || '');
-      setEditEntryDate(alumni.entryDate || '');
-      setEditGradDate(alumni.gradDate || '');
-      setEditNamaAyah(alumni.namaAyah || '');
-      setEditNikAyah(alumni.nikAyah || '');
-      setEditPekerjaanAyah(alumni.pekerjaanAyah || '');
-      setEditPendidikanAyah(alumni.pendidikanAyah || '');
-      setEditNamaIbu(alumni.namaIbu || '');
-      setEditNikIbu(alumni.nikIbu || '');
-      setEditPekerjaanIbu(alumni.pekerjaanIbu || '');
-      setEditPendidikanIbu(alumni.pendidikanIbu || '');
+    } else {
+      setBirthYearInput('');
+      setBirthMonthInput('');
+      setBirthDayInput('');
     }
-  }, [alumni.id]);
+    setEditGender((alumni.gender as 'L' | 'P') || 'L');
+    setEditUrutanAnak(Number(alumni.anak_ke ?? alumni.urutanAnak) || 1);
+    setEditJumlahSaudara(Number(alumni.dari_bersaudara ?? alumni.jumlahSaudara) || 1);
+    setEditUsername(alumni.username || '');
+    setEditPhone(alumni.phone);
+    setEditEmail(alumni.email);
+    setEditCity(alumni.city);
+    setEditProvince(alumni.province);
+    setEditKecamatan(alumni.kecamatan || '');
+    setEditDesa(alumni.desa || '');
+    setEditAlamatLengkap(alumni.alamatLengkap || '');
+    setEditCoordinates(alumni.coordinates || null);
+    setEditOccupation(alumni.occupation);
+    setEditInstitution(alumni.institution);
+    setEditBio(alumni.bio || '');
+    setEditPhotoUrl(alumni.photoUrl);
+    setEditShareContact(alumni.shareContact);
+    setEditShareEmail(alumni.shareEmail !== false);
+    setEditShareFullAddress(alumni.shareFullAddress !== false);
+    setEditShareLocationTag(alumni.shareLocationTag !== false);
+    setEditNism(alumni.nism || '');
+    setEditNisn(alumni.nisn || '');
+    setEditEntryYear(alumni.entryYear || '');
+    setEditGradYear(alumni.gradYear || '');
+    setEditEntryDate(alumni.entryDate || '');
+    setEditGradDate(alumni.gradDate || '');
+    setEditNamaAyah(alumni.namaAyah || '');
+    setEditNikAyah(alumni.nikAyah || '');
+    setEditPekerjaanAyah(alumni.pekerjaanAyah || '');
+    setEditPendidikanAyah(alumni.pendidikanAyah || '');
+    setEditNamaIbu(alumni.namaIbu || '');
+    setEditNikIbu(alumni.nikIbu || '');
+    setEditPekerjaanIbu(alumni.pekerjaanIbu || '');
+    setEditPendidikanIbu(alumni.pendidikanIbu || '');
+  }, [alumni, activeEditModal]);
 
   // Handle uploading and scaling photo
   const handlePhotoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
