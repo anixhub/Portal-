@@ -165,7 +165,6 @@ export default function App() {
       ]);
 
       if (alumniRes.success && alumniRes.data && alumniRes.data.length > 0) {
-        setAlumniList(alumniRes.data);
         setIsDbConnected(true);
 
         // Perbarui data sesi alumni yang sedang aktif secara aman tanpa menghapus field lokal yang telah diubah
@@ -176,42 +175,58 @@ export default function App() {
             );
             if (freshMe) {
               const prevData = prev.alumniData;
+              // PENTING: Pertahankan data sesi aktif lokal (prevData) agar editan pengguna tidak ditimpa oleh data polling lama dari server
               const mergedAlumni: AlumniRecord = {
-                ...prevData,
                 ...freshMe,
-                // Pertahankan editan pengguna jika database belum memiliki kolomnya atau nilainya masih kosong
+                ...prevData,
+                // Field yang telah diisi di sesi aktif lokal (prevData) tidak boleh di-revert ke nilai lama freshMe
+                name: prevData.name || freshMe.name,
                 username: prevData.username || freshMe.username,
-                bio: freshMe.bio || prevData.bio || '',
-                occupation: freshMe.occupation || prevData.occupation || '',
-                institution: freshMe.institution || prevData.institution || '',
-                namaAyah: freshMe.namaAyah || prevData.namaAyah || '',
-                nikAyah: freshMe.nikAyah || prevData.nikAyah || '',
-                pekerjaanAyah: freshMe.pekerjaanAyah || prevData.pekerjaanAyah || '',
-                pendidikanAyah: freshMe.pendidikanAyah || prevData.pendidikanAyah || '',
-                namaIbu: freshMe.namaIbu || prevData.namaIbu || '',
-                nikIbu: freshMe.nikIbu || prevData.nikIbu || '',
-                pekerjaanIbu: freshMe.pekerjaanIbu || prevData.pekerjaanIbu || '',
-                pendidikanIbu: freshMe.pendidikanIbu || prevData.pendidikanIbu || '',
-                entryDate: freshMe.entryDate || prevData.entryDate || '',
-                entryYear: freshMe.entryYear || prevData.entryYear || '',
-                gradDate: freshMe.gradDate || prevData.gradDate || '',
-                gradYear: freshMe.gradYear || prevData.gradYear || '',
-                tempatLahir: freshMe.tempatLahir || prevData.tempatLahir || '',
-                tanggalLahir: freshMe.tanggalLahir || prevData.tanggalLahir || '',
-                phone: freshMe.phone || prevData.phone || '',
-                email: freshMe.email || prevData.email || '',
-                alamatLengkap: freshMe.alamatLengkap || prevData.alamatLengkap || '',
-                desa: freshMe.desa || prevData.desa || '',
-                kecamatan: freshMe.kecamatan || prevData.kecamatan || '',
-                city: freshMe.city || prevData.city || '',
-                province: freshMe.province || prevData.province || '',
-                photoUrl: freshMe.photoUrl || prevData.photoUrl,
-                coverPhotoUrl: freshMe.coverPhotoUrl || prevData.coverPhotoUrl,
+                bio: prevData.bio !== undefined && prevData.bio !== '' ? prevData.bio : (freshMe.bio || ''),
+                occupation: prevData.occupation !== undefined && prevData.occupation !== '' ? prevData.occupation : (freshMe.occupation || ''),
+                institution: prevData.institution !== undefined && prevData.institution !== '' ? prevData.institution : (freshMe.institution || ''),
+                namaAyah: prevData.namaAyah || freshMe.namaAyah || '',
+                nikAyah: prevData.nikAyah || freshMe.nikAyah || '',
+                pekerjaanAyah: prevData.pekerjaanAyah || freshMe.pekerjaanAyah || '',
+                pendidikanAyah: prevData.pendidikanAyah || freshMe.pendidikanAyah || '',
+                namaIbu: prevData.namaIbu || freshMe.namaIbu || '',
+                nikIbu: prevData.nikIbu || freshMe.nikIbu || '',
+                pekerjaanIbu: prevData.pekerjaanIbu || freshMe.pekerjaanIbu || '',
+                pendidikanIbu: prevData.pendidikanIbu || freshMe.pendidikanIbu || '',
+                entryDate: prevData.entryDate || freshMe.entryDate || '',
+                entryYear: prevData.entryYear || freshMe.entryYear || '',
+                gradDate: prevData.gradDate || freshMe.gradDate || '',
+                gradYear: prevData.gradYear || freshMe.gradYear || '',
+                tempatLahir: prevData.tempatLahir || freshMe.tempatLahir || '',
+                tanggalLahir: prevData.tanggalLahir || freshMe.tanggalLahir || '',
+                phone: prevData.phone || freshMe.phone || '',
+                email: prevData.email || freshMe.email || '',
+                alamatLengkap: prevData.alamatLengkap || freshMe.alamatLengkap || '',
+                desa: prevData.desa || freshMe.desa || '',
+                kecamatan: prevData.kecamatan || freshMe.kecamatan || '',
+                city: prevData.city || freshMe.city || '',
+                province: prevData.province || freshMe.province || '',
+                photoUrl: prevData.photoUrl !== undefined ? prevData.photoUrl : freshMe.photoUrl,
+                coverPhotoUrl: prevData.coverPhotoUrl !== undefined ? prevData.coverPhotoUrl : freshMe.coverPhotoUrl,
+                gender: prevData.gender || freshMe.gender,
+                urutanAnak: prevData.urutanAnak ?? freshMe.urutanAnak,
+                jumlahSaudara: prevData.jumlahSaudara ?? freshMe.jumlahSaudara,
+                nik: prevData.nik || freshMe.nik,
+                noKk: prevData.noKk || freshMe.noKk,
               };
               return { ...prev, alumniData: mergedAlumni };
             }
           }
           return prev;
+        });
+
+        // Simpan daftar alumni dengan memastikan data alumni yang sedang login tetap memegang status terbarunya
+        setAlumniList((prevList) => {
+          if (currentSession?.role === 'alumni' && currentSession.alumniData) {
+            const activeId = currentSession.alumniData.id;
+            return alumniRes.data.map((item) => (item.id === activeId ? { ...item, ...currentSession.alumniData } : item));
+          }
+          return alumniRes.data;
         });
       } else {
         if (!silent) setIsDbConnected(false);

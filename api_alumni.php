@@ -211,6 +211,8 @@ function ensureSantriColumnsExist($pdo) {
         'tanggal_masuk' => "DATE DEFAULT NULL",
         'tanggal_keluar' => "DATE DEFAULT NULL",
         'kamar' => "VARCHAR(80) DEFAULT NULL",
+        'kelas' => "VARCHAR(80) DEFAULT NULL",
+        'pendidikan_formal' => "VARCHAR(100) DEFAULT 'Madrasah Aliyah Keagamaan (MAK)'",
         'is_password_changed' => "TINYINT(1) DEFAULT 0",
         'foto_sampul' => "TEXT DEFAULT NULL",
         'latitude' => "DECIMAL(10, 8) DEFAULT NULL",
@@ -450,6 +452,8 @@ if ($action === 'update_alumni' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         $namaVal = $input['nama'] ?? $input['name'] ?? null;
         if ($namaVal !== null) { $fields[] = "nama = :name"; $params[':name'] = $namaVal; }
         if (isset($input['nis'])) { $fields[] = "nis = :nis"; $params[':nis'] = $input['nis']; }
+        if (isset($input['nism'])) { $fields[] = "nism = :nism"; $params[':nism'] = $input['nism']; }
+        if (isset($input['nisn'])) { $fields[] = "nisn = :nisn"; $params[':nisn'] = $input['nisn']; }
         if (isset($input['nik'])) { $fields[] = "nik = :nik"; $params[':nik'] = $input['nik']; }
         if (isset($input['no_kk']) || isset($input['noKk'])) { 
             $fields[] = "no_kk = :noKk"; 
@@ -470,23 +474,31 @@ if ($action === 'update_alumni' && $_SERVER['REQUEST_METHOD'] === 'POST') {
             $params[':tempatLahir'] = $input['tempatLahir'] ?? $input['tempat_lahir']; 
         }
         if (isset($input['tanggalLahir']) || isset($input['tanggal_lahir'])) { 
+            $tglLahir = $input['tanggalLahir'] ?? $input['tanggal_lahir'];
             $fields[] = "tanggal_lahir = :tanggalLahir"; 
-            $params[':tanggalLahir'] = $input['tanggalLahir'] ?? $input['tanggal_lahir']; 
+            $params[':tanggalLahir'] = (!empty($tglLahir) && $tglLahir !== '0000-00-00' && $tglLahir !== 'null') ? $tglLahir : null; 
         }
         
         $anakVal = $input['anak_ke'] ?? $input['urutanAnak'] ?? $input['anakKe'] ?? null;
-        if ($anakVal !== null) { $fields[] = "anak_ke = :anakKe"; $params[':anakKe'] = $anakVal; }
+        if ($anakVal !== null && $anakVal !== '') { 
+            $fields[] = "anak_ke = :anakKe"; 
+            $params[':anakKe'] = (int)$anakVal; 
+        }
 
         $saudaraVal = $input['dari_bersaudara'] ?? $input['jumlahSaudara'] ?? $input['dariBersaudara'] ?? null;
-        if ($saudaraVal !== null) { $fields[] = "dari_bersaudara = :saudara"; $params[':saudara'] = $saudaraVal; }
+        if ($saudaraVal !== null && $saudaraVal !== '') { 
+            $fields[] = "dari_bersaudara = :saudara"; 
+            $params[':saudara'] = (int)$saudaraVal; 
+        }
 
         if (isset($input['kamar']) || isset($input['asramaDulu'])) {
             $fields[] = "kamar = :kamar";
             $params[':kamar'] = $input['kamar'] ?? $input['asramaDulu'];
         }
-        if (isset($input['kelas']) || isset($input['jenjang'])) {
+        if (isset($input['kelas']) || isset($input['jenjang']) || isset($input['pendidikan_formal'])) {
+            $jenjangVal = $input['pendidikan_formal'] ?? $input['kelas'] ?? $input['jenjang'];
             $fields[] = "kelas = :kelas";
-            $params[':kelas'] = $input['kelas'] ?? $input['jenjang'];
+            $params[':kelas'] = $jenjangVal;
         }
 
         // Data Orang Tua
@@ -560,24 +572,28 @@ if ($action === 'update_alumni' && $_SERVER['REQUEST_METHOD'] === 'POST') {
 
         // Riwayat Pondok & Tanggal Masuk/Keluar
         if (isset($input['entryDate']) || isset($input['tanggal_masuk'])) { 
+            $tglMasuk = $input['entryDate'] ?? $input['tanggal_masuk'];
             $fields[] = "tanggal_masuk = :entryDate"; 
-            $params[':entryDate'] = $input['entryDate'] ?? $input['tanggal_masuk']; 
+            $params[':entryDate'] = (!empty($tglMasuk) && $tglMasuk !== '0000-00-00' && $tglMasuk !== 'null') ? $tglMasuk : null; 
         }
         if (isset($input['gradYear']) || isset($input['tahun_lulus'])) { 
             $fields[] = "tahun_lulus = :gradYear"; 
             $params[':gradYear'] = $input['gradYear'] ?? $input['tahun_lulus']; 
         }
         if (isset($input['gradDate']) || isset($input['tanggal_keluar'])) { 
+            $tglKeluar = $input['gradDate'] ?? $input['tanggal_keluar'];
             $fields[] = "tanggal_keluar = :gradDate"; 
-            $params[':gradDate'] = $input['gradDate'] ?? $input['tanggal_keluar']; 
+            $params[':gradDate'] = (!empty($tglKeluar) && $tglKeluar !== '0000-00-00' && $tglKeluar !== 'null') ? $tglKeluar : null; 
         }
 
-        if (isset($input['coordinates'])) {
-            $coords = $input['coordinates'];
+        if (isset($input['coordinates']) || isset($input['latitude']) || isset($input['longitude'])) {
+            $coords = $input['coordinates'] ?? null;
+            $lat = is_array($coords) ? ($coords['lat'] ?? null) : ($input['latitude'] ?? null);
+            $lng = is_array($coords) ? ($coords['lng'] ?? null) : ($input['longitude'] ?? null);
             $fields[] = "latitude = :lat";
             $fields[] = "longitude = :lng";
-            $params[':lat'] = $coords ? $coords['lat'] : null;
-            $params[':lng'] = $coords ? $coords['lng'] : null;
+            $params[':lat'] = ($lat !== null && $lat !== '') ? (float)$lat : null;
+            $params[':lng'] = ($lng !== null && $lng !== '') ? (float)$lng : null;
         }
 
         if (!empty($fields)) {

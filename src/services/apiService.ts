@@ -691,7 +691,9 @@ export async function updateAlumniInHostinger(
     const responses = await Promise.all(targets);
     const isSuccess = responses.some((res) => res && res.ok);
 
-    broadcastSyncEvent('alumni');
+    setTimeout(() => {
+      broadcastSyncEvent('alumni');
+    }, 300);
 
     return {
       success: !!isSuccess,

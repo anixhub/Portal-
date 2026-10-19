@@ -46,8 +46,8 @@ async function getSantriData(forceFresh: boolean = false): Promise<any> {
   }
 
   const urlsToTry = [
-    'https://alumni.attaroqqy.com/api_alumni.php?action=get_alumni',
-    'https://attaroqqy.com/api/db/santri',
+    `https://alumni.attaroqqy.com/api_alumni.php?action=get_alumni&_t=${now}`,
+    `https://attaroqqy.com/api/db/santri?_t=${now}`,
   ];
 
   for (const url of urlsToTry) {
@@ -59,6 +59,8 @@ async function getSantriData(forceFresh: boolean = false): Promise<any> {
         headers: {
           Accept: 'application/json',
           'User-Agent': 'AttaroqqyPortal/1.0',
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          Pragma: 'no-cache',
         },
         signal: controller.signal,
       });
@@ -169,7 +171,7 @@ async function startServer() {
   // Santri API: GET
   app.get('/api/db/santri', async (req, res) => {
     try {
-      const isFresh = req.query.fresh === 'true' || req.query.force === 'true';
+      const isFresh = req.query.fresh === 'true' || req.query.force === 'true' || Boolean(req.query._t);
       const data = await getSantriData(isFresh);
       res.setHeader('Content-Type', 'application/json');
       res.json(data);

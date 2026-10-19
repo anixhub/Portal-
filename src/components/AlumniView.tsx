@@ -929,7 +929,8 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
           ctx.drawImage(img, 0, 0, width, height);
           const compressed = canvas.toDataURL('image/jpeg', 0.88);
           setEditPhotoUrl(compressed);
-          triggerToast('Foto profil dipilih. Klik "Simpan Perubahan" untuk menyimpan.');
+          onUpdateProfile({ photoUrl: compressed });
+          triggerToast('Foto profil berhasil diperbarui');
         }
       };
       img.src = event.target?.result as string;
@@ -943,7 +944,8 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
-    triggerToast('Foto profil dihapus. Klik "Simpan Perubahan" untuk menyimpan.');
+    onUpdateProfile({ photoUrl: undefined });
+    triggerToast('Foto profil berhasil dihapus');
   };
 
   // Directory Search State (Persis Kelola Data Alumni di Akun Admin)
