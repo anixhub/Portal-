@@ -341,6 +341,47 @@ function processIncomingPhoto($photoData, $prefix = 'filePasFoto') {
 }
 
 // ==========================================
+// 0. STATUS SINKRONISASI REALTIME 2-ARAH
+// ==========================================
+if ($action === 'get_sync_status' || $action === 'get_sync_meta') {
+    try {
+        ensureTablesExist($pdo);
+        // Hitung total, max id, dan signature santri alumni
+        $santriStmt = $pdo->query("SELECT COUNT(*) as total, MAX(id) as max_id, MAX(CONCAT(id, '_', COALESCE(nama, ''), '_', COALESCE(no_hp, ''))) as sig FROM santri WHERE status_keanggotaan = 'Alumni' OR LOWER(status_keanggotaan) = 'alumni' OR status_keanggotaan LIKE '%Alumni%'");
+        $santriMeta = $santriStmt ? $santriStmt->fetch(PDO::FETCH_ASSOC) : ['total' => 0, 'max_id' => '', 'sig' => ''];
+
+        // Events meta
+        $evStmt = $pdo->query("SELECT COUNT(*) as total, MAX(id) as max_id FROM events");
+        $evMeta = $evStmt ? $evStmt->fetch(PDO::FETCH_ASSOC) : ['total' => 0, 'max_id' => ''];
+
+        // Announcements meta
+        $annStmt = $pdo->query("SELECT COUNT(*) as total, MAX(id) as max_id FROM announcements");
+        $annMeta = $annStmt ? $annStmt->fetch(PDO::FETCH_ASSOC) : ['total' => 0, 'max_id' => ''];
+
+        // Comments meta
+        $commStmt = $pdo->query("SELECT COUNT(*) as total, MAX(id) as max_id FROM post_comments");
+        $commMeta = $commStmt ? $commStmt->fetch(PDO::FETCH_ASSOC) : ['total' => 0, 'max_id' => ''];
+
+        $compositeHash = md5(json_encode([$santriMeta, $evMeta, $annMeta, $commMeta]));
+
+        echo json_encode([
+            'success' => true,
+            'timestamp' => time(),
+            'hash' => $compositeHash,
+            'meta' => [
+                'santri' => $santriMeta,
+                'events' => $evMeta,
+                'announcements' => $annMeta,
+                'comments' => $commMeta,
+            ]
+        ]);
+    } catch (Exception $e) {
+        echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+    }
+    exit;
+}
+
+// ==========================================
 // 1. AMBIL DATA SANTRI YANG BERSTATUS 'Alumni'
 // ==========================================
 if ($action === 'get_alumni') {

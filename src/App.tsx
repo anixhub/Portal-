@@ -32,8 +32,11 @@ import {
   syncChannel,
   syncAdminProfileAcrossApp,
 } from './services/apiService';
+import { wsClient, WsMessage } from './services/websocketService';
 
 export default function App() {
+  const [wsConnected, setWsConnected] = useState(false);
+  const [syncToastMessage, setSyncToastMessage] = useState<string | null>(null);
   const [alumniList, setAlumniList] = useState<AlumniRecord[]>(INITIAL_ALUMNI);
   const [adminList, setAdminList] = useState<AdminUser[]>(() => {
     try {
@@ -252,7 +255,54 @@ export default function App() {
   useEffect(() => {
     loadData(false);
 
-    // 1. Sinkronisasi otomatis setiap 8 detik (Polling 2-arah realtime)
+    // 0. WebSocket Realtime 2-Way Sync Listener
+    const unsubscribeWsStatus = wsClient.onStatusChange((status) => {
+      const isConn = status === 'connected';
+      setWsConnected(isConn);
+      if (isConn) {
+        setIsDbConnected(true);
+      }
+    });
+
+    const unsubscribeWsMessage = wsClient.onMessage((msg: WsMessage) => {
+      console.log('[App Realtime WS] Menerima sinyal:', msg.type, msg.entity, msg.action);
+
+      if (msg.type === 'DATA_CHANGED' || msg.type === 'REMOTE_DATA_CHANGED') {
+        // Optimistic Delta Update untuk respon kilat 0-detik
+        if (msg.entity === 'alumni' && msg.action === 'update' && msg.data && msg.id) {
+          setAlumniList((prevList) => {
+            const idx = prevList.findIndex((a) => String(a.id) === String(msg.id));
+            if (idx >= 0) {
+              const updated = [...prevList];
+              updated[idx] = { ...updated[idx], ...msg.data };
+              return updated;
+            }
+            return prevList;
+          });
+
+          setCurrentSession((prev) => {
+            if (prev?.role === 'alumni' && prev.alumniData && String(prev.alumniData.id) === String(msg.id)) {
+              return { ...prev, alumniData: { ...prev.alumniData, ...msg.data } };
+            }
+            return prev;
+          });
+        } else if (msg.entity === 'alumni' && msg.action === 'delete' && msg.id) {
+          setAlumniList((prevList) => prevList.filter((a) => String(a.id) !== String(msg.id)));
+        }
+
+        // Tampilkan indikator toast sinkronisasi
+        const notice = msg.type === 'REMOTE_DATA_CHANGED'
+          ? 'Perubahan dari database Hostinger / aplikasi lama tersinkronkan!'
+          : 'Data diperbarui secara realtime via WebSocket';
+        setSyncToastMessage(notice);
+        setTimeout(() => setSyncToastMessage((curr) => (curr === notice ? null : curr)), 3000);
+
+        // Muat ulang data terbaru secara background (silent)
+        loadData(true);
+      }
+    });
+
+    // 1. Sinkronisasi otomatis setiap 8 detik (Fallback polling background)
     const pollInterval = setInterval(() => {
       loadData(true);
     }, 8000);
@@ -284,6 +334,8 @@ export default function App() {
     window.addEventListener('storage', handleStorageChange);
 
     return () => {
+      unsubscribeWsStatus();
+      unsubscribeWsMessage();
       clearInterval(pollInterval);
       window.removeEventListener('focus', handleWindowFocus);
       window.removeEventListener('online', handleWindowFocus);
@@ -901,6 +953,16 @@ export default function App() {
           isOpen={isForgotPasswordOpen}
           onClose={() => setIsForgotPasswordOpen(false)}
         />
+      )}
+
+      {/* TOAST REALTIME TWO-WAY SYNC */}
+      {syncToastMessage && (
+        <div className="fixed top-4 inset-x-0 flex justify-center z-[999999] pointer-events-none px-4 animate-in fade-in slide-in-from-top-3 duration-200">
+          <div className="bg-emerald-950/95 text-emerald-100 text-xs font-medium px-4 py-2 rounded-full shadow-xl backdrop-blur-md border border-emerald-500/30 flex items-center gap-2 max-w-sm text-center">
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0" />
+            <span>{syncToastMessage}</span>
+          </div>
+        </div>
       )}
 
       {/* TOAST PETUNJUK TOMBOL KEMBALI KELUAR */}

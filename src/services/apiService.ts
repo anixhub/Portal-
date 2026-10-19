@@ -2,6 +2,7 @@ import { AlumniRecord, EventAgenda, AnnouncementItem, EventComment } from '../ty
 import { INITIAL_ALUMNI, INITIAL_EVENTS, INITIAL_ANNOUNCEMENTS } from '../data/mockData';
 import { getAlumniPhotoUrl, formatPhotoUrlForHostinger } from '../utils/photoUtils';
 import { ensureConsistentAlumniIdentities } from '../utils/alumniIdentityUtils';
+import { wsClient } from './websocketService';
 
 // URL Endpoint API di Hostinger (Domain Portal Alumni)
 export const HOSTINGER_API_URL =
@@ -28,6 +29,9 @@ export function broadcastSyncEvent(type: 'alumni' | 'events' | 'announcements' |
       localStorage.setItem('attaroqqy_sync_pulse', `${type}_${Date.now()}`);
     } catch (e) {}
   }
+  try {
+    wsClient.sendMutation(type === 'all' ? 'alumni' : type, 'update');
+  } catch (e) {}
 }
 
 export interface HostingerApiResponse<T> {

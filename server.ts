@@ -3,6 +3,8 @@ import { createServer as createViteServer } from 'vite';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
+import http from 'http';
+import { WebSocketServer, WebSocket } from 'ws';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -92,6 +94,151 @@ async function getSantriData(forceFresh: boolean = false): Promise<any> {
 
 async function startServer() {
   const app = express();
+  const httpServer = http.createServer(app);
+  const wss = new WebSocketServer({ noServer: true });
+  const wsClients = new Set<WebSocket>();
+
+  // WebSocket Server Connection Handler
+  wss.on('connection', (ws: WebSocket) => {
+    wsClients.add(ws);
+    (ws as any).isAlive = true;
+    console.log(`[WebSocket] Client connected. Active clients: ${wsClients.size}`);
+
+    ws.on('pong', () => {
+      (ws as any).isAlive = true;
+    });
+
+    ws.send(JSON.stringify({
+      type: 'CONNECTED',
+      timestamp: Date.now(),
+      totalCached: cachedSantriData?.data?.length || localSnapshot?.data?.length || 0,
+      message: 'Terkoneksi ke WebSocket Server Realtime Portal Alumni At-Taroqqy',
+    }));
+
+    ws.on('message', (raw) => {
+      try {
+        const msg = JSON.parse(raw.toString());
+        if (msg.type === 'PING') {
+          ws.send(JSON.stringify({ type: 'PONG', timestamp: Date.now() }));
+        } else if (msg.type === 'CLIENT_MUTATION') {
+          // Relai mutasi data dari client ini ke client lainnya
+          broadcastWs({
+            type: 'DATA_CHANGED',
+            entity: msg.entity || 'alumni',
+            action: msg.action || 'update',
+            id: msg.id,
+            data: msg.data,
+            timestamp: Date.now(),
+          }, ws);
+        }
+      } catch (e) {}
+    });
+
+    ws.on('close', () => {
+      wsClients.delete(ws);
+      console.log(`[WebSocket] Client disconnected. Active clients: ${wsClients.size}`);
+    });
+
+    ws.on('error', (err) => {
+      console.warn('[WebSocket] Error pada client:', err.message);
+      wsClients.delete(ws);
+    });
+  });
+
+  // Heartbeat ping interval setiap 25 detik
+  const wsHeartbeatInterval = setInterval(() => {
+    for (const ws of wsClients) {
+      if ((ws as any).isAlive === false) {
+        wsClients.delete(ws);
+        ws.terminate();
+        continue;
+      }
+      (ws as any).isAlive = false;
+      try {
+        ws.ping();
+      } catch (e) {
+        wsClients.delete(ws);
+      }
+    }
+  }, 25000);
+
+  // Upgrade HTTP to WebSocket for /ws path
+  httpServer.on('upgrade', (request, socket, head) => {
+    const { pathname } = new URL(request.url || '', `http://${request.headers.host || 'localhost'}`);
+    if (pathname === '/ws' || pathname === '/ws/') {
+      wss.handleUpgrade(request, socket, head, (ws) => {
+        wss.emit('connection', ws, request);
+      });
+    }
+  });
+
+  // Fungsi broadcast ke seluruh client WebSocket
+  function broadcastWs(payload: object, excludeWs?: WebSocket) {
+    const message = JSON.stringify(payload);
+    for (const ws of wsClients) {
+      if (ws !== excludeWs && ws.readyState === WebSocket.OPEN) {
+        try {
+          ws.send(message);
+        } catch (err) {
+          console.warn('[WebSocket] Gagal mengirim pesan ke client:', err);
+        }
+      }
+    }
+  }
+
+  // ==========================================
+  // REALTIME 2-WAY SYNC: HOSTINGER / APLIKASI SEBELUMNYA <-> APLIKASI INI
+  // ==========================================
+  let lastRemoteHash: string = '';
+  let isCheckingRemote = false;
+
+  async function checkRemoteDatabaseSync() {
+    if (isCheckingRemote) return;
+    isCheckingRemote = true;
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 4000);
+      const res = await fetch(`https://alumni.attaroqqy.com/api_alumni.php?action=get_sync_status&_t=${Date.now()}`, {
+        headers: { Accept: 'application/json' },
+        signal: controller.signal,
+      });
+      clearTimeout(timeout);
+
+      if (res.ok) {
+        const json = await res.json();
+        if (json.success && json.hash) {
+          if (!lastRemoteHash) {
+            lastRemoteHash = json.hash;
+            return;
+          }
+
+          if (json.hash !== lastRemoteHash) {
+            console.log(`[Realtime 2-Way Sync] Perubahan terdeteksi di database Hostinger / aplikasi sebelumnya! (Hash baru: ${json.hash})`);
+            lastRemoteHash = json.hash;
+
+            // Ambil data alumni terbaru secara paksa
+            const fresh = await getSantriData(true);
+
+            // Broadcast sinyal REMOTE_DATA_CHANGED ke seluruh client WebSocket aktif
+            broadcastWs({
+              type: 'REMOTE_DATA_CHANGED',
+              entity: 'all',
+              action: 'sync',
+              total: fresh?.data?.length || 0,
+              timestamp: Date.now(),
+            });
+          }
+        }
+      }
+    } catch (err) {
+      // Abaikan jika network delay/offline sesaat
+    } finally {
+      isCheckingRemote = false;
+    }
+  }
+
+  // Polling deteksi perubahan dari aplikasi sebelumnya setiap 3.5 detik
+  const remoteSyncPoller = setInterval(checkRemoteDatabaseSync, 3500);
 
   // Port resolution: Dev server must run on port 3000
   let port = 3000;
@@ -124,8 +271,50 @@ async function startServer() {
       status: 'ok',
       hasSnapshot: !!localSnapshot,
       cachedRecords: cachedSantriData?.data?.length || localSnapshot?.data?.length || 0,
+      wsClients: wsClients.size,
       timestamp: new Date().toISOString(),
     });
+  });
+
+  // Webhook / Notify Endpoint: menerima ping instan dari aplikasi sebelumnya / PHP
+  app.post('/api/sync/webhook', async (req, res) => {
+    try {
+      const { entity = 'alumni', action = 'update', data, source = 'external' } = req.body || {};
+      console.log(`[Realtime Sync] Webhook dipicu dari ${source} (Entity: ${entity}, Action: ${action})`);
+
+      if (entity === 'alumni' || entity === 'all') {
+        await getSantriData(true);
+      }
+
+      broadcastWs({
+        type: 'REMOTE_DATA_CHANGED',
+        entity,
+        action,
+        data,
+        source,
+        timestamp: Date.now(),
+      });
+
+      res.json({ success: true, message: 'Sync webhook processed & broadcasted via WebSocket' });
+    } catch (err: any) {
+      res.status(500).json({ success: false, message: err?.message });
+    }
+  });
+
+  app.post('/api/sync/notify', async (req, res) => {
+    try {
+      const { entity = 'alumni' } = req.body || {};
+      await getSantriData(true);
+      broadcastWs({
+        type: 'REMOTE_DATA_CHANGED',
+        entity,
+        action: 'refresh',
+        timestamp: Date.now(),
+      });
+      res.json({ success: true });
+    } catch (err: any) {
+      res.status(500).json({ success: false });
+    }
   });
 
   // Media / Photo Uploads Proxy to attaroqqy.com
@@ -314,6 +503,16 @@ async function startServer() {
         }),
       ]).catch(() => {});
 
+      // Broadcast perubahan santri secara realtime ke seluruh WebSocket client
+      broadcastWs({
+        type: 'DATA_CHANGED',
+        entity: 'alumni',
+        action: 'update',
+        id,
+        data: normalizedPayload,
+        timestamp: Date.now(),
+      });
+
       res.json({ success: true, message: 'Data santri berhasil diperbarui' });
     } catch (err: any) {
       console.warn(`[Server] Error processing PUT for ${id}:`, err?.message);
@@ -368,6 +567,16 @@ async function startServer() {
         }),
       ]).catch(() => {});
 
+      // Broadcast alumni baru secara realtime via WebSocket
+      broadcastWs({
+        type: 'DATA_CHANGED',
+        entity: 'alumni',
+        action: 'create',
+        id: newRecord.id,
+        data: newRecord,
+        timestamp: Date.now(),
+      });
+
       res.json({ success: true, message: 'Santri/alumni baru berhasil ditambahkan', id: newRecord.id });
     } catch (err: any) {
       console.warn('[Server] Error adding santri:', err?.message);
@@ -403,6 +612,15 @@ async function startServer() {
         body: JSON.stringify({ id }),
         signal: AbortSignal.timeout(8000),
       }).catch(() => {});
+
+      // Broadcast hapus santri secara realtime via WebSocket
+      broadcastWs({
+        type: 'DATA_CHANGED',
+        entity: 'alumni',
+        action: 'delete',
+        id,
+        timestamp: Date.now(),
+      });
 
       res.json({ success: true, message: 'Alumni berhasil dihapus' });
     } catch (err: any) {
@@ -536,6 +754,17 @@ async function startServer() {
       else cachedEvents.unshift(event);
       saveJsonStore(eventsStorePath, cachedEvents);
     }
+
+    // Broadcast event perubahan via WebSocket
+    broadcastWs({
+      type: 'DATA_CHANGED',
+      entity: 'events',
+      action: 'save',
+      id: event?.id,
+      data: event,
+      timestamp: Date.now(),
+    });
+
     try {
       const remoteRes = await fetch('https://alumni.attaroqqy.com/api_alumni.php?action=save_event', {
         method: 'POST',
@@ -563,6 +792,16 @@ async function startServer() {
     }
     cachedEvents = cachedEvents.filter((e: any) => e.id !== id);
     saveJsonStore(eventsStorePath, cachedEvents);
+
+    // Broadcast hapus event via WebSocket
+    broadcastWs({
+      type: 'DATA_CHANGED',
+      entity: 'events',
+      action: 'delete',
+      id,
+      timestamp: Date.now(),
+    });
+
     try {
       await fetch('https://alumni.attaroqqy.com/api_alumni.php?action=delete_event', {
         method: 'POST',
@@ -677,6 +916,16 @@ async function startServer() {
         signal: AbortSignal.timeout(10000),
       }).catch(() => {});
     } catch (err: any) {}
+
+    // Broadcast RSVP update via WebSocket
+    broadcastWs({
+      type: 'DATA_CHANGED',
+      entity: 'events',
+      action: 'rsvp',
+      id: eventId,
+      data: { eventId, status, updatedEvent },
+      timestamp: Date.now(),
+    });
 
     res.json({ success: true, event: updatedEvent });
   });
@@ -858,6 +1107,17 @@ async function startServer() {
       else cachedAnnouncements.unshift(ann);
       saveJsonStore(announcementsStorePath, cachedAnnouncements);
     }
+
+    // Broadcast pengumuman via WebSocket
+    broadcastWs({
+      type: 'DATA_CHANGED',
+      entity: 'announcements',
+      action: 'save',
+      id: ann?.id,
+      data: ann,
+      timestamp: Date.now(),
+    });
+
     try {
       const remoteRes = await fetch('https://alumni.attaroqqy.com/api_alumni.php?action=save_announcement', {
         method: 'POST',
@@ -885,6 +1145,16 @@ async function startServer() {
     }
     cachedAnnouncements = cachedAnnouncements.filter((a: any) => a.id !== id);
     saveJsonStore(announcementsStorePath, cachedAnnouncements);
+
+    // Broadcast hapus pengumuman via WebSocket
+    broadcastWs({
+      type: 'DATA_CHANGED',
+      entity: 'announcements',
+      action: 'delete',
+      id,
+      timestamp: Date.now(),
+    });
+
     try {
       await fetch('https://alumni.attaroqqy.com/api_alumni.php?action=delete_announcement', {
         method: 'POST',
@@ -983,6 +1253,16 @@ async function startServer() {
       }).catch(() => {});
     } catch (e) {}
 
+    // Broadcast komentar via WebSocket
+    broadcastWs({
+      type: 'DATA_CHANGED',
+      entity: 'comments',
+      action: 'save',
+      id: comm?.id,
+      data: comm,
+      timestamp: Date.now(),
+    });
+
     res.json({ success: true, id: comm.id });
   });
 
@@ -1017,6 +1297,15 @@ async function startServer() {
       }).catch(() => {});
     } catch (e) {}
 
+    broadcastWs({
+      type: 'DATA_CHANGED',
+      entity: 'comments',
+      action: 'like',
+      id: replyId || commentId,
+      data: { commentId, replyId, isLiked },
+      timestamp: Date.now(),
+    });
+
     res.json({ success: true });
   });
 
@@ -1034,6 +1323,14 @@ async function startServer() {
         signal: AbortSignal.timeout(8000),
       }).catch(() => {});
     } catch (e) {}
+
+    broadcastWs({
+      type: 'DATA_CHANGED',
+      entity: 'comments',
+      action: 'delete',
+      id,
+      timestamp: Date.now(),
+    });
 
     res.json({ success: true });
   });
@@ -1077,6 +1374,15 @@ async function startServer() {
         signal: AbortSignal.timeout(8000),
       }).catch(() => {});
     } catch (e) {}
+
+    broadcastWs({
+      type: 'DATA_CHANGED',
+      entity: postType === 'announcement' ? 'announcements' : 'events',
+      action: 'like',
+      id: postId,
+      data: { postId, postType, isLiked },
+      timestamp: Date.now(),
+    });
 
     res.json({ success: true });
   });
@@ -1249,8 +1555,8 @@ async function startServer() {
   // Pre-fetch santri data in background
   getSantriData().catch(() => {});
 
-  app.listen(PORT, '0.0.0.0', () => {
-    console.log(`[Server] Portal Alumni backend running on http://0.0.0.0:${PORT}`);
+  httpServer.listen(PORT, '0.0.0.0', () => {
+    console.log(`[Server] Portal Alumni backend & WebSocket running on http://0.0.0.0:${PORT}`);
   });
 }
 
