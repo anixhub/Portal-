@@ -369,13 +369,19 @@ export async function updateAlumniInHostinger(
 
     const effectiveNik = updates.nik ?? fullRecord?.nik;
     const effectiveNis = updates.nis ?? fullRecord?.nis;
+    const cleanNama = updates.name ?? (updates as any).nama ?? fullRecord?.name ?? (fullRecord as any)?.nama ?? '';
 
     // 1. Siapkan payload untuk Express SmartSantri API (/api/db/santri/:id)
     // yang digunakan oleh aplikasi lama
     const expressPayload: Record<string, any> = {
       id,
+      ...(fullRecord || {}),
       ...updates,
     };
+    if (cleanNama) {
+      expressPayload.nama = cleanNama;
+      expressPayload.name = cleanNama;
+    }
     if (effectiveNik !== undefined) {
       expressPayload.nik = effectiveNik;
       expressPayload.nik_lookup = effectiveNik;
@@ -393,11 +399,6 @@ export async function updateAlumniInHostinger(
       expressPayload.gender = expressGender;
       expressPayload.jenis_kelamin = expressGender;
       expressPayload.jk = expressGender;
-    }
-    if (updates.name !== undefined || fullRecord?.name !== undefined) {
-      const nm = updates.name ?? fullRecord?.name;
-      expressPayload.nama = nm;
-      expressPayload.name = nm;
     }
     if (updates.username !== undefined) expressPayload.username = updates.username;
     if (updates.tempatLahir !== undefined || fullRecord?.tempatLahir !== undefined) {
@@ -571,9 +572,10 @@ export async function updateAlumniInHostinger(
     // 2. Siapkan payload untuk PHP Hostinger API (/api_alumni.php?action=update_alumni)
     const phpPayload: Record<string, any> = {
       id,
+      ...(fullRecord || {}),
       ...updates,
-      nama: updates.name ?? (updates as any).nama ?? fullRecord?.name,
-      name: updates.name ?? (updates as any).nama ?? fullRecord?.name,
+      nama: cleanNama,
+      name: cleanNama,
       nik: effectiveNik,
       nik_lookup: effectiveNik,
       nis: effectiveNis,
@@ -710,10 +712,11 @@ export async function updateAlumniInHostinger(
         'update',
         {
           id,
+          ...(fullRecord || {}),
           ...updates,
           ...expressPayload,
-          nama: updates.name ?? (updates as any).nama ?? fullRecord?.name,
-          name: updates.name ?? (updates as any).nama ?? fullRecord?.name,
+          nama: cleanNama,
+          name: cleanNama,
           status_keanggotaan: 'Alumni',
         },
         id

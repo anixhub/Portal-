@@ -560,6 +560,7 @@ async function startServer() {
       }
 
       // Update in-memory localSnapshot and persist to disk immediately
+      let mergedRecord = { ...normalizedPayload };
       if (localSnapshot && Array.isArray(localSnapshot.data)) {
         const idx = localSnapshot.data.findIndex(
           (s: any) =>
@@ -568,7 +569,8 @@ async function startServer() {
             (payload.nis && String(s.nis) === String(payload.nis))
         );
         if (idx >= 0) {
-          localSnapshot.data[idx] = { ...localSnapshot.data[idx], ...normalizedPayload };
+          mergedRecord = { ...localSnapshot.data[idx], ...normalizedPayload };
+          localSnapshot.data[idx] = mergedRecord;
         } else {
           localSnapshot.data.unshift(normalizedPayload);
         }
@@ -588,9 +590,9 @@ async function startServer() {
             (payload.nis && String(s.nis) === String(payload.nis))
         );
         if (idx >= 0) {
-          cachedSantriData.data[idx] = { ...cachedSantriData.data[idx], ...normalizedPayload };
+          cachedSantriData.data[idx] = { ...cachedSantriData.data[idx], ...mergedRecord };
         } else {
-          cachedSantriData.data.unshift(normalizedPayload);
+          cachedSantriData.data.unshift(mergedRecord);
         }
       } else {
         cachedSantriData = localSnapshot;
@@ -605,7 +607,7 @@ async function startServer() {
             'Content-Type': 'application/json',
             Accept: 'application/json',
           },
-          body: JSON.stringify(normalizedPayload),
+          body: JSON.stringify(mergedRecord),
           signal: AbortSignal.timeout(10000),
         }),
         fetch('https://alumni.attaroqqy.com/api_alumni.php?action=update_alumni', {
@@ -614,7 +616,7 @@ async function startServer() {
             'Content-Type': 'application/json',
             Accept: 'application/json',
           },
-          body: JSON.stringify(normalizedPayload),
+          body: JSON.stringify(mergedRecord),
           signal: AbortSignal.timeout(10000),
         }),
         fetch(`https://attaroqqy.com/api/db/santri/${id}`, {
@@ -623,7 +625,7 @@ async function startServer() {
             'Content-Type': 'application/json',
             Accept: 'application/json',
           },
-          body: JSON.stringify(normalizedPayload),
+          body: JSON.stringify(mergedRecord),
           signal: AbortSignal.timeout(10000),
         }),
       ]).catch(() => {});
@@ -634,7 +636,7 @@ async function startServer() {
         entity: 'alumni',
         action: 'update',
         id,
-        data: normalizedPayload,
+        data: mergedRecord,
         timestamp: Date.now(),
       });
 
@@ -645,7 +647,7 @@ async function startServer() {
         table: 'santri',
         action: 'update',
         id,
-        data: normalizedPayload,
+        data: mergedRecord,
       });
 
       res.json({ success: true, message: 'Data santri berhasil diperbarui' });

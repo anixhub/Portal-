@@ -8,7 +8,7 @@ interface EditAlumniModalProps {
   isOpen: boolean;
   alumni: AlumniRecord | null;
   onClose: () => void;
-  onSave: (id: string, updated: Partial<AlumniRecord>) => void;
+  onSave: (id: string, updated: Partial<AlumniRecord>, fullRecord?: AlumniRecord) => void;
 }
 
 export const EditAlumniModal: React.FC<EditAlumniModalProps> = ({
@@ -98,7 +98,7 @@ export const EditAlumniModal: React.FC<EditAlumniModalProps> = ({
       ? Math.max(0, dariBersaudara)
       : (parseInt(String(dariBersaudara), 10) || 0);
 
-    onSave(alumni.id, {
+    const updatedFields: Partial<AlumniRecord> = {
       name,
       nik,
       noKk: noKk || undefined,
@@ -121,7 +121,20 @@ export const EditAlumniModal: React.FC<EditAlumniModalProps> = ({
       coordinates: coordinates || undefined,
       occupation,
       institution,
-    });
+    };
+    (updatedFields as any).nama = name;
+    (updatedFields as any).status_keanggotaan = 'Alumni';
+
+    const mergedRecord: AlumniRecord = {
+      ...alumni,
+      ...updatedFields,
+      name,
+      status: 'alumni',
+    };
+    (mergedRecord as any).nama = name;
+    (mergedRecord as any).status_keanggotaan = 'Alumni';
+
+    onSave(alumni.id, updatedFields, mergedRecord);
     onClose();
   };
 

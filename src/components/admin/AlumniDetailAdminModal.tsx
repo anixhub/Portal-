@@ -36,7 +36,7 @@ interface AlumniDetailAdminModalProps {
   existingAlumni?: AlumniRecord[];
   onClose: () => void;
   onResetPassword: (id: string) => void;
-  onSave?: (id: string, updated: Partial<AlumniRecord>) => void;
+  onSave?: (id: string, updated: Partial<AlumniRecord>, fullRecord?: AlumniRecord) => void;
   onDeleteAlumni?: (id: string) => void;
 }
 
@@ -254,8 +254,24 @@ export const AlumniDetailAdminModal: React.FC<AlumniDetailAdminModalProps> = ({
   const photoFileInputRef = useRef<HTMLInputElement | null>(null);
 
   const handleUpdate = (updated: Partial<AlumniRecord>) => {
+    const cleanNama = updated.name ?? (updated as any).nama ?? alumni.name;
+    const fullMerged: AlumniRecord = {
+      ...alumni,
+      ...updated,
+      name: cleanNama,
+      status: 'alumni',
+    };
+    (fullMerged as any).nama = cleanNama;
+    (fullMerged as any).status_keanggotaan = 'Alumni';
+
+    const finalUpdates = {
+      ...updated,
+      ...(updated.name !== undefined ? { nama: cleanNama } : {}),
+      status_keanggotaan: 'Alumni',
+    };
+
     if (onSave) {
-      onSave(alumni.id, updated);
+      onSave(alumni.id, finalUpdates, fullMerged);
     }
   };
 

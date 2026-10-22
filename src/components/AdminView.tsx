@@ -111,7 +111,7 @@ interface AdminViewProps {
   announcements?: AnnouncementItem[];
   onLogout: () => void;
   onAddAlumni: (newAlumni: AlumniRecord) => void;
-  onUpdateAlumni: (id: string, updated: Partial<AlumniRecord>) => void;
+  onUpdateAlumni: (id: string, updated: Partial<AlumniRecord>, fullRecord?: AlumniRecord) => void;
   onDeleteAlumni?: (id: string) => void;
   onResetPassword: (id: string) => void;
   onAddEvent: (newEvent: EventAgenda) => void;
@@ -2301,9 +2301,10 @@ export const AdminView: React.FC<AdminViewProps> = ({
             onResetPassword(id);
             triggerToast('Kata sandi berhasil di-reset ke pengaturan awal');
           }}
-          onSave={(id, updated) => {
-            onUpdateAlumni(id, updated);
-            setDetailAlumni((prev) => (prev ? { ...prev, ...updated } : null));
+          onSave={(id, updated, fullRecord) => {
+            const merged = fullRecord || (detailAlumni ? { ...detailAlumni, ...updated } : undefined);
+            onUpdateAlumni(id, updated, merged);
+            setDetailAlumni((prev) => (prev ? { ...prev, ...updated, ...(merged || {}) } : null));
             triggerToast('Perubahan data alumni berhasil disimpan');
           }}
           onDeleteAlumni={(id) => {
@@ -2325,7 +2326,9 @@ export const AdminView: React.FC<AdminViewProps> = ({
           onSelectAlumni={(selected) => setDetailAlumni(selected)}
           onUpdateProfile={(updated) => {
             if (detailAlumni) {
-              onUpdateAlumni(detailAlumni.id, updated);
+              const merged = { ...detailAlumni, ...updated };
+              onUpdateAlumni(detailAlumni.id, updated, merged);
+              setDetailAlumni((prev) => (prev ? { ...prev, ...updated, ...merged } : null));
             }
           }}
         />

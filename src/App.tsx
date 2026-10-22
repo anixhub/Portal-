@@ -596,24 +596,52 @@ export default function App() {
     await addAlumniToHostinger(newAlumni);
   };
 
-  const handleUpdateAlumniByAdmin = async (id: string, updated: Partial<AlumniRecord>) => {
+  const handleUpdateAlumniByAdmin = async (
+    id: string,
+    updated: Partial<AlumniRecord>,
+    passedFullRecord?: AlumniRecord
+  ) => {
     // Kunci proses sync agar polling background tidak menimpa data yang sedang disimpan admin
     lastSelfUpdateTimeRef.current = Date.now();
     isSyncingRef.current = true;
 
-    const existingAlumni = alumniList.find((item) => item.id === id);
-    const fullRecord: AlumniRecord = existingAlumni
-      ? { ...existingAlumni, ...updated }
-      : ({ id, ...updated } as AlumniRecord);
+    const existingAlumni =
+      passedFullRecord ||
+      alumniList.find((item) => String(item.id).trim() === String(id).trim());
 
-    const updatedList = alumniList.map((item) => (item.id === id ? fullRecord : item));
+    const cleanNama =
+      updated.name ??
+      (updated as any).nama ??
+      existingAlumni?.name ??
+      (existingAlumni as any)?.nama ??
+      '';
+
+    const fullRecord: AlumniRecord = {
+      ...(existingAlumni || {}),
+      id,
+      ...updated,
+      name: cleanNama,
+      status: 'alumni',
+    } as AlumniRecord;
+    (fullRecord as any).nama = cleanNama;
+    (fullRecord as any).status_keanggotaan = 'Alumni';
+
+    const finalUpdates: Partial<AlumniRecord> = {
+      ...updated,
+      ...(cleanNama ? { name: cleanNama, nama: cleanNama } : {}),
+      status_keanggotaan: 'Alumni',
+    } as any;
+
+    const updatedList = alumniList.map((item) =>
+      String(item.id).trim() === String(id).trim() ? fullRecord : item
+    );
     setAlumniList(updatedList);
     try {
       localStorage.setItem('attaroqqy_alumni_list_v1', JSON.stringify(updatedList));
     } catch (e) {}
 
     // If current alumni is the one updated
-    if (currentSession?.alumniData?.id === id) {
+    if (currentSession?.alumniData && String(currentSession.alumniData.id).trim() === String(id).trim()) {
       const nextSession = {
         ...currentSession,
         alumniData: fullRecord,
@@ -626,7 +654,7 @@ export default function App() {
 
     try {
       // Simpan ke database Hostinger & Express SmartSantri (aplikasi lama)
-      await updateAlumniInHostinger(id, updated, fullRecord);
+      await updateAlumniInHostinger(id, finalUpdates, fullRecord);
     } finally {
       // Tahan lock selama 3.5 detik agar penulisan database server stabil
       setTimeout(() => {
