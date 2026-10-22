@@ -130,6 +130,17 @@ async function startServer() {
             data: msg.data,
             timestamp: Date.now(),
           }, ws);
+
+          if ((!msg.entity || msg.entity === 'alumni') && msg.id) {
+            sendToRemoteHubWs({
+              type: 'db_change',
+              event: 'db_change',
+              table: 'santri',
+              action: msg.action || 'update',
+              id: msg.id,
+              data: msg.data,
+            });
+          }
         }
       } catch (e) {}
     });
@@ -189,6 +200,111 @@ async function startServer() {
   // ==========================================
   // REALTIME 2-WAY SYNC: HOSTINGER / APLIKASI SEBELUMNYA <-> APLIKASI INI
   // ==========================================
+  let remoteHubWs: WebSocket | null = null;
+  let remoteHubReconnectTimer: any = null;
+  let remoteHubHeartbeatTimer: any = null;
+
+  function initRemoteHubWs() {
+    try {
+      if (remoteHubWs && (remoteHubWs.readyState === WebSocket.OPEN || remoteHubWs.readyState === WebSocket.CONNECTING)) {
+        return;
+      }
+      console.log('[Server Bridge] Menghubungkan WebSocket ke wss://attaroqqy.com (Hub Aplikasi Lama)...');
+      remoteHubWs = new WebSocket('wss://attaroqqy.com');
+
+      remoteHubWs.on('open', () => {
+        console.log('⚡ [Server Bridge] Berhasil terhubung ke WebSocket wss://attaroqqy.com!');
+        if (remoteHubHeartbeatTimer) clearInterval(remoteHubHeartbeatTimer);
+        remoteHubHeartbeatTimer = setInterval(() => {
+          if (remoteHubWs && remoteHubWs.readyState === WebSocket.OPEN) {
+            try {
+              remoteHubWs.send(JSON.stringify({ type: 'ping' }));
+            } catch (e) {}
+          }
+        }, 12000);
+      });
+
+      remoteHubWs.on('message', async (raw) => {
+        try {
+          const msg = JSON.parse(raw.toString());
+          if (msg.type === 'db_change' || msg.event === 'db_change' || msg.action === 'db_change') {
+            if (msg.table === 'santri') {
+              console.log(`⚡ [Server Bridge] Deteksi santri berubah di aplikasi lama: ID ${msg.id} (${msg.action})`);
+              const item = msg.data || {};
+              const santriId = String(msg.id || item.id || '');
+
+              if (santriId) {
+                if (localSnapshot && Array.isArray(localSnapshot.data)) {
+                  const idx = localSnapshot.data.findIndex((s: any) => String(s.id) === santriId);
+                  if (idx >= 0) {
+                    if (msg.action === 'delete') {
+                      localSnapshot.data.splice(idx, 1);
+                    } else {
+                      localSnapshot.data[idx] = { ...localSnapshot.data[idx], ...item };
+                    }
+                  } else if (msg.action !== 'delete') {
+                    localSnapshot.data.unshift(item);
+                  }
+                }
+                if (cachedSantriData && Array.isArray(cachedSantriData.data)) {
+                  const idx = cachedSantriData.data.findIndex((s: any) => String(s.id) === santriId);
+                  if (idx >= 0) {
+                    if (msg.action === 'delete') {
+                      cachedSantriData.data.splice(idx, 1);
+                    } else {
+                      cachedSantriData.data[idx] = { ...cachedSantriData.data[idx], ...item };
+                    }
+                  } else if (msg.action !== 'delete') {
+                    cachedSantriData.data.unshift(item);
+                  }
+                }
+              }
+
+              // Siarkan seketika ke seluruh client browser yang terhubung ke server ini
+              broadcastWs({
+                type: 'REMOTE_DATA_CHANGED',
+                entity: 'alumni',
+                action: msg.action || 'update',
+                id: santriId,
+                data: item,
+                source: 'attaroqqy_old_app',
+                timestamp: Date.now(),
+              });
+            }
+          }
+        } catch (e) {}
+      });
+
+      remoteHubWs.on('close', () => {
+        if (remoteHubHeartbeatTimer) clearInterval(remoteHubHeartbeatTimer);
+        remoteHubWs = null;
+        if (remoteHubReconnectTimer) clearTimeout(remoteHubReconnectTimer);
+        remoteHubReconnectTimer = setTimeout(initRemoteHubWs, 3000);
+      });
+
+      remoteHubWs.on('error', () => {
+        // Biarkan onclose menangani reconnect
+      });
+    } catch (e) {
+      if (remoteHubReconnectTimer) clearTimeout(remoteHubReconnectTimer);
+      remoteHubReconnectTimer = setTimeout(initRemoteHubWs, 4000);
+    }
+  }
+
+  // Aktifkan jembatan WebSocket remote
+  initRemoteHubWs();
+
+  function sendToRemoteHubWs(payload: object) {
+    if (remoteHubWs && remoteHubWs.readyState === WebSocket.OPEN) {
+      try {
+        remoteHubWs.send(JSON.stringify(payload));
+        console.log('⚡ [Server Bridge] Mengalirkan perubahan data ke wss://attaroqqy.com');
+      } catch (e) {
+        console.warn('[Server Bridge] Gagal kirim ke wss://attaroqqy.com:', e);
+      }
+    }
+  }
+
   let lastRemoteHash: string = '';
   let isCheckingRemote = false;
 
@@ -237,7 +353,7 @@ async function startServer() {
     }
   }
 
-  // Polling deteksi perubahan dari aplikasi sebelumnya setiap 3.5 detik
+  // Polling fallback deteksi perubahan database Hostinger setiap 3.5 detik
   const remoteSyncPoller = setInterval(checkRemoteDatabaseSync, 3500);
 
   // Port resolution: Dev server must run on port 3000
@@ -522,6 +638,16 @@ async function startServer() {
         timestamp: Date.now(),
       });
 
+      // Siarkan ke WebSocket wss://attaroqqy.com agar aplikasi lama seketika mengalir berubah
+      sendToRemoteHubWs({
+        type: 'db_change',
+        event: 'db_change',
+        table: 'santri',
+        action: 'update',
+        id,
+        data: normalizedPayload,
+      });
+
       res.json({ success: true, message: 'Data santri berhasil diperbarui' });
     } catch (err: any) {
       console.warn(`[Server] Error processing PUT for ${id}:`, err?.message);
@@ -576,7 +702,7 @@ async function startServer() {
         }),
       ]).catch(() => {});
 
-      // Broadcast alumni baru secara realtime via WebSocket
+      // Broadcast alumni baru secara realtime via WebSocket lokal
       broadcastWs({
         type: 'DATA_CHANGED',
         entity: 'alumni',
@@ -584,6 +710,16 @@ async function startServer() {
         id: newRecord.id,
         data: newRecord,
         timestamp: Date.now(),
+      });
+
+      // Siarkan ke WebSocket wss://attaroqqy.com
+      sendToRemoteHubWs({
+        type: 'db_change',
+        event: 'db_change',
+        table: 'santri',
+        action: 'insert',
+        id: newRecord.id,
+        data: newRecord,
       });
 
       res.json({ success: true, message: 'Santri/alumni baru berhasil ditambahkan', id: newRecord.id });
@@ -612,15 +748,21 @@ async function startServer() {
       }
       lastCacheTime = Date.now();
 
-      fetch('https://alumni.attaroqqy.com/api_alumni.php?action=delete_alumni', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Accept: 'application/json',
-        },
-        body: JSON.stringify({ id }),
-        signal: AbortSignal.timeout(8000),
-      }).catch(() => {});
+      Promise.allSettled([
+        fetch('https://alumni.attaroqqy.com/api_alumni.php?action=delete_alumni', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Accept: 'application/json',
+          },
+          body: JSON.stringify({ id }),
+          signal: AbortSignal.timeout(8000),
+        }),
+        fetch(`https://attaroqqy.com/api/db/santri/${id}`, {
+          method: 'DELETE',
+          signal: AbortSignal.timeout(8000),
+        }),
+      ]).catch(() => {});
 
       // Broadcast hapus santri secara realtime via WebSocket
       broadcastWs({
@@ -629,6 +771,15 @@ async function startServer() {
         action: 'delete',
         id,
         timestamp: Date.now(),
+      });
+
+      // Siarkan ke WebSocket wss://attaroqqy.com
+      sendToRemoteHubWs({
+        type: 'db_change',
+        event: 'db_change',
+        table: 'santri',
+        action: 'delete',
+        id,
       });
 
       res.json({ success: true, message: 'Alumni berhasil dihapus' });

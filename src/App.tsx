@@ -317,12 +317,30 @@ export default function App() {
 
       if (msg.type === 'DATA_CHANGED' || msg.type === 'REMOTE_DATA_CHANGED') {
         // Optimistic Delta Update untuk respon kilat 0-detik
-        if (msg.entity === 'alumni' && msg.action === 'update' && msg.data && msg.id) {
+        if (msg.entity === 'alumni' && (msg.action === 'update' || msg.action === 'sync') && msg.data && msg.id) {
+          const rawData = msg.data;
+          const deltaData: Record<string, any> = {
+            ...rawData,
+            name: rawData.name || rawData.nama || undefined,
+            nama: rawData.name || rawData.nama || undefined,
+            alamatLengkap: rawData.alamatLengkap || rawData.alamat || undefined,
+            phone: rawData.phone || rawData.no_hp || undefined,
+            tempatLahir: rawData.tempatLahir || rawData.tempat_lahir || undefined,
+            tanggalLahir: rawData.tanggalLahir || rawData.tanggal_lahir || undefined,
+            city: rawData.city || rawData.kabupaten || undefined,
+            province: rawData.province || rawData.provinsi || undefined,
+            desa: rawData.desa || undefined,
+            kecamatan: rawData.kecamatan || undefined,
+            namaAyah: rawData.namaAyah || rawData.nama_ayah || undefined,
+            namaIbu: rawData.namaIbu || rawData.nama_ibu || undefined,
+          };
+          Object.keys(deltaData).forEach((k) => deltaData[k] === undefined && delete deltaData[k]);
+
           setAlumniList((prevList) => {
             const idx = prevList.findIndex((a) => String(a.id) === String(msg.id));
             if (idx >= 0) {
               const updated = [...prevList];
-              updated[idx] = { ...updated[idx], ...msg.data };
+              updated[idx] = { ...updated[idx], ...deltaData };
               return updated;
             }
             return prevList;
@@ -330,7 +348,7 @@ export default function App() {
 
           setCurrentSession((prev) => {
             if (prev?.role === 'alumni' && prev.alumniData && String(prev.alumniData.id) === String(msg.id)) {
-              return { ...prev, alumniData: { ...prev.alumniData, ...msg.data } };
+              return { ...prev, alumniData: { ...prev.alumniData, ...deltaData } };
             }
             return prev;
           });

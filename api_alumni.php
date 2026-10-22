@@ -674,6 +674,25 @@ if ($action === 'update_alumni' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 $stmt = $pdo->prepare($sql);
                 $stmt->execute($params);
             }
+
+            // Sinkronisasi balik ke Express backend aplikasi lama di attaroqqy.com
+            try {
+                $curlId = rawurlencode($id);
+                $ch = curl_init("https://attaroqqy.com/api/db/santri/{$curlId}");
+                curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'PUT');
+                curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($input));
+                curl_setopt($ch, CURLOPT_HTTPHEADER, [
+                    'Content-Type: application/json',
+                    'Accept: application/json'
+                ]);
+                curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+                curl_setopt($ch, CURLOPT_TIMEOUT, 3);
+                curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+                curl_exec($ch);
+                curl_close($ch);
+            } catch (Exception $curlEx) {
+                // Abaikan jika Express offline
+            }
         }
 
         echo json_encode(['success' => true, 'message' => 'Data berhasil diperbarui di database Hostinger']);

@@ -85926,7 +85926,7 @@
       "id": "S1785422448484_1179",
       "nis": "2013060",
       "no_absen": null,
-      "nama": "A KHUDLORI",
+      "nama": "A KHUDLORI ",
       "username": null,
       "password": "1234",
       "is_password_changed": 0,
@@ -85993,7 +85993,8 @@
       "semester": null,
       "kelas_mhd": null,
       "tahun_lulus": null,
-      "pendidikanFormal": null
+      "pendidikanFormal": null,
+      "name": "A KHUDLORI "
     },
     {
       "id": "S1785422448484_1180",

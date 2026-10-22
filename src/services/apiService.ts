@@ -661,9 +661,9 @@ export async function updateAlumniInHostinger(
       phpPayload.coordinates = c;
     }
 
-    // Eksekusi pembaruan ke database Hostinger (domain utama attaroqqy.com, subdomain alumni.attaroqqy.com, dan Express DB backend)
+    // Eksekusi pembaruan ke database Hostinger (domain utama attaroqqy.com, subdomain alumni.attaroqqy.com, dan Express DB backend via proxy)
     const targets = [
-      // 1. Hostinger Utama (Domain Web Pesantren & Aplikasi Lama)
+      // 1. Hostinger Utama (Domain Web Pesantren & Database MySQL)
       fetch(`https://attaroqqy.com/api_alumni.php?action=update_alumni`, {
         method: 'POST',
         headers: {
@@ -689,20 +689,7 @@ export async function updateAlumniInHostinger(
         return null;
       }),
 
-      // 3. Express DB Backend on main domain
-      fetch(`https://attaroqqy.com/api/db/santri/${id}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          Accept: 'application/json',
-        },
-        body: JSON.stringify(expressPayload),
-      }).catch((err) => {
-        console.warn('Gagal sync ke attaroqqy.com/api/db/santri:', err?.message);
-        return null;
-      }),
-
-      // 4. Local dev proxy (if available)
+      // 3. Local/Dev Server Proxy (diteruskan server-to-server ke attaroqqy.com/api/db tanpa kendala CORS)
       fetch(`/api/db/santri/${id}`, {
         method: 'PUT',
         headers: {
@@ -716,9 +703,26 @@ export async function updateAlumniInHostinger(
     const responses = await Promise.all(targets);
     const isSuccess = responses.some((res) => res && res.ok);
 
+    // Kirim event mutasi realtime seketika ke wss://attaroqqy.com (Hub WebSocket aplikasi lama)
+    try {
+      wsClient.sendMutation(
+        'alumni',
+        'update',
+        {
+          id,
+          ...updates,
+          ...expressPayload,
+          nama: updates.name ?? (updates as any).nama ?? fullRecord?.name,
+          name: updates.name ?? (updates as any).nama ?? fullRecord?.name,
+          status_keanggotaan: 'Alumni',
+        },
+        id
+      );
+    } catch (e) {}
+
     setTimeout(() => {
       broadcastSyncEvent('alumni');
-    }, 300);
+    }, 150);
 
     return {
       success: !!isSuccess,
@@ -842,6 +846,16 @@ export async function addAlumniToHostinger(
       }).catch(() => null),
     ]);
 
+    try {
+      wsClient.sendMutation('alumni', 'insert', {
+        id: newAlumni.id,
+        ...expressPayload,
+        nama: newAlumni.name,
+        name: newAlumni.name,
+        status_keanggotaan: 'Alumni',
+      }, newAlumni.id);
+    } catch (e) {}
+
     broadcastSyncEvent('alumni');
 
     return {
@@ -880,12 +894,6 @@ export async function deleteAlumniFromHostinger(
         },
         body: JSON.stringify({ id }),
       }).catch(() => null),
-      fetch(`https://attaroqqy.com/api/db/santri/${id}`, {
-        method: 'DELETE',
-        headers: {
-          Accept: 'application/json',
-        },
-      }).catch(() => null),
       fetch(`/api/db/santri/${id}`, {
         method: 'DELETE',
         headers: {
@@ -893,6 +901,10 @@ export async function deleteAlumniFromHostinger(
         },
       }).catch(() => null),
     ]);
+
+    try {
+      wsClient.sendMutation('alumni', 'delete', undefined, id);
+    } catch (e) {}
 
     broadcastSyncEvent('alumni');
     return { success: true };
