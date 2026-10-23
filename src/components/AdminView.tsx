@@ -2678,6 +2678,8 @@ export const AdminView: React.FC<AdminViewProps> = ({
                 coordinates={editAdminCoordinates}
                 showAlamatLengkap={true}
                 showLocationTag={true}
+                showCurrentLocationButton={true}
+                stacked={true}
                 onChange={(vals) => {
                   setEditAdminProvince(vals.province);
                   setEditAdminCity(vals.city);

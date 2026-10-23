@@ -596,6 +596,10 @@ export const EditAlumniModal: React.FC<EditAlumniModalProps> = ({
               desa={desa}
               alamatLengkap={alamatLengkap}
               coordinates={coordinates}
+              showAlamatLengkap={true}
+              showLocationTag={true}
+              showCurrentLocationButton={true}
+              stacked={true}
               onChange={(vals) => {
                 setProvince(vals.province);
                 setCity(vals.city);

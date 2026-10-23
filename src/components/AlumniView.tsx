@@ -4635,6 +4635,7 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
                       showAlamatLengkap={true}
                       showLocationTag={true}
                       showCurrentLocationButton={true}
+                      stacked={true}
                       onChange={(vals) => {
                         setEditProvince(vals.province);
                         setEditCity(vals.city);

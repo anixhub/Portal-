@@ -1825,6 +1825,8 @@ export const AlumniDetailAdminModal: React.FC<AlumniDetailAdminModalProps> = ({
                 coordinates={draftCoordinates}
                 showAlamatLengkap={true}
                 showLocationTag={true}
+                showCurrentLocationButton={true}
+                stacked={true}
                 onChange={({ province, city, kecamatan, desa, alamatLengkap, coordinates }) => {
                   setDraftProvince(province);
                   setDraftCity(city);

@@ -51,6 +51,7 @@ export interface WilayahAddressFilterProps {
   showLocationTag?: boolean;
   showAlamatLengkap?: boolean;
   showCurrentLocationButton?: boolean;
+  stacked?: boolean;
 }
 
 type ActiveField = 'province' | 'city' | 'kecamatan' | 'desa' | null;
@@ -66,6 +67,7 @@ export const WilayahAddressFilter: React.FC<WilayahAddressFilterProps> = ({
   showLocationTag = true,
   showAlamatLengkap = true,
   showCurrentLocationButton = false,
+  stacked = false,
 }) => {
   // Lists from endpoint
   const [provincesList, setProvincesList] = useState<WilayahItem[]>([]);
@@ -852,451 +854,493 @@ export const WilayahAddressFilter: React.FC<WilayahAddressFilterProps> = ({
         </button>
       )}
 
-      {/* 1. KOLOM PROVINSI DAN KABUPATEN SEJAJAR (PALING ATAS) */}
-      <div className={`grid grid-cols-2 gap-2.5 relative transition-all ${activeDropdown === 'province' || activeDropdown === 'city' ? 'z-50' : 'z-30'}`}>
-        {/* PROVINSI */}
-        <div className={`relative ${activeDropdown === 'province' ? 'z-50' : 'z-20'}`}>
-          <label className="block text-[10px] font-semibold text-slate-500 mb-1">
-            Provinsi
-          </label>
-          <div className="relative flex items-center">
-            <input
-              type="text"
-              placeholder="Ketik provinsi..."
-              value={province}
-              onChange={(e) => handleProvinceInputChange(e.target.value)}
-              onFocus={() => {
-                setActiveDropdown('province');
-                setIsTypingField(null);
-              }}
-              onClick={() => {
-                setActiveDropdown('province');
-                setIsTypingField(null);
-              }}
-              className={`w-full pl-3 pr-7 py-2 bg-slate-50 border rounded-xl text-xs font-medium text-slate-800 placeholder-slate-400 focus:outline-none transition-colors ${
-                activeDropdown === 'province'
-                  ? 'border-sky-500 ring-2 ring-sky-100 bg-white'
-                  : 'border-slate-200 hover:border-slate-300'
-              }`}
-            />
-            <div className="absolute right-2 flex items-center gap-1">
-              {loadingProv ? (
-                <Loader2 className="w-3.5 h-3.5 text-sky-600 animate-spin" />
-              ) : province ? (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSelectedProvId('');
-                    setSelectedRegId('');
-                    setSelectedDistId('');
-                    setRegenciesList([]);
-                    setDistrictsList([]);
-                    setVillagesList([]);
-                    onChange({ 
-                      province: '', 
-                      city: '', 
-                      kecamatan: '', 
-                      desa: '',
-                      alamatLengkap,
-                      coordinates: coordinates || undefined
-                    });
-                  }}
-                  className="p-0.5 rounded-full hover:bg-slate-200 text-slate-400 hover:text-slate-600 cursor-pointer"
-                >
-                  <X className="w-3 h-3" />
-                </button>
-              ) : null}
-            </div>
-          </div>
-
-          {/* DROPDOWN MENU PROVINSI */}
-          {activeDropdown === 'province' && (
-            <div className="absolute left-0 right-0 top-full mt-1.5 z-[9999] bg-white border border-slate-200 rounded-2xl shadow-2xl overflow-hidden animate-in fade-in ring-1 ring-black/10">
-              <div className="px-3 py-1.5 bg-slate-50 border-b border-slate-100 flex items-center justify-between text-[10px] text-slate-400 font-medium">
-                <span>Pilih Provinsi</span>
-                <ChevronDown className="w-3 h-3 text-slate-400" />
-              </div>
-              <div className="max-h-48 overflow-y-auto divide-y divide-slate-50">
-                {loadingProv && (
-                  <div className="px-3 py-4 text-center text-xs text-sky-600 flex items-center justify-center gap-1.5">
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    <span>Memuat daftar provinsi...</span>
-                  </div>
-                )}
-                {!loadingProv && filteredProvinces.map((item) => {
-                  const nameFormatted = formatWilayahName(item.name);
-                  const isSelected = province.toLowerCase() === nameFormatted.toLowerCase();
-                  return (
-                    <div
-                      key={item.id}
-                      onMouseDown={(e) => {
-                        e.preventDefault();
-                        handleSelectProvince(item);
-                      }}
-                      className={`px-3 py-2 text-xs cursor-pointer flex items-center justify-between transition-colors ${
-                        isSelected ? 'bg-sky-50 text-sky-700 font-bold' : 'hover:bg-slate-50 text-slate-700'
-                      }`}
-                    >
-                      <span className="truncate">{nameFormatted}</span>
-                      {isSelected && <Check className="w-3.5 h-3.5 text-sky-600 shrink-0 ml-1" />}
-                    </div>
-                  );
-                })}
-                {!loadingProv && filteredProvinces.length === 0 && (
-                  <div className="px-3 py-3 text-center text-xs text-slate-400">
-                    Tidak ada provinsi yang cocok
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* KOTA / KABUPATEN */}
-        <div className={`relative ${activeDropdown === 'city' ? 'z-50' : 'z-20'}`}>
-          <label className="block text-[10px] font-semibold text-slate-500 mb-1">
-            Kota / Kabupaten
-          </label>
-          <div className="relative flex items-center">
-            <input
-              type="text"
-              placeholder={!selectedProvId ? 'Pilih provinsi atau ketik kota...' : 'Ketik kota/kabupaten...'}
-              value={city}
-              onChange={(e) => handleCityInputChange(e.target.value)}
-              onFocus={() => {
-                setActiveDropdown('city');
-                setIsTypingField(null);
-              }}
-              onClick={() => {
-                setActiveDropdown('city');
-                setIsTypingField(null);
-              }}
-              className={`w-full pl-3 pr-7 py-2 rounded-xl text-xs font-medium text-slate-800 placeholder-slate-400 focus:outline-none transition-colors ${
-                activeDropdown === 'city'
-                  ? 'border-sky-500 ring-2 ring-sky-100 bg-white'
-                  : 'bg-slate-50 border border-slate-200 hover:border-slate-300'
-              }`}
-            />
-            <div className="absolute right-2 flex items-center gap-1">
-              {loadingReg ? (
-                <Loader2 className="w-3.5 h-3.5 text-sky-600 animate-spin" />
-              ) : city ? (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSelectedRegId('');
-                    setSelectedDistId('');
-                    setDistrictsList([]);
-                    setVillagesList([]);
-                    onChange({ 
-                      province, 
-                      city: '', 
-                      kecamatan: '', 
-                      desa: '',
-                      alamatLengkap,
-                      coordinates: coordinates || undefined
-                    });
-                  }}
-                  className="p-0.5 rounded-full hover:bg-slate-200 text-slate-400 hover:text-slate-600 cursor-pointer"
-                >
-                  <X className="w-3 h-3" />
-                </button>
-              ) : null}
-            </div>
-          </div>
-
-          {/* DROPDOWN MENU KOTA / KABUPATEN */}
-          {activeDropdown === 'city' && (
-            <div className="absolute left-0 right-0 top-full mt-1.5 z-[9999] bg-white border border-slate-200 rounded-2xl shadow-2xl overflow-hidden animate-in fade-in ring-1 ring-black/10">
-              <div className="px-3 py-1.5 bg-slate-50 border-b border-slate-100 flex items-center justify-between text-[10px] text-slate-400 font-medium">
-                <span>Pilih Kota / Kabupaten</span>
-                <ChevronDown className="w-3 h-3 text-slate-400" />
-              </div>
-              <div className="max-h-48 overflow-y-auto divide-y divide-slate-50">
-                {loadingReg && (
-                  <div className="px-3 py-4 text-center text-xs text-sky-600 flex items-center justify-center gap-1.5">
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    <span>Memuat daftar kota/kabupaten...</span>
-                  </div>
-                )}
-                {!loadingReg && filteredRegencies.map((item) => {
-                  const nameFormatted = formatWilayahName(item.name);
-                  const isSelected = city.toLowerCase() === nameFormatted.toLowerCase();
-                  return (
-                    <div
-                      key={item.id}
-                      onMouseDown={(e) => {
-                        e.preventDefault();
-                        handleSelectCity(item);
-                      }}
-                      className={`px-3 py-2 text-xs cursor-pointer flex items-center justify-between transition-colors ${
-                        isSelected ? 'bg-sky-50 text-sky-700 font-bold' : 'hover:bg-slate-50 text-slate-700'
-                      }`}
-                    >
-                      <span className="truncate">{nameFormatted}</span>
-                      {isSelected && <Check className="w-3.5 h-3.5 text-sky-600 shrink-0 ml-1" />}
-                    </div>
-                  );
-                })}
-                {!loadingReg && filteredRegencies.length === 0 && (
-                  <div className="px-3 py-3 text-center text-xs text-slate-400">
-                    {!selectedProvId ? 'Silakan pilih provinsi terlebih dahulu.' : 'Tidak ada kota/kabupaten yang cocok'}
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* 2. KOLOM KECAMATAN DAN DESA SEJAJAR */}
-      <div className={`grid grid-cols-2 gap-2.5 relative transition-all ${activeDropdown === 'kecamatan' || activeDropdown === 'desa' ? 'z-50' : 'z-20'}`}>
-        {/* KECAMATAN */}
-        <div className={`relative ${activeDropdown === 'kecamatan' ? 'z-50' : 'z-10'}`}>
-          <label className="block text-[10px] font-semibold text-slate-500 mb-1">
-            Kecamatan
-          </label>
-          <div className="relative flex items-center">
-            <input
-              type="text"
-              placeholder={!selectedRegId ? 'Pilih kota dulu' : 'Ketik kecamatan...'}
-              disabled={!selectedRegId}
-              value={kecamatan}
-              onChange={(e) => handleKecamatanInputChange(e.target.value)}
-              onFocus={() => {
-                if (selectedRegId) {
-                  setActiveDropdown('kecamatan');
+      {/* 1. KOLOM WILAYAH (STACKED DARI PROVINSI SAMPAI DESA ATAU GRID 2 KOLOM) */}
+      {(() => {
+        const renderProvinceField = () => (
+          <>
+            <label className="block text-[10px] font-semibold text-slate-500 mb-1">
+              Provinsi
+            </label>
+            <div className="relative flex items-center">
+              <input
+                type="text"
+                placeholder="Ketik provinsi..."
+                value={province}
+                onChange={(e) => handleProvinceInputChange(e.target.value)}
+                onFocus={() => {
+                  setActiveDropdown('province');
                   setIsTypingField(null);
-                }
-              }}
-              onClick={() => {
-                if (selectedRegId) {
-                  setActiveDropdown('kecamatan');
+                }}
+                onClick={() => {
+                  setActiveDropdown('province');
                   setIsTypingField(null);
-                }
-              }}
-              className={`w-full pl-3 pr-7 py-2 rounded-xl text-xs font-medium text-slate-800 placeholder-slate-400 focus:outline-none transition-colors ${
-                !selectedRegId
-                  ? 'bg-slate-100 border border-slate-200/60 cursor-not-allowed opacity-60'
-                  : activeDropdown === 'kecamatan'
-                  ? 'border-sky-500 ring-2 ring-sky-100 bg-white'
-                  : 'bg-slate-50 border border-slate-200 hover:border-slate-300'
-              }`}
-            />
-            <div className="absolute right-2 flex items-center gap-1">
-              {loadingDist ? (
-                <Loader2 className="w-3.5 h-3.5 text-sky-600 animate-spin" />
-              ) : kecamatan ? (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSelectedDistId('');
-                    setVillagesList([]);
-                    onChange({ 
-                      province, 
-                      city, 
-                      kecamatan: '', 
-                      desa: '',
-                      alamatLengkap,
-                      coordinates: coordinates || undefined
-                    });
-                  }}
-                  className="p-0.5 rounded-full hover:bg-slate-200 text-slate-400 hover:text-slate-600 cursor-pointer"
-                >
-                  <X className="w-3 h-3" />
-                </button>
-              ) : null}
-            </div>
-          </div>
-
-          {/* DROPDOWN MENU KECAMATAN */}
-          {activeDropdown === 'kecamatan' && selectedRegId && (
-            <div className="absolute left-0 right-0 top-full mt-1.5 z-[9999] bg-white border border-slate-200 rounded-2xl shadow-2xl overflow-hidden animate-in fade-in ring-1 ring-black/10">
-              <div className="px-3 py-1.5 bg-slate-50 border-b border-slate-100 flex items-center justify-between text-[10px] text-slate-400 font-medium">
-                <span>Pilih Kecamatan</span>
-                <ChevronDown className="w-3 h-3 text-slate-400" />
-              </div>
-              <div className="max-h-48 overflow-y-auto divide-y divide-slate-50">
-                {/* Opsi Gunakan Input Mandiri jika kecamatan diketik belum ada di daftar resmi */}
-                {kecamatan.trim() && !filteredDistricts.some(d => cleanWilayahName(d.name) === cleanWilayahName(kecamatan)) && (
-                  <div
-                    onMouseDown={(e) => {
-                      e.preventDefault();
-                      setActiveDropdown(null);
-                      setIsTypingField(null);
+                }}
+                className={`w-full pl-3 pr-7 py-2 bg-slate-50 border rounded-xl text-xs font-medium text-slate-800 placeholder-slate-400 focus:outline-none transition-colors ${
+                  activeDropdown === 'province'
+                    ? 'border-sky-500 ring-2 ring-sky-100 bg-white'
+                    : 'border-slate-200 hover:border-slate-300'
+                }`}
+              />
+              <div className="absolute right-2 flex items-center gap-1">
+                {loadingProv ? (
+                  <Loader2 className="w-3.5 h-3.5 text-sky-600 animate-spin" />
+                ) : province ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedProvId('');
+                      setSelectedRegId('');
+                      setSelectedDistId('');
+                      setRegenciesList([]);
+                      setDistrictsList([]);
+                      setVillagesList([]);
+                      onChange({ 
+                        province: '', 
+                        city: '', 
+                        kecamatan: '', 
+                        desa: '',
+                        alamatLengkap,
+                        coordinates: coordinates || undefined
+                      });
                     }}
-                    className="px-3 py-2 text-xs cursor-pointer flex items-center gap-2 bg-sky-50 hover:bg-sky-100 text-sky-800 font-semibold border-b border-sky-100 transition-colors"
+                    className="p-0.5 rounded-full hover:bg-slate-200 text-slate-400 hover:text-slate-600 cursor-pointer"
                   >
-                    <Plus className="w-3.5 h-3.5 text-sky-600 shrink-0" />
-                    <span className="truncate">Gunakan &quot;{kecamatan.trim()}&quot; (Input Mandiri)</span>
-                  </div>
-                )}
-
-                {loadingDist && (
-                  <div className="px-3 py-4 text-center text-xs text-sky-600 flex items-center justify-center gap-1.5">
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    <span>Memuat daftar kecamatan...</span>
-                  </div>
-                )}
-                {!loadingDist && filteredDistricts.map((item) => {
-                  const nameFormatted = formatWilayahName(item.name);
-                  const isSelected = cleanWilayahName(kecamatan) === cleanWilayahName(item.name);
-                  return (
-                    <div
-                      key={item.id}
-                      onMouseDown={(e) => {
-                        e.preventDefault();
-                        handleSelectKecamatan(item);
-                      }}
-                      className={`px-3 py-2 text-xs cursor-pointer flex items-center justify-between transition-colors ${
-                        isSelected ? 'bg-sky-50 text-sky-700 font-bold' : 'hover:bg-slate-50 text-slate-700'
-                      }`}
-                    >
-                      <span className="truncate">{nameFormatted}</span>
-                      {isSelected && <Check className="w-3.5 h-3.5 text-sky-600 shrink-0 ml-1" />}
-                    </div>
-                  );
-                })}
-                {!loadingDist && filteredDistricts.length === 0 && (
-                  <div className="px-3 py-3 text-center text-xs text-slate-400">
-                    Tidak ada kecamatan yang cocok
-                  </div>
-                )}
+                    <X className="w-3 h-3" />
+                  </button>
+                ) : null}
               </div>
             </div>
-          )}
-        </div>
 
-        {/* DESA / KELURAHAN */}
-        <div className={`relative ${activeDropdown === 'desa' ? 'z-50' : 'z-10'}`}>
-          <label className="block text-[10px] font-semibold text-slate-500 mb-1">
-            Desa / Kelurahan
-          </label>
-          <div className="relative flex items-center">
-            <input
-              type="text"
-              placeholder={!selectedDistId ? 'Pilih kecamatan dulu' : 'Ketik desa/kelurahan...'}
-              disabled={!selectedDistId}
-              value={desa}
-              onChange={(e) => handleDesaInputChange(e.target.value)}
-              onFocus={() => {
-                if (selectedDistId) {
-                  setActiveDropdown('desa');
-                  setIsTypingField(null);
-                }
-              }}
-              onClick={() => {
-                if (selectedDistId) {
-                  setActiveDropdown('desa');
-                  setIsTypingField(null);
-                }
-              }}
-              className={`w-full pl-3 pr-7 py-2 rounded-xl text-xs font-medium text-slate-800 placeholder-slate-400 focus:outline-none transition-colors ${
-                !selectedDistId
-                  ? 'bg-slate-100 border border-slate-200/60 cursor-not-allowed opacity-60'
-                  : activeDropdown === 'desa'
-                  ? 'border-sky-500 ring-2 ring-sky-100 bg-white'
-                  : 'bg-slate-50 border border-slate-200 hover:border-slate-300'
-              }`}
-            />
-            <div className="absolute right-2 flex items-center gap-1">
-              {loadingVill ? (
-                <Loader2 className="w-3.5 h-3.5 text-sky-600 animate-spin" />
-              ) : desa ? (
-                <button
-                  type="button"
-                  onClick={() => {
-                    onChange({ 
-                      province, 
-                      city, 
-                      kecamatan, 
-                      desa: '',
-                      alamatLengkap,
-                      coordinates: coordinates || undefined
-                    });
-                  }}
-                  className="p-0.5 rounded-full hover:bg-slate-200 text-slate-400 hover:text-slate-600 cursor-pointer"
-                >
-                  <X className="w-3 h-3" />
-                </button>
-              ) : null}
-            </div>
-          </div>
-
-          {/* DROPDOWN MENU DESA */}
-          {activeDropdown === 'desa' && selectedDistId && (
-            <div className="absolute left-0 right-0 top-full mt-1.5 z-[9999] bg-white border border-slate-200 rounded-2xl shadow-2xl overflow-hidden animate-in fade-in ring-1 ring-black/10">
-              <div className="px-3 py-1.5 bg-slate-50 border-b border-slate-100 flex items-center justify-between text-[10px] text-slate-400 font-medium">
-                <span>Pilih Desa / Kelurahan</span>
-                <ChevronDown className="w-3 h-3 text-slate-400" />
-              </div>
-              <div className="max-h-48 overflow-y-auto divide-y divide-slate-50">
-                {/* Opsi Gunakan Input Mandiri jika nama desa diketik tapi belum ada di daftar resmi */}
-                {desa.trim() && !filteredVillages.some(v => cleanWilayahName(v.name) === cleanWilayahName(desa)) && (
-                  <div
-                    onMouseDown={(e) => {
-                      e.preventDefault();
-                      setActiveDropdown(null);
-                      setIsTypingField(null);
-                    }}
-                    className="px-3 py-2 text-xs cursor-pointer flex items-center gap-2 bg-sky-50 hover:bg-sky-100 text-sky-800 font-semibold border-b border-sky-100 transition-colors"
-                  >
-                    <Plus className="w-3.5 h-3.5 text-sky-600 shrink-0" />
-                    <span className="truncate">Gunakan &quot;{desa.trim()}&quot; (Input Mandiri)</span>
-                  </div>
-                )}
-
-                {loadingVill && (
-                  <div className="px-3 py-4 text-center text-xs text-sky-600 flex items-center justify-center gap-1.5">
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    <span>Memuat daftar desa...</span>
-                  </div>
-                )}
-                {!loadingVill && filteredVillages.map((item) => {
-                  const nameFormatted = formatWilayahName(item.name);
-                  const isSelected = cleanWilayahName(desa) === cleanWilayahName(item.name);
-                  return (
-                    <div
-                      key={item.id}
-                      onMouseDown={(e) => {
-                        e.preventDefault();
-                        handleSelectDesa(item);
-                      }}
-                      className={`px-3 py-2 text-xs cursor-pointer flex items-center justify-between transition-colors ${
-                        isSelected ? 'bg-sky-50 text-sky-700 font-bold' : 'hover:bg-slate-50 text-slate-700'
-                      }`}
-                    >
-                      <span className="truncate">{nameFormatted}</span>
-                      {isSelected && <Check className="w-3.5 h-3.5 text-sky-600 shrink-0 ml-1" />}
+            {/* DROPDOWN MENU PROVINSI */}
+            {activeDropdown === 'province' && (
+              <div className="absolute left-0 right-0 top-full mt-1.5 z-[9999] bg-white border border-slate-200 rounded-2xl shadow-2xl overflow-hidden animate-in fade-in ring-1 ring-black/10">
+                <div className="px-3 py-1.5 bg-slate-50 border-b border-slate-100 flex items-center justify-between text-[10px] text-slate-400 font-medium">
+                  <span>Pilih Provinsi</span>
+                  <ChevronDown className="w-3 h-3 text-slate-400" />
+                </div>
+                <div className="max-h-48 overflow-y-auto divide-y divide-slate-50">
+                  {loadingProv && (
+                    <div className="px-3 py-4 text-center text-xs text-sky-600 flex items-center justify-center gap-1.5">
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      <span>Memuat daftar provinsi...</span>
                     </div>
-                  );
-                })}
-                {!loadingVill && filteredVillages.length === 0 && (
-                  <div className="px-3 py-3 text-center text-xs text-slate-500 space-y-1.5">
-                    <p className="text-[11px] text-slate-400">Desa tidak ditemukan di daftar resmi.</p>
-                    {desa.trim() ? (
-                      <button
-                        type="button"
+                  )}
+                  {!loadingProv && filteredProvinces.map((item) => {
+                    const nameFormatted = formatWilayahName(item.name);
+                    const isSelected = province.toLowerCase() === nameFormatted.toLowerCase();
+                    return (
+                      <div
+                        key={item.id}
                         onMouseDown={(e) => {
                           e.preventDefault();
-                          setActiveDropdown(null);
-                          setIsTypingField(null);
+                          handleSelectProvince(item);
                         }}
-                        className="w-full py-1.5 px-2 bg-sky-600 hover:bg-sky-700 text-white rounded-lg font-bold text-[11px] flex items-center justify-center gap-1.5 cursor-pointer transition-colors"
+                        className={`px-3 py-2 text-xs cursor-pointer flex items-center justify-between transition-colors ${
+                          isSelected ? 'bg-sky-50 text-sky-700 font-bold' : 'hover:bg-slate-50 text-slate-700'
+                        }`}
                       >
-                        <Check className="w-3 h-3" />
-                        <span>Tetap gunakan &quot;{desa.trim()}&quot;</span>
-                      </button>
-                    ) : (
-                      <p className="text-[10px] text-slate-400">Silakan ketikkan nama desa secara manual.</p>
-                    )}
-                  </div>
-                )}
+                        <span className="truncate">{nameFormatted}</span>
+                        {isSelected && <Check className="w-3.5 h-3.5 text-sky-600 shrink-0 ml-1" />}
+                      </div>
+                    );
+                  })}
+                  {!loadingProv && filteredProvinces.length === 0 && (
+                    <div className="px-3 py-3 text-center text-xs text-slate-400">
+                      Tidak ada provinsi yang cocok
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </>
+        );
+
+        const renderCityField = () => (
+          <>
+            <label className="block text-[10px] font-semibold text-slate-500 mb-1">
+              Kota / Kabupaten
+            </label>
+            <div className="relative flex items-center">
+              <input
+                type="text"
+                placeholder={!selectedProvId ? 'Pilih provinsi atau ketik kota...' : 'Ketik kota/kabupaten...'}
+                value={city}
+                onChange={(e) => handleCityInputChange(e.target.value)}
+                onFocus={() => {
+                  setActiveDropdown('city');
+                  setIsTypingField(null);
+                }}
+                onClick={() => {
+                  setActiveDropdown('city');
+                  setIsTypingField(null);
+                }}
+                className={`w-full pl-3 pr-7 py-2 rounded-xl text-xs font-medium text-slate-800 placeholder-slate-400 focus:outline-none transition-colors ${
+                  activeDropdown === 'city'
+                    ? 'border-sky-500 ring-2 ring-sky-100 bg-white'
+                    : 'bg-slate-50 border border-slate-200 hover:border-slate-300'
+                }`}
+              />
+              <div className="absolute right-2 flex items-center gap-1">
+                {loadingReg ? (
+                  <Loader2 className="w-3.5 h-3.5 text-sky-600 animate-spin" />
+                ) : city ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedRegId('');
+                      setSelectedDistId('');
+                      setDistrictsList([]);
+                      setVillagesList([]);
+                      onChange({ 
+                        province, 
+                        city: '', 
+                        kecamatan: '', 
+                        desa: '',
+                        alamatLengkap,
+                        coordinates: coordinates || undefined
+                      });
+                    }}
+                    className="p-0.5 rounded-full hover:bg-slate-200 text-slate-400 hover:text-slate-600 cursor-pointer"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                ) : null}
               </div>
             </div>
-          )}
-        </div>
-      </div>
+
+            {/* DROPDOWN MENU KOTA / KABUPATEN */}
+            {activeDropdown === 'city' && (
+              <div className="absolute left-0 right-0 top-full mt-1.5 z-[9999] bg-white border border-slate-200 rounded-2xl shadow-2xl overflow-hidden animate-in fade-in ring-1 ring-black/10">
+                <div className="px-3 py-1.5 bg-slate-50 border-b border-slate-100 flex items-center justify-between text-[10px] text-slate-400 font-medium">
+                  <span>Pilih Kota / Kabupaten</span>
+                  <ChevronDown className="w-3 h-3 text-slate-400" />
+                </div>
+                <div className="max-h-48 overflow-y-auto divide-y divide-slate-50">
+                  {loadingReg && (
+                    <div className="px-3 py-4 text-center text-xs text-sky-600 flex items-center justify-center gap-1.5">
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      <span>Memuat daftar kota/kabupaten...</span>
+                    </div>
+                  )}
+                  {!loadingReg && filteredRegencies.map((item) => {
+                    const nameFormatted = formatWilayahName(item.name);
+                    const isSelected = city.toLowerCase() === nameFormatted.toLowerCase();
+                    return (
+                      <div
+                        key={item.id}
+                        onMouseDown={(e) => {
+                          e.preventDefault();
+                          handleSelectCity(item);
+                        }}
+                        className={`px-3 py-2 text-xs cursor-pointer flex items-center justify-between transition-colors ${
+                          isSelected ? 'bg-sky-50 text-sky-700 font-bold' : 'hover:bg-slate-50 text-slate-700'
+                        }`}
+                      >
+                        <span className="truncate">{nameFormatted}</span>
+                        {isSelected && <Check className="w-3.5 h-3.5 text-sky-600 shrink-0 ml-1" />}
+                      </div>
+                    );
+                  })}
+                  {!loadingReg && filteredRegencies.length === 0 && (
+                    <div className="px-3 py-3 text-center text-xs text-slate-400">
+                      {!selectedProvId ? 'Silakan pilih provinsi terlebih dahulu.' : 'Tidak ada kota/kabupaten yang cocok'}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </>
+        );
+
+        const renderKecamatanField = () => (
+          <>
+            <label className="block text-[10px] font-semibold text-slate-500 mb-1">
+              Kecamatan
+            </label>
+            <div className="relative flex items-center">
+              <input
+                type="text"
+                placeholder={!selectedRegId ? 'Pilih kota dulu' : 'Ketik kecamatan...'}
+                disabled={!selectedRegId}
+                value={kecamatan}
+                onChange={(e) => handleKecamatanInputChange(e.target.value)}
+                onFocus={() => {
+                  if (selectedRegId) {
+                    setActiveDropdown('kecamatan');
+                    setIsTypingField(null);
+                  }
+                }}
+                onClick={() => {
+                  if (selectedRegId) {
+                    setActiveDropdown('kecamatan');
+                    setIsTypingField(null);
+                  }
+                }}
+                className={`w-full pl-3 pr-7 py-2 rounded-xl text-xs font-medium text-slate-800 placeholder-slate-400 focus:outline-none transition-colors ${
+                  !selectedRegId
+                    ? 'bg-slate-100 border border-slate-200/60 cursor-not-allowed opacity-60'
+                    : activeDropdown === 'kecamatan'
+                    ? 'border-sky-500 ring-2 ring-sky-100 bg-white'
+                    : 'bg-slate-50 border border-slate-200 hover:border-slate-300'
+                }`}
+              />
+              <div className="absolute right-2 flex items-center gap-1">
+                {loadingDist ? (
+                  <Loader2 className="w-3.5 h-3.5 text-sky-600 animate-spin" />
+                ) : kecamatan ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedDistId('');
+                      setVillagesList([]);
+                      onChange({ 
+                        province, 
+                        city, 
+                        kecamatan: '', 
+                        desa: '',
+                        alamatLengkap,
+                        coordinates: coordinates || undefined
+                      });
+                    }}
+                    className="p-0.5 rounded-full hover:bg-slate-200 text-slate-400 hover:text-slate-600 cursor-pointer"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                ) : null}
+              </div>
+            </div>
+
+            {/* DROPDOWN MENU KECAMATAN */}
+            {activeDropdown === 'kecamatan' && selectedRegId && (
+              <div className="absolute left-0 right-0 top-full mt-1.5 z-[9999] bg-white border border-slate-200 rounded-2xl shadow-2xl overflow-hidden animate-in fade-in ring-1 ring-black/10">
+                <div className="px-3 py-1.5 bg-slate-50 border-b border-slate-100 flex items-center justify-between text-[10px] text-slate-400 font-medium">
+                  <span>Pilih Kecamatan</span>
+                  <ChevronDown className="w-3 h-3 text-slate-400" />
+                </div>
+                <div className="max-h-48 overflow-y-auto divide-y divide-slate-50">
+                  {/* Opsi Gunakan Input Mandiri jika kecamatan diketik belum ada di daftar resmi */}
+                  {kecamatan.trim() && !filteredDistricts.some(d => cleanWilayahName(d.name) === cleanWilayahName(kecamatan)) && (
+                    <div
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                        setActiveDropdown(null);
+                        setIsTypingField(null);
+                      }}
+                      className="px-3 py-2 text-xs cursor-pointer flex items-center gap-2 bg-sky-50 hover:bg-sky-100 text-sky-800 font-semibold border-b border-sky-100 transition-colors"
+                    >
+                      <Plus className="w-3.5 h-3.5 text-sky-600 shrink-0" />
+                      <span className="truncate">Gunakan &quot;{kecamatan.trim()}&quot; (Input Mandiri)</span>
+                    </div>
+                  )}
+
+                  {loadingDist && (
+                    <div className="px-3 py-4 text-center text-xs text-sky-600 flex items-center justify-center gap-1.5">
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      <span>Memuat daftar kecamatan...</span>
+                    </div>
+                  )}
+                  {!loadingDist && filteredDistricts.map((item) => {
+                    const nameFormatted = formatWilayahName(item.name);
+                    const isSelected = cleanWilayahName(kecamatan) === cleanWilayahName(item.name);
+                    return (
+                      <div
+                        key={item.id}
+                        onMouseDown={(e) => {
+                          e.preventDefault();
+                          handleSelectKecamatan(item);
+                        }}
+                        className={`px-3 py-2 text-xs cursor-pointer flex items-center justify-between transition-colors ${
+                          isSelected ? 'bg-sky-50 text-sky-700 font-bold' : 'hover:bg-slate-50 text-slate-700'
+                        }`}
+                      >
+                        <span className="truncate">{nameFormatted}</span>
+                        {isSelected && <Check className="w-3.5 h-3.5 text-sky-600 shrink-0 ml-1" />}
+                      </div>
+                    );
+                  })}
+                  {!loadingDist && filteredDistricts.length === 0 && (
+                    <div className="px-3 py-3 text-center text-xs text-slate-400">
+                      Tidak ada kecamatan yang cocok
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </>
+        );
+
+        const renderDesaField = () => (
+          <>
+            <label className="block text-[10px] font-semibold text-slate-500 mb-1">
+              Desa / Kelurahan
+            </label>
+            <div className="relative flex items-center">
+              <input
+                type="text"
+                placeholder={!selectedDistId ? 'Pilih kecamatan dulu' : 'Ketik desa/kelurahan...'}
+                disabled={!selectedDistId}
+                value={desa}
+                onChange={(e) => handleDesaInputChange(e.target.value)}
+                onFocus={() => {
+                  if (selectedDistId) {
+                    setActiveDropdown('desa');
+                    setIsTypingField(null);
+                  }
+                }}
+                onClick={() => {
+                  if (selectedDistId) {
+                    setActiveDropdown('desa');
+                    setIsTypingField(null);
+                  }
+                }}
+                className={`w-full pl-3 pr-7 py-2 rounded-xl text-xs font-medium text-slate-800 placeholder-slate-400 focus:outline-none transition-colors ${
+                  !selectedDistId
+                    ? 'bg-slate-100 border border-slate-200/60 cursor-not-allowed opacity-60'
+                    : activeDropdown === 'desa'
+                    ? 'border-sky-500 ring-2 ring-sky-100 bg-white'
+                    : 'bg-slate-50 border border-slate-200 hover:border-slate-300'
+                }`}
+              />
+              <div className="absolute right-2 flex items-center gap-1">
+                {loadingVill ? (
+                  <Loader2 className="w-3.5 h-3.5 text-sky-600 animate-spin" />
+                ) : desa ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onChange({ 
+                        province, 
+                        city, 
+                        kecamatan, 
+                        desa: '',
+                        alamatLengkap,
+                        coordinates: coordinates || undefined
+                      });
+                    }}
+                    className="p-0.5 rounded-full hover:bg-slate-200 text-slate-400 hover:text-slate-600 cursor-pointer"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                ) : null}
+              </div>
+            </div>
+
+            {/* DROPDOWN MENU DESA */}
+            {activeDropdown === 'desa' && selectedDistId && (
+              <div className="absolute left-0 right-0 top-full mt-1.5 z-[9999] bg-white border border-slate-200 rounded-2xl shadow-2xl overflow-hidden animate-in fade-in ring-1 ring-black/10">
+                <div className="px-3 py-1.5 bg-slate-50 border-b border-slate-100 flex items-center justify-between text-[10px] text-slate-400 font-medium">
+                  <span>Pilih Desa / Kelurahan</span>
+                  <ChevronDown className="w-3 h-3 text-slate-400" />
+                </div>
+                <div className="max-h-48 overflow-y-auto divide-y divide-slate-50">
+                  {/* Opsi Gunakan Input Mandiri jika nama desa diketik tapi belum ada di daftar resmi */}
+                  {desa.trim() && !filteredVillages.some(v => cleanWilayahName(v.name) === cleanWilayahName(desa)) && (
+                    <div
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                        setActiveDropdown(null);
+                        setIsTypingField(null);
+                      }}
+                      className="px-3 py-2 text-xs cursor-pointer flex items-center gap-2 bg-sky-50 hover:bg-sky-100 text-sky-800 font-semibold border-b border-sky-100 transition-colors"
+                    >
+                      <Plus className="w-3.5 h-3.5 text-sky-600 shrink-0" />
+                      <span className="truncate">Gunakan &quot;{desa.trim()}&quot; (Input Mandiri)</span>
+                    </div>
+                  )}
+
+                  {loadingVill && (
+                    <div className="px-3 py-4 text-center text-xs text-sky-600 flex items-center justify-center gap-1.5">
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      <span>Memuat daftar desa...</span>
+                    </div>
+                  )}
+                  {!loadingVill && filteredVillages.map((item) => {
+                    const nameFormatted = formatWilayahName(item.name);
+                    const isSelected = cleanWilayahName(desa) === cleanWilayahName(item.name);
+                    return (
+                      <div
+                        key={item.id}
+                        onMouseDown={(e) => {
+                          e.preventDefault();
+                          handleSelectDesa(item);
+                        }}
+                        className={`px-3 py-2 text-xs cursor-pointer flex items-center justify-between transition-colors ${
+                          isSelected ? 'bg-sky-50 text-sky-700 font-bold' : 'hover:bg-slate-50 text-slate-700'
+                        }`}
+                      >
+                        <span className="truncate">{nameFormatted}</span>
+                        {isSelected && <Check className="w-3.5 h-3.5 text-sky-600 shrink-0 ml-1" />}
+                      </div>
+                    );
+                  })}
+                  {!loadingVill && filteredVillages.length === 0 && (
+                    <div className="px-3 py-3 text-center text-xs text-slate-500 space-y-1.5">
+                      <p className="text-[11px] text-slate-400">Desa tidak ditemukan di daftar resmi.</p>
+                      {desa.trim() ? (
+                        <button
+                          type="button"
+                          onMouseDown={(e) => {
+                            e.preventDefault();
+                            setActiveDropdown(null);
+                            setIsTypingField(null);
+                          }}
+                          className="w-full py-1.5 px-2 bg-sky-600 hover:bg-sky-700 text-white rounded-lg font-bold text-[11px] flex items-center justify-center gap-1.5 cursor-pointer transition-colors"
+                        >
+                          <Check className="w-3 h-3" />
+                          <span>Tetap gunakan &quot;{desa.trim()}&quot;</span>
+                        </button>
+                      ) : (
+                        <p className="text-[10px] text-slate-400">Silakan ketikkan nama desa secara manual.</p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </>
+        );
+
+        if (stacked) {
+          return (
+            <div className="space-y-3 relative z-30">
+              <div className={`relative ${activeDropdown === 'province' ? 'z-50' : 'z-40'}`}>
+                {renderProvinceField()}
+              </div>
+              <div className={`relative ${activeDropdown === 'city' ? 'z-50' : 'z-30'}`}>
+                {renderCityField()}
+              </div>
+              <div className={`relative ${activeDropdown === 'kecamatan' ? 'z-50' : 'z-20'}`}>
+                {renderKecamatanField()}
+              </div>
+              <div className={`relative ${activeDropdown === 'desa' ? 'z-50' : 'z-10'}`}>
+                {renderDesaField()}
+              </div>
+            </div>
+          );
+        }
+
+        return (
+          <>
+            <div className={`grid grid-cols-2 gap-2.5 relative transition-all ${activeDropdown === 'province' || activeDropdown === 'city' ? 'z-50' : 'z-30'}`}>
+              <div className={`relative ${activeDropdown === 'province' ? 'z-50' : 'z-20'}`}>
+                {renderProvinceField()}
+              </div>
+              <div className={`relative ${activeDropdown === 'city' ? 'z-50' : 'z-20'}`}>
+                {renderCityField()}
+              </div>
+            </div>
+
+            <div className={`grid grid-cols-2 gap-2.5 relative transition-all ${activeDropdown === 'kecamatan' || activeDropdown === 'desa' ? 'z-50' : 'z-20'}`}>
+              <div className={`relative ${activeDropdown === 'kecamatan' ? 'z-50' : 'z-10'}`}>
+                {renderKecamatanField()}
+              </div>
+              <div className={`relative ${activeDropdown === 'desa' ? 'z-50' : 'z-10'}`}>
+                {renderDesaField()}
+              </div>
+            </div>
+          </>
+        );
+      })()}
 
       {/* 3. ALAMAT LENGKAP */}
       {showAlamatLengkap && (
