@@ -897,6 +897,16 @@ export async function updateAlumniInHostinger(
       phpPayload.longitude = c ? c.lng : null;
       phpPayload.coordinates = c;
     }
+    if (updates.password !== undefined || fullRecord?.password !== undefined) {
+      phpPayload.password = updates.password ?? fullRecord?.password;
+    }
+    if (updates.isPasswordChanged !== undefined || fullRecord?.isPasswordChanged !== undefined) {
+      phpPayload.isPasswordChanged = updates.isPasswordChanged ?? fullRecord?.isPasswordChanged;
+      phpPayload.is_password_changed = (updates.isPasswordChanged ?? fullRecord?.isPasswordChanged) ? 1 : 0;
+    }
+    if (updates.username !== undefined || fullRecord?.username !== undefined) {
+      phpPayload.username_lookup = (updates.username ?? fullRecord?.username)?.replace(/^@/, '');
+    }
 
     // Eksekusi pembaruan ke database Hostinger (domain utama attaroqqy.com, subdomain alumni.attaroqqy.com, dan Express DB backend via proxy)
     const targets = [

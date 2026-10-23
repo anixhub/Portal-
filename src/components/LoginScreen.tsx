@@ -91,9 +91,35 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
       }
 
       // Role Alumni: Autentikasi menggunakan NIK atau Username
+      // Gabungkan alumniList dengan cache localStorage terbaru untuk memastikan kata sandi ter-update
+      let activeAlumniPool = alumniList;
+      try {
+        const rawSaved = localStorage.getItem('attaroqqy_alumni_list_v1');
+        if (rawSaved) {
+          const parsed = JSON.parse(rawSaved);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            const savedMap = new Map(parsed.map((a: any) => [String(a.id).trim(), a]));
+            activeAlumniPool = alumniList.map((alm) => {
+              const fromSaved = savedMap.get(String(alm.id).trim());
+              if (fromSaved && (fromSaved.password || fromSaved.username)) {
+                return { ...alm, ...fromSaved };
+              }
+              return alm;
+            });
+            // Sertakan juga record yang ada di parsed tapi belum ada di alumniList
+            const existingIds = new Set(activeAlumniPool.map((a) => String(a.id).trim()));
+            parsed.forEach((p: any) => {
+              if (!existingIds.has(String(p.id).trim())) {
+                activeAlumniPool.push(p);
+              }
+            });
+          }
+        }
+      } catch (e) {}
+
       const cleanInput = inputVal.toLowerCase().replace(/^@/, '').trim();
       const cleanDigits = inputVal.replace(/\D/g, '');
-      const matchedAlumni = alumniList.find((alm) => {
+      const matchedAlumni = activeAlumniPool.find((alm) => {
         const almUser = (alm.username || '').toLowerCase().replace(/^@/, '').trim();
         const isUserMatch = Boolean(almUser && (almUser === cleanInput || (alm.username && alm.username.toLowerCase().trim() === inputVal.toLowerCase().trim())));
         
@@ -112,7 +138,10 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
         return;
       }
 
-      if (matchedAlumni.password !== password) {
+      const inputPasswordTrimmed = password.trim();
+      const almPasswordTrimmed = (matchedAlumni.password || '1234').trim();
+
+      if (matchedAlumni.password !== password && almPasswordTrimmed !== inputPasswordTrimmed) {
         setErrorMessage('Kata sandi yang Anda masukkan salah.');
         return;
       }

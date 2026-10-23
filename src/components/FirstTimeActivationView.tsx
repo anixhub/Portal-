@@ -67,9 +67,13 @@ export const FirstTimeActivationView: React.FC<FirstTimeActivationViewProps> = (
   // =========================================================================
   // STEP 1: USERNAME & KATA SANDI (PERSIS SEPERTI DI KELOLA ALUMNI)
   // =========================================================================
-  const [usernameInput, setUsernameInput] = useState(() => {
-    return alumni.username ? alumni.username.replace(/^@+/, '') : '';
-  });
+  const initialRawClean = (alumni.username ? alumni.username.replace(/^@+/, '') : '').trim();
+  const initialHasNoSpaces = !/\s/.test(initialRawClean);
+  const initialHasOnlyAllowedChars = /^[a-zA-Z0-9_.]+$/.test(initialRawClean);
+  const initialIsLengthRulePassed = initialRawClean.length >= 4;
+  const initialIsValid = Boolean(initialRawClean && initialHasNoSpaces && initialHasOnlyAllowedChars && initialIsLengthRulePassed);
+
+  const [usernameInput, setUsernameInput] = useState(() => initialRawClean);
   const [password, setPassword] = useState('');
   const [repeatPassword, setRepeatPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -77,14 +81,22 @@ export const FirstTimeActivationView: React.FC<FirstTimeActivationViewProps> = (
 
   // Username validation state
   const [isCheckingUsername, setIsCheckingUsername] = useState(false);
-  const [usernameStatus, setUsernameStatus] = useState<'idle' | 'checking' | 'available' | 'taken'>('idle');
+  const [usernameStatus, setUsernameStatus] = useState<'idle' | 'checking' | 'available' | 'taken'>(
+    initialIsValid ? 'available' : 'idle'
+  );
   const [usernameError, setUsernameError] = useState<string>('');
   const usernameTimerRef = useRef<any>(null);
 
-  // Logika validasi username persis di Kelola Alumni
+  // Simpan nilai username terakhir yang telah diperiksa atau nilai awal
+  // Agar tidak melakukan pemeriksaan duplikasi kecuali ada perubahan input nyata
+  const lastCheckedUsernameRef = useRef<string | null>(initialIsValid ? initialRawClean.toLowerCase() : null);
+
+  // Logika validasi duplikasi username: HANYA berjalan jika ada perubahan input
   useEffect(() => {
     const rawClean = usernameInput.replace(/^@+/, '').trim();
     if (!rawClean) {
+      if (usernameTimerRef.current) clearTimeout(usernameTimerRef.current);
+      lastCheckedUsernameRef.current = null;
       setIsCheckingUsername(false);
       setUsernameStatus('idle');
       setUsernameError('');
@@ -96,9 +108,18 @@ export const FirstTimeActivationView: React.FC<FirstTimeActivationViewProps> = (
     const isLengthRulePassed = rawClean.length >= 4;
 
     if (!hasNoSpaces || !hasOnlyAllowedChars || !isLengthRulePassed) {
+      if (usernameTimerRef.current) clearTimeout(usernameTimerRef.current);
+      lastCheckedUsernameRef.current = null;
       setIsCheckingUsername(false);
       setUsernameStatus('idle');
       setUsernameError('');
+      return;
+    }
+
+    const lower = rawClean.toLowerCase();
+
+    // JIKA TIDAK ADA PERUBAHAN DARI PEMERIKSAAN SEBELUMNYA, JANGAN LAKUKAN PEMERIKSAAN
+    if (lastCheckedUsernameRef.current === lower) {
       return;
     }
 
@@ -126,8 +147,8 @@ export const FirstTimeActivationView: React.FC<FirstTimeActivationViewProps> = (
         });
       }
 
-      const lower = rawClean.toLowerCase();
       if (reservedList.includes(lower)) {
+        lastCheckedUsernameRef.current = lower;
         setIsCheckingUsername(false);
         setUsernameStatus('taken');
         setUsernameError('Username ini dicadangkan untuk pengurus/admin');
@@ -140,12 +161,13 @@ export const FirstTimeActivationView: React.FC<FirstTimeActivationViewProps> = (
         : alumniList;
 
       const isTakenLocal = allPool.some((alm: any) => {
-        if (alm.id === alumni.id) return false;
+        if (String(alm.id).trim() === String(alumni.id).trim()) return false;
         const exist = (alm.username || '').toLowerCase().replace(/^@+/, '').trim();
         return exist === lower;
       });
 
       if (isTakenLocal) {
+        lastCheckedUsernameRef.current = lower;
         setIsCheckingUsername(false);
         setUsernameStatus('taken');
         setUsernameError('Sudah digunakan oleh alumni lain');
@@ -156,6 +178,7 @@ export const FirstTimeActivationView: React.FC<FirstTimeActivationViewProps> = (
       try {
         const live = await checkUsernameLive(rawClean, alumni.id);
         if (!live.available) {
+          lastCheckedUsernameRef.current = lower;
           setIsCheckingUsername(false);
           setUsernameStatus('taken');
           setUsernameError(
@@ -169,6 +192,7 @@ export const FirstTimeActivationView: React.FC<FirstTimeActivationViewProps> = (
         // Fallback local ok
       }
 
+      lastCheckedUsernameRef.current = lower;
       setIsCheckingUsername(false);
       setUsernameStatus('available');
       setUsernameError('');
@@ -177,7 +201,7 @@ export const FirstTimeActivationView: React.FC<FirstTimeActivationViewProps> = (
     return () => {
       if (usernameTimerRef.current) clearTimeout(usernameTimerRef.current);
     };
-  }, [usernameInput, alumni.id, alumniList, adminAccounts]);
+  }, [usernameInput, alumni.id]);
 
   const rawCleanUsername = usernameInput.replace(/^@+/, '').trim();
   const hasNoSpaces = !/\s/.test(usernameInput);

@@ -76,6 +76,29 @@ async function getSantriData(forceFresh: boolean = false): Promise<any> {
 
         const data = await response.json();
         if (data && (Array.isArray(data) || Array.isArray(data.data))) {
+          // Jika localSnapshot memiliki data alumni yang kata sandinya telah diubah (is_password_changed = 1 atau password != 1234),
+          // gabungkan agar respons server tidak menimpa kata sandi yang telah diubah dengan '1234'
+          const rawList = Array.isArray(data) ? data : data.data;
+          if (localSnapshot && Array.isArray(localSnapshot.data)) {
+            const snapMap = new Map(localSnapshot.data.map((s: any) => [String(s.id).trim(), s]));
+            const snapNikMap = new Map(localSnapshot.data.filter((s: any) => s.nik).map((s: any) => [String(s.nik).trim(), s]));
+            const snapUserMap = new Map(localSnapshot.data.filter((s: any) => s.username).map((s: any) => [String(s.username).toLowerCase().replace(/^@/, '').trim(), s]));
+            
+            rawList.forEach((item: any) => {
+              const snap: any = snapMap.get(String(item.id).trim()) ||
+                (item.nik ? snapNikMap.get(String(item.nik).trim()) : undefined) ||
+                (item.username ? snapUserMap.get(String(item.username).toLowerCase().replace(/^@/, '').trim()) : undefined);
+              if (snap) {
+                if (snap.password && snap.password !== '1234' && (item.password === '1234' || !item.password)) {
+                  item.password = snap.password;
+                  item.is_password_changed = 1;
+                }
+                if (snap.is_password_changed && !item.is_password_changed) {
+                  item.is_password_changed = 1;
+                }
+              }
+            });
+          }
           cachedSantriData = data;
           lastCacheTime = Date.now();
           console.log(`[Server] Fetched fresh santri data from ${url} (`, data.data?.length || data.length, 'records )');
@@ -703,6 +726,17 @@ async function startServer() {
         normalizedPayload.latitude = payload.coordinates?.lat ?? payload.latitude;
         normalizedPayload.longitude = payload.coordinates?.lng ?? payload.longitude;
       }
+      if (payload.password !== undefined) {
+        normalizedPayload.password = String(payload.password);
+      }
+      if (payload.isPasswordChanged !== undefined) {
+        normalizedPayload.is_password_changed = payload.isPasswordChanged ? 1 : 0;
+        normalizedPayload.isPasswordChanged = Boolean(payload.isPasswordChanged);
+      }
+      if (payload.is_password_changed !== undefined) {
+        normalizedPayload.is_password_changed = payload.is_password_changed ? 1 : 0;
+        normalizedPayload.isPasswordChanged = Boolean(payload.is_password_changed);
+      }
 
       // Update in-memory localSnapshot and persist to disk immediately
       let mergedRecord = { ...normalizedPayload };
@@ -711,7 +745,8 @@ async function startServer() {
           (s: any) =>
             String(s.id) === String(id) ||
             (payload.nik && String(s.nik) === String(payload.nik)) ||
-            (payload.nis && String(s.nis) === String(payload.nis))
+            (payload.nis && String(s.nis) === String(payload.nis)) ||
+            (payload.username && String(s.username).toLowerCase().replace(/^@/, '') === String(payload.username).toLowerCase().replace(/^@/, ''))
         );
         if (idx >= 0) {
           mergedRecord = { ...localSnapshot.data[idx], ...normalizedPayload };
@@ -732,7 +767,8 @@ async function startServer() {
           (s: any) =>
             String(s.id) === String(id) ||
             (payload.nik && String(s.nik) === String(payload.nik)) ||
-            (payload.nis && String(s.nis) === String(payload.nis))
+            (payload.nis && String(s.nis) === String(payload.nis)) ||
+            (payload.username && String(s.username).toLowerCase().replace(/^@/, '') === String(payload.username).toLowerCase().replace(/^@/, ''))
         );
         if (idx >= 0) {
           cachedSantriData.data[idx] = { ...cachedSantriData.data[idx], ...mergedRecord };

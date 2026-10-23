@@ -551,39 +551,11 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
   const [editName, setEditName] = useState(alumni.name);
   const [editTempatLahir, setEditTempatLahir] = useState(alumni.tempatLahir || '');
   const [editTanggalLahir, setEditTanggalLahir] = useState(alumni.tanggalLahir || '');
-  const [birthDayInput, setBirthDayInput] = useState(() => {
-    if (alumni.tanggalLahir) {
-      const parts = alumni.tanggalLahir.split('-');
-      if (parts.length === 3 && parts[2]) return String(parseInt(parts[2], 10));
-    }
-    return '';
-  });
-  const [birthMonthInput, setBirthMonthInput] = useState(() => {
-    if (alumni.tanggalLahir) {
-      const parts = alumni.tanggalLahir.split('-');
-      if (parts.length === 3 && parts[1]) return String(parseInt(parts[1], 10));
-    }
-    return '';
-  });
-  const [birthYearInput, setBirthYearInput] = useState(() => {
-    if (alumni.tanggalLahir) {
-      const parts = alumni.tanggalLahir.split('-');
-      if (parts.length === 3 && parts[0]) return parts[0];
-    }
-    return '';
-  });
-
-  const getMaxDaysForMonth = (mStr: string, yStr: string) => {
-    const m = parseInt(mStr, 10);
-    const y = parseInt(yStr, 10) || 2024;
-    if (isNaN(m) || m < 1 || m > 12) return 31;
-    if (m === 2) {
-      const isLeap = (y % 4 === 0 && y % 100 !== 0) || y % 400 === 0;
-      return isLeap ? 29 : 28;
-    }
-    if ([4, 6, 9, 11].includes(m)) return 30;
-    return 31;
-  };
+  // Dedicated Draft states untuk Tempat & Tanggal Lahir (persis logika di Kelola Alumni Akun Admin)
+  const [draftTempatLahir, setDraftTempatLahir] = useState('');
+  const [draftBirthDay, setDraftBirthDay] = useState('');
+  const [draftBirthMonth, setDraftBirthMonth] = useState('');
+  const [draftBirthYear, setDraftBirthYear] = useState('');
 
   const [editGender, setEditGender] = useState<'L' | 'P'>((alumni.gender as 'L' | 'P') || 'L');
   const [editUrutanAnak, setEditUrutanAnak] = useState<number>(Number(alumni.anak_ke ?? alumni.urutanAnak) || 1);
@@ -988,21 +960,27 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
     activeEditModalRef.current = modal;
     if (modal === 'nama') setEditName(alumni.name || '');
     else if (modal === 'ttl') {
-      const curTempat = alumni.tempatLahir || '';
-      const curTgl = alumni.tanggalLahir || '';
-      setEditTempatLahir(curTempat);
-      setEditTanggalLahir(curTgl);
-      if (curTgl) {
+      const curTempat = editTempatLahir || alumni.tempatLahir || '';
+      const curTgl = editTanggalLahir || alumni.tanggalLahir || '';
+      setDraftTempatLahir(curTempat);
+      if (curTgl && curTgl.includes('-')) {
         const parts = curTgl.split('-');
         if (parts.length === 3) {
-          setBirthYearInput(parts[0] || '');
-          setBirthMonthInput(parts[1] ? String(parseInt(parts[1], 10)) : '');
-          setBirthDayInput(parts[2] ? String(parseInt(parts[2], 10)) : '');
+          const y = parts[0].padStart(4, '0');
+          const m = String(parseInt(parts[1], 10) || '').padStart(2, '0');
+          const d = String(parseInt(parts[2], 10) || '').padStart(2, '0');
+          setDraftBirthYear(y);
+          setDraftBirthMonth(m);
+          setDraftBirthDay(d);
+        } else {
+          setDraftBirthDay('');
+          setDraftBirthMonth('');
+          setDraftBirthYear('');
         }
       } else {
-        setBirthYearInput('');
-        setBirthMonthInput('');
-        setBirthDayInput('');
+        setDraftBirthDay('');
+        setDraftBirthMonth('');
+        setDraftBirthYear('');
       }
     } else if (modal === 'saudara') {
       setEditGender((alumni.gender as 'L' | 'P') || 'L');
@@ -1243,17 +1221,21 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
     setEditName(alumni.name);
     setEditTempatLahir(alumni.tempatLahir || '');
     setEditTanggalLahir(alumni.tanggalLahir || '');
-    if (alumni.tanggalLahir) {
+    if (alumni.tanggalLahir && alumni.tanggalLahir.includes('-')) {
       const parts = alumni.tanggalLahir.split('-');
       if (parts.length === 3) {
-        setBirthYearInput(parts[0] || '');
-        setBirthMonthInput(parts[1] ? String(parseInt(parts[1], 10)) : '');
-        setBirthDayInput(parts[2] ? String(parseInt(parts[2], 10)) : '');
+        setDraftBirthYear(parts[0].padStart(4, '0'));
+        setDraftBirthMonth(String(parseInt(parts[1], 10) || '').padStart(2, '0'));
+        setDraftBirthDay(String(parseInt(parts[2], 10) || '').padStart(2, '0'));
+      } else {
+        setDraftBirthYear('');
+        setDraftBirthMonth('');
+        setDraftBirthDay('');
       }
     } else {
-      setBirthYearInput('');
-      setBirthMonthInput('');
-      setBirthDayInput('');
+      setDraftBirthYear('');
+      setDraftBirthMonth('');
+      setDraftBirthDay('');
     }
     setEditGender((alumni.gender as 'L' | 'P') || 'L');
     setEditUrutanAnak(Number(alumni.anak_ke ?? alumni.urutanAnak) || 1);
@@ -2972,9 +2954,7 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
                       <div className="min-w-0">
                         <p className="text-[11px] text-slate-400 font-medium leading-tight">Tempat, Tanggal Lahir (TTL)</p>
                         <p className="text-sm font-semibold text-slate-800 truncate mt-0.5">
-                          {editTempatLahir || editTanggalLahir
-                            ? [editTempatLahir, formatTanggalIndonesia(editTanggalLahir)].filter(Boolean).join(', ')
-                            : 'Belum diisi'}
+                          {editTempatLahir ? `${editTempatLahir}, ` : ''}{editTanggalLahir ? formatToDDMMYYYY(editTanggalLahir) : 'Belum diisi'}
                         </p>
                       </div>
                     </div>
@@ -3489,169 +3469,143 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
               </div>
             )}
 
-            {/* ================= EDIT MODAL: TEMPAT TANGGAL LAHIR ================= */}
+            {/* ================= EDIT MODAL: TEMPAT TANGGAL LAHIR (PERSIS KELOLA ALUMNI ADMIN) ================= */}
             {activeEditModal === 'ttl' && (
               <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in" onClick={() => setActiveEditModal(null)}>
-                <div className="bg-white rounded-3xl p-5 w-full max-w-sm space-y-4 shadow-2xl border border-slate-100 animate-in zoom-in-95 duration-150" onClick={(e) => e.stopPropagation()}>
+                <div className="bg-white rounded-3xl p-5 w-full max-w-sm space-y-4 shadow-2xl border border-slate-100" onClick={(e) => e.stopPropagation()}>
                   <div className="flex justify-between items-center border-b border-slate-100 pb-2.5">
                     <h3 className="font-bold text-sm text-slate-900">Ubah Tempat & Tanggal Lahir</h3>
-                    <button type="button" onClick={() => setActiveEditModal(null)} className="text-slate-400 hover:text-slate-600 cursor-pointer p-1"><X className="w-4 h-4" /></button>
+                    <button type="button" onClick={() => setActiveEditModal(null)} className="text-slate-400 hover:text-slate-600 cursor-pointer"><X className="w-4 h-4" /></button>
                   </div>
-                  <div className="space-y-3.5 text-xs">
+                  <div className="space-y-3 text-xs">
                     <div>
-                      <label className="block font-semibold text-slate-700 mb-1">Tempat Lahir (Kota/Kabupaten)</label>
-                      <input 
-                        type="text" 
-                        value={editTempatLahir} 
-                        onChange={(e) => setEditTempatLahir(e.target.value)} 
-                        className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-medium focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500 text-xs shadow-2xs" 
-                        placeholder="Contoh: Rembang" 
+                      <label className="block font-semibold text-slate-700 mb-1">Tempat Lahir</label>
+                      <input
+                        type="text"
+                        value={draftTempatLahir}
+                        onChange={(e) => setDraftTempatLahir(e.target.value)}
+                        className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white text-xs"
+                        placeholder="Kota/Kabupaten kelahiran..."
                       />
                     </div>
-
                     <div>
-                      <label className="block font-semibold text-slate-700 mb-1.5">Tanggal Lahir</label>
-                      
-                      {/* Segmented Numeric Keyboard Inputs */}
+                      <label className="block font-semibold text-slate-700 mb-1">Tanggal Lahir</label>
                       <div className="grid grid-cols-3 gap-2">
                         <div>
                           <input
                             type="text"
                             inputMode="numeric"
                             pattern="[0-9]*"
-                            placeholder="DD"
                             maxLength={2}
-                            value={birthDayInput}
+                            placeholder="DD"
+                            value={draftBirthDay}
                             onFocus={(e) => e.target.select()}
                             onClick={(e) => (e.target as HTMLInputElement).select()}
                             onChange={(e) => {
-                              const val = formatDayInput(e.target.value, birthMonthInput, birthYearInput);
-                              setBirthDayInput(val);
+                              const val = formatDayInput(e.target.value, draftBirthMonth, draftBirthYear);
+                              setDraftBirthDay(val);
                             }}
                             onBlur={() => {
-                              if (birthDayInput) {
-                                setBirthDayInput(padDayInput(birthDayInput, birthMonthInput, birthYearInput));
+                              if (draftBirthDay) {
+                                setDraftBirthDay(padDayInput(draftBirthDay, draftBirthMonth, draftBirthYear));
                               }
                             }}
-                            className="w-full text-center px-2 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-sm text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500 shadow-2xs"
+                            className="w-full text-center px-2 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-xs focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500"
                           />
                         </div>
-
                         <div>
                           <input
                             type="text"
                             inputMode="numeric"
                             pattern="[0-9]*"
-                            placeholder="MM"
                             maxLength={2}
-                            value={birthMonthInput}
+                            placeholder="MM"
+                            value={draftBirthMonth}
                             onFocus={(e) => e.target.select()}
                             onClick={(e) => (e.target as HTMLInputElement).select()}
                             onChange={(e) => {
                               const val = formatMonthInput(e.target.value);
-                              setBirthMonthInput(val);
-
-                              // Re-clamp day if needed
-                              if (birthDayInput && val) {
-                                const currentD = parseInt(birthDayInput, 10);
-                                const maxD = getMaxDaysInMonth(val, birthYearInput);
+                              setDraftBirthMonth(val);
+                              if (draftBirthDay && val) {
+                                const currentD = parseInt(draftBirthDay, 10);
+                                const maxD = getMaxDaysInMonth(val, draftBirthYear);
                                 if (currentD > maxD) {
-                                  setBirthDayInput(String(maxD));
+                                  setDraftBirthDay(String(maxD).padStart(2, '0'));
                                 }
                               }
                             }}
                             onBlur={() => {
-                              if (birthMonthInput) {
-                                const padded = padMonthInput(birthMonthInput);
-                                setBirthMonthInput(padded);
-                                if (birthDayInput) {
-                                  setBirthDayInput(padDayInput(birthDayInput, padded, birthYearInput));
+                              if (draftBirthMonth) {
+                                const padded = padMonthInput(draftBirthMonth);
+                                setDraftBirthMonth(padded);
+                                if (draftBirthDay) {
+                                  const currentD = parseInt(draftBirthDay, 10);
+                                  const maxD = getMaxDaysInMonth(padded, draftBirthYear);
+                                  if (currentD > maxD) {
+                                    setDraftBirthDay(String(maxD).padStart(2, '0'));
+                                  }
                                 }
                               }
                             }}
-                            className="w-full text-center px-2 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-sm text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500 shadow-2xs"
+                            className="w-full text-center px-2 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-xs focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500"
                           />
                         </div>
-
                         <div>
                           <input
                             type="text"
                             inputMode="numeric"
                             pattern="[0-9]*"
-                            placeholder="YYYY"
                             maxLength={4}
-                            value={birthYearInput}
+                            placeholder="YYYY"
+                            value={draftBirthYear}
                             onFocus={(e) => e.target.select()}
                             onClick={(e) => (e.target as HTMLInputElement).select()}
                             onChange={(e) => {
-                              const val = e.target.value.replace(/[^0-9]/g, '').slice(0, 4);
-                              if (!val) {
-                                setBirthYearInput('');
-                                return;
-                              }
-                              const currentYr = new Date().getFullYear();
-                              const num = parseInt(val, 10);
-                              const clampedY = val.length === 4 ? Math.min(num, currentYr) : num;
-                              setBirthYearInput(String(clampedY));
-
-                              // Re-clamp for leap year if Feb
-                              if (birthDayInput && birthMonthInput === '2' && val.length === 4) {
-                                const currentD = parseInt(birthDayInput, 10);
-                                const maxD = getMaxDaysInMonth('2', String(clampedY));
+                              const val = e.target.value.replace(/\D/g, '').slice(0, 4);
+                              setDraftBirthYear(val);
+                              if (draftBirthDay && draftBirthMonth && val.length === 4) {
+                                const currentD = parseInt(draftBirthDay, 10);
+                                const maxD = getMaxDaysInMonth(draftBirthMonth, val);
                                 if (currentD > maxD) {
-                                  setBirthDayInput(String(maxD));
+                                  setDraftBirthDay(String(maxD).padStart(2, '0'));
                                 }
                               }
                             }}
                             onBlur={() => {
-                              if (birthYearInput) {
-                                const padded = padYearInput(birthYearInput);
-                                setBirthYearInput(padded);
-                                if (birthDayInput && birthMonthInput) {
-                                  const currentD = parseInt(birthDayInput, 10);
-                                  const maxD = getMaxDaysInMonth(birthMonthInput, padded);
+                              if (draftBirthYear) {
+                                const padded = padYearInput(draftBirthYear);
+                                setDraftBirthYear(padded);
+                                if (draftBirthDay && draftBirthMonth) {
+                                  const currentD = parseInt(draftBirthDay, 10);
+                                  const maxD = getMaxDaysInMonth(draftBirthMonth, padded);
                                   if (currentD > maxD) {
-                                    setBirthDayInput(padDayInput(String(maxD), birthMonthInput, padded));
+                                    setDraftBirthDay(String(maxD).padStart(2, '0'));
                                   }
                                 }
                               }
                             }}
-                            className="w-full text-center px-2 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-sm text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500 shadow-2xs"
+                            className="w-full text-center px-2 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-xs focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500"
                           />
                         </div>
                       </div>
-
-                      {/* Preview Tanggal Lahir Terpilih */}
-                      {birthDayInput && birthMonthInput && birthYearInput.length === 4 && (
-                        <div className="mt-2 p-2 bg-sky-50 border border-sky-100 rounded-xl text-center animate-in fade-in">
-                          <p className="text-[11px] text-sky-800 font-semibold">
-                            {birthDayInput} {['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'][parseInt(birthMonthInput, 10) - 1] || ''} {birthYearInput}
-                          </p>
-                        </div>
-                      )}
                     </div>
                   </div>
-
-                  <div className="flex gap-2 pt-2 border-t border-slate-100">
-                    <button type="button" onClick={() => setActiveEditModal(null)} className="flex-1 py-2.5 rounded-xl border border-slate-200 text-slate-600 font-semibold text-xs cursor-pointer hover:bg-slate-50 transition-colors">Batal</button>
-                    <button 
-                      type="button" 
-                      onClick={() => { 
-                        const dStr = birthDayInput ? padDayInput(birthDayInput, birthMonthInput, birthYearInput) : '';
-                        const mStr = birthMonthInput ? padMonthInput(birthMonthInput) : '';
-                        const yStr = birthYearInput ? padYearInput(birthYearInput) : '';
-                        const finalBirthDate = (dStr && mStr && yStr.length === 4) ? `${yStr}-${mStr}-${dStr}` : editTanggalLahir;
-                        
-                        setEditTempatLahir(editTempatLahir);
-                        setEditTanggalLahir(finalBirthDate);
-                        onUpdateProfile({ tempatLahir: editTempatLahir, tanggalLahir: finalBirthDate }); 
-                        setActiveEditModal(null); 
-                        triggerToast('Tempat & tanggal lahir berhasil disimpan'); 
-                      }} 
-                      className="flex-1 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs cursor-pointer shadow-xs active:scale-95 transition-all"
-                    >
-                      Simpan
-                    </button>
+                  <div className="flex gap-2 pt-2">
+                    <button type="button" onClick={() => setActiveEditModal(null)} className="flex-1 py-2 rounded-xl border border-slate-200 text-slate-600 font-semibold text-xs cursor-pointer">Batal</button>
+                    <button type="button" onClick={() => { 
+                      let formattedDate = '';
+                      if (draftBirthYear && draftBirthMonth && draftBirthDay) {
+                        const y = padYearInput(draftBirthYear);
+                        const m = padMonthInput(draftBirthMonth);
+                        const d = padDayInput(draftBirthDay, m, y);
+                        formattedDate = `${y}-${m}-${d}`;
+                      }
+                      setEditTempatLahir(draftTempatLahir);
+                      setEditTanggalLahir(formattedDate);
+                      onUpdateProfile({ tempatLahir: draftTempatLahir, tanggalLahir: formattedDate }); 
+                      setActiveEditModal(null); 
+                      triggerToast('Tempat & tanggal lahir berhasil disimpan');
+                    }} className="flex-1 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs cursor-pointer">Simpan</button>
                   </div>
                 </div>
               </div>

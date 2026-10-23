@@ -47,7 +47,16 @@ export default function App() {
   const [wsConnected, setWsConnected] = useState(false);
   const [allSantriList, setAllSantriList] = useState<SantriIdentityLookup[]>([]);
   const [syncToastMessage, setSyncToastMessage] = useState<string | null>(null);
-  const [alumniList, setAlumniList] = useState<AlumniRecord[]>(INITIAL_ALUMNI);
+  const [alumniList, setAlumniList] = useState<AlumniRecord[]>(() => {
+    try {
+      const saved = localStorage.getItem('attaroqqy_alumni_list_v1');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) {}
+    return INITIAL_ALUMNI;
+  });
   const [adminList, setAdminList] = useState<AdminUser[]>(() => {
     try {
       const saved = localStorage.getItem('attaroqqy_admin_list_v1');
@@ -59,6 +68,14 @@ export default function App() {
     return INITIAL_ADMIN_LIST;
   });
   const [adminAccount, setAdminAccount] = useState<AdminUser>(adminList[0] || INITIAL_ADMIN);
+
+  useEffect(() => {
+    try {
+      if (alumniList && alumniList.length > 0) {
+        localStorage.setItem('attaroqqy_alumni_list_v1', JSON.stringify(alumniList));
+      }
+    } catch (e) {}
+  }, [alumniList]);
 
   useEffect(() => {
     try {
@@ -258,32 +275,65 @@ export default function App() {
           return prev;
         });
 
-        // Simpan daftar alumni dengan memastikan data alumni yang sedang diedit lokal tidak tertimpa polling basi
+        // Simpan daftar alumni dengan memastikan data alumni yang sedang diedit lokal atau password baru tidak tertimpa data basi
         setAlumniList((prevList) => {
-          if (isRecentlyUpdated && prevList && prevList.length > 0) {
-            const prevMap = new Map(prevList.map((a) => [a.id, a]));
-            return alumniRes.data.map((freshItem) => {
-              const localItem = prevMap.get(freshItem.id);
-              if (localItem) {
-                return {
-                  ...freshItem,
-                  name: localItem.name || freshItem.name,
-                  username: localItem.username || freshItem.username,
-                  phone: localItem.phone || freshItem.phone,
-                  email: localItem.email || freshItem.email,
-                  city: localItem.city || freshItem.city,
-                  province: localItem.province || freshItem.province,
-                  alamatLengkap: localItem.alamatLengkap || freshItem.alamatLengkap,
-                };
-              }
-              return freshItem;
-            });
-          }
-          if (currentSession?.role === 'alumni' && currentSession.alumniData) {
-            const activeId = currentSession.alumniData.id;
-            return alumniRes.data.map((item) => (item.id === activeId ? { ...item, ...currentSession.alumniData } : item));
-          }
-          return alumniRes.data;
+          let localSavedList: AlumniRecord[] = [];
+          try {
+            const rawSaved = localStorage.getItem('attaroqqy_alumni_list_v1');
+            if (rawSaved) {
+              const parsed = JSON.parse(rawSaved);
+              if (Array.isArray(parsed)) localSavedList = parsed;
+            }
+          } catch (e) {}
+
+          const localPool = [...(localSavedList || []), ...(prevList || [])];
+          const localIdMap = new Map(localPool.map((a) => [String(a.id).trim(), a]));
+          const localNikMap = new Map(localPool.filter((a) => a.nik).map((a) => [String(a.nik).trim(), a]));
+          const localUserMap = new Map(localPool.filter((a) => a.username).map((a) => [(a.username || '').toLowerCase().replace(/^@/, '').trim(), a]));
+
+          const activeAlumni = currentSession?.role === 'alumni' ? currentSession.alumniData : null;
+
+          return alumniRes.data.map((freshItem) => {
+            const localItem =
+              (activeAlumni && (String(activeAlumni.id).trim() === String(freshItem.id).trim() || (activeAlumni.nik && activeAlumni.nik === freshItem.nik)))
+                ? activeAlumni
+                : (localIdMap.get(String(freshItem.id).trim()) ||
+                   (freshItem.nik ? localNikMap.get(String(freshItem.nik).trim()) : undefined) ||
+                   (freshItem.username ? localUserMap.get((freshItem.username || '').toLowerCase().replace(/^@/, '').trim()) : undefined));
+
+            if (localItem) {
+              // PENTING: Pertahankan kata sandi yang telah diubah secara lokal agar tidak ditimpa default '1234' dari server
+              const hasLocalCustomPassword =
+                Boolean(localItem.isPasswordChanged) ||
+                (Boolean(localItem.password) && localItem.password !== '1234');
+
+              const effectivePassword = hasLocalCustomPassword
+                ? localItem.password
+                : (freshItem.password || localItem.password || '1234');
+
+              const effectiveIsPasswordChanged = Boolean(
+                localItem.isPasswordChanged ||
+                freshItem.isPasswordChanged ||
+                (effectivePassword && effectivePassword !== '1234')
+              );
+
+              return {
+                ...freshItem,
+                name: localItem.name || freshItem.name,
+                username: localItem.username || freshItem.username,
+                password: effectivePassword,
+                isPasswordChanged: effectiveIsPasswordChanged,
+                phone: localItem.phone || freshItem.phone,
+                email: localItem.email || freshItem.email,
+                city: localItem.city || freshItem.city,
+                province: localItem.province || freshItem.province,
+                alamatLengkap: localItem.alamatLengkap || freshItem.alamatLengkap,
+                tempatLahir: localItem.tempatLahir || freshItem.tempatLahir,
+                tanggalLahir: localItem.tanggalLahir || freshItem.tanggalLahir,
+              };
+            }
+            return freshItem;
+          });
         });
 
         if (alumniRes.allSantri && alumniRes.allSantri.length > 0) {
@@ -508,7 +558,13 @@ export default function App() {
       localStorage.setItem('attaroqqy_active_session_v1', JSON.stringify(nextSession));
     } catch (e) {}
 
-    const updatedList = alumniList.map((item) => (item.id === updatedAlumni.id ? updatedAlumni : item));
+    const updatedList = alumniList.map((item) =>
+      String(item.id).trim() === String(updatedAlumni.id).trim() ||
+      (item.nik && updatedAlumni.nik && String(item.nik).trim() === String(updatedAlumni.nik).trim()) ||
+      (item.username && updatedAlumni.username && item.username.toLowerCase().replace(/^@/, '') === updatedAlumni.username.toLowerCase().replace(/^@/, ''))
+        ? updatedAlumni
+        : item
+    );
     setAlumniList(updatedList);
     try {
       localStorage.setItem('attaroqqy_alumni_list_v1', JSON.stringify(updatedList));
