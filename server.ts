@@ -782,6 +782,29 @@ async function startServer() {
         normalizedPayload.hasLoggedIn = Boolean(payload.hasLoggedIn);
       }
 
+      // Hapus file fisik foto lama jika diganti atau dihapus
+      if (localSnapshot && Array.isArray(localSnapshot.data)) {
+        const existingSantri = localSnapshot.data.find(
+          (s: any) => String(s.id).trim() === String(id).trim()
+        );
+        if (existingSantri) {
+          if (payload.avatarUrl !== undefined || payload.photoUrl !== undefined || payload.file_pas_foto !== undefined) {
+            const newP = payload.avatarUrl || payload.photoUrl || payload.file_pas_foto;
+            const oldP = existingSantri.file_pas_foto || existingSantri.photoUrl || existingSantri.avatarUrl;
+            if (oldP && oldP !== newP) {
+              deleteLocalPhysicalFile(oldP);
+            }
+          }
+          if (payload.coverPhotoUrl !== undefined || payload.foto_sampul !== undefined) {
+            const newC = payload.coverPhotoUrl || payload.foto_sampul;
+            const oldC = existingSantri.coverPhotoUrl || existingSantri.foto_sampul;
+            if (oldC && oldC !== newC) {
+              deleteLocalPhysicalFile(oldC);
+            }
+          }
+        }
+      }
+
       // Update in-memory localSnapshot and persist to disk immediately
       let mergedRecord = { ...normalizedPayload };
       const searchNik = payload.nik ? String(payload.nik).replace(/\D/g, '').trim() : '';
@@ -966,6 +989,11 @@ async function startServer() {
     try {
       console.log(`[Server] Deleting santri ID: ${id}`);
       if (localSnapshot && Array.isArray(localSnapshot.data)) {
+        const santriToDelete = localSnapshot.data.find((s: any) => String(s.id) === String(id));
+        if (santriToDelete) {
+          deleteLocalPhysicalFile(santriToDelete.file_pas_foto || santriToDelete.photoUrl || santriToDelete.avatarUrl);
+          deleteLocalPhysicalFile(santriToDelete.coverPhotoUrl || santriToDelete.foto_sampul);
+        }
         localSnapshot.data = localSnapshot.data.filter((s: any) => String(s.id) !== String(id));
         try {
           fs.writeFileSync(snapshotPath, JSON.stringify(localSnapshot, null, 2), 'utf-8');
@@ -973,6 +1001,10 @@ async function startServer() {
           console.warn('[Server] Error deleting from snapshot:', e);
         }
       }
+
+      // Bersihkan komentar alumni ini
+      cachedComments = cachedComments.filter((c: any) => c.authorId !== id);
+      saveJsonStore(commentsStorePath, cachedComments);
 
       if (cachedSantriData && Array.isArray(cachedSantriData.data)) {
         cachedSantriData.data = cachedSantriData.data.filter((s: any) => String(s.id) !== String(id));
@@ -1074,6 +1106,51 @@ async function startServer() {
     } catch (err) {
       console.error('[Server] Failed to save base64 image to disk:', err);
       return base64Data;
+    }
+  };
+
+  const deleteLocalPhysicalFile = (fileUrlOrPath?: string) => {
+    if (!fileUrlOrPath || typeof fileUrlOrPath !== 'string') return;
+    let trimmed = fileUrlOrPath.trim();
+    if (trimmed.startsWith('data:')) return;
+    if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+      try {
+        const u = new URL(trimmed);
+        if (!u.pathname.includes('/uploads/')) return;
+        trimmed = u.pathname;
+      } catch {
+        return;
+      }
+    }
+
+    const filename = path.basename(trimmed);
+    if (!filename || filename === '.' || filename === '..') return;
+
+    const uploadDir = path.resolve(__dirname, 'public/uploads/pas_foto');
+    const targetPath = path.join(uploadDir, filename);
+    try {
+      if (fs.existsSync(targetPath)) {
+        fs.unlinkSync(targetPath);
+        console.log('[Server] Deleted physical media file:', filename);
+      }
+    } catch (err: any) {
+      console.warn('[Server] Error unlinking physical media file:', filename, err?.message);
+    }
+  };
+
+  const deleteMultipleLocalPhysicalFiles = (images?: any) => {
+    if (!images) return;
+    if (Array.isArray(images)) {
+      images.forEach(deleteLocalPhysicalFile);
+    } else if (typeof images === 'string') {
+      try {
+        const parsed = JSON.parse(images);
+        if (Array.isArray(parsed)) {
+          parsed.forEach(deleteLocalPhysicalFile);
+          return;
+        }
+      } catch {}
+      deleteLocalPhysicalFile(images);
     }
   };
 
@@ -1240,6 +1317,19 @@ async function startServer() {
   // Events API: DELETE (DELETE & POST)
   const handleEventDeletion = async (id: string, res: any) => {
     if (!id) return res.status(400).json({ success: false, message: 'ID required' });
+
+    // 1. Ambil event sebelum dihapus untuk membersihkan file fisik poster dan gambar di folder uploads
+    const evToDelete = cachedEvents.find((e: any) => e.id === id);
+    if (evToDelete) {
+      deleteLocalPhysicalFile(evToDelete.posterUrl || evToDelete.poster_url);
+      deleteMultipleLocalPhysicalFiles(evToDelete.images);
+    }
+
+    // 2. Bersihkan komentar dan RSVP terkait event ini
+    cachedComments = cachedComments.filter((c: any) => c.eventId !== id && c.postId !== id);
+    saveJsonStore(commentsStorePath, cachedComments);
+
+    // 3. Catat ID yang dihapus dan filter keluar dari cache
     if (!deletedEventIds.includes(id)) {
       deletedEventIds.push(id);
       saveJsonStore(deletedEventsStorePath, deletedEventIds);
@@ -1267,7 +1357,7 @@ async function startServer() {
         signal: AbortSignal.timeout(10000),
       }).catch(() => {});
     } catch (err: any) {}
-    res.json({ success: true, message: 'Event berhasil dihapus' });
+    res.json({ success: true, message: 'Event dan seluruh foto/komentar terkait berhasil dibersihkan' });
   };
 
   app.delete('/api/events/:id', async (req, res) => {
@@ -1645,6 +1735,12 @@ async function startServer() {
   app.delete('/api/admin/users/:id', (req, res) => {
     const { id } = req.params;
     if (id) {
+      const adminToDelete = cachedAdminUsers.find((u: any) => u.id === id);
+      if (adminToDelete) {
+        deleteLocalPhysicalFile(adminToDelete.avatar);
+        deleteLocalPhysicalFile(adminToDelete.coverPhotoUrl);
+      }
+
       cachedAdminUsers = cachedAdminUsers.filter((u: any) => u.id !== id && u.username !== '@admin_pusat');
       saveJsonStore(adminUsersStorePath, cachedAdminUsers);
 
@@ -1663,7 +1759,7 @@ async function startServer() {
         timestamp: Date.now(),
       });
 
-      return res.json({ success: true, message: 'Admin deleted' });
+      return res.json({ success: true, message: 'Admin dan file foto berhasil dihapus' });
     }
     res.status(400).json({ success: false, message: 'Invalid admin id' });
   });
@@ -1753,6 +1849,18 @@ async function startServer() {
   // Announcements API: DELETE (DELETE & POST)
   const handleAnnouncementDeletion = async (id: string, res: any) => {
     if (!id) return res.status(400).json({ success: false, message: 'ID required' });
+
+    // 1. Ambil pengumuman sebelum dihapus untuk membersihkan file fisik gambar dari disk
+    const annToDelete = cachedAnnouncements.find((a: any) => a.id === id);
+    if (annToDelete) {
+      deleteMultipleLocalPhysicalFiles(annToDelete.images);
+    }
+
+    // 2. Bersihkan komentar terkait pengumuman ini
+    cachedComments = cachedComments.filter((c: any) => c.postId !== id);
+    saveJsonStore(commentsStorePath, cachedComments);
+
+    // 3. Catat ID yang dihapus dan filter keluar dari cache
     if (!deletedAnnouncementIds.includes(id)) {
       deletedAnnouncementIds.push(id);
       saveJsonStore(deletedAnnouncementsStorePath, deletedAnnouncementIds);
@@ -1780,7 +1888,7 @@ async function startServer() {
         signal: AbortSignal.timeout(10000),
       }).catch(() => {});
     } catch (err: any) {}
-    res.json({ success: true, message: 'Pengumuman berhasil dihapus' });
+    res.json({ success: true, message: 'Pengumuman dan seluruh foto/komentar terkait berhasil dibersihkan' });
   };
 
   app.delete('/api/announcements/:id', async (req, res) => {

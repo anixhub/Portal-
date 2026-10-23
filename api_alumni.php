@@ -358,6 +358,74 @@ function processIncomingPhoto($photoData, $prefix = 'filePasFoto') {
     return $photoData;
 }
 
+/**
+ * Hapus file foto fisik dari disk server hosting agar storage tidak penuh
+ */
+function deletePhysicalPhotoFile($filePathOrUrl) {
+    if (empty($filePathOrUrl) || !is_string($filePathOrUrl)) return false;
+    $trimmed = trim($filePathOrUrl);
+
+    // Jangan sentuh Base64 data URL atau URL luar (Unsplash, Google, Cloudinary)
+    if (strpos($trimmed, 'data:') === 0) return false;
+    if (strpos($trimmed, 'http://') === 0 || strpos($trimmed, 'https://') === 0) {
+        if (strpos($trimmed, 'attaroqqy.com') === false) {
+            return false;
+        }
+        $parsed = parse_url($trimmed, PHP_URL_PATH);
+        if ($parsed) $trimmed = $parsed;
+    }
+
+    // Ambil nama filenya saja untuk keamanan (mencegah directory traversal)
+    $filename = basename($trimmed);
+    if (empty($filename) || $filename === '.' || $filename === '..') return false;
+
+    // Pastikan hanya menghapus file gambar upload yang sah
+    $ext = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
+    if (!in_array($ext, ['jpg', 'jpeg', 'png', 'webp', 'gif'])) return false;
+
+    // Lokasi direktori uploads yang mungkin di Hostinger
+    $possibleDirs = [
+        __DIR__ . '/uploads/pas_foto/',
+        __DIR__ . '/api/uploads/pas_foto/',
+        dirname(__DIR__) . '/public_html/uploads/pas_foto/',
+        dirname(__DIR__) . '/public_html/api/uploads/pas_foto/',
+        dirname(__DIR__) . '/uploads/pas_foto/',
+        dirname(__DIR__) . '/uploads/',
+        __DIR__ . '/uploads/',
+    ];
+
+    $deleted = false;
+    foreach ($possibleDirs as $dir) {
+        $fullPath = rtrim($dir, '/') . '/' . $filename;
+        if (file_exists($fullPath) && is_file($fullPath)) {
+            if (@unlink($fullPath)) {
+                $deleted = true;
+            }
+        }
+    }
+    return $deleted;
+}
+
+function deleteMultiplePhysicalPhotos($images) {
+    if (empty($images)) return;
+    if (is_string($images)) {
+        $decoded = json_decode($images, true);
+        if (is_array($decoded)) {
+            foreach ($decoded as $img) {
+                deletePhysicalPhotoFile($img);
+            }
+            return;
+        }
+        deletePhysicalPhotoFile($images);
+        return;
+    }
+    if (is_array($images)) {
+        foreach ($images as $img) {
+            deletePhysicalPhotoFile($img);
+        }
+    }
+}
+
 // ==========================================
 // 0. STATUS SINKRONISASI REALTIME 2-ARAH
 // ==========================================
@@ -667,14 +735,36 @@ if ($action === 'update_alumni' && $_SERVER['REQUEST_METHOD'] === 'POST') {
             $fields[] = "instansi = :institution"; 
             $params[':institution'] = $input['institution'] ?? $input['instansi']; 
         }
-        if (isset($input['bio'])) { $fields[] = "bio = :bio"; $params[':bio'] = $input['bio']; }
         if (isset($input['avatarUrl']) || isset($input['photoUrl'])) { 
             $rawPhotoVal = $input['avatarUrl'] ?? $input['photoUrl'];
+            // Hapus file fisik foto lama jika diganti atau dihapus/dikosongkan
+            try {
+                $oldStmt = $pdo->prepare("SELECT file_pas_foto, foto FROM santri WHERE id = :id LIMIT 1");
+                $oldStmt->execute([':id' => $id]);
+                $oldRow = $oldStmt->fetch();
+                if ($oldRow) {
+                    $oldP = !empty($oldRow['file_pas_foto']) ? $oldRow['file_pas_foto'] : (!empty($oldRow['foto']) ? $oldRow['foto'] : '');
+                    if (!empty($oldP) && $oldP !== $rawPhotoVal) {
+                        deletePhysicalPhotoFile($oldP);
+                    }
+                }
+            } catch (Exception $oldEx) {}
+
             $processed = processIncomingPhoto($rawPhotoVal, 'filePasFoto');
             $fields[] = "file_pas_foto = :avatarUrl"; 
             $params[':avatarUrl'] = $processed; 
         }
         if (isset($input['coverPhotoUrl'])) { 
+            // Hapus file fisik foto sampul lama jika diganti atau dihapus
+            try {
+                $oldStmt = $pdo->prepare("SELECT foto_sampul FROM santri WHERE id = :id LIMIT 1");
+                $oldStmt->execute([':id' => $id]);
+                $oldRow = $oldStmt->fetch();
+                if ($oldRow && !empty($oldRow['foto_sampul']) && $oldRow['foto_sampul'] !== $input['coverPhotoUrl']) {
+                    deletePhysicalPhotoFile($oldRow['foto_sampul']);
+                }
+            } catch (Exception $oldCoverEx) {}
+
             $processedCover = processIncomingPhoto($input['coverPhotoUrl'], 'fotoSampul');
             $fields[] = "foto_sampul = :coverPhotoUrl"; 
             $params[':coverPhotoUrl'] = $processedCover; 
@@ -854,9 +944,24 @@ if ($action === 'delete_alumni' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
     try {
+        // 1. Ambil data foto santri untuk dihapus dari disk fisik
+        $selStmt = $pdo->prepare("SELECT file_pas_foto, foto, foto_sampul FROM santri WHERE id = :id LIMIT 1");
+        $selStmt->execute([':id' => $id]);
+        $sRow = $selStmt->fetch();
+        if ($sRow) {
+            deletePhysicalPhotoFile($sRow['file_pas_foto'] ?? '');
+            deletePhysicalPhotoFile($sRow['foto'] ?? '');
+            deletePhysicalPhotoFile($sRow['foto_sampul'] ?? '');
+        }
+
+        // 2. Bersihkan RSVP dan komentar dari alumni ini di database
+        $pdo->prepare("DELETE FROM event_rsvps WHERE alumni_id = :id")->execute([':id' => $id]);
+        $pdo->prepare("DELETE FROM post_comments WHERE author_id = :id")->execute([':id' => $id]);
+
+        // 3. Hapus alumni dari tabel santri
         $stmt = $pdo->prepare("DELETE FROM santri WHERE id = :id");
         $stmt->execute([':id' => $id]);
-        echo json_encode(['success' => true, 'message' => 'Alumni berhasil dihapus']);
+        echo json_encode(['success' => true, 'message' => 'Alumni dan seluruh file/data terkait berhasil dibersihkan']);
     } catch (Exception $e) {
         http_response_code(500);
         echo json_encode(['success' => false, 'message' => $e->getMessage()]);
@@ -1192,9 +1297,28 @@ if ($action === 'delete_event') {
     $input = json_decode(file_get_contents('php://input'), true) ?? [];
     $id = $input['id'] ?? $_POST['id'] ?? $_GET['id'] ?? '';
     try {
-        $stmt = $pdo->prepare("DELETE FROM events WHERE id = :id");
-        $stmt->execute([':id' => $id]);
-        echo json_encode(['success' => true, 'message' => 'Event berhasil dihapus']);
+        if (!empty($id)) {
+            // 1. Ambil data poster dan galeri foto event untuk dihapus dari disk fisik
+            $selStmt = $pdo->prepare("SELECT poster_url, images FROM events WHERE id = :id");
+            $selStmt->execute([':id' => $id]);
+            $ev = $selStmt->fetch();
+            if ($ev) {
+                deletePhysicalPhotoFile($ev['poster_url'] ?? '');
+                deleteMultiplePhysicalPhotos($ev['images'] ?? '');
+            }
+
+            // 2. Bersihkan tabel anak terkait di database (RSVP, Komentar, dan Sesi Presensi)
+            $pdo->prepare("DELETE FROM event_rsvps WHERE event_id = :id")->execute([':id' => $id]);
+            $pdo->prepare("DELETE FROM post_comments WHERE (post_type = 'event' AND post_id = :id) OR post_id = :id")->execute([':id' => $id]);
+            try {
+                $pdo->prepare("DELETE FROM attendance_sessions WHERE source_event_id = :id")->execute([':id' => $id]);
+            } catch (Exception $attEx) {}
+
+            // 3. Hapus baris event dari tabel events
+            $stmt = $pdo->prepare("DELETE FROM events WHERE id = :id");
+            $stmt->execute([':id' => $id]);
+        }
+        echo json_encode(['success' => true, 'message' => 'Event dan seluruh foto/data terkait berhasil dibersihkan']);
     } catch (Exception $e) {
         http_response_code(500);
         echo json_encode(['success' => false, 'message' => $e->getMessage()]);
@@ -1407,9 +1531,23 @@ if ($action === 'delete_announcement') {
     $input = json_decode(file_get_contents('php://input'), true) ?? [];
     $id = $input['id'] ?? $_POST['id'] ?? $_GET['id'] ?? '';
     try {
-        $stmt = $pdo->prepare("DELETE FROM announcements WHERE id = :id");
-        $stmt->execute([':id' => $id]);
-        echo json_encode(['success' => true, 'message' => 'Pengumuman berhasil dihapus']);
+        if (!empty($id)) {
+            // 1. Ambil data lampiran foto pengumuman untuk dihapus dari disk fisik
+            $selStmt = $pdo->prepare("SELECT images FROM announcements WHERE id = :id");
+            $selStmt->execute([':id' => $id]);
+            $ann = $selStmt->fetch();
+            if ($ann) {
+                deleteMultiplePhysicalPhotos($ann['images'] ?? '');
+            }
+
+            // 2. Bersihkan komentar terkait pengumuman di database
+            $pdo->prepare("DELETE FROM post_comments WHERE (post_type = 'announcement' AND post_id = :id) OR post_id = :id")->execute([':id' => $id]);
+
+            // 3. Hapus pengumuman dari tabel announcements
+            $stmt = $pdo->prepare("DELETE FROM announcements WHERE id = :id");
+            $stmt->execute([':id' => $id]);
+        }
+        echo json_encode(['success' => true, 'message' => 'Pengumuman dan seluruh file/data terkait berhasil dibersihkan']);
     } catch (Exception $e) {
         http_response_code(500);
         echo json_encode(['success' => false, 'message' => $e->getMessage()]);
@@ -1580,9 +1718,20 @@ if ($action === 'delete_admin_user' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $input = json_decode(file_get_contents('php://input'), true);
     $id = $input['id'] ?? '';
     try {
-        $stmt = $pdo->prepare("DELETE FROM admin_users WHERE id = :id AND username != '@admin_pusat'");
-        $stmt->execute([':id' => $id]);
-        echo json_encode(['success' => true, 'message' => 'Akun admin berhasil dihapus']);
+        if (!empty($id)) {
+            // Ambil avatar dan cover admin sebelum dihapus untuk dibersihkan dari disk
+            $selStmt = $pdo->prepare("SELECT avatar, cover_photo_url FROM admin_users WHERE id = :id AND username != '@admin_pusat' LIMIT 1");
+            $selStmt->execute([':id' => $id]);
+            $admRow = $selStmt->fetch();
+            if ($admRow) {
+                deletePhysicalPhotoFile($admRow['avatar'] ?? '');
+                deletePhysicalPhotoFile($admRow['cover_photo_url'] ?? '');
+            }
+
+            $stmt = $pdo->prepare("DELETE FROM admin_users WHERE id = :id AND username != '@admin_pusat'");
+            $stmt->execute([':id' => $id]);
+        }
+        echo json_encode(['success' => true, 'message' => 'Akun admin dan file terkait berhasil dihapus']);
     } catch (Exception $e) {
         http_response_code(500);
         echo json_encode(['success' => false, 'message' => $e->getMessage()]);
