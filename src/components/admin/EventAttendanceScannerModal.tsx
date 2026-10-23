@@ -392,8 +392,8 @@ export const EventAttendanceScannerModal: React.FC<EventAttendanceScannerModalPr
   if (!isOpen) return null;
 
   const filteredAttendees = attendees.filter((item) =>
-    item.alumniName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    item.alumniNis.toLowerCase().includes(searchQuery.toLowerCase())
+    (item.alumniName || '').toLowerCase().includes((searchQuery || '').toLowerCase()) ||
+    (item.alumniNis || '').toLowerCase().includes((searchQuery || '').toLowerCase())
   );
 
   return (

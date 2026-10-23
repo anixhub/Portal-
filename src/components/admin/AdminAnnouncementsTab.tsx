@@ -399,9 +399,9 @@ export const AdminAnnouncementsTab: React.FC<AdminAnnouncementsTabProps> = ({
     }
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
-      const matchTitle = item.title.toLowerCase().includes(q);
-      const matchContent = item.content.toLowerCase().includes(q);
-      const matchAuthor = item.authorName.toLowerCase().includes(q);
+      const matchTitle = (item.title || '').toLowerCase().includes(q);
+      const matchContent = (item.content || '').toLowerCase().includes(q);
+      const matchAuthor = (item.authorName || '').toLowerCase().includes(q);
       return matchTitle || matchContent || matchAuthor;
     }
     return true;

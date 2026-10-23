@@ -134,6 +134,7 @@ export const getAdminDefaultAudience = (admin: AdminUser): AudienceTarget => {
  * Admin daerah: hanya berhak mengelola alumni di daerahnya atau sub-wilayah bawahnya.
  */
 export const isAlumniInAdminJurisdiction = (alumni: any, admin: AdminUser): boolean => {
+  if (!alumni || !admin) return false;
   const level: AdminRegionLevel = admin.regionLevel || (admin.role === 'super_admin' ? 'pusat' : 'provinsi');
   if (level === 'pusat' || admin.role === 'super_admin' || admin.username === '@admin_pusat') {
     return true;

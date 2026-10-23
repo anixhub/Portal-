@@ -510,6 +510,114 @@ async function startServer() {
     }
   });
 
+  // Santri API: Check Username Availability (both santri aktif and alumni)
+  app.get('/api/db/santri/check-username', async (req, res) => {
+    try {
+      const rawUser = String(req.query.username || '').trim().replace(/^@+/, '').toLowerCase();
+      const excludeId = String(req.query.excludeId || '').trim();
+      if (!rawUser) {
+        return res.json({ success: true, available: true });
+      }
+      const fullData = await getSantriData(false);
+      const list = Array.isArray(fullData) ? fullData : (fullData?.data || []);
+      const found = list.find((s: any) => {
+        const sId = String(s.id || '').trim();
+        if (excludeId && sId === excludeId) return false;
+        const u = String(s.username || '').trim().replace(/^@+/, '').toLowerCase();
+        return u === rawUser;
+      });
+
+      if (found) {
+        const rawStatus = String(found.status_keanggotaan || found.status || '').trim();
+        const isAlumni = rawStatus.toLowerCase().includes('alumni');
+        const displayStatus = isAlumni ? 'Alumni' : 'Santri Aktif';
+        return res.json({
+          success: true,
+          available: false,
+          collidingRecord: {
+            id: String(found.id || ''),
+            name: String(found.nama || found.name || 'Santri'),
+            username: String(found.username || ''),
+            status: displayStatus,
+          },
+        });
+      }
+      return res.json({ success: true, available: true });
+    } catch (err: any) {
+      res.status(500).json({ success: false, message: err?.message || 'Error checking username' });
+    }
+  });
+
+  // Santri API: Check NIK Availability
+  app.get('/api/db/santri/check-nik', async (req, res) => {
+    try {
+      const cleanNik = String(req.query.nik || '').replace(/\D/g, '').slice(0, 16);
+      const excludeId = String(req.query.excludeId || '').trim();
+      if (!cleanNik || cleanNik.length < 16) {
+        return res.json({ success: true, available: true });
+      }
+      const fullData = await getSantriData(false);
+      const list = Array.isArray(fullData) ? fullData : (fullData?.data || []);
+      const found = list.find((s: any) => {
+        const sId = String(s.id || '').trim();
+        if (excludeId && sId === excludeId) return false;
+        const n = String(s.nik || '').replace(/\D/g, '').trim();
+        return n === cleanNik;
+      });
+
+      if (found) {
+        return res.json({
+          success: true,
+          available: false,
+          collidingRecord: {
+            id: String(found.id || ''),
+            name: String(found.nama || found.name || 'Santri'),
+            nik: String(found.nik || ''),
+            status: String(found.status_keanggotaan || found.status || 'Alumni'),
+          },
+        });
+      }
+      return res.json({ success: true, available: true });
+    } catch (err: any) {
+      res.status(500).json({ success: false, message: err?.message || 'Error checking NIK' });
+    }
+  });
+
+  // Santri API: Check No KK Availability
+  app.get('/api/db/santri/check-nokk', async (req, res) => {
+    try {
+      const cleanNoKk = String(req.query.noKk || req.query.nokk || '').replace(/\D/g, '').slice(0, 16);
+      const excludeId = String(req.query.excludeId || '').trim();
+      if (!cleanNoKk || cleanNoKk.length < 16) {
+        return res.json({ success: true, available: true });
+      }
+      const fullData = await getSantriData(false);
+      const list = Array.isArray(fullData) ? fullData : (fullData?.data || []);
+      const found = list.find((s: any) => {
+        const sId = String(s.id || '').trim();
+        if (excludeId && sId === excludeId) return false;
+        const k = String(s.noKk || s.nokk || s.no_kk || '').replace(/\D/g, '').trim();
+        return k === cleanNoKk;
+      });
+
+      if (found) {
+        return res.json({
+          success: true,
+          available: false,
+          collidingRecord: {
+            id: String(found.id || ''),
+            name: String(found.nama || found.name || 'Santri'),
+            noKk: String(found.noKk || found.no_kk || ''),
+            status: String(found.status_keanggotaan || found.status || 'Alumni'),
+          },
+        });
+      }
+      return res.json({ success: true, available: true });
+    } catch (err: any) {
+      res.status(500).json({ success: false, message: err?.message || 'Error checking No KK' });
+    }
+  });
+
   // Santri API: GET
   app.get('/api/db/santri', async (req, res) => {
     try {

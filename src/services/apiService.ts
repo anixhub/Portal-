@@ -300,6 +300,118 @@ export async function checkNisLive(nis: string, excludeId?: string): Promise<{
   return { available: true };
 }
 
+export async function checkUsernameLive(username: string, excludeId?: string): Promise<{
+  available: boolean;
+  collidingRecord?: any;
+}> {
+  const clean = username.trim().replace(/^@+/, '').toLowerCase();
+  if (!clean) return { available: true };
+
+  // 1. Cek in-memory
+  const pool = getGlobalAllSantriRecords();
+  const localMatch = pool.find((s) => {
+    if (excludeId && s.id === excludeId) return false;
+    const u = ((s as any).username || '').trim().replace(/^@+/, '').toLowerCase();
+    return u === clean;
+  });
+  if (localMatch) {
+    return {
+      available: false,
+      collidingRecord: localMatch,
+    };
+  }
+
+  // 2. Cek endpoint server
+  try {
+    const res = await fetch(`/api/db/santri/check-username?username=${encodeURIComponent(clean)}${excludeId ? `&excludeId=${encodeURIComponent(excludeId)}` : ''}`, {
+      headers: { Accept: 'application/json' },
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data.available === false && data.collidingRecord) {
+        return {
+          available: false,
+          collidingRecord: data.collidingRecord,
+        };
+      }
+    }
+  } catch (e) {}
+
+  return { available: true };
+}
+
+export async function checkNikLive(nik: string, excludeId?: string): Promise<{
+  available: boolean;
+  collidingRecord?: any;
+}> {
+  const clean = nik.replace(/\D/g, '').slice(0, 16);
+  if (!clean || clean.length < 16) return { available: true };
+
+  // 1. Cek in-memory
+  const pool = getGlobalAllSantriRecords();
+  const localMatch = pool.find((s) => s.id !== excludeId && s.nik && s.nik.replace(/\D/g, '').trim() === clean);
+  if (localMatch) {
+    return {
+      available: false,
+      collidingRecord: localMatch,
+    };
+  }
+
+  // 2. Cek endpoint server
+  try {
+    const res = await fetch(`/api/db/santri/check-nik?nik=${encodeURIComponent(clean)}${excludeId ? `&excludeId=${encodeURIComponent(excludeId)}` : ''}`, {
+      headers: { Accept: 'application/json' },
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data.available === false && data.collidingRecord) {
+        return {
+          available: false,
+          collidingRecord: data.collidingRecord,
+        };
+      }
+    }
+  } catch (e) {}
+
+  return { available: true };
+}
+
+export async function checkNoKkLive(noKk: string, excludeId?: string): Promise<{
+  available: boolean;
+  collidingRecord?: any;
+}> {
+  const clean = noKk.replace(/\D/g, '').slice(0, 16);
+  if (!clean || clean.length < 16) return { available: true };
+
+  // 1. Cek in-memory
+  const pool = getGlobalAllSantriRecords();
+  const localMatch = pool.find((s) => s.id !== excludeId && (s as any).noKk && (s as any).noKk.replace(/\D/g, '').trim() === clean);
+  if (localMatch) {
+    return {
+      available: false,
+      collidingRecord: localMatch,
+    };
+  }
+
+  // 2. Cek endpoint server
+  try {
+    const res = await fetch(`/api/db/santri/check-nokk?noKk=${encodeURIComponent(clean)}${excludeId ? `&excludeId=${encodeURIComponent(excludeId)}` : ''}`, {
+      headers: { Accept: 'application/json' },
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data.available === false && data.collidingRecord) {
+        return {
+          available: false,
+          collidingRecord: data.collidingRecord,
+        };
+      }
+    }
+  } catch (e) {}
+
+  return { available: true };
+}
+
 /**
  * Mengambil seluruh data santri/alumni dari database Hostinger (tabel santri)
  */

@@ -102,7 +102,10 @@ import {
   deleteEventFromHostinger,
   deleteAnnouncementFromHostinger,
   getGlobalAllSantriRecords,
-  SantriIdentityLookup
+  SantriIdentityLookup,
+  checkUsernameLive,
+  checkNikLive,
+  checkNoKkLive
 } from '../services/apiService';
 import { 
   formatToDDMMYYYY, 
@@ -643,33 +646,18 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
     }, 2500);
   };
 
+  // Refs to prevent duplicate validation checks when input hasn't changed
+  const lastCheckedUsernameRef = useRef<string | null>(null);
+  const lastCheckedNikRef = useRef<string | null>(null);
+  const lastCheckedNoKkRef = useRef<string | null>(null);
+  const lastCheckedNikAyahRef = useRef<string | null>(null);
+  const lastCheckedNikIbuRef = useRef<string | null>(null);
+
   // Username Check State
   const [newUsernameInput, setNewUsernameInput] = useState('');
   const [isCheckingUsername, setIsCheckingUsername] = useState(false);
   const [usernameStatus, setUsernameStatus] = useState<'idle' | 'checking' | 'available' | 'taken'>('idle');
-  const checkDebounceRef = useRef<NodeJS.Timeout | null>(null);
-
-  const handleUsernameInputChange = (val: string) => {
-    const cleaned = val.toLowerCase().replace(/[\s\t\n]+/g, '_').replace(/[^a-z0-9_]/g, '');
-    setNewUsernameInput(cleaned);
-    if (checkDebounceRef.current) clearTimeout(checkDebounceRef.current);
-
-    if (!cleaned.trim()) {
-      setIsCheckingUsername(false);
-      setUsernameStatus('idle');
-      return;
-    }
-
-    setIsCheckingUsername(true);
-    setUsernameStatus('checking');
-    checkDebounceRef.current = setTimeout(() => {
-      setIsCheckingUsername(false);
-      const isTaken = allAlumni.some(
-        (a) => a.id !== alumni.id && a.username && a.username.toLowerCase().replace(/^@/, '') === cleaned.replace(/^@/, '')
-      );
-      setUsernameStatus(isTaken ? 'taken' : 'available');
-    }, 320);
-  };
+  const [collidingUsernameRecord, setCollidingUsernameRecord] = useState<any>(null);
 
   // Riwayat Pendidikan State
   const [editNism, setEditNism] = useState(alumni.nism || '');
@@ -716,7 +704,79 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
   const [nikIbuStatus, setNikIbuStatus] = useState<'idle' | 'checking' | 'available' | 'taken'>('idle');
   const [collidingNikIbu, setCollidingNikIbu] = useState<any>(null);
 
-  // NIK Debounced Duplicate Check
+  // Username realtime check with debounce & checklist requirement:
+  // Syarat 1: Tidak mengandung spasi atau special karakter (selain _ dan titik)
+  // Syarat 2: Minimal 4 digit
+  // Setelah syarat 1 dan 2 terpenuhi backend melakukan validasi duplikasi.
+  // Kalo sudah dicek dan input masih sama, jangan lakukan pengecekan lagi sebelum ada perubahan.
+  useEffect(() => {
+    if (activeEditModal !== 'username') return;
+    const rawClean = newUsernameInput.replace(/^@+/, '').trim();
+    const hasNoSpaces = !/\s/.test(newUsernameInput);
+    const hasOnlyAllowedChars = rawClean.length > 0 && /^[a-zA-Z0-9_.]+$/.test(rawClean);
+    const isCharRulePassed = rawClean.length > 0 && hasOnlyAllowedChars && hasNoSpaces;
+    const isLengthRulePassed = rawClean.length >= 4;
+
+    if (!isCharRulePassed || !isLengthRulePassed) {
+      setIsCheckingUsername(false);
+      setUsernameStatus('idle');
+      setCollidingUsernameRecord(null);
+      return;
+    }
+
+    const cleanLower = rawClean.toLowerCase();
+
+    // Jika sudah dicek dan nilai input belum berubah, jangan cek ulang
+    if (lastCheckedUsernameRef.current === cleanLower) {
+      return;
+    }
+
+    setIsCheckingUsername(true);
+    setUsernameStatus('checking');
+
+    const timer = setTimeout(async () => {
+      try {
+        const pool = (getGlobalAllSantriRecords && getGlobalAllSantriRecords().length > 0)
+          ? getGlobalAllSantriRecords()
+          : allAlumni;
+
+        let found: any = pool?.find((a: any) => {
+          if (alumni?.id && a.id === alumni.id) return false;
+          const u = (a.username || '').replace(/^@+/, '').toLowerCase().trim();
+          return u === cleanLower;
+        });
+
+        if (!found) {
+          const liveRes = await checkUsernameLive(cleanLower, alumni?.id);
+          if (!liveRes.available && liveRes.collidingRecord) {
+            found = liveRes.collidingRecord;
+          }
+        }
+
+        if (newUsernameInput.replace(/^@+/, '').trim().toLowerCase() !== cleanLower) return;
+
+        lastCheckedUsernameRef.current = cleanLower;
+        setIsCheckingUsername(false);
+
+        if (found) {
+          setUsernameStatus('taken');
+          setCollidingUsernameRecord(found);
+        } else {
+          setUsernameStatus('available');
+          setCollidingUsernameRecord(null);
+        }
+      } catch (err) {
+        if (newUsernameInput.replace(/^@+/, '').trim().toLowerCase() !== cleanLower) return;
+        lastCheckedUsernameRef.current = cleanLower;
+        setIsCheckingUsername(false);
+        setUsernameStatus('available');
+      }
+    }, 280);
+
+    return () => clearTimeout(timer);
+  }, [newUsernameInput, activeEditModal, allAlumni, alumni?.id]);
+
+  // NIK duplicate check with debounce (hanya setelah 16 digit & tidak cek ulang jika input sama)
   useEffect(() => {
     if (activeEditModal !== 'nik_kk') return;
     const clean = editNik.replace(/\D/g, '').slice(0, 16);
@@ -727,17 +787,32 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
       return;
     }
 
+    if (lastCheckedNikRef.current === clean) {
+      return;
+    }
+
     setIsCheckingNik(true);
     setNikStatus('checking');
 
-    const timer = setTimeout(() => {
-      setIsCheckingNik(false);
+    const timer = setTimeout(async () => {
       const allPool = (getGlobalAllSantriRecords && getGlobalAllSantriRecords().length > 0)
         ? getGlobalAllSantriRecords()
         : allAlumni;
-      const found = allPool.find(
+      let found: any = allPool.find(
         (a: any) => a.id !== alumni.id && a.nik && a.nik.replace(/\D/g, '').trim() === clean
       );
+      if (!found) {
+        try {
+          const live = await checkNikLive(clean, alumni.id);
+          if (!live.available && live.collidingRecord) {
+            found = live.collidingRecord;
+          }
+        } catch (e) {}
+      }
+
+      if (editNik.replace(/\D/g, '').slice(0, 16) !== clean) return;
+      lastCheckedNikRef.current = clean;
+      setIsCheckingNik(false);
       if (found) {
         setCollidingNik(found);
         setNikStatus('taken');
@@ -745,12 +820,12 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
         setCollidingNik(null);
         setNikStatus('available');
       }
-    }, 320);
+    }, 280);
 
     return () => clearTimeout(timer);
   }, [editNik, activeEditModal, allAlumni, alumni.id]);
 
-  // No KK Debounced Duplicate Check
+  // No KK duplicate check with debounce (hanya setelah 16 digit & tidak cek ulang jika input sama)
   useEffect(() => {
     if (activeEditModal !== 'nik_kk') return;
     const clean = editNoKk.replace(/\D/g, '').slice(0, 16);
@@ -761,17 +836,32 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
       return;
     }
 
+    if (lastCheckedNoKkRef.current === clean) {
+      return;
+    }
+
     setIsCheckingNoKk(true);
     setNoKkStatus('checking');
 
-    const timer = setTimeout(() => {
-      setIsCheckingNoKk(false);
+    const timer = setTimeout(async () => {
       const allPool = (getGlobalAllSantriRecords && getGlobalAllSantriRecords().length > 0)
         ? getGlobalAllSantriRecords()
         : allAlumni;
-      const found = allPool.find(
+      let found: any = allPool.find(
         (a: any) => a.id !== alumni.id && a.noKk && a.noKk.replace(/\D/g, '').trim() === clean
       );
+      if (!found) {
+        try {
+          const live = await checkNoKkLive(clean, alumni.id);
+          if (!live.available && live.collidingRecord) {
+            found = live.collidingRecord;
+          }
+        } catch (e) {}
+      }
+
+      if (editNoKk.replace(/\D/g, '').slice(0, 16) !== clean) return;
+      lastCheckedNoKkRef.current = clean;
+      setIsCheckingNoKk(false);
       if (found) {
         setCollidingNoKk(found);
         setNoKkStatus('taken');
@@ -779,12 +869,12 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
         setCollidingNoKk(null);
         setNoKkStatus('available');
       }
-    }, 320);
+    }, 280);
 
     return () => clearTimeout(timer);
   }, [editNoKk, activeEditModal, allAlumni, alumni.id]);
 
-  // NIK Ayah Debounced Duplicate Check
+  // NIK Ayah duplicate check with debounce (hanya setelah 16 digit & tidak cek ulang jika input sama)
   useEffect(() => {
     if (activeEditModal !== 'ayah') return;
     const clean = editNikAyah.replace(/\D/g, '').slice(0, 16);
@@ -795,20 +885,35 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
       return;
     }
 
+    if (lastCheckedNikAyahRef.current === clean) {
+      return;
+    }
+
     setIsCheckingNikAyah(true);
     setNikAyahStatus('checking');
 
-    const timer = setTimeout(() => {
-      setIsCheckingNikAyah(false);
+    const timer = setTimeout(async () => {
       const allPool = (getGlobalAllSantriRecords && getGlobalAllSantriRecords().length > 0)
         ? getGlobalAllSantriRecords()
         : allAlumni;
-      const found = allPool.find(
+      let found: any = allPool.find(
         (a: any) => a.id !== alumni.id && (
           (a.nik && a.nik.replace(/\D/g, '').trim() === clean) ||
           (a.nikAyah && a.nikAyah.replace(/\D/g, '').trim() === clean)
         )
       );
+      if (!found) {
+        try {
+          const live = await checkNikLive(clean, alumni.id);
+          if (!live.available && live.collidingRecord) {
+            found = live.collidingRecord;
+          }
+        } catch (e) {}
+      }
+
+      if (editNikAyah.replace(/\D/g, '').slice(0, 16) !== clean) return;
+      lastCheckedNikAyahRef.current = clean;
+      setIsCheckingNikAyah(false);
       if (found) {
         setCollidingNikAyah(found);
         setNikAyahStatus('taken');
@@ -816,12 +921,12 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
         setCollidingNikAyah(null);
         setNikAyahStatus('available');
       }
-    }, 320);
+    }, 280);
 
     return () => clearTimeout(timer);
   }, [editNikAyah, activeEditModal, allAlumni, alumni.id]);
 
-  // NIK Ibu Debounced Duplicate Check
+  // NIK Ibu duplicate check with debounce (hanya setelah 16 digit & tidak cek ulang jika input sama)
   useEffect(() => {
     if (activeEditModal !== 'ibu') return;
     const clean = editNikIbu.replace(/\D/g, '').slice(0, 16);
@@ -832,20 +937,35 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
       return;
     }
 
+    if (lastCheckedNikIbuRef.current === clean) {
+      return;
+    }
+
     setIsCheckingNikIbu(true);
     setNikIbuStatus('checking');
 
-    const timer = setTimeout(() => {
-      setIsCheckingNikIbu(false);
+    const timer = setTimeout(async () => {
       const allPool = (getGlobalAllSantriRecords && getGlobalAllSantriRecords().length > 0)
         ? getGlobalAllSantriRecords()
         : allAlumni;
-      const found = allPool.find(
+      let found: any = allPool.find(
         (a: any) => a.id !== alumni.id && (
           (a.nik && a.nik.replace(/\D/g, '').trim() === clean) ||
           (a.nikIbu && a.nikIbu.replace(/\D/g, '').trim() === clean)
         )
       );
+      if (!found) {
+        try {
+          const live = await checkNikLive(clean, alumni.id);
+          if (!live.available && live.collidingRecord) {
+            found = live.collidingRecord;
+          }
+        } catch (e) {}
+      }
+
+      if (editNikIbu.replace(/\D/g, '').slice(0, 16) !== clean) return;
+      lastCheckedNikIbuRef.current = clean;
+      setIsCheckingNikIbu(false);
       if (found) {
         setCollidingNikIbu(found);
         setNikIbuStatus('taken');
@@ -853,7 +973,7 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
         setCollidingNikIbu(null);
         setNikIbuStatus('available');
       }
-    }, 320);
+    }, 280);
 
     return () => clearTimeout(timer);
   }, [editNikIbu, activeEditModal, allAlumni, alumni.id]);
@@ -889,8 +1009,18 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
       setEditUrutanAnak(Number(alumni.anak_ke ?? alumni.urutanAnak) || 1);
       setEditJumlahSaudara(Number(alumni.dari_bersaudara ?? alumni.jumlahSaudara) || 1);
     } else if (modal === 'nik_kk') {
+      const cleanN = (alumni.nik || '').replace(/\D/g, '').slice(0, 16);
+      const cleanK = (alumni.noKk || '').replace(/\D/g, '').slice(0, 16);
       setEditNik(alumni.nik || '');
       setEditNoKk(alumni.noKk || '');
+      lastCheckedNikRef.current = cleanN.length === 16 ? cleanN : null;
+      lastCheckedNoKkRef.current = cleanK.length === 16 ? cleanK : null;
+      setNikStatus(cleanN.length === 16 ? 'available' : 'idle');
+      setNoKkStatus(cleanK.length === 16 ? 'available' : 'idle');
+      setCollidingNik(null);
+      setCollidingNoKk(null);
+      setIsCheckingNik(false);
+      setIsCheckingNoKk(false);
     } else if (modal === 'kontak') {
       setEditPhone(alumni.phone || '');
       setEditEmail(alumni.email || '');
@@ -910,15 +1040,25 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
       setTempGradDate((hasDate && alumni.gradDate) ? alumni.gradDate : '2022-05-20');
       setEditGradDate(alumni.gradDate || '');
     } else if (modal === 'ayah') {
+      const cleanA = (alumni.nikAyah || '').replace(/\D/g, '').slice(0, 16);
       setEditNamaAyah(alumni.namaAyah || '');
       setEditNikAyah(alumni.nikAyah || '');
       setEditPekerjaanAyah(alumni.pekerjaanAyah || '');
       setEditPendidikanAyah(alumni.pendidikanAyah || '');
+      lastCheckedNikAyahRef.current = cleanA.length === 16 ? cleanA : null;
+      setNikAyahStatus(cleanA.length === 16 ? 'available' : 'idle');
+      setCollidingNikAyah(null);
+      setIsCheckingNikAyah(false);
     } else if (modal === 'ibu') {
+      const cleanI = (alumni.nikIbu || '').replace(/\D/g, '').slice(0, 16);
       setEditNamaIbu(alumni.namaIbu || '');
       setEditNikIbu(alumni.nikIbu || '');
       setEditPekerjaanIbu(alumni.pekerjaanIbu || '');
       setEditPendidikanIbu(alumni.pendidikanIbu || '');
+      lastCheckedNikIbuRef.current = cleanI.length === 16 ? cleanI : null;
+      setNikIbuStatus(cleanI.length === 16 ? 'available' : 'idle');
+      setCollidingNikIbu(null);
+      setIsCheckingNikIbu(false);
     } else if (modal === 'alamat') {
       setEditProvince(alumni.province || '');
       setEditCity(alumni.city || '');
@@ -927,8 +1067,12 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
       setEditAlamatLengkap(alumni.alamatLengkap || '');
       setEditCoordinates(alumni.coordinates || null);
     } else if (modal === 'username') {
-      setNewUsernameInput('');
-      setUsernameStatus('idle');
+      const cur = (editUsername || alumni.username || '').replace(/^@+/, '');
+      setNewUsernameInput(cur);
+      lastCheckedUsernameRef.current = cur.toLowerCase() || null;
+      setUsernameStatus(cur && cur.length >= 4 ? 'available' : 'idle');
+      setCollidingUsernameRecord(null);
+      setIsCheckingUsername(false);
     } else if (modal === 'password') {
       setNewPassword('');
       setConfirmPassword('');
@@ -1254,31 +1398,34 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
   const userProvince = alumni.province || 'Jawa Tengah';
   const userCoordinates = alumni.coordinates || { lat: -6.7423, lng: 111.4589 };
 
-  const normalizePlace = (val: string) => val.toLowerCase().replace(/^(kota|kabupaten|kab\.)\s+/i, '').trim();
+  const normalizePlace = (val?: string) => (val || '').toLowerCase().replace(/^(kota|kabupaten|kab\.)\s+/i, '').trim();
 
   // Hitung jumlah alumni terdata pada masing-masing tag lokasi
-  const countKecamatan = allAlumni.filter((item) =>
-    Boolean(
-      item.kecamatan &&
-      (item.kecamatan.toLowerCase().includes(userKecamatan.toLowerCase()) ||
-       userKecamatan.toLowerCase().includes(item.kecamatan.toLowerCase()))
-    )
-  ).length;
+  const countKecamatan = allAlumni.filter((item) => {
+    if (!item || !item.kecamatan || !userKecamatan) return false;
+    const itemKec = item.kecamatan.toLowerCase();
+    const uKec = userKecamatan.toLowerCase();
+    return itemKec.includes(uKec) || uKec.includes(itemKec);
+  }).length;
 
   const countCity = allAlumni.filter((item) => {
+    if (!item) return false;
     const itemCityNorm = normalizePlace(item.city);
     const userCityNorm = normalizePlace(userCity);
+    const itemCityRaw = (item.city || '').toLowerCase();
+    const userCityRaw = (userCity || '').toLowerCase();
     return (
-      itemCityNorm.includes(userCityNorm) ||
-      userCityNorm.includes(itemCityNorm) ||
-      item.city.toLowerCase().includes(userCity.toLowerCase())
+      (Boolean(itemCityNorm && userCityNorm) && (itemCityNorm.includes(userCityNorm) || userCityNorm.includes(itemCityNorm))) ||
+      (Boolean(itemCityRaw && userCityRaw) && itemCityRaw.includes(userCityRaw))
     );
   }).length;
 
-  const countProvince = allAlumni.filter((item) =>
-    item.province.toLowerCase().includes(userProvince.toLowerCase()) ||
-    userProvince.toLowerCase().includes(item.province.toLowerCase())
-  ).length;
+  const countProvince = allAlumni.filter((item) => {
+    if (!item || !item.province || !userProvince) return false;
+    const itemProv = item.province.toLowerCase();
+    const uProv = userProvince.toLowerCase();
+    return itemProv.includes(uProv) || uProv.includes(itemProv);
+  }).length;
 
   // Hitung jarak radius geografis (Haversine Formula)
   const getAlumniDistance = (item: AlumniRecord): number => {
@@ -1729,21 +1876,32 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
 
   // Filter list data alumni persis seperti halaman kelola data alumni admin
   const filteredAlumni = allAlumni.filter((item) => {
-    const q = searchQuery.toLowerCase().trim();
+    if (!item) return false;
+    const q = (searchQuery || '').toLowerCase().trim();
+    const nameStr = (item.name || '').toLowerCase();
+    const nikStr = item.nik || '';
+    const nisStr = (item.nis || '').toLowerCase();
+    const unameStr = (item.username || '').toLowerCase();
+    const cityStr = (item.city || '').toLowerCase();
+    const kecStr = (item.kecamatan || '').toLowerCase();
+    const desaStr = (item.desa || '').toLowerCase();
+    const provStr = (item.province || '').toLowerCase();
+    const occStr = (item.occupation || '').toLowerCase();
+
     const matchSearch =
       !q ||
-      item.name.toLowerCase().includes(q) ||
-      item.nik.includes(q) ||
-      item.nis.toLowerCase().includes(q) ||
-      (item.username && item.username.toLowerCase().includes(q)) ||
-      item.city.toLowerCase().includes(q) ||
-      (Boolean(item.kecamatan) && item.kecamatan!.toLowerCase().includes(q)) ||
-      (item.shareFullAddress !== false && Boolean(item.desa) && item.desa!.toLowerCase().includes(q)) ||
-      item.province.toLowerCase().includes(q) ||
-      item.occupation.toLowerCase().includes(q);
+      nameStr.includes(q) ||
+      nikStr.includes(q) ||
+      nisStr.includes(q) ||
+      unameStr.includes(q) ||
+      cityStr.includes(q) ||
+      kecStr.includes(q) ||
+      (item.shareFullAddress !== false && desaStr.includes(q)) ||
+      provStr.includes(q) ||
+      occStr.includes(q);
 
-    const entryNum = parseInt(item.entryYear, 10);
-    const gradNum = parseInt(item.gradYear, 10);
+    const entryNum = parseInt(item.entryYear || '', 10);
+    const gradNum = parseInt(item.gradYear || '', 10);
 
     const matchEntryFrom = !filterEntryFrom || (!isNaN(entryNum) && entryNum >= parseInt(filterEntryFrom, 10));
     const matchEntryTo = !filterEntryTo || (!isNaN(entryNum) && entryNum <= parseInt(filterEntryTo, 10));
@@ -1751,52 +1909,58 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
     const matchGradFrom = !filterGradFrom || (!isNaN(gradNum) && gradNum >= parseInt(filterGradFrom, 10));
     const matchGradTo = !filterGradTo || (!isNaN(gradNum) && gradNum <= parseInt(filterGradTo, 10));
 
-    const normalizePlace = (val: string) => val.toLowerCase().replace(/^(kota|kabupaten|kab\.)\s+/i, '').trim();
+    const normalizePlace = (val?: string) => (val || '').toLowerCase().replace(/^(kota|kabupaten|kab\.)\s+/i, '').trim();
 
+    const itemProv = (item.province || '').toLowerCase();
+    const fProv = (filterProvince || '').toLowerCase();
     const matchProvince = !filterProvince || 
-      item.province.toLowerCase().includes(filterProvince.toLowerCase()) ||
-      filterProvince.toLowerCase().includes(item.province.toLowerCase());
+      (Boolean(itemProv && fProv) && (itemProv.includes(fProv) || fProv.includes(itemProv)));
 
+    const itemCityNorm = normalizePlace(item.city);
+    const fCityNorm = normalizePlace(filterCity);
+    const itemCityRaw = (item.city || '').toLowerCase();
+    const fCityRaw = (filterCity || '').toLowerCase();
     const matchCity = !filterCity || 
-      item.city.toLowerCase().includes(normalizePlace(filterCity)) ||
-      normalizePlace(filterCity).includes(item.city.toLowerCase()) ||
-      item.city.toLowerCase().includes(filterCity.toLowerCase());
+      (Boolean(itemCityNorm && fCityNorm) && (itemCityNorm.includes(fCityNorm) || fCityNorm.includes(itemCityNorm))) ||
+      (Boolean(itemCityRaw && fCityRaw) && itemCityRaw.includes(fCityRaw));
 
+    const itemKec = (item.kecamatan || '').toLowerCase();
+    const fKec = (filterKecamatan || '').toLowerCase();
     const matchKecamatan = !filterKecamatan || 
-      (Boolean(item.kecamatan) && (
-        item.kecamatan!.toLowerCase().includes(filterKecamatan.toLowerCase()) ||
-        filterKecamatan.toLowerCase().includes(item.kecamatan!.toLowerCase())
+      (Boolean(itemKec && fKec) && (
+        itemKec.includes(fKec) ||
+        fKec.includes(itemKec)
       ));
 
+    const itemDesa = (item.desa || '').toLowerCase();
+    const fDesa = (filterDesa || '').toLowerCase();
     const matchDesa = !filterDesa 
       ? true 
       : item.shareFullAddress === false 
         ? false 
-        : (Boolean(item.desa) && (
-            item.desa!.toLowerCase().includes(filterDesa.toLowerCase()) ||
-            filterDesa.toLowerCase().includes(item.desa!.toLowerCase())
+        : (Boolean(itemDesa && fDesa) && (
+            itemDesa.includes(fDesa) ||
+            fDesa.includes(itemDesa)
           ));
 
     // Quick Location Tag filter
     let matchQuickTag = true;
     if (activeQuickTag === 'kecamatan') {
+      const uKec = (userKecamatan || '').toLowerCase();
       matchQuickTag = Boolean(
-        item.kecamatan &&
-        (item.kecamatan.toLowerCase().includes(userKecamatan.toLowerCase()) ||
-         userKecamatan.toLowerCase().includes(item.kecamatan.toLowerCase()))
+        itemKec && uKec && (itemKec.includes(uKec) || uKec.includes(itemKec))
       );
     } else if (activeQuickTag === 'city') {
-      const itemCityNorm = normalizePlace(item.city);
-      const userCityNorm = normalizePlace(userCity);
+      const uCityNorm = normalizePlace(userCity);
+      const uCityRaw = (userCity || '').toLowerCase();
       matchQuickTag = Boolean(
-        itemCityNorm.includes(userCityNorm) ||
-        userCityNorm.includes(itemCityNorm) ||
-        item.city.toLowerCase().includes(userCity.toLowerCase())
+        (itemCityNorm && uCityNorm && (itemCityNorm.includes(uCityNorm) || uCityNorm.includes(itemCityNorm))) ||
+        (itemCityRaw && uCityRaw && itemCityRaw.includes(uCityRaw))
       );
     } else if (activeQuickTag === 'province') {
+      const uProv = (userProvince || '').toLowerCase();
       matchQuickTag = Boolean(
-        item.province.toLowerCase().includes(userProvince.toLowerCase()) ||
-        userProvince.toLowerCase().includes(item.province.toLowerCase())
+        itemProv && uProv && (itemProv.includes(uProv) || uProv.includes(itemProv))
       );
     } else if (activeQuickTag === 'nearby') {
       // Radius sekitarmu (< 60 km)
@@ -3358,6 +3522,8 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
                             placeholder="DD"
                             maxLength={2}
                             value={birthDayInput}
+                            onFocus={(e) => e.target.select()}
+                            onClick={(e) => (e.target as HTMLInputElement).select()}
                             onChange={(e) => {
                               const val = formatDayInput(e.target.value, birthMonthInput, birthYearInput);
                               setBirthDayInput(val);
@@ -3379,6 +3545,8 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
                             placeholder="MM"
                             maxLength={2}
                             value={birthMonthInput}
+                            onFocus={(e) => e.target.select()}
+                            onClick={(e) => (e.target as HTMLInputElement).select()}
                             onChange={(e) => {
                               const val = formatMonthInput(e.target.value);
                               setBirthMonthInput(val);
@@ -3413,6 +3581,8 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
                             placeholder="YYYY"
                             maxLength={4}
                             value={birthYearInput}
+                            onFocus={(e) => e.target.select()}
+                            onClick={(e) => (e.target as HTMLInputElement).select()}
                             onChange={(e) => {
                               const val = e.target.value.replace(/[^0-9]/g, '').slice(0, 4);
                               if (!val) {
@@ -4289,11 +4459,11 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
                         <input
                           type="text"
                           value={newUsernameInput}
-                          onChange={(e) => handleUsernameInputChange(e.target.value)}
+                          onChange={(e) => setNewUsernameInput(e.target.value.replace(/^@+/, ''))}
                           className="w-full pl-7 pr-9 py-2 bg-slate-50 border border-slate-200 rounded-xl font-medium focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500 text-xs"
                           placeholder="username_baru"
                         />
-                        <div className="absolute right-3 top-2.5 flex items-center justify-center">
+                        <div className="absolute right-3 top-2.5 flex items-center justify-center pointer-events-none">
                           {isCheckingUsername && (
                             <Loader2 className="w-4 h-4 text-sky-600 animate-spin" />
                           )}
@@ -4305,12 +4475,96 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
                           )}
                         </div>
                       </div>
-                      {usernameStatus === 'taken' && (
-                        <p className="text-[11px] text-rose-600 mt-1 font-medium">Username sudah digunakan</p>
-                      )}
-                      {usernameStatus === 'available' && newUsernameInput.trim() && (
-                        <p className="text-[11px] text-emerald-600 mt-1 font-medium">Username tersedia</p>
-                      )}
+
+                      {/* Daftar Ceklist Syarat Username */}
+                      {(() => {
+                        const rawClean = newUsernameInput.replace(/^@+/, '').trim();
+                        const hasNoSpaces = !/\s/.test(newUsernameInput);
+                        const hasOnlyAllowedChars = rawClean.length > 0 && /^[a-zA-Z0-9_.]+$/.test(rawClean);
+                        const isCharRulePassed = rawClean.length > 0 && hasOnlyAllowedChars && hasNoSpaces;
+                        const isLengthRulePassed = rawClean.length >= 4;
+                        const isUniquePassed = usernameStatus === 'available';
+
+                        return (
+                          <div className="mt-3 p-3 bg-slate-50 border border-slate-200/80 rounded-2xl space-y-2">
+                            {/* Syarat 1: Tidak mengandung spasi atau special karakter (selain _ dan titik) */}
+                            <div className="flex items-center gap-2 text-xs">
+                              {isCharRulePassed ? (
+                                <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
+                              ) : rawClean.length > 0 && (!hasNoSpaces || !hasOnlyAllowedChars) ? (
+                                <XCircle className="w-4 h-4 text-rose-500 shrink-0" />
+                              ) : (
+                                <div className="w-4 h-4 rounded-full border border-slate-300 flex items-center justify-center shrink-0">
+                                  <div className="w-1.5 h-1.5 rounded-full bg-slate-300" />
+                                </div>
+                              )}
+                              <span className={`text-[11px] leading-tight ${
+                                isCharRulePassed 
+                                  ? 'text-emerald-700 font-semibold' 
+                                  : rawClean.length > 0 && (!hasNoSpaces || !hasOnlyAllowedChars)
+                                  ? 'text-rose-600 font-semibold'
+                                  : 'text-slate-600'
+                              }`}>
+                                Tidak mengandung spasi atau special karakter (selain _ dan titik)
+                              </span>
+                            </div>
+
+                            {/* Syarat 2: Minimal 4 digit */}
+                            <div className="flex items-center gap-2 text-xs">
+                              {isLengthRulePassed ? (
+                                <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
+                              ) : rawClean.length > 0 ? (
+                                <div className="w-4 h-4 rounded-full border border-amber-400 bg-amber-50 flex items-center justify-center shrink-0 text-[9px] font-bold text-amber-700">
+                                  {rawClean.length}
+                                </div>
+                              ) : (
+                                <div className="w-4 h-4 rounded-full border border-slate-300 flex items-center justify-center shrink-0">
+                                  <div className="w-1.5 h-1.5 rounded-full bg-slate-300" />
+                                </div>
+                              )}
+                              <span className={`text-[11px] leading-tight ${
+                                isLengthRulePassed ? 'text-emerald-700 font-semibold' : 'text-slate-600'
+                              }`}>
+                                Minimal 4 digit {rawClean.length > 0 && !isLengthRulePassed && <span className="text-amber-600 font-bold">({rawClean.length}/4)</span>}
+                              </span>
+                            </div>
+
+                            {/* Syarat 3: Unik (tidak sama dengan yang lain) */}
+                            <div className="flex items-center gap-2 text-xs">
+                              {isCheckingUsername ? (
+                                <Loader2 className="w-4 h-4 text-sky-500 animate-spin shrink-0" />
+                              ) : isUniquePassed ? (
+                                <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
+                              ) : usernameStatus === 'taken' ? (
+                                <XCircle className="w-4 h-4 text-rose-500 shrink-0" />
+                              ) : (
+                                <div className="w-4 h-4 rounded-full border border-slate-300 flex items-center justify-center shrink-0">
+                                  <div className="w-1.5 h-1.5 rounded-full bg-slate-300" />
+                                </div>
+                              )}
+                              <span className={`text-[11px] leading-tight ${
+                                isCheckingUsername
+                                  ? 'text-sky-600 font-medium'
+                                  : isUniquePassed
+                                  ? 'text-emerald-700 font-semibold'
+                                  : usernameStatus === 'taken'
+                                  ? 'text-rose-600 font-semibold'
+                                  : 'text-slate-500'
+                              }`}>
+                                {isCheckingUsername
+                                  ? 'Memeriksa ketersediaan...'
+                                  : isUniquePassed
+                                  ? 'Unik (tidak sama dengan yang lain)'
+                                  : usernameStatus === 'taken'
+                                  ? collidingUsernameRecord
+                                    ? `Sudah digunakan oleh ${collidingUsernameRecord.name || collidingUsernameRecord.nama || 'alumni lain'}`
+                                    : 'Sudah digunakan oleh alumni lain'
+                                  : 'Unik (tidak sama dengan yang lain)'}
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })()}
                     </div>
                   </div>
                   <div className="flex gap-2 pt-2">
@@ -4325,30 +4579,38 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
                     >
                       Batal
                     </button>
-                    <button
-                      type="button"
-                      disabled={isCheckingUsername || usernameStatus !== 'available' || !newUsernameInput.trim()}
-                      onClick={() => {
-                        if (!newUsernameInput.trim()) return;
-                        if (usernameStatus === 'taken') {
-                          triggerToast('Username sudah dipakai');
-                          return;
-                        }
-                        setEditUsername(newUsernameInput.trim());
-                        onUpdateProfile({ username: newUsernameInput.trim() });
-                        setActiveEditModal(null);
-                        setNewUsernameInput('');
-                        setUsernameStatus('idle');
-                        triggerToast('Username berhasil diperbarui');
-                      }}
-                      className={`flex-1 py-2 rounded-xl text-white font-bold text-xs transition-colors ${
-                        isCheckingUsername || usernameStatus === 'taken' || !newUsernameInput.trim()
-                          ? 'bg-blue-300 cursor-not-allowed'
-                          : 'bg-blue-600 hover:bg-blue-700 cursor-pointer'
-                      }`}
-                    >
-                      Simpan
-                    </button>
+                    {(() => {
+                      const rawClean = newUsernameInput.replace(/^@+/, '').trim();
+                      const hasNoSpaces = !/\s/.test(newUsernameInput);
+                      const hasOnlyAllowedChars = rawClean.length > 0 && /^[a-zA-Z0-9_.]+$/.test(rawClean);
+                      const isCharRulePassed = rawClean.length > 0 && hasOnlyAllowedChars && hasNoSpaces;
+                      const isLengthRulePassed = rawClean.length >= 4;
+                      const isSaveEnabled = isCharRulePassed && isLengthRulePassed && usernameStatus === 'available' && !isCheckingUsername;
+
+                      return (
+                        <button
+                          type="button"
+                          disabled={!isSaveEnabled}
+                          onClick={() => {
+                            if (!isSaveEnabled) return;
+                            const finalUsername = rawClean.toLowerCase();
+                            setEditUsername(finalUsername);
+                            onUpdateProfile({ username: finalUsername });
+                            setActiveEditModal(null);
+                            setNewUsernameInput('');
+                            setUsernameStatus('idle');
+                            triggerToast('Username berhasil diperbarui');
+                          }}
+                          className={`flex-1 py-2.5 rounded-xl text-white font-bold text-xs transition-colors ${
+                            isSaveEnabled
+                              ? 'bg-blue-600 hover:bg-blue-700 cursor-pointer shadow-sm active:scale-95'
+                              : 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                          }`}
+                        >
+                          Simpan
+                        </button>
+                      );
+                    })()}
                   </div>
                 </div>
               </div>

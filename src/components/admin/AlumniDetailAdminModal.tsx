@@ -47,7 +47,7 @@ import {
   padMonthInput,
   padYearInput
 } from '../../utils/dateUtils';
-import { getGlobalAllSantriRecords, setGlobalAllSantriRecords, SantriIdentityLookup, checkNisLive } from '../../services/apiService';
+import { getGlobalAllSantriRecords, setGlobalAllSantriRecords, SantriIdentityLookup, checkNisLive, checkUsernameLive, checkNikLive, checkNoKkLive } from '../../services/apiService';
 
 interface AlumniDetailAdminModalProps {
   isOpen: boolean;
@@ -181,9 +181,17 @@ export const AlumniDetailAdminModal: React.FC<AlumniDetailAdminModalProps> = ({
   const [draftPekerjaanIbu, setDraftPekerjaanIbu] = useState('');
   const [draftPendidikanIbu, setDraftPendidikanIbu] = useState('');
 
+  // Refs to prevent duplicate validation checks when input hasn't changed
+  const lastCheckedUsernameRef = useRef<string | null>(null);
+  const lastCheckedNikRef = useRef<string | null>(null);
+  const lastCheckedNoKkRef = useRef<string | null>(null);
+  const lastCheckedNikAyahRef = useRef<string | null>(null);
+  const lastCheckedNikIbuRef = useRef<string | null>(null);
+
   // Check state for Username
   const [isCheckingUsername, setIsCheckingUsername] = useState(false);
   const [usernameCheckStatus, setUsernameCheckStatus] = useState<'idle' | 'checking' | 'available' | 'taken'>('idle');
+  const [duplicateUsernameRecord, setDuplicateUsernameRecord] = useState<any>(null);
 
   // Check state for NIK & No KK
   const [isCheckingNik, setIsCheckingNik] = useState(false);
@@ -203,35 +211,82 @@ export const AlumniDetailAdminModal: React.FC<AlumniDetailAdminModalProps> = ({
   const [nikIbuCheckStatus, setNikIbuCheckStatus] = useState<'idle' | 'checking' | 'available' | 'taken'>('idle');
   const [duplicateNikIbu, setDuplicateNikIbu] = useState<SantriIdentityLookup | AlumniRecord | null>(null);
 
-  // Username realtime check with debounce
+  // Username realtime check with debounce & checklist requirement:
+  // Syarat 1: Tidak mengandung spasi atau special karakter (selain _ dan titik)
+  // Syarat 2: Minimal 4 digit
+  // Setelah syarat 1 dan 2 terpenuhi backend melakukan validasi duplikasi.
+  // Kalo sudah dicek dan input masih sama, jangan lakukan pengecekan lagi sebelum ada perubahan.
   useEffect(() => {
     if (activeEditModal !== 'username') return;
-    const clean = newAdminUsernameInput.trim();
-    if (!clean) {
+    const rawClean = newAdminUsernameInput.replace(/^@+/, '').trim();
+    const hasNoSpaces = !/\s/.test(newAdminUsernameInput);
+    const hasOnlyAllowedChars = rawClean.length > 0 && /^[a-zA-Z0-9_.]+$/.test(rawClean);
+    const isCharRulePassed = rawClean.length > 0 && hasOnlyAllowedChars && hasNoSpaces;
+    const isLengthRulePassed = rawClean.length >= 4;
+
+    if (!isCharRulePassed || !isLengthRulePassed) {
       setIsCheckingUsername(false);
       setUsernameCheckStatus('idle');
       setAdminUsernameError(null);
+      setDuplicateUsernameRecord(null);
+      return;
+    }
+
+    const cleanLower = rawClean.toLowerCase();
+
+    // Jika sudah dicek dan nilai input belum berubah, jangan cek ulang
+    if (lastCheckedUsernameRef.current === cleanLower) {
       return;
     }
 
     setIsCheckingUsername(true);
     setUsernameCheckStatus('checking');
 
-    const timer = setTimeout(() => {
-      setIsCheckingUsername(false);
-      if (isUsernameTaken(clean, existingAlumni, alumni.id)) {
-        setUsernameCheckStatus('taken');
-        setAdminUsernameError('Username sudah digunakan santri/alumni lain');
-      } else {
+    const timer = setTimeout(async () => {
+      try {
+        const pool = (allSantriList && allSantriList.length > 0)
+          ? allSantriList
+          : (getGlobalAllSantriRecords().length > 0 ? getGlobalAllSantriRecords() : existingAlumni);
+
+        let found: any = pool?.find((a: any) => {
+          if (alumni?.id && a.id === alumni.id) return false;
+          const u = (a.username || '').replace(/^@+/, '').toLowerCase().trim();
+          return u === cleanLower;
+        });
+
+        if (!found) {
+          const liveRes = await checkUsernameLive(cleanLower, alumni?.id);
+          if (!liveRes.available && liveRes.collidingRecord) {
+            found = liveRes.collidingRecord;
+          }
+        }
+
+        if (newAdminUsernameInput.replace(/^@+/, '').trim().toLowerCase() !== cleanLower) return;
+
+        lastCheckedUsernameRef.current = cleanLower;
+        setIsCheckingUsername(false);
+
+        if (found) {
+          setUsernameCheckStatus('taken');
+          setAdminUsernameError(`Sudah digunakan oleh ${(found as any).name || (found as any).nama || 'alumni lain'}`);
+          setDuplicateUsernameRecord(found);
+        } else {
+          setUsernameCheckStatus('available');
+          setAdminUsernameError(null);
+          setDuplicateUsernameRecord(null);
+        }
+      } catch (err) {
+        if (newAdminUsernameInput.replace(/^@+/, '').trim().toLowerCase() !== cleanLower) return;
+        lastCheckedUsernameRef.current = cleanLower;
+        setIsCheckingUsername(false);
         setUsernameCheckStatus('available');
-        setAdminUsernameError(null);
       }
-    }, 320);
+    }, 280);
 
     return () => clearTimeout(timer);
-  }, [newAdminUsernameInput, activeEditModal, existingAlumni, alumni.id]);
+  }, [newAdminUsernameInput, activeEditModal, allSantriList, existingAlumni, alumni?.id]);
 
-  // NIK duplicate check with debounce
+  // NIK duplicate check with debounce (hanya setelah syarat 16 digit terpenuhi & tidak cek ulang jika input sama)
   useEffect(() => {
     if (activeEditModal !== 'nik_kk') return;
     const clean = draftNik.replace(/\D/g, '').slice(0, 16);
@@ -242,17 +297,32 @@ export const AlumniDetailAdminModal: React.FC<AlumniDetailAdminModalProps> = ({
       return;
     }
 
+    if (lastCheckedNikRef.current === clean) {
+      return;
+    }
+
     setIsCheckingNik(true);
     setNikCheckStatus('checking');
 
-    const timer = setTimeout(() => {
-      setIsCheckingNik(false);
+    const timer = setTimeout(async () => {
       const allPool = (allSantriList && allSantriList.length > 0)
         ? allSantriList
         : (getGlobalAllSantriRecords().length > 0 ? getGlobalAllSantriRecords() : existingAlumni);
-      const found = allPool.find(
-        (a) => a.id !== alumni.id && a.nik && a.nik.replace(/\D/g, '').trim() === clean
+      let found: any = allPool.find(
+        (a) => a.id !== alumni?.id && a.nik && a.nik.replace(/\D/g, '').trim() === clean
       );
+      if (!found) {
+        try {
+          const live = await checkNikLive(clean, alumni?.id);
+          if (!live.available && live.collidingRecord) {
+            found = live.collidingRecord;
+          }
+        } catch (e) {}
+      }
+
+      if (draftNik.replace(/\D/g, '').slice(0, 16) !== clean) return;
+      lastCheckedNikRef.current = clean;
+      setIsCheckingNik(false);
       if (found) {
         setDuplicateNik(found as any);
         setNikCheckStatus('taken');
@@ -260,12 +330,12 @@ export const AlumniDetailAdminModal: React.FC<AlumniDetailAdminModalProps> = ({
         setDuplicateNik(null);
         setNikCheckStatus('available');
       }
-    }, 320);
+    }, 280);
 
     return () => clearTimeout(timer);
-  }, [draftNik, activeEditModal, allSantriList, existingAlumni, alumni.id]);
+  }, [draftNik, activeEditModal, allSantriList, existingAlumni, alumni?.id]);
 
-  // No KK duplicate check with debounce
+  // No KK duplicate check with debounce (hanya setelah syarat 16 digit terpenuhi & tidak cek ulang jika input sama)
   useEffect(() => {
     if (activeEditModal !== 'nik_kk') return;
     const clean = draftNoKk.replace(/\D/g, '').slice(0, 16);
@@ -276,17 +346,32 @@ export const AlumniDetailAdminModal: React.FC<AlumniDetailAdminModalProps> = ({
       return;
     }
 
+    if (lastCheckedNoKkRef.current === clean) {
+      return;
+    }
+
     setIsCheckingNoKk(true);
     setNoKkCheckStatus('checking');
 
-    const timer = setTimeout(() => {
-      setIsCheckingNoKk(false);
+    const timer = setTimeout(async () => {
       const allPool = (allSantriList && allSantriList.length > 0)
         ? allSantriList
         : (getGlobalAllSantriRecords().length > 0 ? getGlobalAllSantriRecords() : existingAlumni);
-      const found = allPool.find(
-        (a) => a.id !== alumni.id && a.noKk && a.noKk.replace(/\D/g, '').trim() === clean
+      let found: any = allPool.find(
+        (a) => a.id !== alumni?.id && a.noKk && a.noKk.replace(/\D/g, '').trim() === clean
       );
+      if (!found) {
+        try {
+          const live = await checkNoKkLive(clean, alumni?.id);
+          if (!live.available && live.collidingRecord) {
+            found = live.collidingRecord;
+          }
+        } catch (e) {}
+      }
+
+      if (draftNoKk.replace(/\D/g, '').slice(0, 16) !== clean) return;
+      lastCheckedNoKkRef.current = clean;
+      setIsCheckingNoKk(false);
       if (found) {
         setDuplicateNoKk(found as any);
         setNoKkCheckStatus('taken');
@@ -294,12 +379,12 @@ export const AlumniDetailAdminModal: React.FC<AlumniDetailAdminModalProps> = ({
         setDuplicateNoKk(null);
         setNoKkCheckStatus('available');
       }
-    }, 320);
+    }, 280);
 
     return () => clearTimeout(timer);
-  }, [draftNoKk, activeEditModal, allSantriList, existingAlumni, alumni.id]);
+  }, [draftNoKk, activeEditModal, allSantriList, existingAlumni, alumni?.id]);
 
-  // NIK Ayah duplicate check with debounce
+  // NIK Ayah duplicate check with debounce (hanya setelah 16 digit & tidak cek ulang jika input sama)
   useEffect(() => {
     if (activeEditModal !== 'ayah') return;
     const clean = draftNikAyah.replace(/\D/g, '').slice(0, 16);
@@ -310,20 +395,35 @@ export const AlumniDetailAdminModal: React.FC<AlumniDetailAdminModalProps> = ({
       return;
     }
 
+    if (lastCheckedNikAyahRef.current === clean) {
+      return;
+    }
+
     setIsCheckingNikAyah(true);
     setNikAyahCheckStatus('checking');
 
-    const timer = setTimeout(() => {
-      setIsCheckingNikAyah(false);
+    const timer = setTimeout(async () => {
       const allPool = (allSantriList && allSantriList.length > 0)
         ? allSantriList
         : (getGlobalAllSantriRecords().length > 0 ? getGlobalAllSantriRecords() : existingAlumni);
-      const found = allPool.find(
-        (a) => a.id !== alumni.id && (
+      let found: any = allPool.find(
+        (a) => a.id !== alumni?.id && (
           (a.nik && a.nik.replace(/\D/g, '').trim() === clean) ||
           ((a as any).nikAyah && (a as any).nikAyah.replace(/\D/g, '').trim() === clean)
         )
       );
+      if (!found) {
+        try {
+          const live = await checkNikLive(clean, alumni?.id);
+          if (!live.available && live.collidingRecord) {
+            found = live.collidingRecord;
+          }
+        } catch (e) {}
+      }
+
+      if (draftNikAyah.replace(/\D/g, '').slice(0, 16) !== clean) return;
+      lastCheckedNikAyahRef.current = clean;
+      setIsCheckingNikAyah(false);
       if (found) {
         setDuplicateNikAyah(found as any);
         setNikAyahCheckStatus('taken');
@@ -331,12 +431,12 @@ export const AlumniDetailAdminModal: React.FC<AlumniDetailAdminModalProps> = ({
         setDuplicateNikAyah(null);
         setNikAyahCheckStatus('available');
       }
-    }, 320);
+    }, 280);
 
     return () => clearTimeout(timer);
-  }, [draftNikAyah, activeEditModal, allSantriList, existingAlumni, alumni.id]);
+  }, [draftNikAyah, activeEditModal, allSantriList, existingAlumni, alumni?.id]);
 
-  // NIK Ibu duplicate check with debounce
+  // NIK Ibu duplicate check with debounce (hanya setelah 16 digit & tidak cek ulang jika input sama)
   useEffect(() => {
     if (activeEditModal !== 'ibu') return;
     const clean = draftNikIbu.replace(/\D/g, '').slice(0, 16);
@@ -347,20 +447,35 @@ export const AlumniDetailAdminModal: React.FC<AlumniDetailAdminModalProps> = ({
       return;
     }
 
+    if (lastCheckedNikIbuRef.current === clean) {
+      return;
+    }
+
     setIsCheckingNikIbu(true);
     setNikIbuCheckStatus('checking');
 
-    const timer = setTimeout(() => {
-      setIsCheckingNikIbu(false);
+    const timer = setTimeout(async () => {
       const allPool = (allSantriList && allSantriList.length > 0)
         ? allSantriList
         : (getGlobalAllSantriRecords().length > 0 ? getGlobalAllSantriRecords() : existingAlumni);
-      const found = allPool.find(
-        (a) => a.id !== alumni.id && (
+      let found: any = allPool.find(
+        (a) => a.id !== alumni?.id && (
           (a.nik && a.nik.replace(/\D/g, '').trim() === clean) ||
           ((a as any).nikIbu && (a as any).nikIbu.replace(/\D/g, '').trim() === clean)
         )
       );
+      if (!found) {
+        try {
+          const live = await checkNikLive(clean, alumni?.id);
+          if (!live.available && live.collidingRecord) {
+            found = live.collidingRecord;
+          }
+        } catch (e) {}
+      }
+
+      if (draftNikIbu.replace(/\D/g, '').slice(0, 16) !== clean) return;
+      lastCheckedNikIbuRef.current = clean;
+      setIsCheckingNikIbu(false);
       if (found) {
         setDuplicateNikIbu(found as any);
         setNikIbuCheckStatus('taken');
@@ -368,10 +483,10 @@ export const AlumniDetailAdminModal: React.FC<AlumniDetailAdminModalProps> = ({
         setDuplicateNikIbu(null);
         setNikIbuCheckStatus('available');
       }
-    }, 320);
+    }, 280);
 
     return () => clearTimeout(timer);
-  }, [draftNikIbu, activeEditModal, allSantriList, existingAlumni, alumni.id]);
+  }, [draftNikIbu, activeEditModal, allSantriList, existingAlumni, alumni?.id]);
 
   // NIS duplicate check with debounce (memeriksa ketidaksamaan dengan alumni dan santri aktif)
   useEffect(() => {
@@ -1157,9 +1272,6 @@ export const AlumniDetailAdminModal: React.FC<AlumniDetailAdminModalProps> = ({
               <button type="button" onClick={() => setActiveEditModal(null)} className="text-slate-400 hover:text-slate-600 cursor-pointer"><X className="w-4 h-4" /></button>
             </div>
             <div className="space-y-3 text-xs">
-              <p className="text-slate-500 leading-relaxed text-[11px]">
-                Username login bersifat unik. Spasi akan otomatis diganti underscore (_) dan tidak boleh sama dengan alumni lain.
-              </p>
               <div>
                 <label className="block font-semibold text-slate-700 mb-1">Username Baru</label>
                 <div className="relative">
@@ -1168,8 +1280,7 @@ export const AlumniDetailAdminModal: React.FC<AlumniDetailAdminModalProps> = ({
                     type="text"
                     value={newAdminUsernameInput}
                     onChange={(e) => {
-                      const clean = e.target.value.toLowerCase().replace(/[\s\t\n]+/g, '_').replace(/[^a-z0-9_]/g, '');
-                      setNewAdminUsernameInput(clean);
+                      setNewAdminUsernameInput(e.target.value.replace(/^@+/, ''));
                     }}
                     className="w-full pl-7 pr-9 py-2 bg-slate-50 border border-slate-200 rounded-xl font-medium focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500 text-xs"
                     placeholder="username_baru"
@@ -1186,34 +1297,127 @@ export const AlumniDetailAdminModal: React.FC<AlumniDetailAdminModalProps> = ({
                     )}
                   </div>
                 </div>
-                {!isCheckingUsername && usernameCheckStatus === 'taken' && adminUsernameError && (
-                  <p className="text-[11px] text-rose-600 mt-1 font-medium">{adminUsernameError}</p>
-                )}
-                {!isCheckingUsername && usernameCheckStatus === 'available' && newAdminUsernameInput.trim() && (
-                  <p className="text-[11px] text-emerald-600 mt-1 font-medium">Username tersedia</p>
-                )}
+
+                {/* Daftar Ceklist Syarat Username */}
+                {(() => {
+                  const rawClean = newAdminUsernameInput.replace(/^@+/, '').trim();
+                  const hasNoSpaces = !/\s/.test(newAdminUsernameInput);
+                  const hasOnlyAllowedChars = rawClean.length > 0 && /^[a-zA-Z0-9_.]+$/.test(rawClean);
+                  const isCharRulePassed = rawClean.length > 0 && hasOnlyAllowedChars && hasNoSpaces;
+                  const isLengthRulePassed = rawClean.length >= 4;
+                  const isUniquePassed = usernameCheckStatus === 'available';
+
+                  return (
+                    <div className="mt-3 p-3 bg-slate-50 border border-slate-200/80 rounded-2xl space-y-2">
+                      {/* Syarat 1: Tidak mengandung spasi atau special karakter (selain _ dan titik) */}
+                      <div className="flex items-center gap-2 text-xs">
+                        {isCharRulePassed ? (
+                          <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
+                        ) : rawClean.length > 0 && (!hasNoSpaces || !hasOnlyAllowedChars) ? (
+                          <XCircle className="w-4 h-4 text-rose-500 shrink-0" />
+                        ) : (
+                          <div className="w-4 h-4 rounded-full border border-slate-300 flex items-center justify-center shrink-0">
+                            <div className="w-1.5 h-1.5 rounded-full bg-slate-300" />
+                          </div>
+                        )}
+                        <span className={`text-[11px] leading-tight ${
+                          isCharRulePassed 
+                            ? 'text-emerald-700 font-semibold' 
+                            : rawClean.length > 0 && (!hasNoSpaces || !hasOnlyAllowedChars)
+                            ? 'text-rose-600 font-semibold'
+                            : 'text-slate-600'
+                        }`}>
+                          Tidak mengandung spasi atau special karakter (selain _ dan titik)
+                        </span>
+                      </div>
+
+                      {/* Syarat 2: Minimal 4 digit */}
+                      <div className="flex items-center gap-2 text-xs">
+                        {isLengthRulePassed ? (
+                          <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
+                        ) : rawClean.length > 0 ? (
+                          <div className="w-4 h-4 rounded-full border border-amber-400 bg-amber-50 flex items-center justify-center shrink-0 text-[9px] font-bold text-amber-700">
+                            {rawClean.length}
+                          </div>
+                        ) : (
+                          <div className="w-4 h-4 rounded-full border border-slate-300 flex items-center justify-center shrink-0">
+                            <div className="w-1.5 h-1.5 rounded-full bg-slate-300" />
+                          </div>
+                        )}
+                        <span className={`text-[11px] leading-tight ${
+                          isLengthRulePassed ? 'text-emerald-700 font-semibold' : 'text-slate-600'
+                        }`}>
+                          Minimal 4 digit {rawClean.length > 0 && !isLengthRulePassed && <span className="text-amber-600 font-bold">({rawClean.length}/4)</span>}
+                        </span>
+                      </div>
+
+                      {/* Syarat 3: Unik (tidak sama dengan yang lain) */}
+                      <div className="flex items-center gap-2 text-xs">
+                        {isCheckingUsername ? (
+                          <Loader2 className="w-4 h-4 text-sky-500 animate-spin shrink-0" />
+                        ) : isUniquePassed ? (
+                          <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
+                        ) : usernameCheckStatus === 'taken' ? (
+                          <XCircle className="w-4 h-4 text-rose-500 shrink-0" />
+                        ) : (
+                          <div className="w-4 h-4 rounded-full border border-slate-300 flex items-center justify-center shrink-0">
+                            <div className="w-1.5 h-1.5 rounded-full bg-slate-300" />
+                          </div>
+                        )}
+                        <span className={`text-[11px] leading-tight ${
+                          isCheckingUsername
+                            ? 'text-sky-600 font-medium'
+                            : isUniquePassed
+                            ? 'text-emerald-700 font-semibold'
+                            : usernameCheckStatus === 'taken'
+                            ? 'text-rose-600 font-semibold'
+                            : 'text-slate-500'
+                        }`}>
+                          {isCheckingUsername
+                            ? 'Memeriksa ketersediaan...'
+                            : isUniquePassed
+                            ? 'Unik (tidak sama dengan yang lain)'
+                            : usernameCheckStatus === 'taken'
+                            ? (adminUsernameError || 'Sudah digunakan oleh alumni lain')
+                            : 'Unik (tidak sama dengan yang lain)'}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
             </div>
             <div className="flex gap-2 pt-2">
               <button type="button" onClick={() => setActiveEditModal(null)} className="flex-1 py-2 rounded-xl border border-slate-200 text-slate-600 font-semibold text-xs cursor-pointer">Batal</button>
-              <button
-                type="button"
-                disabled={!newAdminUsernameInput.trim() || isCheckingUsername || usernameCheckStatus === 'taken'}
-                onClick={() => {
-                  const clean = formatBaseUsername(newAdminUsernameInput);
-                  if (!clean) return;
-                  if (isUsernameTaken(clean, existingAlumni, alumni.id)) {
-                    setAdminUsernameError('Username sudah digunakan santri/alumni lain');
-                    return;
-                  }
-                  setEditUsername(clean);
-                  handleUpdate({ username: clean });
-                  setActiveEditModal(null);
-                }}
-                className="flex-1 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Simpan
-              </button>
+              {(() => {
+                const rawClean = newAdminUsernameInput.replace(/^@+/, '').trim();
+                const hasNoSpaces = !/\s/.test(newAdminUsernameInput);
+                const hasOnlyAllowedChars = rawClean.length > 0 && /^[a-zA-Z0-9_.]+$/.test(rawClean);
+                const isCharRulePassed = rawClean.length > 0 && hasOnlyAllowedChars && hasNoSpaces;
+                const isLengthRulePassed = rawClean.length >= 4;
+                const isSaveEnabled = isCharRulePassed && isLengthRulePassed && usernameCheckStatus === 'available' && !isCheckingUsername;
+
+                return (
+                  <button
+                    type="button"
+                    disabled={!isSaveEnabled}
+                    onClick={() => {
+                      const clean = formatBaseUsername(rawClean);
+                      if (!clean) return;
+                      setEditUsername(clean);
+                      handleUpdate({ username: clean });
+                      setActiveEditModal(null);
+                    }}
+                    className={`flex-1 py-2.5 rounded-xl font-bold text-xs transition-all ${
+                      isSaveEnabled
+                        ? 'bg-sky-600 hover:bg-sky-700 text-white cursor-pointer shadow-sm active:scale-95'
+                        : 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                    }`}
+                  >
+                    Simpan
+                  </button>
+                );
+              })()}
             </div>
           </div>
         </div>
@@ -1249,6 +1453,8 @@ export const AlumniDetailAdminModal: React.FC<AlumniDetailAdminModalProps> = ({
                       maxLength={2}
                       placeholder="DD"
                       value={draftBirthDay}
+                      onFocus={(e) => e.target.select()}
+                      onClick={(e) => (e.target as HTMLInputElement).select()}
                       onChange={(e) => {
                         const val = formatDayInput(e.target.value, draftBirthMonth, draftBirthYear);
                         setDraftBirthDay(val);
@@ -1269,6 +1475,8 @@ export const AlumniDetailAdminModal: React.FC<AlumniDetailAdminModalProps> = ({
                       maxLength={2}
                       placeholder="MM"
                       value={draftBirthMonth}
+                      onFocus={(e) => e.target.select()}
+                      onClick={(e) => (e.target as HTMLInputElement).select()}
                       onChange={(e) => {
                         const val = formatMonthInput(e.target.value);
                         setDraftBirthMonth(val);
@@ -1304,6 +1512,8 @@ export const AlumniDetailAdminModal: React.FC<AlumniDetailAdminModalProps> = ({
                       maxLength={4}
                       placeholder="YYYY"
                       value={draftBirthYear}
+                      onFocus={(e) => e.target.select()}
+                      onClick={(e) => (e.target as HTMLInputElement).select()}
                       onChange={(e) => {
                         const val = e.target.value.replace(/\D/g, '').slice(0, 4);
                         setDraftBirthYear(val);

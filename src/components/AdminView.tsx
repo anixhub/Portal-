@@ -819,13 +819,21 @@ export const AdminView: React.FC<AdminViewProps> = ({
   useBackHandler(activeTab !== 'alumni', 'admin-tab-alumni', () => setActiveTab('alumni'));
 
   // Wilayah jurisdiction filtered base list for this admin (Admin daerah hanya mengelola data alumni di daerahnya atau bawahnya)
-  const jurisdictionAlumniList = alumniList.filter((item) => isAlumniInAdminJurisdiction(item, adminUser));
+  const jurisdictionAlumniList = (alumniList || []).filter((item) => Boolean(item) && isAlumniInAdminJurisdiction(item, adminUser));
 
   // Counts for status labels & gender
-  const activeCount = jurisdictionAlumniList.filter((item) => item.hasLoggedIn === true || item.isPasswordChanged === true).length;
-  const inactiveCount = jurisdictionAlumniList.filter((item) => !item.hasLoggedIn && !item.isPasswordChanged).length;
-  const putraCount = jurisdictionAlumniList.filter((item) => item.gender === 'Putra' || item.gender === 'L' || item.gender?.toLowerCase() === 'putra').length;
-  const putriCount = jurisdictionAlumniList.filter((item) => item.gender === 'Putri' || item.gender === 'P' || item.gender?.toLowerCase() === 'putri').length;
+  const activeCount = jurisdictionAlumniList.filter((item) => item && (item.hasLoggedIn === true || item.isPasswordChanged === true)).length;
+  const inactiveCount = jurisdictionAlumniList.filter((item) => item && !item.hasLoggedIn && !item.isPasswordChanged).length;
+  const putraCount = jurisdictionAlumniList.filter((item) => {
+    if (!item) return false;
+    const g = (item.gender || '').toLowerCase();
+    return item.gender === 'Putra' || item.gender === 'L' || g === 'putra' || g === 'l';
+  }).length;
+  const putriCount = jurisdictionAlumniList.filter((item) => {
+    if (!item) return false;
+    const g = (item.gender || '').toLowerCase();
+    return item.gender === 'Putri' || item.gender === 'P' || g === 'putri' || g === 'p';
+  }).length;
 
   // Toast
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -837,17 +845,27 @@ export const AdminView: React.FC<AdminViewProps> = ({
 
   // Filtered alumni list
   const filteredList = jurisdictionAlumniList.filter((item) => {
-    const q = searchQuery.toLowerCase();
+    if (!item) return false;
+    const q = (searchQuery || '').toLowerCase().trim();
+    const nameStr = (item.name || '').toLowerCase();
+    const nikStr = item.nik || '';
+    const nisStr = (item.nis || '').toLowerCase();
+    const cityStr = (item.city || '').toLowerCase();
+    const provStr = (item.province || '').toLowerCase();
+    const kecStr = (item.kecamatan || '').toLowerCase();
+    const desaStr = (item.desa || '').toLowerCase();
+    const occStr = (item.occupation || '').toLowerCase();
+
     const matchSearch =
-      !searchQuery ||
-      item.name.toLowerCase().includes(q) ||
-      item.nik.includes(q) ||
-      item.nis.toLowerCase().includes(q) ||
-      item.city.toLowerCase().includes(q) ||
-      item.province.toLowerCase().includes(q) ||
-      (item.kecamatan && item.kecamatan.toLowerCase().includes(q)) ||
-      (item.desa && item.desa.toLowerCase().includes(q)) ||
-      item.occupation.toLowerCase().includes(q);
+      !q ||
+      nameStr.includes(q) ||
+      nikStr.includes(q) ||
+      nisStr.includes(q) ||
+      cityStr.includes(q) ||
+      provStr.includes(q) ||
+      kecStr.includes(q) ||
+      desaStr.includes(q) ||
+      occStr.includes(q);
 
     // Filter status aktif/tidak aktif: Aktif = NIK pernah login
     const isAlumniActive = item.hasLoggedIn === true || item.isPasswordChanged === true;
@@ -859,8 +877,9 @@ export const AdminView: React.FC<AdminViewProps> = ({
         : !isAlumniActive;
 
     // Filter gender Putra / Putri
-    const isPutra = item.gender === 'Putra' || item.gender === 'L' || item.gender?.toLowerCase() === 'putra';
-    const isPutri = item.gender === 'Putri' || item.gender === 'P' || item.gender?.toLowerCase() === 'putri';
+    const g = (item.gender || '').toLowerCase();
+    const isPutra = item.gender === 'Putra' || item.gender === 'L' || g === 'putra' || g === 'l';
+    const isPutri = item.gender === 'Putri' || item.gender === 'P' || g === 'putri' || g === 'p';
     const matchGender =
       genderFilter === 'semua'
         ? true
@@ -868,8 +887,8 @@ export const AdminView: React.FC<AdminViewProps> = ({
         ? isPutra
         : isPutri;
 
-    const entryNum = parseInt(item.entryYear, 10);
-    const gradNum = parseInt(item.gradYear, 10);
+    const entryNum = parseInt(item.entryYear || '', 10);
+    const gradNum = parseInt(item.gradYear || '', 10);
 
     const matchEntryFrom = !filterEntryFrom || (!isNaN(entryNum) && entryNum >= parseInt(filterEntryFrom, 10));
     const matchEntryTo = !filterEntryTo || (!isNaN(entryNum) && entryNum <= parseInt(filterEntryTo, 10));
@@ -877,30 +896,38 @@ export const AdminView: React.FC<AdminViewProps> = ({
     const matchGradFrom = !filterGradFrom || (!isNaN(gradNum) && gradNum >= parseInt(filterGradFrom, 10));
     const matchGradTo = !filterGradTo || (!isNaN(gradNum) && gradNum <= parseInt(filterGradTo, 10));
 
-    const normalizePlace = (val: string) => val.toLowerCase().replace(/^(kota|kabupaten|kab\.)\s+/i, '').trim();
+    const normalizePlace = (val?: string) => (val || '').toLowerCase().replace(/^(kota|kabupaten|kab\.)\s+/i, '').trim();
 
+    const itemProv = (item.province || '').toLowerCase();
+    const fProv = (filterProvince || '').toLowerCase();
     const matchProvince = !filterProvince || 
-      item.province.toLowerCase().includes(filterProvince.toLowerCase()) ||
-      filterProvince.toLowerCase().includes(item.province.toLowerCase());
+      (Boolean(itemProv) && (itemProv.includes(fProv) || fProv.includes(itemProv)));
 
+    const itemCityNorm = normalizePlace(item.city);
+    const fCityNorm = normalizePlace(filterCity);
+    const itemCityRaw = (item.city || '').toLowerCase();
+    const fCityRaw = (filterCity || '').toLowerCase();
     const matchCity = !filterCity || 
-      item.city.toLowerCase().includes(normalizePlace(filterCity)) ||
-      normalizePlace(filterCity).includes(item.city.toLowerCase()) ||
-      item.city.toLowerCase().includes(filterCity.toLowerCase());
+      (Boolean(itemCityNorm && fCityNorm) && (itemCityNorm.includes(fCityNorm) || fCityNorm.includes(itemCityNorm))) ||
+      (Boolean(itemCityRaw && fCityRaw) && itemCityRaw.includes(fCityRaw));
 
+    const itemKec = (item.kecamatan || '').toLowerCase();
+    const fKec = (filterKecamatan || '').toLowerCase();
     const matchKecamatan = !filterKecamatan || 
-      (Boolean(item.kecamatan) && (
-        item.kecamatan!.toLowerCase().includes(filterKecamatan.toLowerCase()) ||
-        filterKecamatan.toLowerCase().includes(item.kecamatan!.toLowerCase())
+      (Boolean(itemKec && fKec) && (
+        itemKec.includes(fKec) ||
+        fKec.includes(itemKec)
       ));
 
+    const itemDesa = (item.desa || '').toLowerCase();
+    const fDesa = (filterDesa || '').toLowerCase();
     const matchDesa = !filterDesa 
       ? true 
       : item.shareFullAddress === false 
         ? false 
-        : (Boolean(item.desa) && (
-            item.desa!.toLowerCase().includes(filterDesa.toLowerCase()) ||
-            filterDesa.toLowerCase().includes(item.desa!.toLowerCase())
+        : (Boolean(itemDesa && fDesa) && (
+            itemDesa.includes(fDesa) ||
+            fDesa.includes(itemDesa)
           ));
 
     return (
@@ -919,23 +946,26 @@ export const AdminView: React.FC<AdminViewProps> = ({
   });
 
   const sortedFilteredList = [...filteredList].sort((a, b) => {
+    if (!a && !b) return 0;
+    if (!a) return 1;
+    if (!b) return -1;
     if (sortOption === 'nama_asc') {
-      return a.name.localeCompare(b.name, 'id');
+      return (a.name || '').localeCompare(b.name || '', 'id');
     }
     if (sortOption === 'nama_desc') {
-      return b.name.localeCompare(a.name, 'id');
+      return (b.name || '').localeCompare(a.name || '', 'id');
     }
     if (sortOption === 'boyong_desc') {
-      return (parseInt(b.gradYear, 10) || 0) - (parseInt(a.gradYear, 10) || 0);
+      return (parseInt(b.gradYear || '', 10) || 0) - (parseInt(a.gradYear || '', 10) || 0);
     }
     if (sortOption === 'boyong_asc') {
-      return (parseInt(a.gradYear, 10) || 0) - (parseInt(b.gradYear, 10) || 0);
+      return (parseInt(a.gradYear || '', 10) || 0) - (parseInt(b.gradYear || '', 10) || 0);
     }
     if (sortOption === 'masuk_desc') {
-      return (parseInt(b.entryYear, 10) || 0) - (parseInt(a.entryYear, 10) || 0);
+      return (parseInt(b.entryYear || '', 10) || 0) - (parseInt(a.entryYear || '', 10) || 0);
     }
     if (sortOption === 'masuk_asc') {
-      return (parseInt(a.entryYear, 10) || 0) - (parseInt(b.entryYear, 10) || 0);
+      return (parseInt(a.entryYear || '', 10) || 0) - (parseInt(b.entryYear || '', 10) || 0);
     }
     return 0;
   });

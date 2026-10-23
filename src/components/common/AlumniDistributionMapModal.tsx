@@ -398,8 +398,9 @@ export const AlumniDistributionMapModal: React.FC<AlumniDistributionMapModalProp
     }
 
     // 1. Alumni matching query
-    const alumniMatches = alumniList.filter((a) => {
-      const matchName = a.name.toLowerCase().includes(q);
+    const alumniMatches = (alumniList || []).filter((a) => {
+      if (!a) return false;
+      const matchName = (a.name || '').toLowerCase().includes(q);
       const matchNis = a.nis ? a.nis.toLowerCase().includes(q) : false;
       const matchOcc = a.occupation ? a.occupation.toLowerCase().includes(q) : false;
       return matchName || matchNis || matchOcc;
@@ -407,7 +408,7 @@ export const AlumniDistributionMapModal: React.FC<AlumniDistributionMapModalProp
 
     // 2. Locations matching query
     const localLocMatches = INDONESIA_LOCATIONS.filter((loc) =>
-      loc.name.toLowerCase().includes(q) || (loc.parent && loc.parent.toLowerCase().includes(q))
+      (loc.name || '').toLowerCase().includes(q) || (loc.parent && loc.parent.toLowerCase().includes(q))
     ).map((loc) => ({
       id: `loc-${loc.name}-${loc.lat}`,
       title: loc.name,
@@ -420,8 +421,8 @@ export const AlumniDistributionMapModal: React.FC<AlumniDistributionMapModalProp
 
     const onlineLocMatches = dynamicNominatimResults.map((item) => ({
       id: `osm-${item.place_id}`,
-      title: item.display_name.split(',')[0],
-      subtitle: item.display_name.split(',').slice(1, 4).join(',').trim(),
+      title: (item.display_name || '').split(',')[0],
+      subtitle: (item.display_name || '').split(',').slice(1, 4).join(',').trim(),
       lat: parseFloat(item.lat),
       lng: parseFloat(item.lon),
       zoom: 13,
@@ -430,7 +431,7 @@ export const AlumniDistributionMapModal: React.FC<AlumniDistributionMapModalProp
 
     const seen = new Set<string>();
     const combinedLocs = [...localLocMatches, ...onlineLocMatches].filter((item) => {
-      const key = item.title.toLowerCase();
+      const key = (item.title || '').toLowerCase();
       if (seen.has(key)) return false;
       seen.add(key);
       return true;
@@ -440,9 +441,10 @@ export const AlumniDistributionMapModal: React.FC<AlumniDistributionMapModalProp
   }, [searchOverlayQuery, dynamicNominatimResults, alumniList, userKecamatan, userKabupaten, userProvinsi]);
 
   // Helper to resolve coordinates
-  const resolveLocation = (name: string) => {
-    const clean = name.toLowerCase().trim();
-    const found = INDONESIA_LOCATIONS.find((loc) => loc.name.toLowerCase().includes(clean));
+  const resolveLocation = (name?: string) => {
+    const clean = (name || '').toLowerCase().trim();
+    if (!clean) return { lat: -6.7423, lng: 111.4589, zoom: 12 };
+    const found = INDONESIA_LOCATIONS.find((loc) => (loc.name || '').toLowerCase().includes(clean));
     if (found) {
       return { lat: found.lat, lng: found.lng, zoom: found.zoom };
     }
