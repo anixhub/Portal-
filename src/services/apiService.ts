@@ -898,14 +898,30 @@ export async function updateAlumniInHostinger(
       phpPayload.coordinates = c;
     }
     if (updates.password !== undefined || fullRecord?.password !== undefined) {
-      phpPayload.password = updates.password ?? fullRecord?.password;
+      const pwd = String(updates.password ?? fullRecord?.password).trim();
+      phpPayload.password = pwd;
+      expressPayload.password = pwd;
     }
     if (updates.isPasswordChanged !== undefined || fullRecord?.isPasswordChanged !== undefined) {
-      phpPayload.isPasswordChanged = updates.isPasswordChanged ?? fullRecord?.isPasswordChanged;
-      phpPayload.is_password_changed = (updates.isPasswordChanged ?? fullRecord?.isPasswordChanged) ? 1 : 0;
+      const isChanged = Boolean(updates.isPasswordChanged ?? fullRecord?.isPasswordChanged);
+      phpPayload.isPasswordChanged = isChanged;
+      phpPayload.is_password_changed = isChanged ? 1 : 0;
+      expressPayload.isPasswordChanged = isChanged;
+      expressPayload.is_password_changed = isChanged ? 1 : 0;
+    }
+    if (updates.hasLoggedIn !== undefined || fullRecord?.hasLoggedIn !== undefined) {
+      const hasLogged = Boolean(updates.hasLoggedIn ?? fullRecord?.hasLoggedIn);
+      phpPayload.hasLoggedIn = hasLogged;
+      phpPayload.has_logged_in = hasLogged ? 1 : 0;
+      expressPayload.hasLoggedIn = hasLogged;
+      expressPayload.has_logged_in = hasLogged ? 1 : 0;
     }
     if (updates.username !== undefined || fullRecord?.username !== undefined) {
-      phpPayload.username_lookup = (updates.username ?? fullRecord?.username)?.replace(/^@/, '');
+      const cleanUser = String(updates.username ?? fullRecord?.username ?? '').toLowerCase().replace(/^@/, '').trim();
+      phpPayload.username = cleanUser;
+      phpPayload.username_lookup = cleanUser;
+      expressPayload.username = cleanUser;
+      expressPayload.username_lookup = cleanUser;
     }
 
     // Eksekusi pembaruan ke database Hostinger (domain utama attaroqqy.com, subdomain alumni.attaroqqy.com, dan Express DB backend via proxy)

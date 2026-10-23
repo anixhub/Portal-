@@ -146,8 +146,26 @@ export function ensureConsistentAlumniIdentities(list: AlumniRecord[]): AlumniRe
   const usedUsernames = new Set<string>();
 
   // 1. Pastikan Username Unik untuk semua record
+  // Kumpulkan username yang sudah definitif dimiliki alumni (hasil aktivasi atau tersimpan)
+  const definitiveUsernames = new Set<string>();
+  list.forEach((alm) => {
+    const u = (alm.username || '').toLowerCase().replace(/^@/, '').trim();
+    if (u && (alm.isPasswordChanged || alm.hasLoggedIn || (alm.password && alm.password !== '1234'))) {
+      definitiveUsernames.add(u);
+    }
+  });
+
   const withUniqueUsernames = list.map((alumni) => {
     let username = (alumni.username || '').toLowerCase().replace(/^@/, '').trim();
+
+    // Jika alumni sudah memiliki username yang diatur, prioritaskan dan pertahankan
+    if (username && !usedUsernames.has(username)) {
+      usedUsernames.add(username);
+      return {
+        ...alumni,
+        username,
+      };
+    }
 
     if (!username || usedUsernames.has(username)) {
       const base = formatBaseUsername(alumni.name) || 'santri';
@@ -156,16 +174,12 @@ export function ensureConsistentAlumniIdentities(list: AlumniRecord[]): AlumniRe
       usernameMap.set(base, count);
 
       let candidate = count === 1 ? base : `${base}_${count}`;
-      while (usedUsernames.has(candidate)) {
+      while (usedUsernames.has(candidate) || (definitiveUsernames.has(candidate) && candidate !== username)) {
         count++;
         usernameMap.set(base, count);
         candidate = `${base}_${count}`;
       }
       username = candidate;
-    } else {
-      const base = formatBaseUsername(alumni.name) || 'santri';
-      const currentCount = usernameMap.get(base) || 0;
-      usernameMap.set(base, currentCount + 1);
     }
 
     usedUsernames.add(username);

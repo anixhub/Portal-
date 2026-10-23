@@ -592,7 +592,11 @@ if ($action === 'update_alumni' && $_SERVER['REQUEST_METHOD'] === 'POST') {
             $fields[] = "no_kk = :noKk"; 
             $params[':noKk'] = $input['no_kk'] ?? $input['noKk']; 
         }
-        if (isset($input['username'])) { $fields[] = "username = :username"; $params[':username'] = $input['username']; }
+        $usernameVal = $input['username'] ?? $input['username_lookup'] ?? null;
+        if ($usernameVal !== null) { 
+            $fields[] = "username = :username"; 
+            $params[':username'] = ltrim(trim((string)$usernameVal), '@'); 
+        }
         
         $genderInput = $input['gender'] ?? $input['jenis_kelamin'] ?? $input['raw_gender'] ?? $input['jk'] ?? null;
         if ($genderInput !== null) { 

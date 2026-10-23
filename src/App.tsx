@@ -286,20 +286,40 @@ export default function App() {
             }
           } catch (e) {}
 
-          const localPool = [...(localSavedList || []), ...(prevList || [])];
+          let activatedCache: AlumniRecord[] = [];
+          try {
+            const rawAct = localStorage.getItem('attaroqqy_activated_alumni_cache');
+            if (rawAct) {
+              const parsed = JSON.parse(rawAct);
+              if (Array.isArray(parsed)) activatedCache = parsed;
+            }
+          } catch (e) {}
+
+          // Prioritaskan activatedCache dan localSavedList di atas prevList
+          const localPool = [...(prevList || []), ...(localSavedList || []), ...(activatedCache || [])];
           const localIdMap = new Map(localPool.map((a) => [String(a.id).trim(), a]));
-          const localNikMap = new Map(localPool.filter((a) => a.nik).map((a) => [String(a.nik).trim(), a]));
+          const localNikMap = new Map(localPool.filter((a) => a.nik).map((a) => [String(a.nik).replace(/\D/g, '').trim(), a]));
+          const localNisMap = new Map(localPool.filter((a) => a.nis).map((a) => [String(a.nis).trim(), a]));
           const localUserMap = new Map(localPool.filter((a) => a.username).map((a) => [(a.username || '').toLowerCase().replace(/^@/, '').trim(), a]));
 
           const activeAlumni = currentSession?.role === 'alumni' ? currentSession.alumniData : null;
 
           return alumniRes.data.map((freshItem) => {
+            const freshNikDigits = freshItem.nik ? String(freshItem.nik).replace(/\D/g, '').trim() : '';
+            const freshNisClean = freshItem.nis ? String(freshItem.nis).trim() : '';
+            const freshUserClean = freshItem.username ? String(freshItem.username).toLowerCase().replace(/^@/, '').trim() : '';
+
             const localItem =
-              (activeAlumni && (String(activeAlumni.id).trim() === String(freshItem.id).trim() || (activeAlumni.nik && activeAlumni.nik === freshItem.nik)))
+              (activeAlumni && (
+                String(activeAlumni.id).trim() === String(freshItem.id).trim() ||
+                (activeAlumni.nik && freshNikDigits && String(activeAlumni.nik).replace(/\D/g, '').trim() === freshNikDigits) ||
+                (activeAlumni.nis && freshNisClean && String(activeAlumni.nis).trim() === freshNisClean)
+              ))
                 ? activeAlumni
                 : (localIdMap.get(String(freshItem.id).trim()) ||
-                   (freshItem.nik ? localNikMap.get(String(freshItem.nik).trim()) : undefined) ||
-                   (freshItem.username ? localUserMap.get((freshItem.username || '').toLowerCase().replace(/^@/, '').trim()) : undefined));
+                   (freshNikDigits ? localNikMap.get(freshNikDigits) : undefined) ||
+                   (freshNisClean ? localNisMap.get(freshNisClean) : undefined) ||
+                   (freshUserClean ? localUserMap.get(freshUserClean) : undefined));
 
             if (localItem) {
               // PENTING: Pertahankan kata sandi yang telah diubah secara lokal agar tidak ditimpa default '1234' dari server
@@ -317,12 +337,24 @@ export default function App() {
                 (effectivePassword && effectivePassword !== '1234')
               );
 
+              const effectiveHasLoggedIn = Boolean(
+                localItem.hasLoggedIn ||
+                freshItem.hasLoggedIn ||
+                effectiveIsPasswordChanged
+              );
+
+              // Username kustom hasil aktivasi SELALU diutamakan jika ada
+              const effectiveUsername = (localItem.username && localItem.username.trim() !== '')
+                ? localItem.username
+                : (freshItem.username || '');
+
               return {
                 ...freshItem,
                 name: localItem.name || freshItem.name,
-                username: localItem.username || freshItem.username,
+                username: effectiveUsername,
                 password: effectivePassword,
                 isPasswordChanged: effectiveIsPasswordChanged,
+                hasLoggedIn: effectiveHasLoggedIn,
                 phone: localItem.phone || freshItem.phone,
                 email: localItem.email || freshItem.email,
                 city: localItem.city || freshItem.city,
@@ -330,6 +362,11 @@ export default function App() {
                 alamatLengkap: localItem.alamatLengkap || freshItem.alamatLengkap,
                 tempatLahir: localItem.tempatLahir || freshItem.tempatLahir,
                 tanggalLahir: localItem.tanggalLahir || freshItem.tanggalLahir,
+                bio: localItem.bio || freshItem.bio,
+                occupation: localItem.occupation || freshItem.occupation,
+                institution: localItem.institution || freshItem.institution,
+                photoUrl: localItem.photoUrl || freshItem.photoUrl,
+                coverPhotoUrl: localItem.coverPhotoUrl || freshItem.coverPhotoUrl,
               };
             }
             return freshItem;
@@ -518,6 +555,9 @@ export default function App() {
 
   const handleLogout = () => {
     setCurrentSession(null);
+    try {
+      localStorage.removeItem('attaroqqy_active_session_v1');
+    } catch (e) {}
   };
 
   // Alumni self-profile update
@@ -529,16 +569,25 @@ export default function App() {
     isSyncingRef.current = true;
 
     const prevAlumni = currentSession.alumniData;
-    // Jangan ubah username saat nama diubah
-    const lockedUsername = updates.username !== undefined ? updates.username : prevAlumni.username;
-    const finalUpdates = {
+    // Bersihkan username jika ada input username baru, atau pertahankan yang lama
+    const cleanUser = updates.username !== undefined 
+      ? updates.username.toLowerCase().replace(/^@/, '').trim()
+      : prevAlumni.username;
+
+    const finalUpdates: Partial<AlumniRecord> = {
       ...updates,
-      username: lockedUsername,
+      username: cleanUser,
     };
+    if (updates.password) {
+      finalUpdates.password = updates.password.trim();
+      finalUpdates.isPasswordChanged = true;
+      finalUpdates.hasLoggedIn = true;
+    }
 
     const updatedAlumni: AlumniRecord = {
       ...currentSession.alumniData,
       ...finalUpdates,
+      username: cleanUser,
     };
 
     if ('coordinates' in updates && !updates.coordinates) {
@@ -558,22 +607,48 @@ export default function App() {
       localStorage.setItem('attaroqqy_active_session_v1', JSON.stringify(nextSession));
     } catch (e) {}
 
-    const updatedList = alumniList.map((item) =>
-      String(item.id).trim() === String(updatedAlumni.id).trim() ||
-      (item.nik && updatedAlumni.nik && String(item.nik).trim() === String(updatedAlumni.nik).trim()) ||
-      (item.username && updatedAlumni.username && item.username.toLowerCase().replace(/^@/, '') === updatedAlumni.username.toLowerCase().replace(/^@/, ''))
-        ? updatedAlumni
-        : item
-    );
-    setAlumniList(updatedList);
+    // Simpan ke cache aktivasi & persistensi lokal
     try {
-      localStorage.setItem('attaroqqy_alumni_list_v1', JSON.stringify(updatedList));
+      let actCache: AlumniRecord[] = [];
+      const rawAct = localStorage.getItem('attaroqqy_activated_alumni_cache');
+      if (rawAct) {
+        const parsed = JSON.parse(rawAct);
+        if (Array.isArray(parsed)) actCache = parsed;
+      }
+      const isTarget = (a: AlumniRecord) =>
+        String(a.id).trim() === String(updatedAlumni.id).trim() ||
+        (a.nik && updatedAlumni.nik && a.nik.replace(/\D/g, '') === updatedAlumni.nik.replace(/\D/g, '')) ||
+        (a.nis && updatedAlumni.nis && String(a.nis).trim() === String(updatedAlumni.nis).trim());
+
+      actCache = [updatedAlumni, ...actCache.filter((a) => !isTarget(a))];
+      localStorage.setItem('attaroqqy_activated_alumni_cache', JSON.stringify(actCache));
     } catch (e) {}
+
+    const isTargetAlm = (item: AlumniRecord) =>
+      String(item.id).trim() === String(updatedAlumni.id).trim() ||
+      (item.nik && updatedAlumni.nik && item.nik.replace(/\D/g, '') === updatedAlumni.nik.replace(/\D/g, '')) ||
+      (item.nis && updatedAlumni.nis && String(item.nis).trim() === String(updatedAlumni.nis).trim());
+
+    setAlumniList((prevList) => {
+      let found = false;
+      const next = prevList.map((item) => {
+        if (isTargetAlm(item)) {
+          found = true;
+          return updatedAlumni;
+        }
+        return item;
+      });
+      const finalList = found ? next : [updatedAlumni, ...prevList];
+      try {
+        localStorage.setItem('attaroqqy_alumni_list_v1', JSON.stringify(finalList));
+      } catch (e) {}
+      return finalList;
+    });
 
     // Sync all existing events and announcements authored by this alumni
     if (updates.name || updates.username || updates.photoUrl !== undefined) {
       const prevHandle = prevAlumni.username ? prevAlumni.username.replace(/^@/, '').toLowerCase() : '';
-      const newHandle = updates.username ? (updates.username.startsWith('@') ? updates.username : `@${updates.username}`) : undefined;
+      const newHandle = cleanUser ? (cleanUser.startsWith('@') ? cleanUser : `@${cleanUser}`) : undefined;
 
       setEvents((prev) =>
         prev.map((ev) => {
@@ -618,10 +693,10 @@ export default function App() {
       // Sync secara realtime ke database Hostinger (attaroqqy.com, alumni.attaroqqy.com, & Express)
       await updateAlumniInHostinger(updatedAlumni.id, finalUpdates, updatedAlumni);
     } finally {
-      // Pertahankan lock selama 3 detik setelah network call selesai agar database server stabil
+      // Pertahankan lock selama 5 detik setelah network call selesai agar database server stabil
       setTimeout(() => {
         isSyncingRef.current = false;
-      }, 3000);
+      }, 5000);
     }
   };
 
@@ -635,10 +710,13 @@ export default function App() {
     isSyncingRef.current = true;
     lastSelfUpdateTimeRef.current = Date.now();
 
+    const cleanUser = data.username.toLowerCase().replace(/^@/, '').trim();
+    const cleanPwd = data.newPassword.trim();
+
     const finalAlumni: AlumniRecord = {
       ...data.updatedAlumni,
-      username: data.username,
-      password: data.newPassword,
+      username: cleanUser,
+      password: cleanPwd,
       isPasswordChanged: true,
       hasLoggedIn: true,
       photoUrl: data.photoUrl !== undefined ? data.photoUrl : data.updatedAlumni.photoUrl,
@@ -650,20 +728,54 @@ export default function App() {
       localStorage.setItem('attaroqqy_active_session_v1', JSON.stringify({ role: 'alumni', alumniData: finalAlumni }));
     } catch (e) {}
 
-    // Update local alumniList
-    const updatedList = alumniList.map((item) => (item.id === finalAlumni.id ? finalAlumni : item));
-    setAlumniList(updatedList);
+    // Simpan ke cache aktivasi khusus agar tahan terhadap refresh & sync apapun
     try {
-      localStorage.setItem('attaroqqy_alumni_list_v1', JSON.stringify(updatedList));
+      let actCache: AlumniRecord[] = [];
+      const rawAct = localStorage.getItem('attaroqqy_activated_alumni_cache');
+      if (rawAct) {
+        const parsed = JSON.parse(rawAct);
+        if (Array.isArray(parsed)) actCache = parsed;
+      }
+      const isTarget = (a: AlumniRecord) =>
+        String(a.id).trim() === String(finalAlumni.id).trim() ||
+        (a.nik && finalAlumni.nik && a.nik.replace(/\D/g, '') === finalAlumni.nik.replace(/\D/g, '')) ||
+        (a.nis && finalAlumni.nis && String(a.nis).trim() === String(finalAlumni.nis).trim());
+
+      actCache = [finalAlumni, ...actCache.filter((a) => !isTarget(a))];
+      localStorage.setItem('attaroqqy_activated_alumni_cache', JSON.stringify(actCache));
     } catch (e) {}
+
+    // Update local alumniList with robust matching
+    const isTargetAlm = (item: AlumniRecord) => {
+      if (String(item.id).trim() === String(finalAlumni.id).trim()) return true;
+      if (item.nik && finalAlumni.nik && item.nik.replace(/\D/g, '') === finalAlumni.nik.replace(/\D/g, '')) return true;
+      if (item.nis && finalAlumni.nis && String(item.nis).trim() === String(finalAlumni.nis).trim()) return true;
+      return false;
+    };
+
+    setAlumniList((prevList) => {
+      let found = false;
+      const next = prevList.map((item) => {
+        if (isTargetAlm(item)) {
+          found = true;
+          return finalAlumni;
+        }
+        return item;
+      });
+      const finalList = found ? next : [finalAlumni, ...prevList];
+      try {
+        localStorage.setItem('attaroqqy_alumni_list_v1', JSON.stringify(finalList));
+      } catch (e) {}
+      return finalList;
+    });
 
     try {
       await updateAlumniInHostinger(
         finalAlumni.id,
         {
           ...data.updatedAlumni,
-          username: data.username,
-          password: data.newPassword,
+          username: cleanUser,
+          password: cleanPwd,
           isPasswordChanged: true,
           hasLoggedIn: true,
           photoUrl: data.photoUrl,
@@ -675,7 +787,7 @@ export default function App() {
     } finally {
       setTimeout(() => {
         isSyncingRef.current = false;
-      }, 3000);
+      }, 5000);
     }
   };
 

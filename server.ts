@@ -76,25 +76,60 @@ async function getSantriData(forceFresh: boolean = false): Promise<any> {
 
         const data = await response.json();
         if (data && (Array.isArray(data) || Array.isArray(data.data))) {
-          // Jika localSnapshot memiliki data alumni yang kata sandinya telah diubah (is_password_changed = 1 atau password != 1234),
-          // gabungkan agar respons server tidak menimpa kata sandi yang telah diubah dengan '1234'
+          // Jika localSnapshot memiliki data alumni yang kata sandinya telah diubah atau diaktivasi,
+          // gabungkan agar respons server tidak menimpa username kustom atau kata sandi baru dengan nilai default
           const rawList = Array.isArray(data) ? data : data.data;
           if (localSnapshot && Array.isArray(localSnapshot.data)) {
             const snapMap = new Map(localSnapshot.data.map((s: any) => [String(s.id).trim(), s]));
-            const snapNikMap = new Map(localSnapshot.data.filter((s: any) => s.nik).map((s: any) => [String(s.nik).trim(), s]));
+            const snapNikMap = new Map(localSnapshot.data.filter((s: any) => s.nik).map((s: any) => [String(s.nik).replace(/\D/g, '').trim(), s]));
+            const snapNisMap = new Map(localSnapshot.data.filter((s: any) => s.nis).map((s: any) => [String(s.nis).trim(), s]));
             const snapUserMap = new Map(localSnapshot.data.filter((s: any) => s.username).map((s: any) => [String(s.username).toLowerCase().replace(/^@/, '').trim(), s]));
             
             rawList.forEach((item: any) => {
+              const cleanItemNik = item.nik ? String(item.nik).replace(/\D/g, '').trim() : '';
+              const cleanItemNis = item.nis ? String(item.nis).trim() : '';
+              const cleanItemUser = item.username ? String(item.username).toLowerCase().replace(/^@/, '').trim() : '';
+              
               const snap: any = snapMap.get(String(item.id).trim()) ||
-                (item.nik ? snapNikMap.get(String(item.nik).trim()) : undefined) ||
-                (item.username ? snapUserMap.get(String(item.username).toLowerCase().replace(/^@/, '').trim()) : undefined);
+                (cleanItemNik ? snapNikMap.get(cleanItemNik) : undefined) ||
+                (cleanItemNis ? snapNisMap.get(cleanItemNis) : undefined) ||
+                (cleanItemUser ? snapUserMap.get(cleanItemUser) : undefined);
+                
               if (snap) {
-                if (snap.password && snap.password !== '1234' && (item.password === '1234' || !item.password)) {
+                // Pertahankan username yang sudah diatur di aktivasi/profil
+                if (snap.username && (!item.username || item.username === '')) {
+                  item.username = snap.username;
+                }
+                // Pertahankan kata sandi kustom
+                if (snap.password && snap.password !== '1234') {
                   item.password = snap.password;
                   item.is_password_changed = 1;
+                  item.isPasswordChanged = true;
                 }
-                if (snap.is_password_changed && !item.is_password_changed) {
+                if (snap.is_password_changed || snap.isPasswordChanged) {
                   item.is_password_changed = 1;
+                  item.isPasswordChanged = true;
+                }
+                if (snap.hasLoggedIn || snap.has_logged_in) {
+                  item.has_logged_in = 1;
+                  item.hasLoggedIn = true;
+                }
+                // Pertahankan data profil yang diedit jika akun telah diaktivasi
+                if (snap.is_password_changed || snap.hasLoggedIn || (snap.password && snap.password !== '1234')) {
+                  if (snap.nama && snap.nama !== item.nama) item.nama = snap.nama;
+                  if (snap.name && snap.name !== item.name) item.name = snap.name;
+                  if (snap.tempat_lahir || snap.tempatLahir) item.tempat_lahir = snap.tempat_lahir || snap.tempatLahir;
+                  if (snap.tanggal_lahir || snap.tanggalLahir) item.tanggal_lahir = snap.tanggal_lahir || snap.tanggalLahir;
+                  if (snap.no_hp || snap.phone) item.no_hp = snap.no_hp || snap.phone;
+                  if (snap.alamat || snap.alamatLengkap) item.alamat = snap.alamat || snap.alamatLengkap;
+                  if (snap.desa) item.desa = snap.desa;
+                  if (snap.kecamatan) item.kecamatan = snap.kecamatan;
+                  if (snap.kabupaten || snap.city) item.kabupaten = snap.kabupaten || snap.city;
+                  if (snap.provinsi || snap.province) item.provinsi = snap.provinsi || snap.province;
+                  if (snap.pekerjaan || snap.occupation) item.pekerjaan = snap.pekerjaan || snap.occupation;
+                  if (snap.instansi || snap.institution) item.instansi = snap.instansi || snap.institution;
+                  if (snap.bio) item.bio = snap.bio;
+                  if (snap.file_pas_foto || snap.photoUrl) item.file_pas_foto = snap.file_pas_foto || snap.photoUrl;
                 }
               }
             });
@@ -726,8 +761,13 @@ async function startServer() {
         normalizedPayload.latitude = payload.coordinates?.lat ?? payload.latitude;
         normalizedPayload.longitude = payload.coordinates?.lng ?? payload.longitude;
       }
+      if (payload.username !== undefined) {
+        const cleanUser = String(payload.username).toLowerCase().replace(/^@/, '').trim();
+        normalizedPayload.username = cleanUser;
+        normalizedPayload.username_lookup = cleanUser;
+      }
       if (payload.password !== undefined) {
-        normalizedPayload.password = String(payload.password);
+        normalizedPayload.password = String(payload.password).trim();
       }
       if (payload.isPasswordChanged !== undefined) {
         normalizedPayload.is_password_changed = payload.isPasswordChanged ? 1 : 0;
@@ -737,16 +777,24 @@ async function startServer() {
         normalizedPayload.is_password_changed = payload.is_password_changed ? 1 : 0;
         normalizedPayload.isPasswordChanged = Boolean(payload.is_password_changed);
       }
+      if (payload.hasLoggedIn !== undefined) {
+        normalizedPayload.has_logged_in = payload.hasLoggedIn ? 1 : 0;
+        normalizedPayload.hasLoggedIn = Boolean(payload.hasLoggedIn);
+      }
 
       // Update in-memory localSnapshot and persist to disk immediately
       let mergedRecord = { ...normalizedPayload };
+      const searchNik = payload.nik ? String(payload.nik).replace(/\D/g, '').trim() : '';
+      const searchNis = payload.nis ? String(payload.nis).trim() : '';
+      const searchUser = payload.username ? String(payload.username).toLowerCase().replace(/^@/, '').trim() : '';
+
       if (localSnapshot && Array.isArray(localSnapshot.data)) {
         const idx = localSnapshot.data.findIndex(
           (s: any) =>
-            String(s.id) === String(id) ||
-            (payload.nik && String(s.nik) === String(payload.nik)) ||
-            (payload.nis && String(s.nis) === String(payload.nis)) ||
-            (payload.username && String(s.username).toLowerCase().replace(/^@/, '') === String(payload.username).toLowerCase().replace(/^@/, ''))
+            String(s.id).trim() === String(id).trim() ||
+            (searchNik && String(s.nik || '').replace(/\D/g, '').trim() === searchNik) ||
+            (searchNis && String(s.nis || '').trim() === searchNis) ||
+            (searchUser && String(s.username || '').toLowerCase().replace(/^@/, '').trim() === searchUser)
         );
         if (idx >= 0) {
           mergedRecord = { ...localSnapshot.data[idx], ...normalizedPayload };
@@ -765,10 +813,10 @@ async function startServer() {
       if (cachedSantriData && Array.isArray(cachedSantriData.data)) {
         const idx = cachedSantriData.data.findIndex(
           (s: any) =>
-            String(s.id) === String(id) ||
-            (payload.nik && String(s.nik) === String(payload.nik)) ||
-            (payload.nis && String(s.nis) === String(payload.nis)) ||
-            (payload.username && String(s.username).toLowerCase().replace(/^@/, '') === String(payload.username).toLowerCase().replace(/^@/, ''))
+            String(s.id).trim() === String(id).trim() ||
+            (searchNik && String(s.nik || '').replace(/\D/g, '').trim() === searchNik) ||
+            (searchNis && String(s.nis || '').trim() === searchNis) ||
+            (searchUser && String(s.username || '').toLowerCase().replace(/^@/, '').trim() === searchUser)
         );
         if (idx >= 0) {
           cachedSantriData.data[idx] = { ...cachedSantriData.data[idx], ...mergedRecord };

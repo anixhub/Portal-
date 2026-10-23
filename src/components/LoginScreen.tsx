@@ -90,38 +90,51 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
         }
       }
 
-      // Role Alumni: Autentikasi menggunakan NIK atau Username
-      // Gabungkan alumniList dengan cache localStorage terbaru untuk memastikan kata sandi ter-update
-      let activeAlumniPool = alumniList;
+      // Role Alumni: Autentikasi menggunakan NIK, NIS, atau Username
+      // Gabungkan alumniList dengan cache localStorage terbaru (dan cache aktivasi definitif)
+      let activeAlumniPool = [...alumniList];
       try {
+        const poolMap = new Map(activeAlumniPool.map((a) => [String(a.id).trim(), a]));
+
+        // 1. Baca cache alumni list umum
         const rawSaved = localStorage.getItem('attaroqqy_alumni_list_v1');
         if (rawSaved) {
           const parsed = JSON.parse(rawSaved);
           if (Array.isArray(parsed) && parsed.length > 0) {
-            const savedMap = new Map(parsed.map((a: any) => [String(a.id).trim(), a]));
-            activeAlumniPool = alumniList.map((alm) => {
-              const fromSaved = savedMap.get(String(alm.id).trim());
-              if (fromSaved && (fromSaved.password || fromSaved.username)) {
-                return { ...alm, ...fromSaved };
-              }
-              return alm;
-            });
-            // Sertakan juga record yang ada di parsed tapi belum ada di alumniList
-            const existingIds = new Set(activeAlumniPool.map((a) => String(a.id).trim()));
             parsed.forEach((p: any) => {
-              if (!existingIds.has(String(p.id).trim())) {
-                activeAlumniPool.push(p);
-              }
+              const key = String(p.id).trim();
+              const existing = poolMap.get(key);
+              poolMap.set(key, existing ? { ...existing, ...p } : p);
             });
           }
         }
+
+        // 2. Baca cache aktivasi kustom terbaru (prioritas tertinggi)
+        const rawAct = localStorage.getItem('attaroqqy_activated_alumni_cache');
+        if (rawAct) {
+          const parsedAct = JSON.parse(rawAct);
+          if (Array.isArray(parsedAct) && parsedAct.length > 0) {
+            parsedAct.forEach((act: any) => {
+              const key = String(act.id).trim();
+              const existing = poolMap.get(key);
+              poolMap.set(key, existing ? { ...existing, ...act } : act);
+            });
+          }
+        }
+
+        activeAlumniPool = Array.from(poolMap.values());
       } catch (e) {}
 
       const cleanInput = inputVal.toLowerCase().replace(/^@/, '').trim();
       const cleanDigits = inputVal.replace(/\D/g, '');
       const matchedAlumni = activeAlumniPool.find((alm) => {
         const almUser = (alm.username || '').toLowerCase().replace(/^@/, '').trim();
-        const isUserMatch = Boolean(almUser && (almUser === cleanInput || (alm.username && alm.username.toLowerCase().trim() === inputVal.toLowerCase().trim())));
+        const isUserMatch = Boolean(
+          almUser && (
+            almUser === cleanInput ||
+            (alm.username && alm.username.toLowerCase().trim() === inputVal.toLowerCase().trim())
+          )
+        );
         
         const rawNik = (alm.nik || '').trim();
         const digitsNik = rawNik.replace(/\D/g, '');
@@ -130,7 +143,10 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
           (digitsNik && cleanDigits && digitsNik === cleanDigits && digitsNik.length >= 8)
         );
 
-        return isNikMatch || isUserMatch;
+        const rawNis = (alm.nis || '').toLowerCase().trim();
+        const isNisMatch = Boolean(rawNis && rawNis === cleanInput);
+
+        return isNikMatch || isUserMatch || isNisMatch;
       });
 
       if (!matchedAlumni) {
