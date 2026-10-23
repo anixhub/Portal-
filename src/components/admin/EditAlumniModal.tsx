@@ -3,7 +3,8 @@ import { X, Save, Edit, Database, Loader2, CheckCircle2, XCircle } from 'lucide-
 import { AlumniRecord } from '../../types';
 import { WilayahAddressFilter } from '../common/WilayahAddressFilter';
 import { LocationCoordinates } from '../common/FullscreenLocationMapModal';
-import { getGlobalAllSantriRecords } from '../../services/apiService';
+import { getGlobalAllSantriRecords, setGlobalAllSantriRecords, checkNisLive } from '../../services/apiService';
+import { cascadeShiftOnManualNisChange } from '../../utils/alumniIdentityUtils';
 
 interface EditAlumniModalProps {
   isOpen: boolean;
@@ -51,6 +52,11 @@ export const EditAlumniModal: React.FC<EditAlumniModalProps> = ({
   const [duplicateNik, setDuplicateNik] = useState<any>(null);
   const [isCheckingNoKk, setIsCheckingNoKk] = useState(false);
   const [duplicateNoKk, setDuplicateNoKk] = useState<any>(null);
+  const [isCheckingNis, setIsCheckingNis] = useState(false);
+  const [duplicateNis, setDuplicateNis] = useState<any>(null);
+  const [isManualShiftApplied, setIsManualShiftApplied] = useState(false);
+  const [affectedManualAlumni, setAffectedManualAlumni] = useState<Array<{ id: string; nis: string; name: string }>>([]);
+  const lastCheckedNisRef = React.useRef<string | null>(null);
 
   const prevAlumniIdRef = React.useRef<string | null>(null);
 
@@ -88,6 +94,10 @@ export const EditAlumniModal: React.FC<EditAlumniModalProps> = ({
         setInstitution(alumni.institution || '');
         setDuplicateNik(null);
         setDuplicateNoKk(null);
+        setDuplicateNis(null);
+        setIsManualShiftApplied(false);
+        setAffectedManualAlumni([]);
+        lastCheckedNisRef.current = alumni.nis ? alumni.nis.replace(/\D/g, '').trim() : null;
       }
     } else if (!isOpen) {
       prevAlumniIdRef.current = null;
@@ -136,14 +146,74 @@ export const EditAlumniModal: React.FC<EditAlumniModalProps> = ({
     return () => clearTimeout(timer);
   }, [noKk, isOpen, alumni]);
 
+  // Realtime duplicate check for NIS (Santri Aktif & Alumni)
+  useEffect(() => {
+    if (!isOpen || !alumni) return;
+    const clean = nis.replace(/\D/g, '').trim();
+    if (!clean || clean.length < 7) {
+      lastCheckedNisRef.current = clean;
+      setIsCheckingNis(false);
+      setDuplicateNis(null);
+      return;
+    }
+
+    // Jika input ini sudah pernah dicek dan nilainya belum berubah, jangan lakukan cek ulang
+    if (lastCheckedNisRef.current === clean) {
+      return;
+    }
+
+    setIsCheckingNis(true);
+    const timer = setTimeout(async () => {
+      const allPool = getGlobalAllSantriRecords();
+      let found: any = allPool.find(
+        (a: any) => a.id !== alumni.id && a.nis && a.nis.replace(/\D/g, '').trim() === clean
+      );
+      if (!found) {
+        try {
+          const live = await checkNisLive(clean, alumni.id);
+          if (!live.available && live.collidingRecord) {
+            found = live.collidingRecord;
+          }
+        } catch (e) {}
+      }
+
+      if (nis.replace(/\D/g, '').trim() !== clean) return;
+      lastCheckedNisRef.current = clean;
+      setIsCheckingNis(false);
+      setDuplicateNis(found || null);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [nis, isOpen, alumni]);
+
   if (!isOpen || !alumni) return null;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const cleanNik = nik.replace(/\D/g, '').slice(0, 16);
     const cleanNoKk = noKk.replace(/\D/g, '').slice(0, 16);
+    const cleanNis = nis.replace(/\D/g, '').trim();
+    const isCurrentNis = cleanNis.length === 7 && cleanNis === (alumni.nis || '').replace(/\D/g, '').trim();
+
     if (cleanNik.length !== 16 || duplicateNik || isCheckingNik) return;
     if (cleanNoKk.length > 0 && (cleanNoKk.length !== 16 || duplicateNoKk || isCheckingNoKk)) return;
+    if (cleanNis.length > 0 && (cleanNis.length !== 7 || (duplicateNis && !isManualShiftApplied && !isCurrentNis) || isCheckingNis)) return;
+
+    if (isManualShiftApplied && affectedManualAlumni.length > 0) {
+      for (const aff of affectedManualAlumni) {
+        fetch(`/api/db/santri/${aff.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ nis: aff.nis }),
+        }).catch(() => {});
+      }
+      const updatedPool = getGlobalAllSantriRecords().map((item) => {
+        const match = affectedManualAlumni.find((a) => a.id === item.id);
+        if (match) return { ...item, nis: match.nis };
+        if (item.id === alumni.id) return { ...item, nis: cleanNis };
+        return item;
+      });
+      setGlobalAllSantriRecords(updatedPool);
+    }
 
     const finalAnak = typeof anakKe === 'number'
       ? Math.max(1, anakKe)
@@ -156,7 +226,7 @@ export const EditAlumniModal: React.FC<EditAlumniModalProps> = ({
       name,
       nik: cleanNik,
       noKk: cleanNoKk || undefined,
-      nis,
+      nis: cleanNis || undefined,
       gender,
       anak_ke: finalAnak,
       dari_bersaudara: finalSaudara,
@@ -194,12 +264,17 @@ export const EditAlumniModal: React.FC<EditAlumniModalProps> = ({
 
   const cleanNik = nik.replace(/\D/g, '').slice(0, 16);
   const cleanNoKk = noKk.replace(/\D/g, '').slice(0, 16);
+  const cleanNis = nis.replace(/\D/g, '').trim();
+  const isCurrentNis = cleanNis.length === 7 && cleanNis === (alumni.nis || '').replace(/\D/g, '').trim();
+  const isNisOk = cleanNis.length === 0 || (cleanNis.length === 7 && (!duplicateNis || isManualShiftApplied || isCurrentNis));
   const isSubmitDisabled = 
     cleanNik.length !== 16 ||
     isCheckingNik ||
     Boolean(duplicateNik) ||
     isCheckingNoKk ||
     Boolean(duplicateNoKk) ||
+    isCheckingNis ||
+    !isNisOk ||
     (cleanNoKk.length > 0 && cleanNoKk.length !== 16);
 
   return (
@@ -316,12 +391,72 @@ export const EditAlumniModal: React.FC<EditAlumniModalProps> = ({
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block font-semibold text-slate-700 mb-1">Nomor Induk Santri (NIS)</label>
-              <input
-                type="text"
-                value={nis}
-                onChange={(e) => setNis(e.target.value)}
-                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-mono text-xs focus:ring-2 focus:ring-sky-600 focus:bg-white"
-              />
+              <div className="relative">
+                <input
+                  type="text"
+                  maxLength={7}
+                  value={nis}
+                  onChange={(e) => {
+                    setNis(e.target.value.replace(/\D/g, '').slice(0, 7));
+                    setIsManualShiftApplied(false);
+                    setAffectedManualAlumni([]);
+                  }}
+                  className={`w-full px-3 py-2 pr-9 bg-slate-50 border rounded-xl font-mono text-xs focus:bg-white ${
+                    duplicateNis && !isManualShiftApplied
+                      ? 'border-amber-300 focus:ring-2 focus:ring-amber-200'
+                      : !isCheckingNis && cleanNis.length === 7 && (!duplicateNis || isManualShiftApplied)
+                      ? 'border-emerald-300 focus:ring-2 focus:ring-emerald-200'
+                      : 'border-slate-200 focus:ring-2 focus:ring-sky-600'
+                  }`}
+                  placeholder="7 digit (misal: 2012001)"
+                />
+                <div className="absolute right-2.5 top-1/2 -translate-y-1/2 flex items-center pointer-events-none">
+                  {isCheckingNis && (
+                    <Loader2 className="w-4 h-4 text-sky-600 animate-spin" />
+                  )}
+                  {!isCheckingNis && cleanNis.length === 7 && (!duplicateNis || isManualShiftApplied) && (
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                  )}
+                  {!isCheckingNis && cleanNis.length === 7 && duplicateNis && !isManualShiftApplied && (
+                    <XCircle className="w-4 h-4 text-amber-500" />
+                  )}
+                </div>
+              </div>
+              {cleanNis.length > 0 && cleanNis.length < 7 && (
+                <p className="text-[11px] text-amber-600 font-medium mt-1">
+                  Kurang {7 - cleanNis.length} digit (harus 7 digit)
+                </p>
+              )}
+              {!isCheckingNis && cleanNis.length === 7 && !duplicateNis && (
+                <p className="text-[11px] text-emerald-600 font-medium mt-1">
+                  NIS valid & tersedia
+                </p>
+              )}
+              {!isCheckingNis && cleanNis.length === 7 && duplicateNis && !isManualShiftApplied && (
+                <div className="mt-2 p-2.5 bg-amber-50 rounded-xl border border-amber-200/80 space-y-2">
+                  <p className="text-[11px] text-amber-900 leading-snug">
+                    NIS <span className="font-mono font-bold">{cleanNis}</span> sudah digunakan oleh <b>{duplicateNis.name || duplicateNis.nama}</b> ({duplicateNis.status || 'Santri Aktif'}).
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const allPool = getGlobalAllSantriRecords();
+                      const shiftResult = cascadeShiftOnManualNisChange(alumni.id, cleanNis, allPool as any);
+                      setAffectedManualAlumni(shiftResult.affectedAlumni);
+                      setIsManualShiftApplied(true);
+                    }}
+                    className="w-full py-1.5 px-3 bg-amber-600 hover:bg-amber-700 text-white rounded-lg font-bold text-xs transition-colors cursor-pointer text-center"
+                  >
+                    Sesuaikan Urutan NIS
+                  </button>
+                </div>
+              )}
+              {isManualShiftApplied && (
+                <div className="mt-2 p-2 bg-emerald-50 rounded-xl border border-emerald-200 text-[11px] text-emerald-800 flex items-center gap-1.5">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                  <span>Urutan NIS disesuaikan ({affectedManualAlumni.length} data digeser). Klik Simpan.</span>
+                </div>
+              )}
             </div>
             <div>
               <label className="block font-semibold text-slate-700 mb-1">Tahun Lulus (Angkatan)</label>

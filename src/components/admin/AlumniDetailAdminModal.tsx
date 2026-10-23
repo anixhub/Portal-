@@ -47,7 +47,7 @@ import {
   padMonthInput,
   padYearInput
 } from '../../utils/dateUtils';
-import { getGlobalAllSantriRecords, SantriIdentityLookup } from '../../services/apiService';
+import { getGlobalAllSantriRecords, setGlobalAllSantriRecords, SantriIdentityLookup, checkNisLive } from '../../services/apiService';
 
 interface AlumniDetailAdminModalProps {
   isOpen: boolean;
@@ -170,6 +170,7 @@ export const AlumniDetailAdminModal: React.FC<AlumniDetailAdminModalProps> = ({
   const [collidingAlumni, setCollidingAlumni] = useState<AlumniRecord | null>(null);
   const [isManualShiftApplied, setIsManualShiftApplied] = useState(false);
   const [affectedManualAlumni, setAffectedManualAlumni] = useState<Array<{ id: string; nis: string; name: string }>>([]);
+  const lastCheckedNisRef = useRef<string | null>(null);
 
   const [draftNamaAyah, setDraftNamaAyah] = useState('');
   const [draftNikAyah, setDraftNikAyah] = useState('');
@@ -378,6 +379,7 @@ export const AlumniDetailAdminModal: React.FC<AlumniDetailAdminModalProps> = ({
     const clean = draftNis.replace(/\D/g, '').trim();
 
     if (!clean) {
+      lastCheckedNisRef.current = '';
       setNisCheckStatus('idle');
       setCollidingAlumni(null);
       setNisChecking(false);
@@ -385,25 +387,51 @@ export const AlumniDetailAdminModal: React.FC<AlumniDetailAdminModalProps> = ({
     }
 
     if (clean.length < 7) {
+      lastCheckedNisRef.current = clean;
       setNisCheckStatus('invalid');
       setCollidingAlumni(null);
       setNisChecking(false);
       return;
     }
 
-    // Tepat 7 digit: jalankan pengecekan terhadap seluruh santri (alumni dan santri aktif)
+    // Jika input ini sudah pernah dicek dan nilainya belum berubah, jangan lakukan cek ulang
+    if (lastCheckedNisRef.current === clean) {
+      return;
+    }
+
     setNisChecking(true);
     setNisCheckStatus('checking');
 
-    const timer = setTimeout(() => {
-      setNisChecking(false);
+    const timer = setTimeout(async () => {
+      lastCheckedNisRef.current = clean;
+
+      // 1. Cek dari allPool (allSantriList, getGlobalAllSantriRecords, existingAlumni)
       const allPool = (allSantriList && allSantriList.length > 0)
         ? allSantriList
         : (getGlobalAllSantriRecords().length > 0 ? getGlobalAllSantriRecords() : existingAlumni);
 
-      const found = allPool.find(
-        (a) => a.id !== alumni.id && a.nis && a.nis.trim() === clean
+      let found: any = allPool.find(
+        (a) => a.id !== alumni.id && a.nis && a.nis.replace(/\D/g, '').trim() === clean
       );
+
+      // 2. Jika belum ditemukan di allPool, lakukan pengecekan langsung ke server
+      if (!found) {
+        try {
+          const liveCheck = await checkNisLive(clean, alumni.id);
+          if (!liveCheck.available && liveCheck.collidingRecord) {
+            found = liveCheck.collidingRecord;
+          }
+        } catch (err) {
+          console.warn('Gagal live check NIS:', err);
+        }
+      }
+
+      if (draftNis.replace(/\D/g, '').trim() !== clean) {
+        return;
+      }
+
+      lastCheckedNisRef.current = clean;
+      setNisChecking(false);
 
       if (found) {
         setCollidingAlumni(found as any);
@@ -412,10 +440,10 @@ export const AlumniDetailAdminModal: React.FC<AlumniDetailAdminModalProps> = ({
         setCollidingAlumni(null);
         setNisCheckStatus('available');
       }
-    }, 320);
+    }, 300);
 
     return () => clearTimeout(timer);
-  }, [draftNis, activeEditModal, alumni.id, existingAlumni, allSantriList]);
+  }, [draftNis, activeEditModal]);
 
   const openEditModal = (modalKey: string) => {
     if (modalKey === 'nama') setDraftName(editName);
@@ -479,11 +507,14 @@ export const AlumniDetailAdminModal: React.FC<AlumniDetailAdminModalProps> = ({
       setDraftInstitution(editInstitution);
     }
     if (modalKey === 'nis') {
-      setDraftNis(editNis || '');
+      const initialNis = editNis || '';
+      setDraftNis(initialNis);
+      lastCheckedNisRef.current = initialNis.replace(/\D/g, '').trim() || null;
       setNisCheckStatus('idle');
       setCollidingAlumni(null);
       setIsManualShiftApplied(false);
       setAffectedManualAlumni([]);
+      setNisChecking(false);
     }
     if (modalKey === 'tanggal_masuk') {
       const hasDate = Boolean(editEntryDate && editEntryDate.trim() !== '');
@@ -1708,8 +1739,9 @@ export const AlumniDetailAdminModal: React.FC<AlumniDetailAdminModalProps> = ({
       {/* 8. EDIT NIS */}
       {activeEditModal === 'nis' && (() => {
         const cleanNis = draftNis.replace(/\D/g, '');
-        const isAvailable = cleanNis.length === 7 && nisCheckStatus === 'available';
-        const isColliding = cleanNis.length === 7 && nisCheckStatus === 'taken' && collidingAlumni !== null;
+        const isCurrentNis = cleanNis.length === 7 && cleanNis === (alumni.nis || '').replace(/\D/g, '').trim();
+        const isAvailable = cleanNis.length === 7 && (nisCheckStatus === 'available' || isCurrentNis);
+        const isColliding = cleanNis.length === 7 && !isCurrentNis && nisCheckStatus === 'taken' && collidingAlumni !== null;
         const isValid = !nisChecking && (cleanNis.length === 0 || isAvailable || isManualShiftApplied);
 
         return (
@@ -1734,18 +1766,24 @@ export const AlumniDetailAdminModal: React.FC<AlumniDetailAdminModalProps> = ({
                       setIsManualShiftApplied(false);
                       setAffectedManualAlumni([]);
                     }}
-                    className="w-full px-3 py-2 pr-9 bg-slate-50 border border-slate-200 rounded-xl font-mono focus:bg-white text-xs"
-                    placeholder="7 digit"
+                    className={`w-full px-3 py-2 pr-9 bg-slate-50 border rounded-xl font-mono focus:bg-white text-xs ${
+                      isColliding && !isManualShiftApplied
+                        ? 'border-amber-400 focus:ring-2 focus:ring-amber-200'
+                        : isAvailable || isManualShiftApplied
+                        ? 'border-emerald-400 focus:ring-2 focus:ring-emerald-200'
+                        : 'border-slate-200 focus:ring-2 focus:ring-sky-500'
+                    }`}
+                    placeholder="7 digit (misal: 2012001)"
                   />
                   <div className="absolute right-2.5 top-1/2 -translate-y-1/2 flex items-center pointer-events-none">
                     {nisChecking && (
                       <Loader2 className="w-4 h-4 text-sky-600 animate-spin" />
                     )}
-                    {!nisChecking && cleanNis.length === 7 && (isAvailable || isManualShiftApplied) && (
-                      <Check className="w-4 h-4 text-emerald-600 stroke-[2.5]" />
-                    )}
                     {!nisChecking && cleanNis.length === 7 && isColliding && !isManualShiftApplied && (
                       <AlertCircle className="w-4 h-4 text-amber-500 stroke-[2.5]" />
+                    )}
+                    {!nisChecking && cleanNis.length === 7 && (isAvailable || isManualShiftApplied) && (
+                      <Check className="w-4 h-4 text-emerald-600 stroke-[2.5]" />
                     )}
                   </div>
                 </div>
@@ -1753,38 +1791,43 @@ export const AlumniDetailAdminModal: React.FC<AlumniDetailAdminModalProps> = ({
                 {/* Keterangan validasi */}
                 {cleanNis.length > 0 && cleanNis.length < 7 && (
                   <p className="text-[11px] text-rose-500 font-medium mt-1">
-                    Kurang {7 - cleanNis.length} digit
+                    Kurang {7 - cleanNis.length} digit (harus 7 digit)
                   </p>
                 )}
 
                 {!nisChecking && isAvailable && (
-                  <p className="text-[11px] text-emerald-600 font-medium mt-1">
-                    NIS tersedia
+                  <p className="text-[11px] text-emerald-600 font-medium mt-1 flex items-center gap-1">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                    <span>NIS tersedia</span>
                   </p>
                 )}
 
                 {!nisChecking && isColliding && !isManualShiftApplied && (
-                  <div className="mt-2.5 p-3 bg-amber-50 rounded-2xl border border-amber-200/80 space-y-2">
-                    <p className="text-[11px] text-amber-900 leading-snug">
-                      NIS <span className="font-mono font-bold">{cleanNis}</span> saat ini digunakan oleh <span className="font-bold">{collidingAlumni?.name}</span> ({collidingAlumni?.status || 'Santri/Alumni'}).
+                  <div className="mt-2.5 p-3 bg-amber-50 rounded-2xl border border-amber-200/80 space-y-2 animate-in fade-in">
+                    <p className="text-xs text-amber-900 leading-snug">
+                      NIS <span className="font-mono font-bold">{cleanNis}</span> sudah digunakan oleh <b>{collidingAlumni?.name}</b> ({collidingAlumni?.status || 'Santri'}).
                     </p>
                     <button
                       type="button"
                       onClick={() => {
-                        const shiftResult = cascadeShiftOnManualNisChange(alumni.id, cleanNis, existingAlumni);
+                        const allPool = (allSantriList && allSantriList.length > 0)
+                          ? allSantriList
+                          : (getGlobalAllSantriRecords().length > 0 ? getGlobalAllSantriRecords() : existingAlumni);
+                        const shiftResult = cascadeShiftOnManualNisChange(alumni.id, cleanNis, allPool as any);
                         setAffectedManualAlumni(shiftResult.affectedAlumni);
                         setIsManualShiftApplied(true);
                       }}
-                      className="w-full py-2 px-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl font-bold text-[11px] transition-colors cursor-pointer shadow-2xs"
+                      className="w-full py-2 px-3 bg-amber-600 hover:bg-amber-700 text-white rounded-xl font-bold text-xs transition-colors cursor-pointer shadow-2xs text-center"
                     >
-                      Gunakan ini untuk data ini dan sesuaikan NIS yang lain
+                      Sesuaikan Urutan NIS
                     </button>
                   </div>
                 )}
 
                 {isManualShiftApplied && (
-                  <div className="mt-2.5 p-2.5 bg-emerald-50 rounded-xl border border-emerald-200 text-[11px] text-emerald-800 leading-snug">
-                    ✓ Penyesuaian siap disimpan. Sebanyak <b>{affectedManualAlumni.length}</b> santri lain akan otomatis digeser.
+                  <div className="mt-2.5 p-2.5 bg-emerald-50 rounded-xl border border-emerald-200 text-xs text-emerald-800 leading-snug flex items-center gap-1.5 animate-in fade-in">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                    <span>Urutan NIS disesuaikan ({affectedManualAlumni.length} data digeser). Klik Simpan.</span>
                   </div>
                 )}
               </div>
@@ -1794,27 +1837,42 @@ export const AlumniDetailAdminModal: React.FC<AlumniDetailAdminModalProps> = ({
                 <button 
                   type="button" 
                   disabled={!isValid}
+                  className={`flex-1 py-2 rounded-xl font-bold text-xs cursor-pointer transition-all ${
+                    isValid
+                      ? 'bg-sky-600 hover:bg-sky-700 text-white shadow-xs'
+                      : 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                  }`}
                   onClick={() => { 
-                    if (isManualShiftApplied && affectedManualAlumni.length > 0 && onSave) {
+                    if (isManualShiftApplied && affectedManualAlumni.length > 0) {
                       for (const aff of affectedManualAlumni) {
                         const targetAlm = existingAlumni.find(a => a.id === aff.id);
-                        if (targetAlm) {
+                        if (targetAlm && onSave) {
                           const updatedFull = { ...targetAlm, nis: aff.nis, status: 'alumni' as const };
                           (updatedFull as any).status_keanggotaan = 'Alumni';
                           onSave(aff.id, { nis: aff.nis }, updatedFull);
+                        } else {
+                          // Data santri aktif di database
+                          fetch(`/api/db/santri/${aff.id}`, {
+                            method: 'PUT',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ nis: aff.nis })
+                          }).catch(() => {});
                         }
                       }
+                      // Update in-memory pool
+                      const updatedPool = getGlobalAllSantriRecords().map(item => {
+                        const match = affectedManualAlumni.find(a => a.id === item.id);
+                        if (match) return { ...item, nis: match.nis };
+                        if (item.id === alumni.id) return { ...item, nis: cleanNis };
+                        return item;
+                      });
+                      setGlobalAllSantriRecords(updatedPool);
                     }
 
                     setEditNis(cleanNis);
                     handleUpdate({ nis: cleanNis }); 
                     setActiveEditModal(null); 
                   }} 
-                  className={`flex-1 py-2 rounded-xl font-bold text-xs cursor-pointer transition-all ${
-                    isValid 
-                      ? 'bg-sky-600 hover:bg-sky-700 text-white shadow-xs' 
-                      : 'bg-slate-200 text-slate-400 cursor-not-allowed'
-                  }`}
                 >
                   Simpan
                 </button>

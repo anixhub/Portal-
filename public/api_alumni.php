@@ -382,17 +382,61 @@ if ($action === 'get_sync_status' || $action === 'get_sync_meta') {
 }
 
 // ==========================================
-// 1. AMBIL DATA SANTRI YANG BERSTATUS 'Alumni'
+// 1. CEK KETERSEDIAAN NIS (SANTRI AKTIF & ALUMNI)
 // ==========================================
-if ($action === 'get_alumni') {
+if ($action === 'check_nis') {
     try {
-        // HANYA mengambil santri dengan status 'Alumni' (atau jika ada variasi case-insensitive 'Alumni')
-        $sql = "SELECT * FROM santri 
-                WHERE status_keanggotaan = 'Alumni' 
-                   OR LOWER(status_keanggotaan) = 'alumni'
-                   OR status_keanggotaan LIKE '%Alumni%'
-                   OR status_keanggotaan LIKE '%alumni%'
-                ORDER BY id DESC";
+        $nis = trim($_GET['nis'] ?? $_POST['nis'] ?? '');
+        if (empty($nis)) {
+            echo json_encode(['success' => true, 'available' => true]);
+            exit;
+        }
+        $stmt = $pdo->prepare("SELECT id, nama, nis, status_keanggotaan, gender FROM santri WHERE nis = ? LIMIT 1");
+        $stmt->execute([$nis]);
+        $row = $stmt->fetch();
+        if ($row) {
+            $rawStatus = trim($row['status_keanggotaan'] ?? '');
+            $isAlumni = (stripos($rawStatus, 'alumni') !== false);
+            $displayStatus = $isAlumni ? 'Alumni' : (stripos($rawStatus, 'meninggal') !== false ? 'Meninggal' : 'Santri Aktif');
+
+            echo json_encode([
+                'success' => true,
+                'available' => false,
+                'santri' => [
+                    'id' => (string)$row['id'],
+                    'name' => $row['nama'],
+                    'nama' => $row['nama'],
+                    'nis' => $row['nis'],
+                    'status' => $displayStatus,
+                    'status_keanggotaan' => $displayStatus,
+                    'isSantriAktif' => !$isAlumni,
+                ]
+            ]);
+        } else {
+            echo json_encode(['success' => true, 'available' => true]);
+        }
+    } catch (Exception $e) {
+        echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+    }
+    exit;
+}
+
+// ==========================================
+// 2. AMBIL DATA SANTRI (ALUMNI / SEMUA SANTRI)
+// ==========================================
+if ($action === 'get_alumni' || $action === 'get_all_santri' || $action === 'get_santri') {
+    try {
+        $includeAll = ($action === 'get_all_santri' || $action === 'get_santri' || !empty($_GET['all']) || !empty($_GET['all_santri']));
+        if ($includeAll) {
+            $sql = "SELECT * FROM santri ORDER BY id DESC";
+        } else {
+            $sql = "SELECT * FROM santri 
+                    WHERE status_keanggotaan = 'Alumni' 
+                       OR LOWER(status_keanggotaan) = 'alumni'
+                       OR status_keanggotaan LIKE '%Alumni%'
+                       OR status_keanggotaan LIKE '%alumni%'
+                    ORDER BY id DESC";
+        }
 
         $stmt = $pdo->query($sql);
         $rows = $stmt->fetchAll();

@@ -233,19 +233,71 @@ export async function ensureAllSantriLoaded(): Promise<SantriIdentityLookup[]> {
     const snapshotData = (snapshotModule.default || snapshotModule) as any;
     const rawList = Array.isArray(snapshotData) ? snapshotData : (Array.isArray(snapshotData?.data) ? snapshotData.data : []);
     if (rawList.length > 0) {
-      globalAllSantriRecords = rawList.map((item: any) => ({
-        id: String(item.id || ''),
-        name: String(item.nama || item.name || ''),
-        nis: String(item.nis || '').trim(),
-        nik: String(item.nik || '').replace(/\D/g, '').trim(),
-        noKk: String(item.noKk || item.no_kk || item.nokk || '').replace(/\D/g, '').trim(),
-        status: String(item.status_keanggotaan || item.status || (String(item.status_keanggotaan || '').toLowerCase().includes('alumni') ? 'Alumni' : 'Santri Aktif')).trim(),
-      }));
+      globalAllSantriRecords = rawList.map((item: any) => {
+        const rawStatus = String(item.status_keanggotaan || item.status || '').trim();
+        const isAlumni = rawStatus.toLowerCase().includes('alumni');
+        const displayStatus = isAlumni ? 'Alumni' : (rawStatus.toLowerCase().includes('meninggal') ? 'Meninggal' : 'Santri Aktif');
+
+        return {
+          id: String(item.id || ''),
+          name: String(item.nama || item.name || ''),
+          nis: String(item.nis || '').trim(),
+          nik: String(item.nik || '').replace(/\D/g, '').trim(),
+          noKk: String(item.noKk || item.no_kk || item.nokk || '').replace(/\D/g, '').trim(),
+          status: displayStatus,
+        };
+      });
     }
   } catch (err) {
     console.warn('Gagal memuat snapshot santri:', err);
   }
   return globalAllSantriRecords;
+}
+
+export async function checkNisLive(nis: string, excludeId?: string): Promise<{
+  available: boolean;
+  collidingRecord?: SantriIdentityLookup & { isSantriAktif?: boolean };
+}> {
+  const clean = nis.replace(/\D/g, '').trim();
+  if (!clean) return { available: true };
+
+  // 1. Cek in-memory
+  const pool = getGlobalAllSantriRecords();
+  const localMatch = pool.find((s) => s.id !== excludeId && s.nis && s.nis.replace(/\D/g, '').trim() === clean);
+  if (localMatch) {
+    const isAlumni = (localMatch.status || '').toLowerCase().includes('alumni');
+    return {
+      available: false,
+      collidingRecord: {
+        ...localMatch,
+        isSantriAktif: !isAlumni,
+      },
+    };
+  }
+
+  // 2. Cek endpoint server
+  try {
+    const res = await fetch(`/api/db/santri/check-nis?nis=${encodeURIComponent(clean)}`, {
+      headers: { Accept: 'application/json' },
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data.available === false && data.santri && data.santri.id !== excludeId) {
+        return {
+          available: false,
+          collidingRecord: {
+            id: String(data.santri.id || ''),
+            name: String(data.santri.name || data.santri.nama || 'Santri'),
+            nis: String(data.santri.nis || clean),
+            status: data.santri.status || 'Santri Aktif',
+            isSantriAktif: Boolean(data.santri.isSantriAktif),
+          },
+        };
+      }
+    }
+  } catch (e) {}
+
+  return { available: true };
 }
 
 /**
@@ -262,9 +314,11 @@ export async function fetchAlumniFromHostinger(forceFresh: boolean = false): Pro
   const freshParam = forceFresh ? `&fresh=true&_t=${ts}` : `&_t=${ts}`;
   const endpointsToTry = [
     `/api/db/santri?_t=${ts}`,
+    `https://attaroqqy.com/api/db/santri?fresh=true&_t=${ts}`,
+    `https://attaroqqy.com/api_alumni.php?action=get_all_santri${freshParam}`,
+    `https://alumni.attaroqqy.com/api_alumni.php?action=get_all_santri${freshParam}`,
     `https://attaroqqy.com/api_alumni.php?action=get_alumni${freshParam}`,
     `https://alumni.attaroqqy.com/api_alumni.php?action=get_alumni${freshParam}`,
-    `https://attaroqqy.com/api/db/santri?fresh=true&_t=${ts}`,
   ];
 
   for (const url of endpointsToTry) {
@@ -294,14 +348,20 @@ export async function fetchAlumniFromHostinger(forceFresh: boolean = false): Pro
 
       if (rawList.length > 0) {
         // Simpan semua santri (aktif & alumni) untuk lookup validasi identitas unik
-        globalAllSantriRecords = rawList.map((item: any) => ({
-          id: String(item.id || ''),
-          name: String(item.nama || item.name || ''),
-          nis: String(item.nis || '').trim(),
-          nik: String(item.nik || '').replace(/\D/g, '').trim(),
-          noKk: String(item.noKk || item.no_kk || item.nokk || '').replace(/\D/g, '').trim(),
-          status: String(item.status_keanggotaan || item.status || (String(item.status_keanggotaan || '').toLowerCase().includes('alumni') ? 'Alumni' : 'Santri Aktif')).trim(),
-        }));
+        globalAllSantriRecords = rawList.map((item: any) => {
+          const rawStatus = String(item.status_keanggotaan || item.status || '').trim();
+          const isAlumni = rawStatus.toLowerCase().includes('alumni');
+          const displayStatus = isAlumni ? 'Alumni' : (rawStatus.toLowerCase().includes('meninggal') ? 'Meninggal' : 'Santri Aktif');
+
+          return {
+            id: String(item.id || ''),
+            name: String(item.nama || item.name || ''),
+            nis: String(item.nis || '').trim(),
+            nik: String(item.nik || '').replace(/\D/g, '').trim(),
+            noKk: String(item.noKk || item.no_kk || item.nokk || '').replace(/\D/g, '').trim(),
+            status: displayStatus,
+          };
+        });
 
         // Filter santri yang berstatus 'Alumni' (jika ada)
         const alumniOnly = rawList.filter((item: any) => {

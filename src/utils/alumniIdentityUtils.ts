@@ -350,12 +350,12 @@ export function calculateCascadeShiftOnEntryDateChange(
 
 /**
  * Menghitung pergeseran berantai ketika admin secara manual mengisi NIS tertentu (7 digit: YYYYNNN)
- * Jika NIS sudah dipakai santri lain, santri yang bentrok dan seluruh urutan setelahnya digeser naik (+1).
+ * Jika NIS sudah dipakai santri lain (baik alumni maupun aktif), santri yang bentrok dan seluruh urutan setelahnya digeser naik (+1).
  */
 export function cascadeShiftOnManualNisChange(
   targetId: string,
   desiredNis: string,
-  allAlumni: AlumniRecord[]
+  allSantriOrAlumni: Array<AlumniRecord | { id: string; nis?: string; name?: string; nama?: string; status?: string }>
 ): NisCascadeResult {
   const cleanNis = desiredNis.trim();
   if (cleanNis.length !== 7 || !/^\d{7}$/.test(cleanNis)) {
@@ -369,33 +369,33 @@ export function cascadeShiftOnManualNisChange(
   }
 
   // Cari apakah ada yang bentrok di tahun ini
-  const collidingAlumni = allAlumni.find(
+  const colliding = allSantriOrAlumni.find(
     (a) => a.id !== targetId && a.nis && a.nis.trim() === cleanNis
   );
 
-  if (!collidingAlumni) {
+  if (!colliding) {
     return { targetNis: cleanNis, affectedAlumni: [] };
   }
 
-  // Ada benturan: kumpulkan semua alumni di tahun yang sama dengan urutan >= targetSeq
-  const sameYearAlumni = allAlumni
+  // Ada benturan: kumpulkan semua record di tahun yang sama dengan urutan >= targetSeq
+  const sameYearRecords = allSantriOrAlumni
     .filter((a) => a.id !== targetId && a.nis && a.nis.startsWith(year) && /^\d{7}$/.test(a.nis))
     .map((a) => {
-      const seq = parseInt(a.nis.slice(4), 10);
-      return { alumni: a, seq };
+      const seq = parseInt(a.nis!.slice(4), 10);
+      return { item: a, seq };
     })
-    .filter((item) => item.seq >= targetSeq)
-    .sort((a, b) => b.seq - a.seq); // Geser dari yang paling besar dulu
+    .filter((entry) => entry.seq >= targetSeq)
+    .sort((a, b) => b.seq - a.seq); // Geser dari urutan paling besar dulu
 
   const affectedAlumni: Array<{ id: string; nis: string; name: string }> = [];
 
-  sameYearAlumni.forEach((item) => {
-    const nextSeq = item.seq + 1;
+  sameYearRecords.forEach((entry) => {
+    const nextSeq = entry.seq + 1;
     const nextNis = `${year}${String(nextSeq).padStart(3, '0')}`;
     affectedAlumni.push({
-      id: item.alumni.id,
+      id: entry.item.id,
       nis: nextNis,
-      name: item.alumni.name,
+      name: entry.item.name || (entry.item as any).nama || 'Santri',
     });
   });
 

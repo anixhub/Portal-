@@ -186,13 +186,17 @@ export const AddAlumniModal: React.FC<AddAlumniModalProps> = ({
     setIsSubmitting(true);
 
     // Hitung NIS berdasarkan Tanggal Masuk (4 digit tahun + 3 digit nomor urut santri)
-    // Apabila belum mengisi tanggal masuk maka NIS belum ada (string kosong)
+    // Memperhitungkan seluruh santri (baik santri aktif maupun alumni) agar tidak bentrok
+    const allPool = (allSantriList && allSantriList.length > 0)
+      ? allSantriList
+      : (getGlobalAllSantriRecords().length > 0 ? getGlobalAllSantriRecords() : existingAlumni);
+
     const generatedNis = entryDate.trim()
-      ? generateNisFromEntryDate(entryDate.trim(), existingAlumni)
+      ? generateNisFromEntryDate(entryDate.trim(), allPool as any)
       : '';
 
     // Generate Username unik sesuai nama (ganti spasi underscore, label angka pembeda jika duplikat)
-    const generatedUsername = generateUniqueUsername(name.trim(), existingAlumni);
+    const generatedUsername = generateUniqueUsername(name.trim(), allPool as any);
 
     const calculatedEntryYear = entryDate.trim() ? entryDate.trim().slice(0, 4) : '';
     const calculatedGradYear = gradDate.trim() ? gradDate.trim().slice(0, 4) : '';

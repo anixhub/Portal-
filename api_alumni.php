@@ -382,17 +382,61 @@ if ($action === 'get_sync_status' || $action === 'get_sync_meta') {
 }
 
 // ==========================================
-// 1. AMBIL DATA SANTRI YANG BERSTATUS 'Alumni'
+// 1. CEK KETERSEDIAAN NIS (SANTRI AKTIF & ALUMNI)
 // ==========================================
-if ($action === 'get_alumni') {
+if ($action === 'check_nis') {
     try {
-        // HANYA mengambil santri dengan status 'Alumni' (atau jika ada variasi case-insensitive 'Alumni')
-        $sql = "SELECT * FROM santri 
-                WHERE status_keanggotaan = 'Alumni' 
-                   OR LOWER(status_keanggotaan) = 'alumni'
-                   OR status_keanggotaan LIKE '%Alumni%'
-                   OR status_keanggotaan LIKE '%alumni%'
-                ORDER BY id DESC";
+        $nis = trim($_GET['nis'] ?? $_POST['nis'] ?? '');
+        if (empty($nis)) {
+            echo json_encode(['success' => true, 'available' => true]);
+            exit;
+        }
+        $stmt = $pdo->prepare("SELECT id, nama, nis, status_keanggotaan, gender FROM santri WHERE nis = ? LIMIT 1");
+        $stmt->execute([$nis]);
+        $row = $stmt->fetch();
+        if ($row) {
+            $rawStatus = trim($row['status_keanggotaan'] ?? '');
+            $isAlumni = (stripos($rawStatus, 'alumni') !== false);
+            $displayStatus = $isAlumni ? 'Alumni' : (stripos($rawStatus, 'meninggal') !== false ? 'Meninggal' : 'Santri Aktif');
+
+            echo json_encode([
+                'success' => true,
+                'available' => false,
+                'santri' => [
+                    'id' => (string)$row['id'],
+                    'name' => $row['nama'],
+                    'nama' => $row['nama'],
+                    'nis' => $row['nis'],
+                    'status' => $displayStatus,
+                    'status_keanggotaan' => $displayStatus,
+                    'isSantriAktif' => !$isAlumni,
+                ]
+            ]);
+        } else {
+            echo json_encode(['success' => true, 'available' => true]);
+        }
+    } catch (Exception $e) {
+        echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+    }
+    exit;
+}
+
+// ==========================================
+// 2. AMBIL DATA SANTRI (ALUMNI / SEMUA SANTRI)
+// ==========================================
+if ($action === 'get_alumni' || $action === 'get_all_santri' || $action === 'get_santri') {
+    try {
+        $includeAll = ($action === 'get_all_santri' || $action === 'get_santri' || !empty($_GET['all']) || !empty($_GET['all_santri']));
+        if ($includeAll) {
+            $sql = "SELECT * FROM santri ORDER BY id DESC";
+        } else {
+            $sql = "SELECT * FROM santri 
+                    WHERE status_keanggotaan = 'Alumni' 
+                       OR LOWER(status_keanggotaan) = 'alumni'
+                       OR status_keanggotaan LIKE '%Alumni%'
+                       OR status_keanggotaan LIKE '%alumni%'
+                    ORDER BY id DESC";
+        }
 
         $stmt = $pdo->query($sql);
         $rows = $stmt->fetchAll();
@@ -406,54 +450,96 @@ if ($action === 'get_alumni') {
                 'id' => (string)($row['id'] ?? ''),
                 'nik' => $row['nik'] ?? '',
                 'noKk' => $row['no_kk'] ?? '',
+                'no_kk' => $row['no_kk'] ?? '',
                 'nis' => $row['nis'] ?? '',
                 'nism' => $row['nism'] ?? '',
                 'nisn' => $row['nisn'] ?? '',
+                // Nama lengkap kompatibel untuk aplikasi lama & portal baru
                 'name' => $row['nama'] ?? '',
+                'nama' => $row['nama'] ?? '',
+                'nama_lengkap' => $row['nama'] ?? '',
                 'username' => !empty($row['username']) ? $row['username'] : (strtolower(str_replace(' ', '_', $row['nama'] ?? '')) ?: 'santri_' . $row['id']),
                 'gender' => $gender,
+                'jenis_kelamin' => ($gender === 'P' ? 'Perempuan' : 'Laki-laki'),
+                'jk' => $gender,
+                'raw_gender' => $rawGender,
                 'tempatLahir' => $row['tempat_lahir'] ?? '',
+                'tempat_lahir' => $row['tempat_lahir'] ?? '',
                 'tanggalLahir' => $row['tanggal_lahir'] ?? '',
+                'tanggal_lahir' => $row['tanggal_lahir'] ?? '',
+                'anak_ke' => (!empty($row['anak_ke']) && is_numeric($row['anak_ke'])) ? (int)$row['anak_ke'] : null,
                 'urutanAnak' => (!empty($row['anak_ke']) && is_numeric($row['anak_ke'])) ? (int)$row['anak_ke'] : null,
+                'dari_bersaudara' => (!empty($row['dari_bersaudara']) && is_numeric($row['dari_bersaudara'])) ? (int)$row['dari_bersaudara'] : null,
                 'jumlahSaudara' => (!empty($row['dari_bersaudara']) && is_numeric($row['dari_bersaudara'])) ? (int)$row['dari_bersaudara'] : null,
                 
-                // Data Asli Orang Tua dari Database (Mendukung nama_ayah, nama_bapak, ayah, bapak, nama_ibu, ibu)
+                // Data Asli Orang Tua dari Database
                 'namaAyah' => $row['nama_ayah'] ?? $row['nama_bapak'] ?? $row['ayah'] ?? $row['bapak'] ?? '',
+                'nama_ayah' => $row['nama_ayah'] ?? $row['nama_bapak'] ?? $row['ayah'] ?? $row['bapak'] ?? '',
                 'nikAyah' => $row['nik_ayah'] ?? $row['nik_bapak'] ?? '',
+                'nik_ayah' => $row['nik_ayah'] ?? $row['nik_bapak'] ?? '',
                 'pekerjaanAyah' => $row['pekerjaan_ayah'] ?? $row['pekerjaan_bapak'] ?? '',
+                'pekerjaan_ayah' => $row['pekerjaan_ayah'] ?? $row['pekerjaan_bapak'] ?? '',
                 'pendidikanAyah' => $row['pendidikan_ayah'] ?? $row['pendidikan_bapak'] ?? '',
+                'pendidikan_ayah' => $row['pendidikan_ayah'] ?? $row['pendidikan_bapak'] ?? '',
                 'namaIbu' => $row['nama_ibu'] ?? $row['ibu'] ?? '',
+                'nama_ibu' => $row['nama_ibu'] ?? $row['ibu'] ?? '',
                 'nikIbu' => $row['nik_ibu'] ?? '',
+                'nik_ibu' => $row['nik_ibu'] ?? '',
                 'pekerjaanIbu' => $row['pekerjaan_ibu'] ?? '',
+                'pekerjaan_ibu' => $row['pekerjaan_ibu'] ?? '',
                 'pendidikanIbu' => $row['pendidikan_ibu'] ?? '',
+                'pendidikan_ibu' => $row['pendidikan_ibu'] ?? '',
 
+                'tahun_lulus' => $row['tahun_lulus'] ?? (!empty($row['tanggal_keluar']) ? substr($row['tanggal_keluar'], 0, 4) : ''),
                 'gradYear' => $row['tahun_lulus'] ?? (!empty($row['tanggal_keluar']) ? substr($row['tanggal_keluar'], 0, 4) : ''),
-                'entryYear' => !empty($row['tanggal_masuk']) ? substr($row['tanggal_masuk'], 0, 4) : '',
+                'tanggal_masuk' => $row['tanggal_masuk'] ?? '',
                 'entryDate' => $row['tanggal_masuk'] ?? '',
+                'tahun_masuk' => !empty($row['tanggal_masuk']) ? substr($row['tanggal_masuk'], 0, 4) : '',
+                'entryYear' => !empty($row['tanggal_masuk']) ? substr($row['tanggal_masuk'], 0, 4) : '',
+                'tanggal_keluar' => $row['tanggal_keluar'] ?? '',
                 'gradDate' => $row['tanggal_keluar'] ?? '',
                 'jenjang' => $row['pendidikan_formal'] ?? $row['pendidikan_terakhir'] ?? 'Pondok Pesantren At-Taroqqy',
+                'pendidikan_formal' => $row['pendidikan_formal'] ?? $row['pendidikan_terakhir'] ?? 'Pondok Pesantren At-Taroqqy',
+                'kamar' => $row['kamar'] ?? '',
                 'asramaDulu' => $row['kamar'] ?? '',
                 'email' => $row['email'] ?? '',
+                'no_hp' => $row['no_hp'] ?? '',
                 'phone' => $row['no_hp'] ?? '',
+                'alamat' => $row['alamat'] ?? '',
                 'address' => $row['alamat'] ?? '',
+                'alamatLengkap' => $row['alamat'] ?? '',
                 'desa' => $row['desa'] ?? '',
                 'kecamatan' => $row['kecamatan'] ?? '',
+                'kabupaten' => $row['kabupaten'] ?? '',
                 'city' => $row['kabupaten'] ?? '',
+                'provinsi' => $row['provinsi'] ?? '',
                 'province' => $row['provinsi'] ?? '',
+                'pekerjaan' => $row['pekerjaan'] ?? '',
                 'occupation' => $row['pekerjaan'] ?? '',
+                'instansi' => $row['instansi'] ?? '',
                 'institution' => $row['instansi'] ?? '',
+                'file_pas_foto' => normalizePhotoUrlForOutput($row['file_pas_foto'] ?? ''),
+                'foto' => normalizePhotoUrlForOutput($row['file_pas_foto'] ?? ''),
                 'avatarUrl' => normalizePhotoUrlForOutput($row['file_pas_foto'] ?? ''),
+                'photoUrl' => normalizePhotoUrlForOutput($row['file_pas_foto'] ?? ''),
+                'foto_sampul' => normalizePhotoUrlForOutput($row['foto_sampul'] ?? ''),
+                'sampul' => normalizePhotoUrlForOutput($row['foto_sampul'] ?? ''),
                 'coverPhotoUrl' => normalizePhotoUrlForOutput($row['foto_sampul'] ?? ''),
                 'bio' => $row['bio'] ?? '',
                 'coordinates' => (!empty($row['latitude']) && !empty($row['longitude'])) ? [
                     'lat' => (float)$row['latitude'],
                     'lng' => (float)$row['longitude']
                 ] : null,
+                'latitude' => $row['latitude'] ?? null,
+                'longitude' => $row['longitude'] ?? null,
                 'password' => $row['password'] ?? '1234',
+                'is_password_changed' => (int)($row['is_password_changed'] ?? 0),
                 'isPasswordChanged' => (bool)($row['is_password_changed'] ?? 0),
                 'hasLoggedIn' => (bool)($row['is_password_changed'] ?? 0),
+                'share_contact' => isset($row['share_contact']) ? (int)$row['share_contact'] : 1,
                 'shareContact' => isset($row['share_contact']) ? (bool)$row['share_contact'] : true,
-                'status' => 'alumni'
+                'status' => 'alumni',
+                'status_keanggotaan' => 'Alumni'
             ];
         }
 

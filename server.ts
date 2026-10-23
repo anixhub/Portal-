@@ -48,8 +48,10 @@ async function getSantriData(forceFresh: boolean = false): Promise<any> {
   }
 
   const urlsToTry = [
-    `https://alumni.attaroqqy.com/api_alumni.php?action=get_alumni&_t=${now}`,
     `https://attaroqqy.com/api/db/santri?_t=${now}`,
+    `https://attaroqqy.com/api_alumni.php?action=get_all_santri&_t=${now}`,
+    `https://alumni.attaroqqy.com/api_alumni.php?action=get_all_santri&_t=${now}`,
+    `https://alumni.attaroqqy.com/api_alumni.php?action=get_alumni&_t=${now}`,
   ];
 
   for (const url of urlsToTry) {
@@ -470,6 +472,41 @@ async function startServer() {
     } catch (err: any) {
       console.warn('[Server] Error proxying /api/upload:', err?.message);
       res.status(500).json({ success: false, message: err?.message });
+    }
+  });
+
+  // Santri API: Check NIS Availability (both santri aktif and alumni)
+  app.get('/api/db/santri/check-nis', async (req, res) => {
+    try {
+      const nis = String(req.query.nis || '').trim();
+      if (!nis) {
+        return res.json({ success: true, available: true });
+      }
+      const fullData = await getSantriData(false);
+      const list = Array.isArray(fullData) ? fullData : (fullData?.data || []);
+      const found = list.find((s: any) => String(s.nis || '').trim() === nis);
+      if (found) {
+        const rawStatus = String(found.status_keanggotaan || found.status || '').trim();
+        const isAlumni = rawStatus.toLowerCase().includes('alumni');
+        const displayStatus = isAlumni ? 'Alumni' : (rawStatus.toLowerCase().includes('meninggal') ? 'Meninggal' : 'Santri Aktif');
+
+        return res.json({
+          success: true,
+          available: false,
+          santri: {
+            id: String(found.id || ''),
+            name: String(found.nama || found.name || 'Santri'),
+            nama: String(found.nama || found.name || 'Santri'),
+            nis: String(found.nis || ''),
+            status: displayStatus,
+            status_keanggotaan: displayStatus,
+            isSantriAktif: !isAlumni,
+          },
+        });
+      }
+      return res.json({ success: true, available: true });
+    } catch (err: any) {
+      res.status(500).json({ success: false, message: err?.message || 'Error checking NIS' });
     }
   });
 

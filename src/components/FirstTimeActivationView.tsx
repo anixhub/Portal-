@@ -20,7 +20,7 @@ import {
   LogOut,
 } from 'lucide-react';
 import { AlumniRecord, AdminUser } from '../types';
-import { getGlobalAllSantriRecords } from '../services/apiService';
+import { getGlobalAllSantriRecords, checkNisLive } from '../services/apiService';
 
 interface FirstTimeActivationViewProps {
   alumni: AlumniRecord;
@@ -188,6 +188,9 @@ export const FirstTimeActivationView: React.FC<FirstTimeActivationViewProps> = (
   const [duplicateNik, setDuplicateNik] = useState<any>(null);
   const [isCheckingNoKk, setIsCheckingNoKk] = useState(false);
   const [duplicateNoKk, setDuplicateNoKk] = useState<any>(null);
+  const [isCheckingNis, setIsCheckingNis] = useState(false);
+  const [duplicateNis, setDuplicateNis] = useState<any>(null);
+  const lastCheckedNisRef = useRef<string | null>(alumni.nis ? alumni.nis.replace(/\D/g, '').trim() : null);
 
   useEffect(() => {
     const clean = formData.nik.replace(/\D/g, '').slice(0, 16);
@@ -230,6 +233,46 @@ export const FirstTimeActivationView: React.FC<FirstTimeActivationViewProps> = (
     }, 320);
     return () => clearTimeout(timer);
   }, [formData.noKk, alumni.id, alumniList]);
+
+  // Realtime duplicate check for NIS (Santri Aktif & Alumni)
+  useEffect(() => {
+    const clean = formData.nis.replace(/\D/g, '').trim();
+    if (!clean || clean.length < 7) {
+      lastCheckedNisRef.current = clean;
+      setIsCheckingNis(false);
+      setDuplicateNis(null);
+      return;
+    }
+
+    // Jika input ini sudah pernah dicek dan nilainya belum berubah, jangan lakukan cek ulang
+    if (lastCheckedNisRef.current === clean) {
+      return;
+    }
+
+    setIsCheckingNis(true);
+    const timer = setTimeout(async () => {
+      const allPool = getGlobalAllSantriRecords && getGlobalAllSantriRecords().length > 0
+        ? getGlobalAllSantriRecords()
+        : alumniList;
+      let found: any = allPool.find(
+        (a: any) => a.id !== alumni.id && a.nis && a.nis.replace(/\D/g, '').trim() === clean
+      );
+      if (!found) {
+        try {
+          const live = await checkNisLive(clean, alumni.id);
+          if (!live.available && live.collidingRecord) {
+            found = live.collidingRecord;
+          }
+        } catch (e) {}
+      }
+
+      if (formData.nis.replace(/\D/g, '').trim() !== clean) return;
+      lastCheckedNisRef.current = clean;
+      setIsCheckingNis(false);
+      setDuplicateNis(found || null);
+    }, 320);
+    return () => clearTimeout(timer);
+  }, [formData.nis, alumni.id, alumniList]);
 
   const handleFieldChange = (field: string, value: any) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
@@ -754,12 +797,48 @@ export const FirstTimeActivationView: React.FC<FirstTimeActivationViewProps> = (
                     <label className="block text-xs font-bold text-slate-700 mb-1">
                       Nomor Induk Santri (NIS)
                     </label>
-                    <input
-                      type="text"
-                      value={formData.nis}
-                      onChange={(e) => handleFieldChange('nis', e.target.value)}
-                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#0284c7] focus:bg-white"
-                    />
+                    <div className="relative">
+                      <input
+                        type="text"
+                        maxLength={7}
+                        value={formData.nis}
+                        onChange={(e) => handleFieldChange('nis', e.target.value.replace(/\D/g, '').slice(0, 7))}
+                        className={`w-full pl-3.5 pr-10 py-2.5 bg-slate-50 border rounded-xl font-mono text-xs sm:text-sm font-medium text-slate-800 focus:outline-none focus:bg-white ${
+                          duplicateNis
+                            ? 'border-rose-400 focus:ring-2 focus:ring-rose-200'
+                            : formData.nis.replace(/\D/g, '').length === 7 && !duplicateNis
+                            ? 'border-emerald-400 focus:ring-2 focus:ring-emerald-200'
+                            : 'border-slate-200 focus:ring-2 focus:ring-[#0284c7]'
+                        }`}
+                        placeholder="7 digit"
+                      />
+                      <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center pointer-events-none">
+                        {isCheckingNis && (
+                          <Loader2 className="w-4 h-4 text-sky-600 animate-spin" />
+                        )}
+                        {!isCheckingNis && formData.nis.replace(/\D/g, '').length === 7 && !duplicateNis && (
+                          <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                        )}
+                        {!isCheckingNis && formData.nis.replace(/\D/g, '').length === 7 && duplicateNis && (
+                          <XCircle className="w-4 h-4 text-rose-500" />
+                        )}
+                      </div>
+                    </div>
+                    {formData.nis.replace(/\D/g, '').length > 0 && formData.nis.replace(/\D/g, '').length < 7 && (
+                      <p className="text-[11px] text-amber-600 font-medium mt-1">
+                        Kurang {7 - formData.nis.replace(/\D/g, '').length} digit (harus 7 digit)
+                      </p>
+                    )}
+                    {!isCheckingNis && formData.nis.replace(/\D/g, '').length === 7 && duplicateNis && (
+                      <p className="text-[11px] text-rose-500 font-medium mt-1">
+                        NIS sudah digunakan oleh {duplicateNis.name} ({duplicateNis.status || 'Santri/Alumni'})
+                      </p>
+                    )}
+                    {!isCheckingNis && formData.nis.replace(/\D/g, '').length === 7 && !duplicateNis && (
+                      <p className="text-[11px] text-emerald-600 font-medium mt-1">
+                        NIS valid & tersedia
+                      </p>
+                    )}
                   </div>
                   <div>
                     <label className="block text-xs font-bold text-slate-700 mb-1">
@@ -982,8 +1061,16 @@ export const FirstTimeActivationView: React.FC<FirstTimeActivationViewProps> = (
 
                 <button
                   type="button"
+                  disabled={
+                    Boolean(duplicateNik) ||
+                    Boolean(duplicateNoKk) ||
+                    Boolean(duplicateNis) ||
+                    isCheckingNik ||
+                    isCheckingNoKk ||
+                    isCheckingNis
+                  }
                   onClick={() => setCurrentStep(3)}
-                  className="px-6 py-3 bg-[#0284c7] hover:bg-[#0369a1] text-white font-bold rounded-2xl text-xs sm:text-sm transition-all flex items-center gap-2 cursor-pointer shadow-md shadow-sky-600/20"
+                  className="px-6 py-3 bg-[#0284c7] hover:bg-[#0369a1] text-white font-bold rounded-2xl text-xs sm:text-sm transition-all flex items-center gap-2 cursor-pointer shadow-md shadow-sky-600/20 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <span>Lanjut ke Foto Profil</span>
                   <ArrowRight className="w-4 h-4" />
