@@ -148,6 +148,12 @@ export const AdminAccountEditModal: React.FC<AdminAccountEditModalProps> = ({
       kecamatan: regionLevel === 'kecamatan' || regionLevel === 'desa' ? kecamatan.trim() : undefined,
       desa: regionLevel === 'desa' ? desa.trim() : undefined,
       avatar: adminToEdit?.avatar || DEFAULT_ADMIN_AVATAR,
+      coverPhotoUrl: adminToEdit?.coverPhotoUrl,
+      bio: adminToEdit?.bio,
+      phone: adminToEdit?.phone,
+      email: adminToEdit?.email,
+      alamatLengkap: adminToEdit?.alamatLengkap,
+      coordinates: adminToEdit?.coordinates,
       createdAt: adminToEdit?.createdAt || new Date().toISOString().split('T')[0],
     };
 

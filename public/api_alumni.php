@@ -123,8 +123,8 @@ function ensureTablesExist($pdo) {
                 role VARCHAR(50) NOT NULL DEFAULT 'pengurus_pondok',
                 jabatan VARCHAR(150) NOT NULL DEFAULT 'Pengurus Ikatan Alumni',
                 region_level VARCHAR(50) NOT NULL DEFAULT 'pusat',
-                avatar TEXT DEFAULT NULL,
-                cover_photo_url TEXT DEFAULT NULL,
+                avatar LONGTEXT DEFAULT NULL,
+                cover_photo_url LONGTEXT DEFAULT NULL,
                 bio TEXT DEFAULT NULL,
                 phone VARCHAR(30) DEFAULT NULL,
                 province VARCHAR(80) DEFAULT 'Jawa Timur',
@@ -136,6 +136,12 @@ function ensureTablesExist($pdo) {
                 longitude DECIMAL(11, 8) DEFAULT NULL,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+        ");
+        $pdo->exec("
+            ALTER TABLE admin_users 
+                MODIFY COLUMN avatar LONGTEXT DEFAULT NULL,
+                MODIFY COLUMN cover_photo_url LONGTEXT DEFAULT NULL,
+                MODIFY COLUMN region_level VARCHAR(50) NOT NULL DEFAULT 'pusat';
         ");
         $pdo->exec("
             CREATE TABLE IF NOT EXISTS post_comments (
@@ -305,7 +311,15 @@ function processIncomingPhoto($photoData, $prefix = 'filePasFoto') {
     if (empty($photoData)) return null;
     $photoData = trim($photoData);
 
-    // Jika berupa base64 Data URL, coba simpan sebagai file fisik
+    // Jika sudah berupa URL atau path lokal yang valid, normalkan dan simpan sebagai alamat
+    if (strpos($photoData, 'http://') === 0 || strpos($photoData, 'https://') === 0 || strpos($photoData, '/uploads/') === 0 || strpos($photoData, '/api/uploads/') === 0) {
+        if (strpos($photoData, 'https://attaroqqy.com/') === 0) {
+            return str_replace('https://attaroqqy.com', '', $photoData);
+        }
+        return $photoData;
+    }
+
+    // Jika berupa base64 Data URL, simpan ke file fisik dalam folder uploads agar database hanya menyimpan alamat/link
     if (strpos($photoData, 'data:image/') === 0) {
         if (preg_match('/data:image\/([a-zA-Z0-9]+);base64,(.+)/', $photoData, $matches)) {
             $ext = strtolower($matches[1]);
@@ -314,17 +328,21 @@ function processIncomingPhoto($photoData, $prefix = 'filePasFoto') {
             if ($decoded) {
                 $filename = $prefix . '_' . round(microtime(true) * 1000) . '_' . substr(md5(uniqid()), 0, 5) . '.' . $ext;
                 $possibleDirs = [
-                    __DIR__ . '/api/uploads/pas_foto/',
-                    __DIR__ . '/uploads/pas_foto/',
-                    dirname(__DIR__) . '/public_html/api/uploads/pas_foto/',
+                    ['dir' => __DIR__ . '/uploads/pas_foto/', 'web' => '/uploads/pas_foto/'],
+                    ['dir' => __DIR__ . '/api/uploads/pas_foto/', 'web' => '/api/uploads/pas_foto/'],
+                    ['dir' => dirname(__DIR__) . '/public_html/uploads/pas_foto/', 'web' => '/uploads/pas_foto/'],
+                    ['dir' => dirname(__DIR__) . '/public_html/api/uploads/pas_foto/', 'web' => '/api/uploads/pas_foto/'],
+                    ['dir' => dirname(__DIR__) . '/uploads/pas_foto/', 'web' => '/uploads/pas_foto/'],
                 ];
-                foreach ($possibleDirs as $dir) {
+                foreach ($possibleDirs as $item) {
+                    $dir = $item['dir'];
+                    $webPrefix = $item['web'];
                     if (!is_dir($dir)) {
                         @mkdir($dir, 0755, true);
                     }
                     if (is_dir($dir) && is_writable($dir)) {
                         if (@file_put_contents($dir . $filename, $decoded)) {
-                            return '/api/uploads/pas_foto/' . $filename;
+                            return $webPrefix . $filename;
                         }
                     }
                 }
@@ -889,11 +907,11 @@ if ($action === 'migrate_db') {
                 username VARCHAR(80) NOT NULL UNIQUE,
                 email VARCHAR(120) DEFAULT NULL,
                 password VARCHAR(255) NOT NULL DEFAULT '1997',
-                role ENUM('super_admin', 'pengurus_pondok') NOT NULL DEFAULT 'pengurus_pondok',
+                role VARCHAR(50) NOT NULL DEFAULT 'pengurus_pondok',
                 jabatan VARCHAR(150) NOT NULL DEFAULT 'Pengurus Ikatan Alumni',
-                region_level ENUM('pusat', 'provinsi', 'kota', 'kecamatan') NOT NULL DEFAULT 'pusat',
-                avatar TEXT DEFAULT NULL,
-                cover_photo_url TEXT DEFAULT NULL,
+                region_level VARCHAR(50) NOT NULL DEFAULT 'pusat',
+                avatar LONGTEXT DEFAULT NULL,
+                cover_photo_url LONGTEXT DEFAULT NULL,
                 bio TEXT DEFAULT NULL,
                 phone VARCHAR(30) DEFAULT NULL,
                 province VARCHAR(80) DEFAULT 'Jawa Timur',
@@ -1402,11 +1420,79 @@ if ($action === 'delete_announcement') {
 // ==========================================
 // 8. ENDPOINTS FITUR ADMIN_USERS (KELOLA AKUN)
 // ==========================================
+// 8. ENDPOINTS FITUR ADMIN_USERS (KELOLA AKUN)
+// ==========================================
 if ($action === 'get_admin_users') {
     try {
-        $stmt = $pdo->query("SELECT id, name, username, email, role, jabatan, region_level, avatar, cover_photo_url, bio, phone, province, city, kecamatan, desa, alamat_lengkap, latitude, longitude, created_at FROM admin_users ORDER BY (region_level = 'pusat') DESC, id ASC");
-        $admins = $stmt->fetchAll();
-        echo json_encode(['success' => true, 'data' => $admins]);
+        $stmt = $pdo->query("SELECT id, name, username, email, password, role, jabatan, region_level, avatar, cover_photo_url, bio, phone, province, city, kecamatan, desa, alamat_lengkap, latitude, longitude, created_at FROM admin_users ORDER BY (region_level = 'pusat' OR username = '@admin_pusat') DESC, id ASC");
+        $admins = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        $normalized = [];
+        foreach ($admins as $row) {
+            $normalized[] = [
+                'id' => (string)($row['id'] ?? ''),
+                'name' => $row['name'] ?? '',
+                'username' => $row['username'] ?? '@admin_pusat',
+                'email' => $row['email'] ?? '',
+                'password' => $row['password'] ?? '1997',
+                'role' => $row['role'] ?? 'pengurus_pondok',
+                'jabatan' => $row['jabatan'] ?? 'Pengurus Ikatan Alumni',
+                'regionLevel' => $row['region_level'] ?? 'pusat',
+                'avatar' => normalizePhotoUrlForOutput($row['avatar'] ?? ''),
+                'coverPhotoUrl' => normalizePhotoUrlForOutput($row['cover_photo_url'] ?? ''),
+                'bio' => $row['bio'] ?? '',
+                'phone' => $row['phone'] ?? '',
+                'province' => $row['province'] ?? 'Jawa Timur',
+                'city' => $row['city'] ?? '',
+                'kecamatan' => $row['kecamatan'] ?? '',
+                'desa' => $row['desa'] ?? '',
+                'alamatLengkap' => $row['alamat_lengkap'] ?? '',
+                'coordinates' => ($row['latitude'] !== null && $row['longitude'] !== null)
+                    ? ['lat' => (float)$row['latitude'], 'lng' => (float)$row['longitude']]
+                    : null,
+                'createdAt' => $row['created_at'] ?? '',
+            ];
+        }
+        echo json_encode(['success' => true, 'data' => $normalized]);
+    } catch (Exception $e) {
+        http_response_code(500);
+        echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+    }
+    exit;
+}
+
+if ($action === 'get_admin_profile') {
+    try {
+        $stmt = $pdo->prepare("SELECT id, name, username, email, password, role, jabatan, region_level, avatar, cover_photo_url, bio, phone, province, city, kecamatan, desa, alamat_lengkap, latitude, longitude, created_at FROM admin_users WHERE username = '@admin_pusat' OR region_level = 'pusat' ORDER BY (username = '@admin_pusat') DESC LIMIT 1");
+        $stmt->execute();
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        if ($row) {
+            $data = [
+                'id' => (string)($row['id'] ?? 'adm-001'),
+                'name' => $row['name'] ?? '',
+                'username' => $row['username'] ?? '@admin_pusat',
+                'email' => $row['email'] ?? '',
+                'password' => $row['password'] ?? '1997',
+                'role' => $row['role'] ?? 'super_admin',
+                'jabatan' => $row['jabatan'] ?? 'Kepala Bidang Kesantrian & Alumni Ponpes At-taroqqy',
+                'regionLevel' => $row['region_level'] ?? 'pusat',
+                'avatar' => normalizePhotoUrlForOutput($row['avatar'] ?? ''),
+                'coverPhotoUrl' => normalizePhotoUrlForOutput($row['cover_photo_url'] ?? ''),
+                'bio' => $row['bio'] ?? '',
+                'phone' => $row['phone'] ?? '',
+                'province' => $row['province'] ?? 'Jawa Timur',
+                'city' => $row['city'] ?? '',
+                'kecamatan' => $row['kecamatan'] ?? '',
+                'desa' => $row['desa'] ?? '',
+                'alamatLengkap' => $row['alamat_lengkap'] ?? '',
+                'coordinates' => ($row['latitude'] !== null && $row['longitude'] !== null)
+                    ? ['lat' => (float)$row['latitude'], 'lng' => (float)$row['longitude']]
+                    : null,
+                'createdAt' => $row['created_at'] ?? '',
+            ];
+            echo json_encode(['success' => true, 'data' => $data]);
+        } else {
+            echo json_encode(['success' => false, 'message' => 'Admin profile not found in database']);
+        }
     } catch (Exception $e) {
         http_response_code(500);
         echo json_encode(['success' => false, 'message' => $e->getMessage()]);
@@ -1416,8 +1502,21 @@ if ($action === 'get_admin_users') {
 
 if ($action === 'save_admin_user' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $input = json_decode(file_get_contents('php://input'), true);
-    $id = $input['id'] ?? ('adm-' . time());
+    if (!$input) $input = $_POST;
+
+    $rawUser = $input['username'] ?? '';
+    $cleanUser = !empty($rawUser) ? (strpos($rawUser, '@') === 0 ? $rawUser : '@' . $rawUser) : '@admin_pusat';
+    $isPusat = $cleanUser === '@admin_pusat' || ($input['role'] ?? '') === 'super_admin' || ($input['regionLevel'] ?? '') === 'pusat';
+
+    $id = !empty($input['id']) ? $input['id'] : ($isPusat ? 'adm-001' : ('adm-' . round(microtime(true) * 1000)));
+
     try {
+        $avatar = isset($input['avatar']) ? processIncomingPhoto($input['avatar'], 'adminAvatar') : null;
+        $coverPhotoUrl = isset($input['coverPhotoUrl']) ? processIncomingPhoto($input['coverPhotoUrl'], 'adminCover') : null;
+        $coords = $input['coordinates'] ?? null;
+        $lat = ($coords && isset($coords['lat'])) ? $coords['lat'] : null;
+        $lng = ($coords && isset($coords['lng'])) ? $coords['lng'] : null;
+
         $sql = "INSERT INTO admin_users (
             id, name, username, email, password, role, jabatan, region_level,
             avatar, cover_photo_url, bio, phone, province, city, kecamatan, desa,
@@ -1427,26 +1526,37 @@ if ($action === 'save_admin_user' && $_SERVER['REQUEST_METHOD'] === 'POST') {
             :avatar, :cover_photo_url, :bio, :phone, :province, :city, :kecamatan, :desa,
             :alamat_lengkap, :latitude, :longitude, NOW()
         ) ON DUPLICATE KEY UPDATE
-            name = VALUES(name), username = VALUES(username), email = VALUES(email),
-            role = VALUES(role), jabatan = VALUES(jabatan), region_level = VALUES(region_level),
-            avatar = VALUES(avatar), cover_photo_url = VALUES(cover_photo_url), bio = VALUES(bio),
-            phone = VALUES(phone), province = VALUES(province), city = VALUES(city),
-            kecamatan = VALUES(kecamatan), desa = VALUES(desa), alamat_lengkap = VALUES(alamat_lengkap),
-            latitude = VALUES(latitude), longitude = VALUES(longitude)";
+            name = COALESCE(NULLIF(:name, ''), name),
+            username = COALESCE(NULLIF(:username, ''), username),
+            email = COALESCE(:email, email),
+            password = COALESCE(NULLIF(:password, ''), password),
+            role = COALESCE(NULLIF(:role, ''), role),
+            jabatan = COALESCE(NULLIF(:jabatan, ''), jabatan),
+            region_level = COALESCE(NULLIF(:region_level, ''), region_level),
+            avatar = IF(:avatar IS NOT NULL, :avatar, avatar),
+            cover_photo_url = IF(:cover_photo_url IS NOT NULL, :cover_photo_url, cover_photo_url),
+            bio = IF(:bio IS NOT NULL, :bio, bio),
+            phone = IF(:phone IS NOT NULL, :phone, phone),
+            province = COALESCE(NULLIF(:province, ''), province),
+            city = COALESCE(NULLIF(:city, ''), city),
+            kecamatan = COALESCE(NULLIF(:kecamatan, ''), kecamatan),
+            desa = COALESCE(NULLIF(:desa, ''), desa),
+            alamat_lengkap = IF(:alamat_lengkap IS NOT NULL, :alamat_lengkap, alamat_lengkap),
+            latitude = IF(:latitude IS NOT NULL, :latitude, latitude),
+            longitude = IF(:longitude IS NOT NULL, :longitude, longitude)";
 
         $stmt = $pdo->prepare($sql);
-        $coords = $input['coordinates'] ?? null;
         $stmt->execute([
             ':id' => $id,
             ':name' => $input['name'] ?? '',
-            ':username' => $input['username'] ?? '',
+            ':username' => $cleanUser,
             ':email' => $input['email'] ?? null,
             ':password' => $input['password'] ?? '1997',
-            ':role' => $input['role'] ?? 'pengurus_pondok',
-            ':jabatan' => $input['jabatan'] ?? 'Pengurus Ikatan Alumni',
-            ':region_level' => $input['regionLevel'] ?? 'provinsi',
-            ':avatar' => $input['avatar'] ?? null,
-            ':cover_photo_url' => $input['coverPhotoUrl'] ?? null,
+            ':role' => $input['role'] ?? ($isPusat ? 'super_admin' : 'pengurus_pondok'),
+            ':jabatan' => $input['jabatan'] ?? ($isPusat ? 'Kepala Bidang Kesantrian & Alumni Ponpes At-taroqqy' : 'Pengurus Ikatan Alumni'),
+            ':region_level' => $input['regionLevel'] ?? ($isPusat ? 'pusat' : 'provinsi'),
+            ':avatar' => $avatar,
+            ':cover_photo_url' => $coverPhotoUrl,
             ':bio' => $input['bio'] ?? null,
             ':phone' => $input['phone'] ?? null,
             ':province' => $input['province'] ?? 'Jawa Timur',
@@ -1454,8 +1564,8 @@ if ($action === 'save_admin_user' && $_SERVER['REQUEST_METHOD'] === 'POST') {
             ':kecamatan' => $input['kecamatan'] ?? null,
             ':desa' => $input['desa'] ?? null,
             ':alamat_lengkap' => $input['alamatLengkap'] ?? null,
-            ':latitude' => $coords ? $coords['lat'] : null,
-            ':longitude' => $coords ? $coords['lng'] : null,
+            ':latitude' => $lat,
+            ':longitude' => $lng,
         ]);
 
         echo json_encode(['success' => true, 'id' => $id, 'message' => 'Akun admin berhasil disimpan']);

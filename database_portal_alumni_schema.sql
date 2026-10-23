@@ -102,11 +102,11 @@ CREATE TABLE IF NOT EXISTS `admin_users` (
   `username` VARCHAR(80) NOT NULL UNIQUE,
   `email` VARCHAR(120) DEFAULT NULL,
   `password` VARCHAR(255) NOT NULL DEFAULT '1997',
-  `role` ENUM('super_admin', 'pengurus_pondok') NOT NULL DEFAULT 'pengurus_pondok',
+  `role` VARCHAR(50) NOT NULL DEFAULT 'pengurus_pondok',
   `jabatan` VARCHAR(150) NOT NULL DEFAULT 'Pengurus Ikatan Alumni',
-  `region_level` ENUM('pusat', 'provinsi', 'kota', 'kecamatan') NOT NULL DEFAULT 'pusat',
-  `avatar` TEXT DEFAULT NULL,
-  `cover_photo_url` TEXT DEFAULT NULL,
+  `region_level` VARCHAR(50) NOT NULL DEFAULT 'pusat',
+  `avatar` LONGTEXT DEFAULT NULL,
+  `cover_photo_url` LONGTEXT DEFAULT NULL,
   `bio` TEXT DEFAULT NULL,
   `phone` VARCHAR(30) DEFAULT NULL,
   `province` VARCHAR(80) DEFAULT 'Jawa Timur',
@@ -121,6 +121,11 @@ CREATE TABLE IF NOT EXISTS `admin_users` (
   INDEX `idx_admin_username` (`username`),
   INDEX `idx_admin_level` (`region_level`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+ALTER TABLE `admin_users`
+  MODIFY COLUMN `avatar` LONGTEXT DEFAULT NULL,
+  MODIFY COLUMN `cover_photo_url` LONGTEXT DEFAULT NULL,
+  MODIFY COLUMN `region_level` VARCHAR(50) NOT NULL DEFAULT 'pusat';
 
 -- Data Awal Administrator Default:
 INSERT INTO `admin_users` (`id`, `name`, `username`, `email`, `password`, `role`, `jabatan`, `region_level`, `created_at`) 

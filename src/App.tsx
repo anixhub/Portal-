@@ -31,6 +31,10 @@ import {
   getDeletedAnnouncementIds,
   syncChannel,
   syncAdminProfileAcrossApp,
+  fetchAdminProfile,
+  fetchAdminUsers,
+  saveAdminUser,
+  deleteAdminUser,
   SantriIdentityLookup,
   ensureAllSantriLoaded,
 } from './services/apiService';
@@ -88,6 +92,7 @@ export default function App() {
 
   const handleAddAdminUser = (newAdmin: AdminUser) => {
     setAdminList((prev) => [...prev, newAdmin]);
+    saveAdminUser(newAdmin);
   };
 
   const handleUpdateAdminUser = (updatedAdmin: AdminUser) => {
@@ -99,10 +104,16 @@ export default function App() {
         prev ? { ...prev, adminData: updatedAdmin } : null
       );
     }
+    const isPusat = updatedAdmin.username === '@admin_pusat' || updatedAdmin.role === 'super_admin' || updatedAdmin.regionLevel === 'pusat';
+    if (isPusat) {
+      setAdminAccount(updatedAdmin);
+    }
+    saveAdminUser(updatedAdmin);
   };
 
   const handleDeleteAdminUser = (adminId: string) => {
     setAdminList((prev) => prev.filter((a) => a.id !== adminId));
+    deleteAdminUser(adminId);
   };
 
   // Events & Announcements dengan persistensi lokal dan sinkronisasi database
@@ -190,10 +201,12 @@ export default function App() {
     if (silent && isSyncingRef.current) return;
     if (!silent) setIsDbLoading(true);
     try {
-      const [alumniRes, eventsRes, annRes] = await Promise.all([
+      const [alumniRes, eventsRes, annRes, adminProfileRes, adminUsersRes] = await Promise.all([
         fetchAlumniFromHostinger(true),
         fetchEventsFromHostinger(),
         fetchAnnouncementsFromHostinger(),
+        fetchAdminProfile(),
+        fetchAdminUsers(),
       ]);
 
       if (alumniRes.success && alumniRes.data && alumniRes.data.length > 0) {
@@ -388,6 +401,39 @@ export default function App() {
       if (annRes.success && Array.isArray(annRes.data)) {
         const deletedIds = getDeletedAnnouncementIds();
         setAnnouncements(annRes.data.filter((a) => a && a.id && !deletedIds.includes(a.id)));
+      }
+
+      if (adminProfileRes?.success && adminProfileRes.data) {
+        const freshAdmin = adminProfileRes.data;
+        setAdminAccount((prev) => ({
+          ...prev,
+          ...freshAdmin,
+          name: freshAdmin.name || prev.name,
+          username: freshAdmin.username || prev.username,
+          avatar: freshAdmin.avatar !== undefined ? freshAdmin.avatar : prev.avatar,
+          coverPhotoUrl: freshAdmin.coverPhotoUrl !== undefined ? freshAdmin.coverPhotoUrl : prev.coverPhotoUrl,
+          bio: freshAdmin.bio !== undefined ? freshAdmin.bio : prev.bio,
+          jabatan: freshAdmin.jabatan !== undefined ? freshAdmin.jabatan : prev.jabatan,
+        }));
+        setCurrentSession((prev) => {
+          if (prev?.role === 'admin' && prev.adminData) {
+            const isTarget = prev.adminData.id === freshAdmin.id || prev.adminData.username === freshAdmin.username || prev.adminData.username === '@admin_pusat';
+            if (isTarget) {
+              return {
+                ...prev,
+                adminData: {
+                  ...prev.adminData,
+                  ...freshAdmin,
+                },
+              };
+            }
+          }
+          return prev;
+        });
+      }
+
+      if (adminUsersRes?.success && Array.isArray(adminUsersRes.data) && adminUsersRes.data.length > 0) {
+        setAdminList(adminUsersRes.data);
       }
     } catch (err) {
       console.warn('Gagal memuat data dari Hostinger:', err);
@@ -937,92 +983,99 @@ export default function App() {
       : undefined;
     const newName = updated.name ?? currentAdmin.name;
     const newAvatar = updated.avatar !== undefined ? updated.avatar : currentAdmin.avatar;
+    const newCoverPhoto = updated.coverPhotoUrl !== undefined ? updated.coverPhotoUrl : currentAdmin.coverPhotoUrl;
 
     // Sync and PERMANENTLY save all existing events authored by admin (synchronously computed)
     const prevH = prevUsername ? prevUsername.replace(/^@/, '').toLowerCase().trim() : '';
-    const nextEvents = events.map((ev) => {
-      const evHandle = ev.authorHandle ? ev.authorHandle.replace(/^@/, '').toLowerCase().trim() : '';
-      const isAuthor =
-        !ev.authorHandle ||
-        evHandle === prevH ||
-        evHandle === 'admin_pusat' ||
-        ev.authorName === prevName ||
-        ev.authorName === 'Ust. H. Abdurrahman, M.Pd.' ||
-        ev.authorName === 'Davidko' ||
-        ev.authorName === newName;
+    if (updated.name || updated.username || updated.avatar !== undefined) {
+      const nextEvents = events.map((ev) => {
+        const evHandle = ev.authorHandle ? ev.authorHandle.replace(/^@/, '').toLowerCase().trim() : '';
+        const isAuthor =
+          !ev.authorHandle ||
+          evHandle === prevH ||
+          evHandle === 'admin_pusat' ||
+          ev.authorName === prevName ||
+          ev.authorName === 'Ust. H. Abdurrahman, M.Pd.' ||
+          ev.authorName === 'Davidko' ||
+          ev.authorName === 'Davidson' ||
+          ev.authorName === newName;
 
-      if (isAuthor) {
-        return {
-          ...ev,
-          authorName: newName,
-          authorHandle: newHandle ?? ev.authorHandle,
-          authorAvatar: newAvatar,
-        };
+        if (isAuthor) {
+          return {
+            ...ev,
+            authorName: newName,
+            authorHandle: newHandle ?? ev.authorHandle,
+            authorAvatar: newAvatar,
+          };
+        }
+        return ev;
+      });
+      setEvents(nextEvents);
+
+      // Save each updated event to database/server so it is never overwritten by polling
+      for (const ev of nextEvents) {
+        const evHandle = ev.authorHandle ? ev.authorHandle.replace(/^@/, '').toLowerCase().trim() : '';
+        const isAuthor =
+          !ev.authorHandle ||
+          evHandle === prevH ||
+          evHandle === 'admin_pusat' ||
+          ev.authorName === prevName ||
+          ev.authorName === newName;
+        if (isAuthor) {
+          saveEventToHostinger(ev).catch(() => {});
+        }
       }
-      return ev;
-    });
-    setEvents(nextEvents);
 
-    // Save each updated event to database/server so it is never overwritten by polling
-    for (const ev of nextEvents) {
-      const evHandle = ev.authorHandle ? ev.authorHandle.replace(/^@/, '').toLowerCase().trim() : '';
-      const isAuthor =
-        !ev.authorHandle ||
-        evHandle === prevH ||
-        evHandle === 'admin_pusat' ||
-        ev.authorName === prevName ||
-        ev.authorName === newName;
-      if (isAuthor) {
-        await saveEventToHostinger(ev);
-      }
-    }
+      // Sync and PERMANENTLY save all existing announcements authored by admin (synchronously computed)
+      const nextAnns = announcements.map((ann) => {
+        const annHandle = ann.authorHandle ? ann.authorHandle.replace(/^@/, '').toLowerCase().trim() : '';
+        const isAuthor =
+          !ann.authorHandle ||
+          annHandle === prevH ||
+          annHandle === 'admin_pusat' ||
+          ann.authorName === prevName ||
+          ann.authorName === 'Ust. H. Abdurrahman, M.Pd.' ||
+          ann.authorName === 'Davidko' ||
+          ann.authorName === 'Davidson' ||
+          ann.authorName === 'Pondok Pesantren At-taroqqy' ||
+          ann.authorName === newName;
 
-    // Sync and PERMANENTLY save all existing announcements authored by admin (synchronously computed)
-    const nextAnns = announcements.map((ann) => {
-      const annHandle = ann.authorHandle ? ann.authorHandle.replace(/^@/, '').toLowerCase().trim() : '';
-      const isAuthor =
-        !ann.authorHandle ||
-        annHandle === prevH ||
-        annHandle === 'admin_pusat' ||
-        ann.authorName === prevName ||
-        ann.authorName === 'Ust. H. Abdurrahman, M.Pd.' ||
-        ann.authorName === 'Davidko' ||
-        ann.authorName === 'Pondok Pesantren At-taroqqy' ||
-        ann.authorName === newName;
+        if (isAuthor) {
+          return {
+            ...ann,
+            authorName: newName,
+            authorHandle: newHandle ?? ann.authorHandle,
+            authorAvatar: newAvatar,
+          };
+        }
+        return ann;
+      });
+      setAnnouncements(nextAnns);
 
-      if (isAuthor) {
-        return {
-          ...ann,
-          authorName: newName,
-          authorHandle: newHandle ?? ann.authorHandle,
-          authorAvatar: newAvatar,
-        };
-      }
-      return ann;
-    });
-    setAnnouncements(nextAnns);
-
-    // Save each updated announcement to database/server
-    for (const ann of nextAnns) {
-      const annHandle = ann.authorHandle ? ann.authorHandle.replace(/^@/, '').toLowerCase().trim() : '';
-      const isAuthor =
-        !ann.authorHandle ||
-        annHandle === prevH ||
-        annHandle === 'admin_pusat' ||
-        ann.authorName === prevName ||
-        ann.authorName === newName;
-      if (isAuthor) {
-        await saveAnnouncementToHostinger(ann);
+      // Save each updated announcement to database/server
+      for (const ann of nextAnns) {
+        const annHandle = ann.authorHandle ? ann.authorHandle.replace(/^@/, '').toLowerCase().trim() : '';
+        const isAuthor =
+          !ann.authorHandle ||
+          annHandle === prevH ||
+          annHandle === 'admin_pusat' ||
+          ann.authorName === prevName ||
+          ann.authorName === newName;
+        if (isAuthor) {
+          saveAnnouncementToHostinger(ann).catch(() => {});
+        }
       }
     }
 
     // Sync admin profile to server and MySQL backend
     await syncAdminProfileAcrossApp({
+      id: nextAdmin.id,
       prevName,
       prevUsername,
       name: newName,
       username: newHandle ?? currentAdmin.username,
       avatar: newAvatar,
+      coverPhotoUrl: newCoverPhoto,
       jabatan: updated.jabatan ?? currentAdmin.jabatan,
       bio: updated.bio ?? currentAdmin.bio,
       phone: updated.phone ?? currentAdmin.phone,
@@ -1032,6 +1085,9 @@ export default function App() {
       desa: updated.desa ?? currentAdmin.desa,
       alamatLengkap: updated.alamatLengkap ?? currentAdmin.alamatLengkap,
       coordinates: updated.coordinates !== undefined ? updated.coordinates : currentAdmin.coordinates,
+      password: updated.password ?? currentAdmin.password,
+      role: nextAdmin.role,
+      regionLevel: nextAdmin.regionLevel,
     });
   };
 

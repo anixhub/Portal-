@@ -1028,6 +1028,7 @@ async function startServer() {
   const commentsStorePath = path.resolve(__dirname, 'src/data/comments_store.json');
   const quranBookmarksStorePath = path.resolve(__dirname, 'src/data/quran_bookmarks_store.json');
   const adminProfileStorePath = path.resolve(__dirname, 'src/data/admin_profile_store.json');
+  const adminUsersStorePath = path.resolve(__dirname, 'src/data/admin_users_store.json');
 
   const loadJsonStore = (filePath: string, fallback: any = []) => {
     try {
@@ -1048,6 +1049,34 @@ async function startServer() {
     }
   };
 
+  const saveBase64Image = (base64Data: any, prefix = 'photo'): string => {
+    if (!base64Data || typeof base64Data !== 'string') return base64Data;
+    if (!base64Data.startsWith('data:image/')) return base64Data;
+
+    try {
+      const match = base64Data.match(/^data:image\/([a-zA-Z0-9]+);base64,(.+)$/);
+      if (!match) return base64Data;
+
+      let ext = match[1].toLowerCase();
+      if (ext === 'jpeg') ext = 'jpg';
+      const buffer = Buffer.from(match[2], 'base64');
+
+      const uploadDir = path.resolve(__dirname, 'public/uploads/pas_foto');
+      if (!fs.existsSync(uploadDir)) {
+        fs.mkdirSync(uploadDir, { recursive: true });
+      }
+
+      const filename = `${prefix}_${Date.now()}_${Math.random().toString(36).substring(2, 7)}.${ext}`;
+      const filePath = path.join(uploadDir, filename);
+      fs.writeFileSync(filePath, buffer);
+
+      return `/uploads/pas_foto/${filename}`;
+    } catch (err) {
+      console.error('[Server] Failed to save base64 image to disk:', err);
+      return base64Data;
+    }
+  };
+
   let deletedEventIds: string[] = loadJsonStore(deletedEventsStorePath, []);
   let deletedAnnouncementIds: string[] = loadJsonStore(deletedAnnouncementsStorePath, []);
   let cachedEvents: any[] = loadJsonStore(eventsStorePath, []).filter((e: any) => e && e.id && !deletedEventIds.includes(e.id));
@@ -1055,6 +1084,40 @@ async function startServer() {
   let cachedComments: any[] = loadJsonStore(commentsStorePath, []);
   let cachedQuranBookmarks: Record<string, any> = loadJsonStore(quranBookmarksStorePath, {});
   let cachedAdminProfile: any = loadJsonStore(adminProfileStorePath, null);
+  let cachedAdminUsers: any[] = loadJsonStore(adminUsersStorePath, []);
+  if (!Array.isArray(cachedAdminUsers) || cachedAdminUsers.length === 0) {
+    if (cachedAdminProfile) {
+      cachedAdminUsers = [cachedAdminProfile];
+    } else {
+      cachedAdminUsers = [
+        {
+          id: 'adm-001',
+          name: 'Ust. H. Abdurrahman, M.Pd.',
+          username: '@admin_pusat',
+          email: 'admin_pusat@attaroqqy.com',
+          role: 'super_admin',
+          jabatan: 'Kepala Bidang Kesantrian & Alumni Ponpes At-taroqqy',
+          regionLevel: 'pusat',
+          password: '1997',
+          bio: 'Pengasuh & Dewan Pembina Ikatan Alumni Pondok Pesantren At-taroqqy Pusat.',
+          phone: '081234567890',
+          province: 'Jawa Timur',
+          city: 'Kab. Malang',
+          kecamatan: 'Dampit',
+          desa: 'Majangtengah',
+          alamatLengkap: 'Jl. Pesantren No. 01 RT 02 / RW 01',
+          coordinates: { lat: -8.2123, lng: 112.7534 },
+          createdAt: '2024-01-01',
+        },
+      ];
+    }
+    saveJsonStore(adminUsersStorePath, cachedAdminUsers);
+  } else if (cachedAdminProfile) {
+    const pIdx = cachedAdminUsers.findIndex((u: any) => u.username === '@admin_pusat' || u.role === 'super_admin' || u.regionLevel === 'pusat');
+    if (pIdx >= 0) {
+      cachedAdminUsers[pIdx] = { ...cachedAdminUsers[pIdx], ...cachedAdminProfile };
+    }
+  }
 
   // Events API: GET
   app.get('/api/events', async (req, res) => {
@@ -1323,20 +1386,70 @@ async function startServer() {
 
   // Admin Profile Sync across all events, announcements, and comments
   const handleAdminProfileSync = (req: any, res: any) => {
-    const { prevName, prevUsername, name, username, avatar } = req.body || {};
+    const {
+      id,
+      prevName,
+      prevUsername,
+      name,
+      username,
+      avatar,
+      coverPhotoUrl,
+      jabatan,
+      bio,
+      phone,
+      province,
+      city,
+      kecamatan,
+      desa,
+      alamatLengkap,
+      coordinates,
+      password,
+      email,
+      role,
+      regionLevel,
+    } = req.body || {};
+
     const pName = (prevName || '').trim();
     const pUser = (prevUsername || '').replace(/^@/, '').toLowerCase().trim();
     const newName = (name || '').trim();
     const newUsername = username ? (username.startsWith('@') ? username : `@${username}`) : undefined;
+    const processedAvatar = avatar !== undefined ? (avatar ? saveBase64Image(avatar, 'adminAvatar') : undefined) : cachedAdminProfile?.avatar;
+    const processedCover = coverPhotoUrl !== undefined ? (coverPhotoUrl ? saveBase64Image(coverPhotoUrl, 'adminCover') : undefined) : cachedAdminProfile?.coverPhotoUrl;
 
     cachedAdminProfile = {
       ...(cachedAdminProfile || {}),
+      id: id || cachedAdminProfile?.id || 'adm-001',
       name: newName || cachedAdminProfile?.name || 'Ust. H. Abdurrahman, M.Pd.',
       username: newUsername || cachedAdminProfile?.username || '@admin_pusat',
-      avatar: avatar !== undefined ? avatar : cachedAdminProfile?.avatar,
+      avatar: processedAvatar,
+      coverPhotoUrl: processedCover,
+      jabatan: jabatan !== undefined ? jabatan : (cachedAdminProfile?.jabatan || 'Kepala Bidang Kesantrian & Alumni Ponpes At-taroqqy'),
+      bio: bio !== undefined ? bio : (cachedAdminProfile?.bio || 'Pengasuh & Dewan Pembina Ikatan Alumni Pondok Pesantren At-taroqqy Pusat.'),
+      phone: phone !== undefined ? phone : cachedAdminProfile?.phone,
+      province: province !== undefined ? province : cachedAdminProfile?.province,
+      city: city !== undefined ? city : cachedAdminProfile?.city,
+      kecamatan: kecamatan !== undefined ? kecamatan : cachedAdminProfile?.kecamatan,
+      desa: desa !== undefined ? desa : cachedAdminProfile?.desa,
+      alamatLengkap: alamatLengkap !== undefined ? alamatLengkap : cachedAdminProfile?.alamatLengkap,
+      coordinates: coordinates !== undefined ? coordinates : cachedAdminProfile?.coordinates,
+      password: password !== undefined ? password : (cachedAdminProfile?.password || '1997'),
+      email: email !== undefined ? email : cachedAdminProfile?.email,
+      role: role || cachedAdminProfile?.role || 'super_admin',
+      regionLevel: regionLevel || cachedAdminProfile?.regionLevel || 'pusat',
       updatedAt: new Date().toISOString(),
     };
     saveJsonStore(adminProfileStorePath, cachedAdminProfile);
+
+    // Sync ke cachedAdminUsers
+    const uIdx = cachedAdminUsers.findIndex(
+      (u: any) => u.id === cachedAdminProfile.id || u.username === '@admin_pusat' || u.username === pUser
+    );
+    if (uIdx >= 0) {
+      cachedAdminUsers[uIdx] = { ...cachedAdminUsers[uIdx], ...cachedAdminProfile };
+    } else {
+      cachedAdminUsers.unshift(cachedAdminProfile);
+    }
+    saveJsonStore(adminUsersStorePath, cachedAdminUsers);
 
     let eventsChanged = false;
     cachedEvents = cachedEvents.map((ev: any) => {
@@ -1349,6 +1462,7 @@ async function startServer() {
         ev.authorName === 'Ust. H. Abdurrahman, M.Pd.' ||
         ev.authorName === 'Davidko' ||
         ev.authorName === 'Davidson' ||
+        (cachedAdminProfile?.name && ev.authorName === cachedAdminProfile.name) ||
         ev.authorName === newName;
 
       if (isAuthor) {
@@ -1357,7 +1471,7 @@ async function startServer() {
           ...ev,
           authorName: newName || ev.authorName,
           authorHandle: newUsername || ev.authorHandle,
-          authorAvatar: avatar !== undefined ? avatar : ev.authorAvatar,
+          authorAvatar: processedAvatar !== undefined ? (processedAvatar || undefined) : ev.authorAvatar,
         };
         fetch('https://alumni.attaroqqy.com/api_alumni.php?action=save_event', {
           method: 'POST',
@@ -1384,6 +1498,7 @@ async function startServer() {
         ann.authorName === 'Ust. H. Abdurrahman, M.Pd.' ||
         ann.authorName === 'Davidko' ||
         ann.authorName === 'Davidson' ||
+        (cachedAdminProfile?.name && ann.authorName === cachedAdminProfile.name) ||
         ann.authorName === 'Pondok Pesantren At-taroqqy' ||
         ann.authorName === newName;
 
@@ -1393,7 +1508,7 @@ async function startServer() {
           ...ann,
           authorName: newName || ann.authorName,
           authorHandle: newUsername || ann.authorHandle,
-          authorAvatar: avatar !== undefined ? avatar : ann.authorAvatar,
+          authorAvatar: processedAvatar !== undefined ? (processedAvatar || undefined) : ann.authorAvatar,
         };
         fetch('https://alumni.attaroqqy.com/api_alumni.php?action=save_announcement', {
           method: 'POST',
@@ -1419,7 +1534,7 @@ async function startServer() {
           ...c,
           authorName: newName || c.authorName,
           authorHandle: newUsername || c.authorHandle,
-          authorAvatar: avatar !== undefined ? avatar : c.authorAvatar,
+          authorAvatar: processedAvatar !== undefined ? (processedAvatar || undefined) : c.authorAvatar,
         };
         fetch('https://alumni.attaroqqy.com/api_alumni.php?action=save_comment', {
           method: 'POST',
@@ -1435,7 +1550,30 @@ async function startServer() {
       saveJsonStore(commentsStorePath, cachedComments);
     }
 
-    res.json({ success: true, message: 'Admin profile synced to all posts & comments' });
+    // Forward sync ke Hostinger MySQL database
+    fetch('https://alumni.attaroqqy.com/api_alumni.php?action=save_admin_user', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(cachedAdminProfile),
+      signal: AbortSignal.timeout(10000),
+    }).catch(() => {});
+    fetch('https://attaroqqy.com/api_alumni.php?action=save_admin_user', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(cachedAdminProfile),
+      signal: AbortSignal.timeout(10000),
+    }).catch(() => {});
+
+    // Broadcast update via WebSocket
+    broadcastWs({
+      type: 'DATA_CHANGED',
+      entity: 'admin',
+      action: 'update',
+      data: cachedAdminProfile,
+      timestamp: Date.now(),
+    });
+
+    res.json({ success: true, message: 'Admin profile synced to all posts & comments', data: cachedAdminProfile });
   };
 
   app.get('/api/admin/profile', (req, res) => {
@@ -1444,6 +1582,91 @@ async function startServer() {
 
   app.post('/api/admin/profile', handleAdminProfileSync);
   app.post('/api/admin/sync-profile', handleAdminProfileSync);
+
+  // Admin Users List API: GET, POST, DELETE
+  app.get('/api/admin/users', (req, res) => {
+    res.json({ success: true, data: cachedAdminUsers });
+  });
+
+  app.post('/api/admin/users', (req, res) => {
+    const adminData = req.body;
+    if (adminData && adminData.username) {
+      const isPusat = adminData.username === '@admin_pusat' || adminData.role === 'super_admin' || adminData.regionLevel === 'pusat';
+      const cleanUser = adminData.username.startsWith('@') ? adminData.username : `@${adminData.username}`;
+      const record = {
+        ...adminData,
+        username: cleanUser,
+        avatar: adminData.avatar ? saveBase64Image(adminData.avatar, 'adminAvatar') : adminData.avatar,
+        coverPhotoUrl: adminData.coverPhotoUrl ? saveBase64Image(adminData.coverPhotoUrl, 'adminCover') : adminData.coverPhotoUrl,
+        id: adminData.id || (isPusat ? 'adm-001' : `adm-${Date.now()}`),
+        updatedAt: new Date().toISOString(),
+      };
+
+      const idx = cachedAdminUsers.findIndex((u: any) => u.id === record.id || u.username === cleanUser);
+      if (idx >= 0) {
+        cachedAdminUsers[idx] = { ...cachedAdminUsers[idx], ...record };
+      } else {
+        cachedAdminUsers.push(record);
+      }
+      saveJsonStore(adminUsersStorePath, cachedAdminUsers);
+
+      if (isPusat) {
+        cachedAdminProfile = { ...(cachedAdminProfile || {}), ...record };
+        saveJsonStore(adminProfileStorePath, cachedAdminProfile);
+      }
+
+      // Forward ke Hostinger
+      fetch('https://alumni.attaroqqy.com/api_alumni.php?action=save_admin_user', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(record),
+        signal: AbortSignal.timeout(10000),
+      }).catch(() => {});
+      fetch('https://attaroqqy.com/api_alumni.php?action=save_admin_user', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(record),
+        signal: AbortSignal.timeout(10000),
+      }).catch(() => {});
+
+      broadcastWs({
+        type: 'DATA_CHANGED',
+        entity: 'admin',
+        action: 'save_user',
+        data: record,
+        timestamp: Date.now(),
+      });
+
+      return res.json({ success: true, data: record });
+    }
+    res.status(400).json({ success: false, message: 'Invalid admin data' });
+  });
+
+  app.delete('/api/admin/users/:id', (req, res) => {
+    const { id } = req.params;
+    if (id) {
+      cachedAdminUsers = cachedAdminUsers.filter((u: any) => u.id !== id && u.username !== '@admin_pusat');
+      saveJsonStore(adminUsersStorePath, cachedAdminUsers);
+
+      fetch('https://alumni.attaroqqy.com/api_alumni.php?action=delete_admin_user', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id }),
+        signal: AbortSignal.timeout(10000),
+      }).catch(() => {});
+
+      broadcastWs({
+        type: 'DATA_CHANGED',
+        entity: 'admin',
+        action: 'delete_user',
+        id,
+        timestamp: Date.now(),
+      });
+
+      return res.json({ success: true, message: 'Admin deleted' });
+    }
+    res.status(400).json({ success: false, message: 'Invalid admin id' });
+  });
 
   // Announcements API: GET
   app.get('/api/announcements', async (req, res) => {

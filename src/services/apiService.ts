@@ -1,5 +1,5 @@
-import { AlumniRecord, EventAgenda, AnnouncementItem, EventComment } from '../types';
-import { INITIAL_ALUMNI, INITIAL_EVENTS, INITIAL_ANNOUNCEMENTS } from '../data/mockData';
+import { AlumniRecord, EventAgenda, AnnouncementItem, EventComment, AdminUser } from '../types';
+import { INITIAL_ALUMNI, INITIAL_EVENTS, INITIAL_ANNOUNCEMENTS, INITIAL_ADMIN } from '../data/mockData';
 import { getAlumniPhotoUrl, formatPhotoUrlForHostinger } from '../utils/photoUtils';
 import { ensureConsistentAlumniIdentities } from '../utils/alumniIdentityUtils';
 import { wsClient } from './websocketService';
@@ -1433,12 +1433,191 @@ export async function saveRsvpToHostinger(
   return { success: true };
 }
 
+/**
+ * Normalisasi data admin dari server/database ke AdminUser
+ */
+export function normalizeSingleAdminUser(item: any): AdminUser {
+  if (!item) return INITIAL_ADMIN;
+  const rawUser = String(item.username || '@admin_pusat').trim();
+  const cleanUsername = rawUser.startsWith('@') ? rawUser : `@${rawUser}`;
+  const isPusat = cleanUsername === '@admin_pusat' || item.role === 'super_admin' || item.regionLevel === 'pusat' || item.region_level === 'pusat';
+
+  const coords = item.coordinates || (
+    item.latitude !== undefined && item.longitude !== undefined && item.latitude !== null && item.longitude !== null
+      ? { lat: Number(item.latitude), lng: Number(item.longitude) }
+      : null
+  );
+
+  return {
+    id: String(item.id || (isPusat ? 'adm-001' : `adm-${Date.now()}`)),
+    name: String(item.name || item.nama || 'Ust. H. Abdurrahman, M.Pd.').trim(),
+    username: cleanUsername,
+    email: item.email || (isPusat ? 'admin_pusat@attaroqqy.com' : undefined),
+    password: String(item.password || '1997'),
+    role: item.role || (isPusat ? 'super_admin' : 'pengurus_pondok'),
+    jabatan: item.jabatan || (isPusat ? 'Kepala Bidang Kesantrian & Alumni Ponpes At-taroqqy' : 'Pengurus Ikatan Alumni'),
+    regionLevel: item.regionLevel || item.region_level || (isPusat ? 'pusat' : 'provinsi'),
+    avatar: item.avatar ? getAlumniPhotoUrl(item.avatar) : undefined,
+    coverPhotoUrl: (item.coverPhotoUrl || item.cover_photo_url) ? getAlumniPhotoUrl(item.coverPhotoUrl || item.cover_photo_url) : undefined,
+    bio: item.bio || '',
+    phone: item.phone || item.no_hp || '',
+    province: item.province || item.provinsi || 'Jawa Timur',
+    city: item.city || item.kabupaten || '',
+    kecamatan: item.kecamatan || '',
+    desa: item.desa || '',
+    alamatLengkap: item.alamatLengkap || item.alamat_lengkap || '',
+    coordinates: coords,
+    createdAt: item.createdAt || item.created_at || '2024-01-01',
+  };
+}
+
+export async function fetchAdminProfile(): Promise<{ success: boolean; data?: AdminUser }> {
+  // 1. Coba dari endpoint local express server /api/admin/profile
+  try {
+    const res = await fetch('/api/admin/profile', {
+      headers: { Accept: 'application/json' },
+      signal: AbortSignal.timeout(6000),
+    });
+    if (res.ok) {
+      const json = await res.json();
+      if (json.success && json.data && json.data.name) {
+        return { success: true, data: normalizeSingleAdminUser(json.data) };
+      }
+    }
+  } catch (e) {}
+
+  // 2. Fallback ke Hostinger API langsung (action=get_admin_profile)
+  try {
+    const remoteRes = await fetch(`${HOSTINGER_API_URL}?action=get_admin_profile`, {
+      headers: { Accept: 'application/json' },
+      signal: AbortSignal.timeout(6000),
+    });
+    if (remoteRes.ok) {
+      const json = await remoteRes.json();
+      if (json.success && json.data) {
+        return { success: true, data: normalizeSingleAdminUser(json.data) };
+      }
+    }
+  } catch (e) {}
+
+  // 3. Fallback ke get_admin_users (ambil akun pusat pertama)
+  try {
+    const remoteUsersRes = await fetch(`${HOSTINGER_API_URL}?action=get_admin_users`, {
+      headers: { Accept: 'application/json' },
+      signal: AbortSignal.timeout(6000),
+    });
+    if (remoteUsersRes.ok) {
+      const json = await remoteUsersRes.json();
+      const list = Array.isArray(json) ? json : (Array.isArray(json?.data) ? json.data : null);
+      if (Array.isArray(list) && list.length > 0) {
+        const pusat = list.find((u: any) => u.username === '@admin_pusat' || u.role === 'super_admin' || u.region_level === 'pusat') || list[0];
+        if (pusat) {
+          return { success: true, data: normalizeSingleAdminUser(pusat) };
+        }
+      }
+    }
+  } catch (e) {}
+
+  return { success: false };
+}
+
+export async function fetchAdminUsers(): Promise<{ success: boolean; data: AdminUser[] }> {
+  // 1. Coba dari server Express /api/admin/users
+  try {
+    const res = await fetch('/api/admin/users', {
+      headers: { Accept: 'application/json' },
+      signal: AbortSignal.timeout(6000),
+    });
+    if (res.ok) {
+      const json = await res.json();
+      const list = Array.isArray(json) ? json : (Array.isArray(json?.data) ? json.data : null);
+      if (Array.isArray(list) && list.length > 0) {
+        return { success: true, data: list.map(normalizeSingleAdminUser) };
+      }
+    }
+  } catch (e) {}
+
+  // 2. Fallback ke Hostinger API langsung
+  try {
+    const remoteRes = await fetch(`${HOSTINGER_API_URL}?action=get_admin_users`, {
+      headers: { Accept: 'application/json' },
+      signal: AbortSignal.timeout(6000),
+    });
+    if (remoteRes.ok) {
+      const json = await remoteRes.json();
+      const list = Array.isArray(json) ? json : (Array.isArray(json?.data) ? json.data : null);
+      if (Array.isArray(list) && list.length > 0) {
+        return { success: true, data: list.map(normalizeSingleAdminUser) };
+      }
+    }
+  } catch (e) {}
+
+  return { success: false, data: [] };
+}
+
+export async function saveAdminUser(admin: AdminUser): Promise<{ success: boolean }> {
+  try {
+    const payload = {
+      ...admin,
+      avatar: admin.avatar,
+      coverPhotoUrl: admin.coverPhotoUrl,
+    };
+    await Promise.allSettled([
+      fetch('/api/admin/users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      }),
+      fetch(`${HOSTINGER_API_URL}?action=save_admin_user`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      }),
+      fetch('https://alumni.attaroqqy.com/api_alumni.php?action=save_admin_user', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      }),
+    ]);
+    broadcastSyncEvent('all');
+    return { success: true };
+  } catch (e) {
+    return { success: false };
+  }
+}
+
+export async function deleteAdminUser(adminId: string): Promise<{ success: boolean }> {
+  try {
+    await Promise.allSettled([
+      fetch(`/api/admin/users/${encodeURIComponent(adminId)}`, {
+        method: 'DELETE',
+      }),
+      fetch(`${HOSTINGER_API_URL}?action=delete_admin_user`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: adminId }),
+      }),
+      fetch('https://alumni.attaroqqy.com/api_alumni.php?action=delete_admin_user', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: adminId }),
+      }),
+    ]);
+    broadcastSyncEvent('all');
+    return { success: true };
+  } catch (e) {
+    return { success: false };
+  }
+}
+
 export async function syncAdminProfileAcrossApp(data: {
+  id?: string;
   prevName?: string;
   prevUsername?: string;
   name?: string;
   username?: string;
-  avatar?: string;
+  avatar?: string | null;
+  coverPhotoUrl?: string | null;
   jabatan?: string;
   bio?: string;
   phone?: string;
@@ -1448,53 +1627,53 @@ export async function syncAdminProfileAcrossApp(data: {
   desa?: string;
   alamatLengkap?: string;
   coordinates?: any;
+  password?: string;
+  email?: string;
+  role?: string;
+  regionLevel?: string;
 }): Promise<{ success: boolean }> {
   try {
+    const payload = {
+      id: data.id || 'adm-001',
+      name: data.name,
+      username: data.username,
+      avatar: data.avatar,
+      coverPhotoUrl: data.coverPhotoUrl,
+      jabatan: data.jabatan,
+      bio: data.bio,
+      phone: data.phone,
+      province: data.province,
+      city: data.city,
+      kecamatan: data.kecamatan,
+      desa: data.desa,
+      alamatLengkap: data.alamatLengkap,
+      coordinates: data.coordinates,
+      password: data.password,
+      email: data.email,
+      role: data.role,
+      regionLevel: data.regionLevel,
+      prevName: data.prevName,
+      prevUsername: data.prevUsername,
+    };
+
     await Promise.allSettled([
       fetch('/api/admin/profile', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
+        body: JSON.stringify(payload),
       }),
       fetch(`${HOSTINGER_API_URL}?action=save_admin_user`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: data.name,
-          username: data.username,
-          avatar: data.avatar,
-          jabatan: data.jabatan,
-          bio: data.bio,
-          phone: data.phone,
-          province: data.province,
-          city: data.city,
-          kecamatan: data.kecamatan,
-          desa: data.desa,
-          alamatLengkap: data.alamatLengkap,
-          coordinates: data.coordinates,
-        }),
+        body: JSON.stringify(payload),
       }),
       fetch('https://alumni.attaroqqy.com/api_alumni.php?action=save_admin_user', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: data.name,
-          username: data.username,
-          avatar: data.avatar,
-          jabatan: data.jabatan,
-          bio: data.bio,
-          phone: data.phone,
-          province: data.province,
-          city: data.city,
-          kecamatan: data.kecamatan,
-          desa: data.desa,
-          alamatLengkap: data.alamatLengkap,
-          coordinates: data.coordinates,
-        }),
+        body: JSON.stringify(payload),
       }),
     ]);
-    broadcastSyncEvent('events');
-    broadcastSyncEvent('announcements');
+    broadcastSyncEvent('all');
     return { success: true };
   } catch (e) {
     return { success: false };
