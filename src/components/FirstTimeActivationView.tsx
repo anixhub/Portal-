@@ -6,7 +6,10 @@ import {
   Eye,
   EyeOff,
   Check,
+  CheckCircle2,
   X,
+  XCircle,
+  Loader2,
   ArrowRight,
   ArrowLeft,
   Camera,
@@ -17,6 +20,7 @@ import {
   LogOut,
 } from 'lucide-react';
 import { AlumniRecord, AdminUser } from '../types';
+import { getGlobalAllSantriRecords } from '../services/apiService';
 
 interface FirstTimeActivationViewProps {
   alumni: AlumniRecord;
@@ -179,6 +183,53 @@ export const FirstTimeActivationView: React.FC<FirstTimeActivationViewProps> = (
     occupation: alumni.occupation || '',
     institution: alumni.institution || '',
   });
+
+  const [isCheckingNik, setIsCheckingNik] = useState(false);
+  const [duplicateNik, setDuplicateNik] = useState<any>(null);
+  const [isCheckingNoKk, setIsCheckingNoKk] = useState(false);
+  const [duplicateNoKk, setDuplicateNoKk] = useState<any>(null);
+
+  useEffect(() => {
+    const clean = formData.nik.replace(/\D/g, '').slice(0, 16);
+    if (clean.length < 16) {
+      setIsCheckingNik(false);
+      setDuplicateNik(null);
+      return;
+    }
+    setIsCheckingNik(true);
+    const timer = setTimeout(() => {
+      setIsCheckingNik(false);
+      const allPool = getGlobalAllSantriRecords && getGlobalAllSantriRecords().length > 0
+        ? getGlobalAllSantriRecords()
+        : alumniList;
+      const found = allPool.find(
+        (a: any) => a.id !== alumni.id && a.nik && a.nik.replace(/\D/g, '').trim() === clean
+      );
+      setDuplicateNik(found || null);
+    }, 320);
+    return () => clearTimeout(timer);
+  }, [formData.nik, alumni.id, alumniList]);
+
+  useEffect(() => {
+    const clean = formData.noKk.replace(/\D/g, '').slice(0, 16);
+    if (clean.length < 16) {
+      setIsCheckingNoKk(false);
+      setDuplicateNoKk(null);
+      return;
+    }
+    setIsCheckingNoKk(true);
+    const timer = setTimeout(() => {
+      setIsCheckingNoKk(false);
+      const allPool = getGlobalAllSantriRecords && getGlobalAllSantriRecords().length > 0
+        ? getGlobalAllSantriRecords()
+        : alumniList;
+      const found = allPool.find(
+        (a: any) => a.id !== alumni.id && a.noKk && a.noKk.replace(/\D/g, '').trim() === clean
+      );
+      setDuplicateNoKk(found || null);
+    }, 320);
+    return () => clearTimeout(timer);
+  }, [formData.noKk, alumni.id, alumniList]);
 
   const handleFieldChange = (field: string, value: any) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
@@ -374,10 +425,6 @@ export const FirstTimeActivationView: React.FC<FirstTimeActivationViewProps> = (
           {currentStep === 1 && (
             <div className="space-y-6">
               <div>
-                <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-sky-50 text-sky-700 rounded-full text-xs font-semibold mb-2">
-                  <Sparkles className="w-3.5 h-3.5" />
-                  <span>Langkah 1 dari 3</span>
-                </div>
                 <h2 className="text-lg sm:text-xl font-display font-bold text-slate-900">
                   Buat Username & Kata Sandi
                 </h2>
@@ -588,10 +635,6 @@ export const FirstTimeActivationView: React.FC<FirstTimeActivationViewProps> = (
           {currentStep === 2 && (
             <div className="space-y-6">
               <div>
-                <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-sky-50 text-sky-700 rounded-full text-xs font-semibold mb-2">
-                  <FileCheck2 className="w-3.5 h-3.5" />
-                  <span>Langkah 2 dari 3</span>
-                </div>
                 <h2 className="text-lg sm:text-xl font-display font-bold text-slate-900">
                   Koreksi Data Diri
                 </h2>
@@ -621,25 +664,87 @@ export const FirstTimeActivationView: React.FC<FirstTimeActivationViewProps> = (
                     <label className="block text-xs font-bold text-slate-700 mb-1">
                       Nomor Induk Kependudukan (NIK)
                     </label>
-                    <input
-                      type="text"
-                      maxLength={16}
-                      value={formData.nik}
-                      onChange={(e) => handleFieldChange('nik', e.target.value.replace(/\D/g, ''))}
-                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#0284c7] focus:bg-white"
-                    />
+                    <div className="relative">
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        pattern="[0-9]*"
+                        maxLength={16}
+                        placeholder="16 digit"
+                        value={formData.nik}
+                        onChange={(e) => handleFieldChange('nik', e.target.value.replace(/\D/g, '').slice(0, 16))}
+                        className="w-full pl-3.5 pr-10 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-mono text-xs sm:text-sm font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#0284c7] focus:bg-white"
+                      />
+                      <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center pointer-events-none">
+                        {isCheckingNik && (
+                          <Loader2 className="w-4 h-4 text-sky-600 animate-spin" />
+                        )}
+                        {!isCheckingNik && formData.nik.replace(/\D/g, '').length === 16 && !duplicateNik && (
+                          <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                        )}
+                        {!isCheckingNik && formData.nik.replace(/\D/g, '').length === 16 && duplicateNik && (
+                          <XCircle className="w-4 h-4 text-rose-500" />
+                        )}
+                      </div>
+                    </div>
+                    {formData.nik.replace(/\D/g, '').length > 0 && formData.nik.replace(/\D/g, '').length < 16 && (
+                      <p className="text-[11px] text-amber-600 font-medium mt-1">
+                        Kurang {16 - formData.nik.replace(/\D/g, '').length} digit (harus 16 digit)
+                      </p>
+                    )}
+                    {!isCheckingNik && formData.nik.replace(/\D/g, '').length === 16 && duplicateNik && (
+                      <p className="text-[11px] text-rose-500 font-medium mt-1">
+                        NIK sudah terdaftar pada santri/alumni lain ({duplicateNik.name || 'data lain'})
+                      </p>
+                    )}
+                    {!isCheckingNik && formData.nik.replace(/\D/g, '').length === 16 && !duplicateNik && (
+                      <p className="text-[11px] text-emerald-600 font-medium mt-1">
+                        NIK valid & tersedia
+                      </p>
+                    )}
                   </div>
                   <div>
                     <label className="block text-xs font-bold text-slate-700 mb-1">
                       Nomor Kartu Keluarga (KK)
                     </label>
-                    <input
-                      type="text"
-                      maxLength={16}
-                      value={formData.noKk}
-                      onChange={(e) => handleFieldChange('noKk', e.target.value.replace(/\D/g, ''))}
-                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#0284c7] focus:bg-white"
-                    />
+                    <div className="relative">
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        pattern="[0-9]*"
+                        maxLength={16}
+                        placeholder="16 digit"
+                        value={formData.noKk}
+                        onChange={(e) => handleFieldChange('noKk', e.target.value.replace(/\D/g, '').slice(0, 16))}
+                        className="w-full pl-3.5 pr-10 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-mono text-xs sm:text-sm font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#0284c7] focus:bg-white"
+                      />
+                      <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center pointer-events-none">
+                        {isCheckingNoKk && (
+                          <Loader2 className="w-4 h-4 text-sky-600 animate-spin" />
+                        )}
+                        {!isCheckingNoKk && formData.noKk.replace(/\D/g, '').length === 16 && !duplicateNoKk && (
+                          <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                        )}
+                        {!isCheckingNoKk && formData.noKk.replace(/\D/g, '').length === 16 && duplicateNoKk && (
+                          <XCircle className="w-4 h-4 text-rose-500" />
+                        )}
+                      </div>
+                    </div>
+                    {formData.noKk.replace(/\D/g, '').length > 0 && formData.noKk.replace(/\D/g, '').length < 16 && (
+                      <p className="text-[11px] text-amber-600 font-medium mt-1">
+                        Kurang {16 - formData.noKk.replace(/\D/g, '').length} digit (harus 16 digit)
+                      </p>
+                    )}
+                    {!isCheckingNoKk && formData.noKk.replace(/\D/g, '').length === 16 && duplicateNoKk && (
+                      <p className="text-[11px] text-rose-500 font-medium mt-1">
+                        Nomor KK sudah terdaftar pada santri/alumni lain ({duplicateNoKk.name || 'data lain'})
+                      </p>
+                    )}
+                    {!isCheckingNoKk && formData.noKk.replace(/\D/g, '').length === 16 && !duplicateNoKk && (
+                      <p className="text-[11px] text-emerald-600 font-medium mt-1">
+                        Nomor KK valid & tersedia
+                      </p>
+                    )}
                   </div>
                 </div>
 
@@ -670,7 +775,7 @@ export const FirstTimeActivationView: React.FC<FirstTimeActivationViewProps> = (
                             : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
                         }`}
                       >
-                        Putra (Laki-laki)
+                        Laki-laki
                       </button>
                       <button
                         type="button"
@@ -681,7 +786,7 @@ export const FirstTimeActivationView: React.FC<FirstTimeActivationViewProps> = (
                             : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
                         }`}
                       >
-                        Putri (Perempuan)
+                        Perempuan
                       </button>
                     </div>
                   </div>
@@ -893,10 +998,6 @@ export const FirstTimeActivationView: React.FC<FirstTimeActivationViewProps> = (
           {currentStep === 3 && (
             <div className="space-y-6">
               <div>
-                <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-sky-50 text-sky-700 rounded-full text-xs font-semibold mb-2">
-                  <Camera className="w-3.5 h-3.5" />
-                  <span>Langkah 3 dari 3</span>
-                </div>
                 <h2 className="text-lg sm:text-xl font-display font-bold text-slate-900">
                   Upload Foto Profil
                 </h2>

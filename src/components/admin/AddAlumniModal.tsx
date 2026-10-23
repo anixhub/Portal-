@@ -266,9 +266,6 @@ export const AddAlumniModal: React.FC<AddAlumniModalProps> = ({
           <h2 className="font-display font-bold text-sm sm:text-base text-slate-900 leading-tight">
             Tambah Data Alumni
           </h2>
-          <p className="text-[11px] text-slate-500 font-medium">
-            {steps[currentStep - 1].title}
-          </p>
         </div>
 
         <button

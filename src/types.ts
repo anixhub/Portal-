@@ -199,6 +199,7 @@ export interface ActiveSession {
 
 export interface RegisterFormData {
   name: string;
+  nik?: string;
   email: string;
   phone: string;
   gradYear: string;

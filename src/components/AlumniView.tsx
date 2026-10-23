@@ -28,6 +28,7 @@ import {
   Save, 
   IdCard, 
   X, 
+  XCircle,
   MessageCircle, 
   Clock, 
   Image as ImageIcon, 
@@ -99,9 +100,19 @@ import {
   toggleCommentLikeInDatabase, 
   togglePostLikeInDatabase,
   deleteEventFromHostinger,
-  deleteAnnouncementFromHostinger
+  deleteAnnouncementFromHostinger,
+  getGlobalAllSantriRecords,
+  SantriIdentityLookup
 } from '../services/apiService';
-import { formatToDDMMYYYY, getMaxDaysInMonth, formatDayInput, formatMonthInput } from '../utils/dateUtils';
+import { 
+  formatToDDMMYYYY, 
+  getMaxDaysInMonth, 
+  formatDayInput, 
+  formatMonthInput,
+  padDayInput,
+  padMonthInput,
+  padYearInput 
+} from '../utils/dateUtils';
 import { RealQrCode } from './common/RealQrCode';
 import { generateNisFromEntryDate, calculateCascadeShiftOnEntryDateChange } from '../utils/alumniIdentityUtils';
 import posterReuniImg from '../assets/images/poster_reuni_akbar_1790648045947.jpg';
@@ -635,11 +646,11 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
   // Username Check State
   const [newUsernameInput, setNewUsernameInput] = useState('');
   const [isCheckingUsername, setIsCheckingUsername] = useState(false);
-  const [usernameStatus, setUsernameStatus] = useState<'idle' | 'available' | 'taken'>('idle');
+  const [usernameStatus, setUsernameStatus] = useState<'idle' | 'checking' | 'available' | 'taken'>('idle');
   const checkDebounceRef = useRef<NodeJS.Timeout | null>(null);
 
   const handleUsernameInputChange = (val: string) => {
-    const cleaned = val.toLowerCase().replace(/[^a-z0-9_]/g, '');
+    const cleaned = val.toLowerCase().replace(/[\s\t\n]+/g, '_').replace(/[^a-z0-9_]/g, '');
     setNewUsernameInput(cleaned);
     if (checkDebounceRef.current) clearTimeout(checkDebounceRef.current);
 
@@ -650,13 +661,14 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
     }
 
     setIsCheckingUsername(true);
+    setUsernameStatus('checking');
     checkDebounceRef.current = setTimeout(() => {
       setIsCheckingUsername(false);
       const isTaken = allAlumni.some(
-        (a) => a.id !== alumni.id && a.username && a.username.toLowerCase() === cleaned
+        (a) => a.id !== alumni.id && a.username && a.username.toLowerCase().replace(/^@/, '') === cleaned.replace(/^@/, '')
       );
       setUsernameStatus(isTaken ? 'taken' : 'available');
-    }, 450);
+    }, 320);
   };
 
   // Riwayat Pendidikan State
@@ -683,13 +695,173 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
   const [editPekerjaanIbu, setEditPekerjaanIbu] = useState(alumni.pekerjaanIbu || '');
   const [editPendidikanIbu, setEditPendidikanIbu] = useState(alumni.pendidikanIbu || '');
 
+  const [activeEditModal, setActiveEditModal] = useState<
+    'nama' | 'ttl' | 'saudara' | 'nik_kk' | 'alamat' | 'kontak' | 'pekerjaan' | 'bio' | 'tanggal_masuk' | 'tanggal_keluar' | 'ayah' | 'ibu' | 'username' | 'password' | 'pendidikan_info' | null
+  >(null);
+
+  // Realtime duplication check states for NIK, No KK, Ayah NIK, Ibu NIK
+  const [isCheckingNik, setIsCheckingNik] = useState(false);
+  const [nikStatus, setNikStatus] = useState<'idle' | 'checking' | 'available' | 'taken'>('idle');
+  const [collidingNik, setCollidingNik] = useState<any>(null);
+
+  const [isCheckingNoKk, setIsCheckingNoKk] = useState(false);
+  const [noKkStatus, setNoKkStatus] = useState<'idle' | 'checking' | 'available' | 'taken'>('idle');
+  const [collidingNoKk, setCollidingNoKk] = useState<any>(null);
+
+  const [isCheckingNikAyah, setIsCheckingNikAyah] = useState(false);
+  const [nikAyahStatus, setNikAyahStatus] = useState<'idle' | 'checking' | 'available' | 'taken'>('idle');
+  const [collidingNikAyah, setCollidingNikAyah] = useState<any>(null);
+
+  const [isCheckingNikIbu, setIsCheckingNikIbu] = useState(false);
+  const [nikIbuStatus, setNikIbuStatus] = useState<'idle' | 'checking' | 'available' | 'taken'>('idle');
+  const [collidingNikIbu, setCollidingNikIbu] = useState<any>(null);
+
+  // NIK Debounced Duplicate Check
+  useEffect(() => {
+    if (activeEditModal !== 'nik_kk') return;
+    const clean = editNik.replace(/\D/g, '').slice(0, 16);
+    if (!clean || clean.length < 16) {
+      setIsCheckingNik(false);
+      setNikStatus('idle');
+      setCollidingNik(null);
+      return;
+    }
+
+    setIsCheckingNik(true);
+    setNikStatus('checking');
+
+    const timer = setTimeout(() => {
+      setIsCheckingNik(false);
+      const allPool = (getGlobalAllSantriRecords && getGlobalAllSantriRecords().length > 0)
+        ? getGlobalAllSantriRecords()
+        : allAlumni;
+      const found = allPool.find(
+        (a: any) => a.id !== alumni.id && a.nik && a.nik.replace(/\D/g, '').trim() === clean
+      );
+      if (found) {
+        setCollidingNik(found);
+        setNikStatus('taken');
+      } else {
+        setCollidingNik(null);
+        setNikStatus('available');
+      }
+    }, 320);
+
+    return () => clearTimeout(timer);
+  }, [editNik, activeEditModal, allAlumni, alumni.id]);
+
+  // No KK Debounced Duplicate Check
+  useEffect(() => {
+    if (activeEditModal !== 'nik_kk') return;
+    const clean = editNoKk.replace(/\D/g, '').slice(0, 16);
+    if (!clean || clean.length < 16) {
+      setIsCheckingNoKk(false);
+      setNoKkStatus('idle');
+      setCollidingNoKk(null);
+      return;
+    }
+
+    setIsCheckingNoKk(true);
+    setNoKkStatus('checking');
+
+    const timer = setTimeout(() => {
+      setIsCheckingNoKk(false);
+      const allPool = (getGlobalAllSantriRecords && getGlobalAllSantriRecords().length > 0)
+        ? getGlobalAllSantriRecords()
+        : allAlumni;
+      const found = allPool.find(
+        (a: any) => a.id !== alumni.id && a.noKk && a.noKk.replace(/\D/g, '').trim() === clean
+      );
+      if (found) {
+        setCollidingNoKk(found);
+        setNoKkStatus('taken');
+      } else {
+        setCollidingNoKk(null);
+        setNoKkStatus('available');
+      }
+    }, 320);
+
+    return () => clearTimeout(timer);
+  }, [editNoKk, activeEditModal, allAlumni, alumni.id]);
+
+  // NIK Ayah Debounced Duplicate Check
+  useEffect(() => {
+    if (activeEditModal !== 'ayah') return;
+    const clean = editNikAyah.replace(/\D/g, '').slice(0, 16);
+    if (!clean || clean.length < 16) {
+      setIsCheckingNikAyah(false);
+      setNikAyahStatus('idle');
+      setCollidingNikAyah(null);
+      return;
+    }
+
+    setIsCheckingNikAyah(true);
+    setNikAyahStatus('checking');
+
+    const timer = setTimeout(() => {
+      setIsCheckingNikAyah(false);
+      const allPool = (getGlobalAllSantriRecords && getGlobalAllSantriRecords().length > 0)
+        ? getGlobalAllSantriRecords()
+        : allAlumni;
+      const found = allPool.find(
+        (a: any) => a.id !== alumni.id && (
+          (a.nik && a.nik.replace(/\D/g, '').trim() === clean) ||
+          (a.nikAyah && a.nikAyah.replace(/\D/g, '').trim() === clean)
+        )
+      );
+      if (found) {
+        setCollidingNikAyah(found);
+        setNikAyahStatus('taken');
+      } else {
+        setCollidingNikAyah(null);
+        setNikAyahStatus('available');
+      }
+    }, 320);
+
+    return () => clearTimeout(timer);
+  }, [editNikAyah, activeEditModal, allAlumni, alumni.id]);
+
+  // NIK Ibu Debounced Duplicate Check
+  useEffect(() => {
+    if (activeEditModal !== 'ibu') return;
+    const clean = editNikIbu.replace(/\D/g, '').slice(0, 16);
+    if (!clean || clean.length < 16) {
+      setIsCheckingNikIbu(false);
+      setNikIbuStatus('idle');
+      setCollidingNikIbu(null);
+      return;
+    }
+
+    setIsCheckingNikIbu(true);
+    setNikIbuStatus('checking');
+
+    const timer = setTimeout(() => {
+      setIsCheckingNikIbu(false);
+      const allPool = (getGlobalAllSantriRecords && getGlobalAllSantriRecords().length > 0)
+        ? getGlobalAllSantriRecords()
+        : allAlumni;
+      const found = allPool.find(
+        (a: any) => a.id !== alumni.id && (
+          (a.nik && a.nik.replace(/\D/g, '').trim() === clean) ||
+          (a.nikIbu && a.nikIbu.replace(/\D/g, '').trim() === clean)
+        )
+      );
+      if (found) {
+        setCollidingNikIbu(found);
+        setNikIbuStatus('taken');
+      } else {
+        setCollidingNikIbu(null);
+        setNikIbuStatus('available');
+      }
+    }, 320);
+
+    return () => clearTimeout(timer);
+  }, [editNikIbu, activeEditModal, allAlumni, alumni.id]);
+
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [isSavingProfile, setIsSavingProfile] = useState(false);
   const [showFullscreenPhoto, setShowFullscreenPhoto] = useState(false);
-  const [activeEditModal, setActiveEditModal] = useState<
-    'nama' | 'ttl' | 'saudara' | 'nik_kk' | 'alamat' | 'kontak' | 'pekerjaan' | 'bio' | 'tanggal_masuk' | 'tanggal_keluar' | 'ayah' | 'ibu' | 'username' | 'password' | 'pendidikan_info' | null
-  >(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const openEditModal = (modal: typeof activeEditModal) => {
@@ -2739,7 +2911,7 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
                       <div className="min-w-0">
                         <p className="text-[11px] text-slate-400 font-medium leading-tight">Pekerjaan & Instansi</p>
                         <p className="text-sm font-semibold text-slate-800 truncate mt-0.5">
-                          {editOccupation || alumni.occupation || 'Alumni Pesantren'}
+                          {(editOccupation || alumni.occupation || '').trim() || '-'}
                           {editInstitution || alumni.institution ? ` · ${editInstitution || alumni.institution}` : ''}
                         </p>
                       </div>
@@ -3190,6 +3362,11 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
                               const val = formatDayInput(e.target.value, birthMonthInput, birthYearInput);
                               setBirthDayInput(val);
                             }}
+                            onBlur={() => {
+                              if (birthDayInput) {
+                                setBirthDayInput(padDayInput(birthDayInput, birthMonthInput, birthYearInput));
+                              }
+                            }}
                             className="w-full text-center px-2 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-sm text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500 shadow-2xs"
                           />
                         </div>
@@ -3212,6 +3389,15 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
                                 const maxD = getMaxDaysInMonth(val, birthYearInput);
                                 if (currentD > maxD) {
                                   setBirthDayInput(String(maxD));
+                                }
+                              }
+                            }}
+                            onBlur={() => {
+                              if (birthMonthInput) {
+                                const padded = padMonthInput(birthMonthInput);
+                                setBirthMonthInput(padded);
+                                if (birthDayInput) {
+                                  setBirthDayInput(padDayInput(birthDayInput, padded, birthYearInput));
                                 }
                               }
                             }}
@@ -3247,6 +3433,19 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
                                 }
                               }
                             }}
+                            onBlur={() => {
+                              if (birthYearInput) {
+                                const padded = padYearInput(birthYearInput);
+                                setBirthYearInput(padded);
+                                if (birthDayInput && birthMonthInput) {
+                                  const currentD = parseInt(birthDayInput, 10);
+                                  const maxD = getMaxDaysInMonth(birthMonthInput, padded);
+                                  if (currentD > maxD) {
+                                    setBirthDayInput(padDayInput(String(maxD), birthMonthInput, padded));
+                                  }
+                                }
+                              }
+                            }}
                             className="w-full text-center px-2 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-sm text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500 shadow-2xs"
                           />
                         </div>
@@ -3268,9 +3467,9 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
                     <button 
                       type="button" 
                       onClick={() => { 
-                        const dStr = birthDayInput ? String(parseInt(birthDayInput, 10)).padStart(2, '0') : '';
-                        const mStr = birthMonthInput ? String(parseInt(birthMonthInput, 10)).padStart(2, '0') : '';
-                        const yStr = birthYearInput ? String(parseInt(birthYearInput, 10)).padStart(4, '0') : '';
+                        const dStr = birthDayInput ? padDayInput(birthDayInput, birthMonthInput, birthYearInput) : '';
+                        const mStr = birthMonthInput ? padMonthInput(birthMonthInput) : '';
+                        const yStr = birthYearInput ? padYearInput(birthYearInput) : '';
                         const finalBirthDate = (dStr && mStr && yStr.length === 4) ? `${yStr}-${mStr}-${dStr}` : editTanggalLahir;
                         
                         setEditTempatLahir(editTempatLahir);
@@ -3298,7 +3497,7 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
                   </div>
                   <div className="space-y-3 text-xs">
                     <div>
-                      <label className="block font-semibold text-slate-700 mb-1">Jenis Kelamin (gender)</label>
+                      <label className="block font-semibold text-slate-700 mb-1">Jenis Kelamin</label>
                       <div className="grid grid-cols-2 gap-2">
                         <button
                           type="button"
@@ -3380,44 +3579,127 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
             )}
 
             {/* ================= EDIT MODAL: NIK & NOMOR KK ================= */}
-            {activeEditModal === 'nik_kk' && (
-              <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in" onClick={() => setActiveEditModal(null)}>
-                <div className="bg-white rounded-3xl p-5 w-full max-w-sm space-y-4 shadow-2xl border border-slate-100" onClick={(e) => e.stopPropagation()}>
-                  <div className="flex justify-between items-center border-b border-slate-100 pb-2.5">
-                    <h3 className="font-bold text-sm text-slate-900">Ubah NIK & Nomor Kartu Keluarga</h3>
-                    <button type="button" onClick={() => setActiveEditModal(null)} className="text-slate-400 hover:text-slate-600 cursor-pointer"><X className="w-4 h-4" /></button>
-                  </div>
-                  <div className="space-y-3 text-xs">
-                    <div>
-                      <label className="block font-semibold text-slate-700 mb-1">Nomor Induk Kependudukan (NIK)</label>
-                      <input
-                        type="text"
-                        maxLength={16}
-                        value={editNik}
-                        onChange={(e) => setEditNik(e.target.value.replace(/[^0-9]/g, ''))}
-                        className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-mono text-xs focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500"
-                        placeholder="16 digit NIK KTP"
-                      />
+            {activeEditModal === 'nik_kk' && (() => {
+              const cleanNik = editNik.replace(/\D/g, '').slice(0, 16);
+              const cleanNoKk = editNoKk.replace(/\D/g, '').slice(0, 16);
+              const isNikValid = cleanNik.length === 16 && !collidingNik && !isCheckingNik;
+              const isKkValid = cleanNoKk.length === 16 && !collidingNoKk && !isCheckingNoKk;
+              const isValid = isNikValid && isKkValid;
+
+              return (
+                <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in" onClick={() => setActiveEditModal(null)}>
+                  <div className="bg-white rounded-3xl p-5 w-full max-w-sm space-y-4 shadow-2xl border border-slate-100" onClick={(e) => e.stopPropagation()}>
+                    <div className="flex justify-between items-center border-b border-slate-100 pb-2.5">
+                      <h3 className="font-bold text-sm text-slate-900">Ubah NIK & Nomor Kartu Keluarga</h3>
+                      <button type="button" onClick={() => setActiveEditModal(null)} className="text-slate-400 hover:text-slate-600 cursor-pointer"><X className="w-4 h-4" /></button>
                     </div>
-                    <div>
-                      <label className="block font-semibold text-slate-700 mb-1">Nomor Kartu Keluarga (No. KK)</label>
-                      <input
-                        type="text"
-                        maxLength={16}
-                        value={editNoKk}
-                        onChange={(e) => setEditNoKk(e.target.value.replace(/[^0-9]/g, ''))}
-                        className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-mono text-xs focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500"
-                        placeholder="16 digit Nomor KK"
-                      />
+                    <div className="space-y-3 text-xs">
+                      <div>
+                        <label className="block font-semibold text-slate-700 mb-1">Nomor Induk Kependudukan (NIK)</label>
+                        <div className="relative">
+                          <input
+                            type="text"
+                            inputMode="numeric"
+                            pattern="[0-9]*"
+                            maxLength={16}
+                            value={editNik}
+                            onChange={(e) => setEditNik(e.target.value.replace(/\D/g, '').slice(0, 16))}
+                            className="w-full px-3 py-2 pr-9 bg-slate-50 border border-slate-200 rounded-xl font-mono text-xs focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500"
+                            placeholder="16 digit"
+                          />
+                          <div className="absolute right-2.5 top-1/2 -translate-y-1/2 flex items-center pointer-events-none">
+                            {isCheckingNik && (
+                              <Loader2 className="w-4 h-4 text-sky-600 animate-spin" />
+                            )}
+                            {!isCheckingNik && cleanNik.length === 16 && !collidingNik && (
+                              <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                            )}
+                            {!isCheckingNik && cleanNik.length === 16 && collidingNik && (
+                              <XCircle className="w-4 h-4 text-rose-500" />
+                            )}
+                          </div>
+                        </div>
+                        {cleanNik.length > 0 && cleanNik.length < 16 && (
+                          <p className="text-[11px] text-rose-500 font-medium mt-1">
+                            Kurang {16 - cleanNik.length} digit
+                          </p>
+                        )}
+                        {!isCheckingNik && cleanNik.length === 16 && collidingNik && (
+                          <p className="text-[11px] text-rose-500 font-medium mt-1">
+                            NIK sudah digunakan oleh {collidingNik.name} ({(collidingNik as any).status || 'Santri/Alumni'})
+                          </p>
+                        )}
+                        {!isCheckingNik && cleanNik.length === 16 && !collidingNik && (
+                          <p className="text-[11px] text-emerald-600 font-medium mt-1">
+                            NIK valid & belum terdaftar
+                          </p>
+                        )}
+                      </div>
+                      <div>
+                        <label className="block font-semibold text-slate-700 mb-1">Nomor Kartu Keluarga (No. KK)</label>
+                        <div className="relative">
+                          <input
+                            type="text"
+                            inputMode="numeric"
+                            pattern="[0-9]*"
+                            maxLength={16}
+                            value={editNoKk}
+                            onChange={(e) => setEditNoKk(e.target.value.replace(/\D/g, '').slice(0, 16))}
+                            className="w-full px-3 py-2 pr-9 bg-slate-50 border border-slate-200 rounded-xl font-mono text-xs focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500"
+                            placeholder="16 digit"
+                          />
+                          <div className="absolute right-2.5 top-1/2 -translate-y-1/2 flex items-center pointer-events-none">
+                            {isCheckingNoKk && (
+                              <Loader2 className="w-4 h-4 text-sky-600 animate-spin" />
+                            )}
+                            {!isCheckingNoKk && cleanNoKk.length === 16 && !collidingNoKk && (
+                              <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                            )}
+                            {!isCheckingNoKk && cleanNoKk.length === 16 && collidingNoKk && (
+                              <XCircle className="w-4 h-4 text-rose-500" />
+                            )}
+                          </div>
+                        </div>
+                        {cleanNoKk.length > 0 && cleanNoKk.length < 16 && (
+                          <p className="text-[11px] text-rose-500 font-medium mt-1">
+                            Kurang {16 - cleanNoKk.length} digit
+                          </p>
+                        )}
+                        {!isCheckingNoKk && cleanNoKk.length === 16 && collidingNoKk && (
+                          <p className="text-[11px] text-rose-500 font-medium mt-1">
+                            Nomor KK sudah digunakan oleh {collidingNoKk.name} ({(collidingNoKk as any).status || 'Santri/Alumni'})
+                          </p>
+                        )}
+                        {!isCheckingNoKk && cleanNoKk.length === 16 && !collidingNoKk && (
+                          <p className="text-[11px] text-emerald-600 font-medium mt-1">
+                            Nomor KK valid & belum terdaftar
+                          </p>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                  <div className="flex gap-2 pt-2">
-                    <button type="button" onClick={() => setActiveEditModal(null)} className="flex-1 py-2 rounded-xl border border-slate-200 text-slate-600 font-semibold text-xs cursor-pointer">Batal</button>
-                    <button type="button" onClick={() => { onUpdateProfile({ nik: editNik, noKk: editNoKk }); setActiveEditModal(null); triggerToast('NIK & No. KK berhasil disimpan'); }} className="flex-1 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs cursor-pointer">Simpan</button>
+                    <div className="flex gap-2 pt-2">
+                      <button type="button" onClick={() => setActiveEditModal(null)} className="flex-1 py-2 rounded-xl border border-slate-200 text-slate-600 font-semibold text-xs cursor-pointer">Batal</button>
+                      <button
+                        type="button"
+                        disabled={!isValid}
+                        onClick={() => {
+                          onUpdateProfile({ nik: cleanNik, noKk: cleanNoKk });
+                          setActiveEditModal(null);
+                          triggerToast('NIK & No. KK berhasil disimpan');
+                        }}
+                        className={`flex-1 py-2 rounded-xl font-bold text-xs cursor-pointer transition-all ${
+                          isValid
+                            ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-xs'
+                            : 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                        }`}
+                      >
+                        Simpan
+                      </button>
+                    </div>
                   </div>
                 </div>
-              </div>
-            )}
+              );
+            })()}
 
             {/* ================= EDIT MODAL: KONTAK ================= */}
             {activeEditModal === 'kontak' && (
@@ -3583,7 +3865,8 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
                       value={tempEntryDate || '2016-07-15'}
                       onChange={(newVal) => setTempEntryDate(newVal)}
                       minYear={1940}
-                      maxYear={2050}
+                      maxYear={new Date().getFullYear()}
+                      maxDate={new Date().toISOString().split('T')[0]}
                     />
                   ) : (
                     <div className="p-4 bg-slate-50 rounded-2xl border border-dashed border-slate-200 text-center text-xs text-slate-500">
@@ -3670,7 +3953,8 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
                       value={tempGradDate || '2022-05-20'}
                       onChange={(newVal) => setTempGradDate(newVal)}
                       minYear={1940}
-                      maxYear={2050}
+                      maxYear={new Date().getFullYear()}
+                      maxDate={new Date().toISOString().split('T')[0]}
                     />
                   ) : (
                     <div className="p-4 bg-slate-50 rounded-2xl border border-dashed border-slate-200 text-center text-xs text-slate-500">
@@ -3754,23 +4038,49 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
                     </div>
                     <div>
                       <label className="block font-semibold text-slate-700 mb-1">NIK Ayah</label>
-                      <input
-                        type="text"
-                        inputMode="numeric"
-                        pattern="[0-9]*"
-                        maxLength={18}
-                        value={editNikAyah}
-                        onChange={(e) => setEditNikAyah(e.target.value.replace(/\D/g, '').slice(0, 18))}
-                        className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-mono text-xs focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500"
-                        placeholder="16 atau 18 digit NIK Ayah..."
-                      />
+                      <div className="relative">
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          pattern="[0-9]*"
+                          maxLength={16}
+                          value={editNikAyah}
+                          onChange={(e) => setEditNikAyah(e.target.value.replace(/\D/g, '').slice(0, 16))}
+                          className="w-full pl-3 pr-10 py-2 bg-slate-50 border border-slate-200 rounded-xl font-mono text-xs focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500"
+                          placeholder="16 digit"
+                        />
+                        <div className="absolute right-3 top-2.5 flex items-center justify-center">
+                          {isCheckingNikAyah && (
+                            <Loader2 className="w-4 h-4 text-sky-600 animate-spin" />
+                          )}
+                          {!isCheckingNikAyah && nikAyahStatus === 'available' && editNikAyah.replace(/\D/g, '').length === 16 && (
+                            <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                          )}
+                          {!isCheckingNikAyah && nikAyahStatus === 'taken' && (
+                            <XCircle className="w-4 h-4 text-rose-500" />
+                          )}
+                        </div>
+                      </div>
                       {(() => {
                         const clean = editNikAyah.replace(/\D/g, '');
-                        const isValid = clean.length === 0 || clean.length === 16 || clean.length === 18;
-                        if (clean.length > 0 && !isValid) {
+                        if (clean.length > 0 && clean.length < 16) {
                           return (
-                            <p className="text-[11px] text-rose-500 font-medium mt-1">
-                              Kurang {clean.length < 16 ? 16 - clean.length : 18 - clean.length} digit
+                            <p className="text-[11px] text-amber-600 font-medium mt-1">
+                              Kurang {16 - clean.length} digit (harus 16 digit)
+                            </p>
+                          );
+                        }
+                        if (nikAyahStatus === 'taken' && collidingNikAyah) {
+                          return (
+                            <p className="text-[11px] text-rose-600 font-medium mt-1">
+                              NIK Ayah sudah terdaftar atas nama {collidingNikAyah.name || collidingNikAyah.namaSantri || 'data lain'}
+                            </p>
+                          );
+                        }
+                        if (nikAyahStatus === 'available' && clean.length === 16) {
+                          return (
+                            <p className="text-[11px] text-emerald-600 font-medium mt-1">
+                              NIK Ayah valid dan tersedia
                             </p>
                           );
                         }
@@ -3802,7 +4112,7 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
                     <button type="button" onClick={() => setActiveEditModal(null)} className="flex-1 py-2 rounded-xl border border-slate-200 text-slate-600 font-semibold text-xs cursor-pointer">Batal</button>
                     {(() => {
                       const clean = editNikAyah.replace(/\D/g, '');
-                      const isValid = clean.length === 0 || clean.length === 16 || clean.length === 18;
+                      const isValid = (clean.length === 0 || (clean.length === 16 && nikAyahStatus !== 'taken')) && !isCheckingNikAyah;
                       return (
                         <button 
                           type="button" 
@@ -3848,23 +4158,49 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
                     </div>
                     <div>
                       <label className="block font-semibold text-slate-700 mb-1">NIK Ibu</label>
-                      <input
-                        type="text"
-                        inputMode="numeric"
-                        pattern="[0-9]*"
-                        maxLength={18}
-                        value={editNikIbu}
-                        onChange={(e) => setEditNikIbu(e.target.value.replace(/\D/g, '').slice(0, 18))}
-                        className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-mono text-xs focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500"
-                        placeholder="16 atau 18 digit NIK Ibu..."
-                      />
+                      <div className="relative">
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          pattern="[0-9]*"
+                          maxLength={16}
+                          value={editNikIbu}
+                          onChange={(e) => setEditNikIbu(e.target.value.replace(/\D/g, '').slice(0, 16))}
+                          className="w-full pl-3 pr-10 py-2 bg-slate-50 border border-slate-200 rounded-xl font-mono text-xs focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500"
+                          placeholder="16 digit"
+                        />
+                        <div className="absolute right-3 top-2.5 flex items-center justify-center">
+                          {isCheckingNikIbu && (
+                            <Loader2 className="w-4 h-4 text-sky-600 animate-spin" />
+                          )}
+                          {!isCheckingNikIbu && nikIbuStatus === 'available' && editNikIbu.replace(/\D/g, '').length === 16 && (
+                            <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                          )}
+                          {!isCheckingNikIbu && nikIbuStatus === 'taken' && (
+                            <XCircle className="w-4 h-4 text-rose-500" />
+                          )}
+                        </div>
+                      </div>
                       {(() => {
                         const clean = editNikIbu.replace(/\D/g, '');
-                        const isValid = clean.length === 0 || clean.length === 16 || clean.length === 18;
-                        if (clean.length > 0 && !isValid) {
+                        if (clean.length > 0 && clean.length < 16) {
                           return (
-                            <p className="text-[11px] text-rose-500 font-medium mt-1">
-                              Kurang {clean.length < 16 ? 16 - clean.length : 18 - clean.length} digit
+                            <p className="text-[11px] text-amber-600 font-medium mt-1">
+                              Kurang {16 - clean.length} digit (harus 16 digit)
+                            </p>
+                          );
+                        }
+                        if (nikIbuStatus === 'taken' && collidingNikIbu) {
+                          return (
+                            <p className="text-[11px] text-rose-600 font-medium mt-1">
+                              NIK Ibu sudah terdaftar atas nama {collidingNikIbu.name || collidingNikIbu.namaSantri || 'data lain'}
+                            </p>
+                          );
+                        }
+                        if (nikIbuStatus === 'available' && clean.length === 16) {
+                          return (
+                            <p className="text-[11px] text-emerald-600 font-medium mt-1">
+                              NIK Ibu valid dan tersedia
                             </p>
                           );
                         }
@@ -3896,7 +4232,7 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
                     <button type="button" onClick={() => setActiveEditModal(null)} className="flex-1 py-2 rounded-xl border border-slate-200 text-slate-600 font-semibold text-xs cursor-pointer">Batal</button>
                     {(() => {
                       const clean = editNikIbu.replace(/\D/g, '');
-                      const isValid = clean.length === 0 || clean.length === 16 || clean.length === 18;
+                      const isValid = (clean.length === 0 || (clean.length === 16 && nikIbuStatus !== 'taken')) && !isCheckingNikIbu;
                       return (
                         <button 
                           type="button" 
@@ -3961,22 +4297,18 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
                           {isCheckingUsername && (
                             <Loader2 className="w-4 h-4 text-sky-600 animate-spin" />
                           )}
-                          {!isCheckingUsername && usernameStatus === 'available' && (
-                            <div className="w-4 h-4 rounded-full bg-emerald-500 text-white flex items-center justify-center">
-                              <Check className="w-3 h-3 stroke-[3]" />
-                            </div>
+                          {!isCheckingUsername && usernameStatus === 'available' && newUsernameInput.trim() && (
+                            <CheckCircle2 className="w-4 h-4 text-emerald-600" />
                           )}
                           {!isCheckingUsername && usernameStatus === 'taken' && (
-                            <div className="w-4 h-4 rounded-full bg-rose-500 text-white flex items-center justify-center">
-                              <X className="w-3 h-3 stroke-[3]" />
-                            </div>
+                            <XCircle className="w-4 h-4 text-rose-500" />
                           )}
                         </div>
                       </div>
                       {usernameStatus === 'taken' && (
                         <p className="text-[11px] text-rose-600 mt-1 font-medium">Username sudah digunakan</p>
                       )}
-                      {usernameStatus === 'available' && (
+                      {usernameStatus === 'available' && newUsernameInput.trim() && (
                         <p className="text-[11px] text-emerald-600 mt-1 font-medium">Username tersedia</p>
                       )}
                     </div>
@@ -3995,7 +4327,7 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
                     </button>
                     <button
                       type="button"
-                      disabled={isCheckingUsername || usernameStatus === 'taken' || !newUsernameInput.trim()}
+                      disabled={isCheckingUsername || usernameStatus !== 'available' || !newUsernameInput.trim()}
                       onClick={() => {
                         if (!newUsernameInput.trim()) return;
                         if (usernameStatus === 'taken') {

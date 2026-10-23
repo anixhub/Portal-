@@ -1333,7 +1333,7 @@ export const AlumniDetailAdminModal: React.FC<AlumniDetailAdminModalProps> = ({
             </div>
             <div className="space-y-3 text-xs">
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">Jenis Kelamin (gender)</label>
+                <label className="block font-semibold text-slate-700 mb-1">Jenis Kelamin</label>
                 <div className="grid grid-cols-2 gap-3">
                   <button
                     type="button"
@@ -1859,7 +1859,8 @@ export const AlumniDetailAdminModal: React.FC<AlumniDetailAdminModalProps> = ({
                   value={tempEntryDate || '2021-07-15'}
                   onChange={(val) => setTempEntryDate(val)}
                   minYear={1980}
-                  maxYear={2035}
+                  maxYear={new Date().getFullYear()}
+                  maxDate={new Date().toISOString().split('T')[0]}
                 />
               </div>
             ) : (
@@ -1934,7 +1935,8 @@ export const AlumniDetailAdminModal: React.FC<AlumniDetailAdminModalProps> = ({
                   value={tempGradDate || '2024-05-20'}
                   onChange={(val) => setTempGradDate(val)}
                   minYear={1980}
-                  maxYear={2035}
+                  maxYear={new Date().getFullYear()}
+                  maxDate={new Date().toISOString().split('T')[0]}
                 />
               </div>
             ) : (
@@ -1959,8 +1961,8 @@ export const AlumniDetailAdminModal: React.FC<AlumniDetailAdminModalProps> = ({
 
       {/* 13. EDIT DATA ORANG TUA (AYAH) */}
       {activeEditModal === 'ayah' && (() => {
-        const cleanNikAyah = draftNikAyah.replace(/\D/g, '');
-        const isNikAyahValid = cleanNikAyah.length === 0 || cleanNikAyah.length === 16 || cleanNikAyah.length === 18;
+        const cleanNikAyah = draftNikAyah.replace(/\D/g, '').slice(0, 16);
+        const isNikAyahValid = (cleanNikAyah.length === 0 || (cleanNikAyah.length === 16 && !duplicateNikAyah)) && !isCheckingNikAyah;
 
         return (
           <div className="fixed inset-0 z-[100010] bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in" onClick={() => setActiveEditModal(null)}>
@@ -1982,19 +1984,42 @@ export const AlumniDetailAdminModal: React.FC<AlumniDetailAdminModalProps> = ({
                 </div>
                 <div>
                   <label className="block font-semibold text-slate-700 mb-1">NIK Ayah</label>
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    pattern="[0-9]*"
-                    maxLength={18}
-                    value={draftNikAyah}
-                    onChange={(e) => setDraftNikAyah(e.target.value.replace(/\D/g, '').slice(0, 18))}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-mono focus:bg-white text-xs"
-                    placeholder="16 atau 18 digit NIK Ayah..."
-                  />
-                  {draftNikAyah.length > 0 && !isNikAyahValid && (
+                  <div className="relative">
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      pattern="[0-9]*"
+                      maxLength={16}
+                      value={draftNikAyah}
+                      onChange={(e) => setDraftNikAyah(e.target.value.replace(/\D/g, '').slice(0, 16))}
+                      className="w-full px-3 py-2 pr-9 bg-slate-50 border border-slate-200 rounded-xl font-mono focus:bg-white text-xs"
+                      placeholder="16 digit"
+                    />
+                    <div className="absolute right-2.5 top-1/2 -translate-y-1/2 flex items-center pointer-events-none">
+                      {isCheckingNikAyah && (
+                        <Loader2 className="w-4 h-4 text-sky-600 animate-spin" />
+                      )}
+                      {!isCheckingNikAyah && cleanNikAyah.length === 16 && !duplicateNikAyah && (
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                      )}
+                      {!isCheckingNikAyah && cleanNikAyah.length === 16 && duplicateNikAyah && (
+                        <XCircle className="w-4 h-4 text-rose-500" />
+                      )}
+                    </div>
+                  </div>
+                  {cleanNikAyah.length > 0 && cleanNikAyah.length < 16 && (
+                    <p className="text-[11px] text-amber-600 font-medium mt-1">
+                      Kurang {16 - cleanNikAyah.length} digit (harus 16 digit)
+                    </p>
+                  )}
+                  {!isCheckingNikAyah && cleanNikAyah.length === 16 && duplicateNikAyah && (
                     <p className="text-[11px] text-rose-500 font-medium mt-1">
-                      Kurang {draftNikAyah.length < 16 ? 16 - draftNikAyah.length : 18 - draftNikAyah.length} digit
+                      NIK Ayah sudah digunakan oleh {duplicateNikAyah.name} ({(duplicateNikAyah as any).status || 'Santri/Alumni'})
+                    </p>
+                  )}
+                  {!isCheckingNikAyah && cleanNikAyah.length === 16 && !duplicateNikAyah && (
+                    <p className="text-[11px] text-emerald-600 font-medium mt-1">
+                      NIK Ayah valid & tersedia
                     </p>
                   )}
                 </div>
@@ -2053,8 +2078,8 @@ export const AlumniDetailAdminModal: React.FC<AlumniDetailAdminModalProps> = ({
 
       {/* 14. EDIT DATA ORANG TUA (IBU) */}
       {activeEditModal === 'ibu' && (() => {
-        const cleanNikIbu = draftNikIbu.replace(/\D/g, '');
-        const isNikIbuValid = cleanNikIbu.length === 0 || cleanNikIbu.length === 16 || cleanNikIbu.length === 18;
+        const cleanNikIbu = draftNikIbu.replace(/\D/g, '').slice(0, 16);
+        const isNikIbuValid = (cleanNikIbu.length === 0 || (cleanNikIbu.length === 16 && !duplicateNikIbu)) && !isCheckingNikIbu;
 
         return (
           <div className="fixed inset-0 z-[100010] bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in" onClick={() => setActiveEditModal(null)}>
@@ -2076,19 +2101,42 @@ export const AlumniDetailAdminModal: React.FC<AlumniDetailAdminModalProps> = ({
                 </div>
                 <div>
                   <label className="block font-semibold text-slate-700 mb-1">NIK Ibu</label>
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    pattern="[0-9]*"
-                    maxLength={18}
-                    value={draftNikIbu}
-                    onChange={(e) => setDraftNikIbu(e.target.value.replace(/\D/g, '').slice(0, 18))}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-mono focus:bg-white text-xs"
-                    placeholder="16 atau 18 digit NIK Ibu..."
-                  />
-                  {draftNikIbu.length > 0 && !isNikIbuValid && (
+                  <div className="relative">
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      pattern="[0-9]*"
+                      maxLength={16}
+                      value={draftNikIbu}
+                      onChange={(e) => setDraftNikIbu(e.target.value.replace(/\D/g, '').slice(0, 16))}
+                      className="w-full px-3 py-2 pr-9 bg-slate-50 border border-slate-200 rounded-xl font-mono focus:bg-white text-xs"
+                      placeholder="16 digit"
+                    />
+                    <div className="absolute right-2.5 top-1/2 -translate-y-1/2 flex items-center pointer-events-none">
+                      {isCheckingNikIbu && (
+                        <Loader2 className="w-4 h-4 text-sky-600 animate-spin" />
+                      )}
+                      {!isCheckingNikIbu && cleanNikIbu.length === 16 && !duplicateNikIbu && (
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                      )}
+                      {!isCheckingNikIbu && cleanNikIbu.length === 16 && duplicateNikIbu && (
+                        <XCircle className="w-4 h-4 text-rose-500" />
+                      )}
+                    </div>
+                  </div>
+                  {cleanNikIbu.length > 0 && cleanNikIbu.length < 16 && (
+                    <p className="text-[11px] text-amber-600 font-medium mt-1">
+                      Kurang {16 - cleanNikIbu.length} digit (harus 16 digit)
+                    </p>
+                  )}
+                  {!isCheckingNikIbu && cleanNikIbu.length === 16 && duplicateNikIbu && (
                     <p className="text-[11px] text-rose-500 font-medium mt-1">
-                      Kurang {draftNikIbu.length < 16 ? 16 - draftNikIbu.length : 18 - draftNikIbu.length} digit
+                      NIK Ibu sudah digunakan oleh {duplicateNikIbu.name} ({(duplicateNikIbu as any).status || 'Santri/Alumni'})
+                    </p>
+                  )}
+                  {!isCheckingNikIbu && cleanNikIbu.length === 16 && !duplicateNikIbu && (
+                    <p className="text-[11px] text-emerald-600 font-medium mt-1">
+                      NIK Ibu valid & tersedia
                     </p>
                   )}
                 </div>

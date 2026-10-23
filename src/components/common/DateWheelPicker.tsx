@@ -57,18 +57,28 @@ export const DateWheelPicker: React.FC<DateWheelPickerProps> = ({
   const rawYear = isNaN(initialDate.getFullYear()) ? effectiveMaxYear : initialDate.getFullYear();
   const selectedYear = Math.min(rawYear, effectiveMaxYear);
 
-  const maxMonthForYear = (maxLimit && selectedYear === maxLimit.year) ? maxLimit.month : 11;
   const rawMonth = isNaN(initialDate.getMonth()) ? 0 : initialDate.getMonth();
-  const selectedMonth = Math.min(rawMonth, maxMonthForYear);
+  const selectedMonth = (maxLimit && selectedYear === maxLimit.year) ? Math.min(rawMonth, maxLimit.month) : Math.min(rawMonth, 11);
+
+  const daysInInitialMonth = new Date(selectedYear, selectedMonth + 1, 0).getDate();
+  const rawDay = isNaN(initialDate.getDate()) ? 1 : initialDate.getDate();
+  const validDay = (maxLimit && selectedYear === maxLimit.year && selectedMonth === maxLimit.month)
+    ? Math.min(rawDay, maxLimit.day)
+    : Math.min(rawDay, daysInInitialMonth);
+
+  // Active highlighted items during scroll
+  const [activeDay, setActiveDay] = useState(validDay);
+  const [activeMonth, setActiveMonth] = useState(selectedMonth);
+  const [activeYear, setActiveYear] = useState(selectedYear);
+
+  const maxMonthForYear = (maxLimit && activeYear === maxLimit.year) ? maxLimit.month : 11;
+  const clampedMonth = Math.min(activeMonth, maxMonthForYear);
 
   // Days in month according to leap year and calendar rules
-  const daysInMonth = new Date(selectedYear, selectedMonth + 1, 0).getDate();
-  const maxDayForMonth = (maxLimit && selectedYear === maxLimit.year && selectedMonth === maxLimit.month) 
+  const daysInMonth = new Date(activeYear, clampedMonth + 1, 0).getDate();
+  const maxDayForMonth = (maxLimit && activeYear === maxLimit.year && clampedMonth === maxLimit.month) 
     ? Math.min(daysInMonth, maxLimit.day) 
     : daysInMonth;
-
-  const rawDay = isNaN(initialDate.getDate()) ? 1 : initialDate.getDate();
-  const validDay = Math.min(rawDay, maxDayForMonth);
 
   const days = useMemo(() => Array.from({ length: maxDayForMonth }, (_, i) => i + 1), [maxDayForMonth]);
   const months = useMemo(() => BULAN_SINGKAT.slice(0, maxMonthForYear + 1), [maxMonthForYear]);
@@ -76,11 +86,6 @@ export const DateWheelPicker: React.FC<DateWheelPickerProps> = ({
     () => Array.from({ length: Math.max(1, effectiveMaxYear - minYear + 1) }, (_, i) => minYear + i),
     [minYear, effectiveMaxYear]
   );
-
-  // Active highlighted items during scroll
-  const [activeDay, setActiveDay] = useState(validDay);
-  const [activeMonth, setActiveMonth] = useState(selectedMonth);
-  const [activeYear, setActiveYear] = useState(selectedYear);
 
   const dayRef = useRef<HTMLDivElement>(null);
   const monthRef = useRef<HTMLDivElement>(null);

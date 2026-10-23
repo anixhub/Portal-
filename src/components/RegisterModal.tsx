@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
-import { X, User, Mail, Lock, GraduationCap, Phone, CheckCircle2, Eye, EyeOff } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { X, User, Mail, Lock, GraduationCap, Phone, CheckCircle2, XCircle, Eye, EyeOff, Loader2, CreditCard } from 'lucide-react';
 import { RegisterFormData } from '../types';
+import { getGlobalAllSantriRecords } from '../services/apiService';
 
 interface RegisterModalProps {
   isOpen: boolean;
@@ -11,6 +12,7 @@ interface RegisterModalProps {
 export const RegisterModal: React.FC<RegisterModalProps> = ({ isOpen, onClose, onSuccess }) => {
   const [formData, setFormData] = useState<RegisterFormData>({
     name: '',
+    nik: '',
     email: '',
     phone: '',
     gradYear: '2022',
@@ -19,16 +21,70 @@ export const RegisterModal: React.FC<RegisterModalProps> = ({ isOpen, onClose, o
     confirmPassword: '',
   });
 
+  const [nik, setNik] = useState('');
+  const [isCheckingNik, setIsCheckingNik] = useState(false);
+  const [nikStatus, setNikStatus] = useState<'idle' | 'checking' | 'available' | 'taken'>('idle');
+  const [duplicateNikUser, setDuplicateNikUser] = useState<any>(null);
+
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isRegistered, setIsRegistered] = useState(false);
 
+  // Realtime debounce check NIK 16 digit against database
+  useEffect(() => {
+    if (!isOpen) return;
+    const clean = nik.replace(/\D/g, '').slice(0, 16);
+    if (clean.length < 16) {
+      setIsCheckingNik(false);
+      setNikStatus('idle');
+      setDuplicateNikUser(null);
+      return;
+    }
+
+    setIsCheckingNik(true);
+    setNikStatus('checking');
+
+    const timer = setTimeout(() => {
+      setIsCheckingNik(false);
+      const pool = getGlobalAllSantriRecords();
+      const found = pool.find(
+        (a: any) => a.nik && a.nik.replace(/\D/g, '').trim() === clean
+      );
+      if (found) {
+        setDuplicateNikUser(found);
+        setNikStatus('taken');
+      } else {
+        setDuplicateNikUser(null);
+        setNikStatus('available');
+      }
+    }, 320);
+
+    return () => clearTimeout(timer);
+  }, [nik, isOpen]);
+
   if (!isOpen) return null;
+
+  const cleanNik = nik.replace(/\D/g, '').slice(0, 16);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+
+    if (cleanNik.length !== 16) {
+      setError('NIK harus tepat 16 digit angka.');
+      return;
+    }
+
+    if (nikStatus === 'taken' || duplicateNikUser) {
+      setError('NIK sudah terdaftar dalam sistem.');
+      return;
+    }
+
+    if (isCheckingNik) {
+      setError('Sedang memverifikasi NIK, mohon tunggu...');
+      return;
+    }
 
     if (!formData.name || !formData.email || !formData.password) {
       setError('Mohon lengkapi semua data wajib!');
@@ -102,6 +158,53 @@ export const RegisterModal: React.FC<RegisterModalProps> = ({ isOpen, onClose, o
                   {error}
                 </div>
               )}
+
+              {/* NIK (16 digit) */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Nomor Induk Kependudukan (NIK) <span className="text-rose-500">*</span>
+                </label>
+                <div className="relative">
+                  <CreditCard className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    maxLength={16}
+                    required
+                    placeholder="16 digit"
+                    value={nik}
+                    onChange={(e) => setNik(e.target.value.replace(/\D/g, '').slice(0, 16))}
+                    className="w-full pl-10 pr-10 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-mono text-sm focus:outline-none focus:ring-2 focus:ring-[#0284c7] focus:bg-white transition-all"
+                  />
+                  <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center pointer-events-none">
+                    {isCheckingNik && (
+                      <Loader2 className="w-4 h-4 text-sky-600 animate-spin" />
+                    )}
+                    {!isCheckingNik && cleanNik.length === 16 && nikStatus === 'available' && (
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                    )}
+                    {!isCheckingNik && cleanNik.length === 16 && nikStatus === 'taken' && (
+                      <XCircle className="w-4 h-4 text-rose-500" />
+                    )}
+                  </div>
+                </div>
+                {cleanNik.length > 0 && cleanNik.length < 16 && (
+                  <p className="text-[11px] text-amber-600 font-medium mt-1">
+                    Kurang {16 - cleanNik.length} digit (harus 16 digit)
+                  </p>
+                )}
+                {!isCheckingNik && cleanNik.length === 16 && nikStatus === 'taken' && duplicateNikUser && (
+                  <p className="text-[11px] text-rose-600 font-medium mt-1">
+                    NIK sudah terdaftar atas nama {duplicateNikUser.name || duplicateNikUser.namaSantri || 'alumni/santri lain'}
+                  </p>
+                )}
+                {!isCheckingNik && cleanNik.length === 16 && nikStatus === 'available' && (
+                  <p className="text-[11px] text-emerald-600 font-medium mt-1">
+                    NIK valid & dapat didaftarkan
+                  </p>
+                )}
+              </div>
 
               {/* Nama Lengkap */}
               <div>
@@ -225,8 +328,8 @@ export const RegisterModal: React.FC<RegisterModalProps> = ({ isOpen, onClose, o
               <div className="pt-2">
                 <button
                   type="submit"
-                  disabled={isSubmitting}
-                  className="w-full py-3 bg-[#0284c7] hover:bg-[#0369a1] text-white font-semibold rounded-xl shadow-md shadow-sky-600/20 text-sm transition-all disabled:opacity-60 cursor-pointer"
+                  disabled={isSubmitting || cleanNik.length !== 16 || isCheckingNik || nikStatus === 'taken'}
+                  className="w-full py-3 bg-[#0284c7] hover:bg-[#0369a1] text-white font-semibold rounded-xl shadow-md shadow-sky-600/20 text-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
                 >
                   {isSubmitting ? 'Memproses Pendaftaran...' : 'Daftar Sekarang'}
                 </button>

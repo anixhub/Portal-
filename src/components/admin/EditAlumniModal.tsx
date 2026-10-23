@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { X, Save, Edit, Database } from 'lucide-react';
+import { X, Save, Edit, Database, Loader2, CheckCircle2, XCircle } from 'lucide-react';
 import { AlumniRecord } from '../../types';
 import { WilayahAddressFilter } from '../common/WilayahAddressFilter';
 import { LocationCoordinates } from '../common/FullscreenLocationMapModal';
+import { getGlobalAllSantriRecords } from '../../services/apiService';
 
 interface EditAlumniModalProps {
   isOpen: boolean;
@@ -46,11 +47,15 @@ export const EditAlumniModal: React.FC<EditAlumniModalProps> = ({
   const [occupation, setOccupation] = useState(alumni?.occupation || '');
   const [institution, setInstitution] = useState(alumni?.institution || '');
 
+  const [isCheckingNik, setIsCheckingNik] = useState(false);
+  const [duplicateNik, setDuplicateNik] = useState<any>(null);
+  const [isCheckingNoKk, setIsCheckingNoKk] = useState(false);
+  const [duplicateNoKk, setDuplicateNoKk] = useState<any>(null);
+
   const prevAlumniIdRef = React.useRef<string | null>(null);
 
   useEffect(() => {
     if (isOpen && alumni) {
-      // Hanya inisialisasi ulang jika baru dibuka atau alumni yang dipilih berganti ID
       if (prevAlumniIdRef.current !== alumni.id) {
         prevAlumniIdRef.current = alumni.id;
         setName(alumni.name || '');
@@ -81,16 +86,65 @@ export const EditAlumniModal: React.FC<EditAlumniModalProps> = ({
         setCoordinates(alumni.coordinates || null);
         setOccupation(alumni.occupation || '');
         setInstitution(alumni.institution || '');
+        setDuplicateNik(null);
+        setDuplicateNoKk(null);
       }
     } else if (!isOpen) {
       prevAlumniIdRef.current = null;
     }
   }, [isOpen, alumni]);
 
+  // Realtime duplicate check for NIK
+  useEffect(() => {
+    if (!isOpen || !alumni) return;
+    const clean = nik.replace(/\D/g, '').slice(0, 16);
+    if (clean.length < 16) {
+      setIsCheckingNik(false);
+      setDuplicateNik(null);
+      return;
+    }
+    setIsCheckingNik(true);
+    const timer = setTimeout(() => {
+      setIsCheckingNik(false);
+      const allPool = getGlobalAllSantriRecords();
+      const found = allPool.find(
+        (a: any) => a.id !== alumni.id && a.nik && a.nik.replace(/\D/g, '').trim() === clean
+      );
+      setDuplicateNik(found || null);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [nik, isOpen, alumni]);
+
+  // Realtime duplicate check for No KK
+  useEffect(() => {
+    if (!isOpen || !alumni) return;
+    const clean = noKk.replace(/\D/g, '').slice(0, 16);
+    if (clean.length < 16) {
+      setIsCheckingNoKk(false);
+      setDuplicateNoKk(null);
+      return;
+    }
+    setIsCheckingNoKk(true);
+    const timer = setTimeout(() => {
+      setIsCheckingNoKk(false);
+      const allPool = getGlobalAllSantriRecords();
+      const found = allPool.find(
+        (a: any) => a.id !== alumni.id && a.noKk && a.noKk.replace(/\D/g, '').trim() === clean
+      );
+      setDuplicateNoKk(found || null);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [noKk, isOpen, alumni]);
+
   if (!isOpen || !alumni) return null;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    const cleanNik = nik.replace(/\D/g, '').slice(0, 16);
+    const cleanNoKk = noKk.replace(/\D/g, '').slice(0, 16);
+    if (cleanNik.length !== 16 || duplicateNik || isCheckingNik) return;
+    if (cleanNoKk.length > 0 && (cleanNoKk.length !== 16 || duplicateNoKk || isCheckingNoKk)) return;
+
     const finalAnak = typeof anakKe === 'number'
       ? Math.max(1, anakKe)
       : (parseInt(String(anakKe), 10) || 1);
@@ -100,8 +154,8 @@ export const EditAlumniModal: React.FC<EditAlumniModalProps> = ({
 
     const updatedFields: Partial<AlumniRecord> = {
       name,
-      nik,
-      noKk: noKk || undefined,
+      nik: cleanNik,
+      noKk: cleanNoKk || undefined,
       nis,
       gender,
       anak_ke: finalAnak,
@@ -138,6 +192,16 @@ export const EditAlumniModal: React.FC<EditAlumniModalProps> = ({
     onClose();
   };
 
+  const cleanNik = nik.replace(/\D/g, '').slice(0, 16);
+  const cleanNoKk = noKk.replace(/\D/g, '').slice(0, 16);
+  const isSubmitDisabled = 
+    cleanNik.length !== 16 ||
+    isCheckingNik ||
+    Boolean(duplicateNik) ||
+    isCheckingNoKk ||
+    Boolean(duplicateNoKk) ||
+    (cleanNoKk.length > 0 && cleanNoKk.length !== 16);
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-black/60 backdrop-blur-xs animate-in fade-in">
       <div 
@@ -160,26 +224,82 @@ export const EditAlumniModal: React.FC<EditAlumniModalProps> = ({
         <form onSubmit={handleSubmit} className="p-6 overflow-y-auto space-y-3.5 text-xs">
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block font-semibold text-slate-700 mb-1">NIK (16 Digit)</label>
-              <input
-                type="text"
-                maxLength={16}
-                value={nik}
-                onChange={(e) => setNik(e.target.value.replace(/\D/g, ''))}
-                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-mono text-xs focus:ring-2 focus:ring-sky-600 focus:bg-white"
-                placeholder="3507xxxxxxxxxxxx"
-              />
+              <label className="block font-semibold text-slate-700 mb-1">Nomor Induk Kependudukan (NIK)</label>
+              <div className="relative">
+                <input
+                  type="text"
+                  maxLength={16}
+                  value={nik}
+                  onChange={(e) => setNik(e.target.value.replace(/\D/g, '').slice(0, 16))}
+                  className="w-full px-3 py-2 pr-9 bg-slate-50 border border-slate-200 rounded-xl font-mono text-xs focus:ring-2 focus:ring-sky-600 focus:bg-white"
+                  placeholder="16 digit"
+                />
+                <div className="absolute right-2.5 top-1/2 -translate-y-1/2 flex items-center pointer-events-none">
+                  {isCheckingNik && (
+                    <Loader2 className="w-4 h-4 text-sky-600 animate-spin" />
+                  )}
+                  {!isCheckingNik && cleanNik.length === 16 && !duplicateNik && (
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                  )}
+                  {!isCheckingNik && cleanNik.length === 16 && duplicateNik && (
+                    <XCircle className="w-4 h-4 text-rose-500" />
+                  )}
+                </div>
+              </div>
+              {cleanNik.length > 0 && cleanNik.length < 16 && (
+                <p className="text-[11px] text-amber-600 font-medium mt-1">
+                  Kurang {16 - cleanNik.length} digit (harus 16 digit)
+                </p>
+              )}
+              {!isCheckingNik && cleanNik.length === 16 && duplicateNik && (
+                <p className="text-[11px] text-rose-500 font-medium mt-1">
+                  NIK sudah digunakan oleh {duplicateNik.name || duplicateNik.namaSantri || 'data lain'}
+                </p>
+              )}
+              {!isCheckingNik && cleanNik.length === 16 && !duplicateNik && (
+                <p className="text-[11px] text-emerald-600 font-medium mt-1">
+                  NIK valid & belum terdaftar
+                </p>
+              )}
             </div>
             <div>
-              <label className="block font-semibold text-slate-700 mb-1">No. KK (16 Digit)</label>
-              <input
-                type="text"
-                maxLength={16}
-                value={noKk}
-                onChange={(e) => setNoKk(e.target.value.replace(/\D/g, ''))}
-                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-mono text-xs focus:ring-2 focus:ring-sky-600 focus:bg-white"
-                placeholder="Nomor KK (Opsional)"
-              />
+              <label className="block font-semibold text-slate-700 mb-1">Nomor Kartu Keluarga (KK)</label>
+              <div className="relative">
+                <input
+                  type="text"
+                  maxLength={16}
+                  value={noKk}
+                  onChange={(e) => setNoKk(e.target.value.replace(/\D/g, '').slice(0, 16))}
+                  className="w-full px-3 py-2 pr-9 bg-slate-50 border border-slate-200 rounded-xl font-mono text-xs focus:ring-2 focus:ring-sky-600 focus:bg-white"
+                  placeholder="16 digit"
+                />
+                <div className="absolute right-2.5 top-1/2 -translate-y-1/2 flex items-center pointer-events-none">
+                  {isCheckingNoKk && (
+                    <Loader2 className="w-4 h-4 text-sky-600 animate-spin" />
+                  )}
+                  {!isCheckingNoKk && cleanNoKk.length === 16 && !duplicateNoKk && (
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                  )}
+                  {!isCheckingNoKk && cleanNoKk.length === 16 && duplicateNoKk && (
+                    <XCircle className="w-4 h-4 text-rose-500" />
+                  )}
+                </div>
+              </div>
+              {cleanNoKk.length > 0 && cleanNoKk.length < 16 && (
+                <p className="text-[11px] text-amber-600 font-medium mt-1">
+                  Kurang {16 - cleanNoKk.length} digit (harus 16 digit)
+                </p>
+              )}
+              {!isCheckingNoKk && cleanNoKk.length === 16 && duplicateNoKk && (
+                <p className="text-[11px] text-rose-500 font-medium mt-1">
+                  Nomor KK sudah digunakan oleh {duplicateNoKk.name || duplicateNoKk.namaSantri || 'data lain'}
+                </p>
+              )}
+              {!isCheckingNoKk && cleanNoKk.length === 16 && !duplicateNoKk && (
+                <p className="text-[11px] text-emerald-600 font-medium mt-1">
+                  Nomor KK valid & belum terdaftar
+                </p>
+              )}
             </div>
           </div>
 
@@ -216,7 +336,7 @@ export const EditAlumniModal: React.FC<EditAlumniModalProps> = ({
 
           <div className="grid grid-cols-3 gap-2.5">
             <div>
-              <label className="block font-semibold text-slate-700 mb-1">Jenis Kelamin (gender)</label>
+              <label className="block font-semibold text-slate-700 mb-1">Jenis Kelamin</label>
               <select
                 value={gender}
                 onChange={(e) => setGender(e.target.value as 'L' | 'P')}
@@ -383,7 +503,12 @@ export const EditAlumniModal: React.FC<EditAlumniModalProps> = ({
             </button>
             <button
               type="submit"
-              className="px-5 py-2 bg-sky-600 hover:bg-sky-700 text-white font-bold rounded-xl text-xs flex items-center gap-1.5 cursor-pointer shadow-md shadow-sky-600/20"
+              disabled={isSubmitDisabled}
+              className={`px-5 py-2 font-bold rounded-xl text-xs flex items-center gap-1.5 transition-all ${
+                isSubmitDisabled
+                  ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                  : 'bg-sky-600 hover:bg-sky-700 text-white cursor-pointer shadow-md shadow-sky-600/20 active:scale-95'
+              }`}
             >
               <Save className="w-3.5 h-3.5" />
               <span>Simpan Perubahan</span>
