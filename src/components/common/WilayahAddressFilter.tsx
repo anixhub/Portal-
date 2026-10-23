@@ -1222,9 +1222,6 @@ export const WilayahAddressFilter: React.FC<WilayahAddressFilterProps> = ({
               ) : null}
             </div>
           </div>
-          <span className="text-[9px] text-slate-400 block mt-0.5 font-normal">
-            Bisa ketik nama desa/dusun secara manual jika tidak ada di daftar.
-          </span>
 
           {/* DROPDOWN MENU DESA */}
           {activeDropdown === 'desa' && selectedDistId && (

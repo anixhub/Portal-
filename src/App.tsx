@@ -7,7 +7,7 @@ import { useState, useEffect, useRef } from 'react';
 import { LoginScreen } from './components/LoginScreen';
 import { AlumniView } from './components/AlumniView';
 import { AdminView } from './components/AdminView';
-import { FirstLoginModal } from './components/FirstLoginModal';
+import { FirstTimeActivationView } from './components/FirstTimeActivationView';
 import { RegisterModal } from './components/RegisterModal';
 import { ForgotPasswordModal } from './components/ForgotPasswordModal';
 import { INITIAL_ALUMNI, INITIAL_ADMIN, INITIAL_ADMIN_LIST, INITIAL_EVENTS, INITIAL_ANNOUNCEMENTS } from './data/mockData';
@@ -31,11 +31,21 @@ import {
   getDeletedAnnouncementIds,
   syncChannel,
   syncAdminProfileAcrossApp,
+  SantriIdentityLookup,
+  ensureAllSantriLoaded,
 } from './services/apiService';
 import { wsClient, WsMessage } from './services/websocketService';
 
+export function isAlumniNeedingActivation(alm?: AlumniRecord | null): boolean {
+  if (!alm) return false;
+  const hasNoUsername = !alm.username || alm.username.trim() === '';
+  const hasDefaultPassword = !alm.isPasswordChanged || alm.password === '1234';
+  return hasNoUsername || hasDefaultPassword;
+}
+
 export default function App() {
   const [wsConnected, setWsConnected] = useState(false);
+  const [allSantriList, setAllSantriList] = useState<SantriIdentityLookup[]>([]);
   const [syncToastMessage, setSyncToastMessage] = useState<string | null>(null);
   const [alumniList, setAlumniList] = useState<AlumniRecord[]>(INITIAL_ALUMNI);
   const [adminList, setAdminList] = useState<AdminUser[]>(() => {
@@ -144,10 +154,6 @@ export default function App() {
       }
     } catch (e) {}
   }, [currentSession]);
-
-  // Security prompt for first-time login alumni
-  const [showFirstLoginModal, setShowFirstLoginModal] = useState(false);
-  const [pendingAlumniData, setPendingAlumniData] = useState<AlumniRecord | null>(null);
 
   // Other modals
   const [isRegisterOpen, setIsRegisterOpen] = useState(false);
@@ -279,6 +285,10 @@ export default function App() {
           }
           return alumniRes.data;
         });
+
+        if (alumniRes.allSantri && alumniRes.allSantri.length > 0) {
+          setAllSantriList(alumniRes.allSantri);
+        }
       } else {
         if (!silent) setIsDbConnected(false);
       }
@@ -301,6 +311,12 @@ export default function App() {
   };
 
   useEffect(() => {
+    ensureAllSantriLoaded().then((list) => {
+      if (list && list.length > 0) {
+        setAllSantriList(list);
+      }
+    });
+
     loadData(false);
 
     // 0. WebSocket Realtime 2-Way Sync Listener
@@ -419,7 +435,6 @@ export default function App() {
   // Penanganan tombol fisik kembali untuk modal-modal di layer Login/Auth
   useBackHandler(isRegisterOpen, 'login-register-modal', () => setIsRegisterOpen(false));
   useBackHandler(isForgotPasswordOpen, 'login-forgot-pwd-modal', () => setIsForgotPasswordOpen(false));
-  useBackHandler(showFirstLoginModal, 'login-first-time-modal', () => setShowFirstLoginModal(false));
 
   // Toast petunjuk saat tombol fisik ditekan di halaman utama (Double back to exit)
   const [exitToastMessage, setExitToastMessage] = useState<string | null>(null);
@@ -444,23 +459,15 @@ export default function App() {
     if (role === 'admin' && adminData) {
       setCurrentSession({ role: 'admin', adminData });
     } else if (role === 'alumni' && alumniData) {
-      const updatedAlumni: AlumniRecord = {
-        ...alumniData,
-        hasLoggedIn: true,
-      };
-      setAlumniList((prev) =>
-        prev.map((alm) => (alm.id === alumniData.id ? { ...alm, hasLoggedIn: true } : alm))
-      );
-      setCurrentSession({ role: 'alumni', alumniData: updatedAlumni });
-      // Update hasLoggedIn / status in database
-      updateAlumniInHostinger(alumniData.id, { hasLoggedIn: true });
+      setCurrentSession({ role: 'alumni', alumniData });
+      if (!isAlumniNeedingActivation(alumniData)) {
+        updateAlumniInHostinger(alumniData.id, { hasLoggedIn: true });
+      }
     }
   };
 
   const handleLogout = () => {
     setCurrentSession(null);
-    setShowFirstLoginModal(false);
-    setPendingAlumniData(null);
   };
 
   // Alumni self-profile update
@@ -562,31 +569,58 @@ export default function App() {
     }
   };
 
-  // First-time modal save
-  const handleFirstLoginSave = ({
-    username,
-    newPassword,
-    phone,
-  }: {
+  // First-time activation save handler (fullscreen 3-step onboarding)
+  const handleCompleteActivation = async (data: {
     username: string;
-    newPassword?: string;
-    phone?: string;
+    newPassword: string;
+    updatedAlumni: AlumniRecord;
+    photoUrl?: string;
   }) => {
-    if (!currentSession?.alumniData) return;
+    isSyncingRef.current = true;
+    lastSelfUpdateTimeRef.current = Date.now();
 
-    const updates: Partial<AlumniRecord> = {
-      username: username || currentSession.alumniData.username,
-      phone: phone || currentSession.alumniData.phone,
+    const finalAlumni: AlumniRecord = {
+      ...data.updatedAlumni,
+      username: data.username,
+      password: data.newPassword,
+      isPasswordChanged: true,
+      hasLoggedIn: true,
+      photoUrl: data.photoUrl !== undefined ? data.photoUrl : data.updatedAlumni.photoUrl,
     };
 
-    if (newPassword) {
-      updates.password = newPassword;
-      updates.isPasswordChanged = true;
-    }
+    // Update active session immediately so screen transitions to AlumniView
+    setCurrentSession({ role: 'alumni', alumniData: finalAlumni });
+    try {
+      localStorage.setItem('attaroqqy_active_session_v1', JSON.stringify({ role: 'alumni', alumniData: finalAlumni }));
+    } catch (e) {}
 
-    handleUpdateAlumniProfile(updates);
-    setShowFirstLoginModal(false);
-    setPendingAlumniData(null);
+    // Update local alumniList
+    const updatedList = alumniList.map((item) => (item.id === finalAlumni.id ? finalAlumni : item));
+    setAlumniList(updatedList);
+    try {
+      localStorage.setItem('attaroqqy_alumni_list_v1', JSON.stringify(updatedList));
+    } catch (e) {}
+
+    try {
+      await updateAlumniInHostinger(
+        finalAlumni.id,
+        {
+          ...data.updatedAlumni,
+          username: data.username,
+          password: data.newPassword,
+          isPasswordChanged: true,
+          hasLoggedIn: true,
+          photoUrl: data.photoUrl,
+        },
+        finalAlumni
+      );
+    } catch (err) {
+      console.warn('Gagal menyimpan aktivasi ke Hostinger:', err);
+    } finally {
+      setTimeout(() => {
+        isSyncingRef.current = false;
+      }, 3000);
+    }
   };
 
   // Admin actions
@@ -1022,21 +1056,31 @@ export default function App() {
     <div className="w-full h-full h-[100dvh] flex flex-col bg-slate-50 overflow-hidden text-slate-800">
       {/* 1. STATE: LOGGED IN AS ALUMNI */}
       {currentSession?.role === 'alumni' && currentSession.alumniData && (
-        <AlumniView
-          alumni={currentSession.alumniData}
-          allAlumni={alumniList}
-          events={events}
-          announcements={announcements}
-          onLogout={handleLogout}
-          onUpdateProfile={handleUpdateAlumniProfile}
-          onRsvpEvent={handleRsvpEvent}
-          onAddAnnouncement={handleAddAnnouncement}
-          onDeleteEvent={handleDeleteEvent}
-          onDeleteAnnouncement={handleDeleteAnnouncement}
-          isDbLoading={isDbLoading}
-          isDbConnected={isDbConnected}
-          onRefreshData={() => loadData(false)}
-        />
+        isAlumniNeedingActivation(currentSession.alumniData) ? (
+          <FirstTimeActivationView
+            alumni={currentSession.alumniData}
+            alumniList={alumniList}
+            adminAccounts={adminList}
+            onComplete={handleCompleteActivation}
+            onCancelLogout={handleLogout}
+          />
+        ) : (
+          <AlumniView
+            alumni={currentSession.alumniData}
+            allAlumni={alumniList}
+            events={events}
+            announcements={announcements}
+            onLogout={handleLogout}
+            onUpdateProfile={handleUpdateAlumniProfile}
+            onRsvpEvent={handleRsvpEvent}
+            onAddAnnouncement={handleAddAnnouncement}
+            onDeleteEvent={handleDeleteEvent}
+            onDeleteAnnouncement={handleDeleteAnnouncement}
+            isDbLoading={isDbLoading}
+            isDbConnected={isDbConnected}
+            onRefreshData={() => loadData(false)}
+          />
+        )
       )}
 
       {/* 2. STATE: LOGGED IN AS ADMIN */}
@@ -1044,6 +1088,7 @@ export default function App() {
         <AdminView
           admin={currentSession.adminData}
           alumniList={alumniList}
+          allSantriList={allSantriList}
           adminList={adminList}
           events={events}
           announcements={announcements}
@@ -1082,15 +1127,7 @@ export default function App() {
         />
       )}
 
-      {/* FIRST LOGIN PROMPT FOR ALUMNI WITH PASSWORD 1234 */}
-      {showFirstLoginModal && pendingAlumniData && (
-        <FirstLoginModal
-          isOpen={showFirstLoginModal}
-          alumni={pendingAlumniData}
-          onSave={handleFirstLoginSave}
-          onDismiss={() => setShowFirstLoginModal(false)}
-        />
-      )}
+
 
       {/* MODAL PENDAFTARAN PENGAJUAN AKUN */}
       {isRegisterOpen && (

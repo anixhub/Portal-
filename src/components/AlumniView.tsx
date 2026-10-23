@@ -101,9 +101,9 @@ import {
   deleteEventFromHostinger,
   deleteAnnouncementFromHostinger
 } from '../services/apiService';
-import { formatToDDMMYYYY } from '../utils/dateUtils';
+import { formatToDDMMYYYY, getMaxDaysInMonth, formatDayInput, formatMonthInput } from '../utils/dateUtils';
 import { RealQrCode } from './common/RealQrCode';
-import { generateNisFromEntryDate } from '../utils/alumniIdentityUtils';
+import { generateNisFromEntryDate, calculateCascadeShiftOnEntryDateChange } from '../utils/alumniIdentityUtils';
 import posterReuniImg from '../assets/images/poster_reuni_akbar_1790648045947.jpg';
 import logoPonpesImg from '../assets/images/logo_ponpes_attaroqqy_1790648746461.jpg';
 import bgMenuQuranImg from '../assets/images/bg_menu_alquran_1790822566925.jpg';
@@ -668,6 +668,8 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
   const [editGradDate, setEditGradDate] = useState(alumni.gradDate || '');
   const [tempEntryDate, setTempEntryDate] = useState(alumni.entryDate || '');
   const [tempGradDate, setTempGradDate] = useState(alumni.gradDate || '');
+  const [isEntryDateKnown, setIsEntryDateKnown] = useState<boolean>(Boolean(alumni.entryDate && alumni.entryDate.trim() !== ''));
+  const [isGradDateKnown, setIsGradDateKnown] = useState<boolean>(Boolean(alumni.gradDate && alumni.gradDate.trim() !== ''));
   const [activeDateTab, setActiveDateTab] = useState<'masuk' | 'keluar'>('masuk');
 
   // Informasi Orang Tua State
@@ -726,10 +728,14 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
     } else if (modal === 'bio') {
       setEditBio(alumni.bio || '');
     } else if (modal === 'tanggal_masuk') {
-      setTempEntryDate(alumni.entryDate || '');
+      const hasDate = Boolean(alumni.entryDate && alumni.entryDate.trim() !== '');
+      setIsEntryDateKnown(hasDate);
+      setTempEntryDate((hasDate && alumni.entryDate) ? alumni.entryDate : '2016-07-15');
       setEditEntryDate(alumni.entryDate || '');
     } else if (modal === 'tanggal_keluar') {
-      setTempGradDate(alumni.gradDate || '');
+      const hasDate = Boolean(alumni.gradDate && alumni.gradDate.trim() !== '');
+      setIsGradDateKnown(hasDate);
+      setTempGradDate((hasDate && alumni.gradDate) ? alumni.gradDate : '2022-05-20');
       setEditGradDate(alumni.gradDate || '');
     } else if (modal === 'ayah') {
       setEditNamaAyah(alumni.namaAyah || '');
@@ -2776,39 +2782,9 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
                         <GraduationCap className="w-5 h-5 text-slate-400" />
                       </div>
                       <div className="min-w-0">
-                        <p className="text-[11px] text-slate-400 font-medium leading-tight">NIS (Nomor Induk Santri)</p>
+                        <p className="text-[11px] text-slate-400 font-medium leading-tight">Nomor Induk Santri (NIS)</p>
                         <p className="text-sm font-semibold font-mono text-slate-500 truncate mt-0.5">
                           {alumni.nis}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* 2. NISM (Terkunci / Warna Mati / Tidak Bereaksi Saat Diklik) */}
-                  <div className="flex items-center justify-between py-3.5 -mx-3 px-3 rounded-2xl cursor-default select-none opacity-45">
-                    <div className="flex items-center gap-4 min-w-0 pr-2">
-                      <div className="w-6 flex items-center justify-center shrink-0">
-                        <FileText className="w-5 h-5 text-slate-400" />
-                      </div>
-                      <div className="min-w-0">
-                        <p className="text-[11px] text-slate-400 font-medium leading-tight">NISM (Nomor Induk Santri Madrasah)</p>
-                        <p className="text-sm font-semibold font-mono text-slate-500 truncate mt-0.5">
-                          {editNism || alumni.nism || '-'}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* 3. NISN (Terkunci / Warna Mati / Tidak Bereaksi Saat Diklik) */}
-                  <div className="flex items-center justify-between py-3.5 -mx-3 px-3 rounded-2xl cursor-default select-none opacity-45">
-                    <div className="flex items-center gap-4 min-w-0 pr-2">
-                      <div className="w-6 flex items-center justify-center shrink-0">
-                        <FileCheck className="w-5 h-5 text-slate-400" />
-                      </div>
-                      <div className="min-w-0">
-                        <p className="text-[11px] text-slate-400 font-medium leading-tight">NISN (Nomor Induk Siswa Nasional)</p>
-                        <p className="text-sm font-semibold font-mono text-slate-500 truncate mt-0.5">
-                          {editNisn || alumni.nisn || '-'}
                         </p>
                       </div>
                     </div>
@@ -3198,17 +3174,11 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
                     </div>
 
                     <div>
-                      <div className="flex items-center justify-between mb-1.5">
-                        <label className="font-semibold text-slate-700">Tanggal Lahir</label>
-                        <span className="text-[10px] text-sky-600 font-medium">
-                          {birthMonthInput ? `Bulan ${birthMonthInput}: maks. ${getMaxDaysForMonth(birthMonthInput, birthYearInput)} hari` : 'Ketik angka'}
-                        </span>
-                      </div>
+                      <label className="block font-semibold text-slate-700 mb-1.5">Tanggal Lahir</label>
                       
                       {/* Segmented Numeric Keyboard Inputs */}
                       <div className="grid grid-cols-3 gap-2">
                         <div>
-                          <label className="block text-[10px] text-slate-400 font-medium mb-0.5 text-center">Hari / Tgl</label>
                           <input
                             type="text"
                             inputMode="numeric"
@@ -3217,22 +3187,14 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
                             maxLength={2}
                             value={birthDayInput}
                             onChange={(e) => {
-                              const val = e.target.value.replace(/[^0-9]/g, '');
-                              if (!val) {
-                                setBirthDayInput('');
-                                return;
-                              }
-                              const num = parseInt(val, 10);
-                              const maxD = getMaxDaysForMonth(birthMonthInput, birthYearInput);
-                              const clamped = Math.max(1, Math.min(num, maxD));
-                              setBirthDayInput(String(clamped));
+                              const val = formatDayInput(e.target.value, birthMonthInput, birthYearInput);
+                              setBirthDayInput(val);
                             }}
                             className="w-full text-center px-2 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-sm text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500 shadow-2xs"
                           />
                         </div>
 
                         <div>
-                          <label className="block text-[10px] text-slate-400 font-medium mb-0.5 text-center">Bulan (1-12)</label>
                           <input
                             type="text"
                             inputMode="numeric"
@@ -3241,19 +3203,13 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
                             maxLength={2}
                             value={birthMonthInput}
                             onChange={(e) => {
-                              const val = e.target.value.replace(/[^0-9]/g, '');
-                              if (!val) {
-                                setBirthMonthInput('');
-                                return;
-                              }
-                              const num = parseInt(val, 10);
-                              const clampedM = Math.max(1, Math.min(num, 12));
-                              setBirthMonthInput(String(clampedM));
+                              const val = formatMonthInput(e.target.value);
+                              setBirthMonthInput(val);
 
                               // Re-clamp day if needed
-                              if (birthDayInput) {
+                              if (birthDayInput && val) {
                                 const currentD = parseInt(birthDayInput, 10);
-                                const maxD = getMaxDaysForMonth(String(clampedM), birthYearInput);
+                                const maxD = getMaxDaysInMonth(val, birthYearInput);
                                 if (currentD > maxD) {
                                   setBirthDayInput(String(maxD));
                                 }
@@ -3264,7 +3220,6 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
                         </div>
 
                         <div>
-                          <label className="block text-[10px] text-slate-400 font-medium mb-0.5 text-center">Tahun</label>
                           <input
                             type="text"
                             inputMode="numeric"
@@ -3284,9 +3239,9 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
                               setBirthYearInput(String(clampedY));
 
                               // Re-clamp for leap year if Feb
-                              if (birthDayInput && birthMonthInput === '2') {
+                              if (birthDayInput && birthMonthInput === '2' && val.length === 4) {
                                 const currentD = parseInt(birthDayInput, 10);
-                                const maxD = getMaxDaysForMonth('2', String(clampedY));
+                                const maxD = getMaxDaysInMonth('2', String(clampedY));
                                 if (currentD > maxD) {
                                   setBirthDayInput(String(maxD));
                                 }
@@ -3477,10 +3432,11 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
                       <label className="block font-semibold text-slate-700 mb-1">Nomor WhatsApp / HP</label>
                       <input
                         type="tel"
+                        inputMode="numeric"
                         value={editPhone}
                         onChange={(e) => setEditPhone(e.target.value)}
                         className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-mono text-xs focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500"
-                        placeholder="08xxxxxxxxxx"
+                        placeholder="08123456789"
                       />
                     </div>
                     <div>
@@ -3490,7 +3446,7 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
                         value={editEmail}
                         onChange={(e) => setEditEmail(e.target.value)}
                         className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-medium focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500 text-xs"
-                        placeholder="nama@email.com"
+                        placeholder="alumni@gmail.com"
                       />
                     </div>
                   </div>
@@ -3600,33 +3556,40 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
                       <X className="w-4 h-4" />
                     </button>
                   </div>
-                  
-                  {/* Date Wheel Picker 3 Kolom (Tgl - Bln - Thn) */}
-                  <DateWheelPicker
-                    value={tempEntryDate || '2016-07-15'}
-                    onChange={(newVal) => setTempEntryDate(newVal)}
-                    minYear={1940}
-                    maxYear={2050}
-                  />
 
-                  {/* Tombol Mengosongkan Tanggal Masuk */}
-                  <div className="pt-1">
+                  {/* Toggle Sudah diketahui */}
+                  <div className="flex items-center justify-between bg-slate-50 px-3.5 py-2.5 rounded-2xl border border-slate-200">
+                    <span className="text-xs font-semibold text-slate-700">Sudah diketahui</span>
                     <button
                       type="button"
                       onClick={() => {
-                        setEditEntryDate('');
-                        setEditEntryYear('');
-                        setTempEntryDate('');
-                        onUpdateProfile({ entryDate: '', entryYear: '' });
-                        setActiveEditModal(null);
-                        triggerToast('Tanggal masuk berhasil dikosongkan');
+                        const nextVal = !isEntryDateKnown;
+                        setIsEntryDateKnown(nextVal);
+                        if (nextVal && !tempEntryDate) {
+                          setTempEntryDate('2016-07-15');
+                        }
                       }}
-                      className="w-full py-2.5 px-3 rounded-2xl bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-600 font-semibold text-xs transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+                      className={`w-11 h-6 flex items-center rounded-full p-1 transition-colors cursor-pointer ${
+                        isEntryDateKnown ? 'bg-sky-600 justify-end' : 'bg-slate-300 justify-start'
+                      }`}
                     >
-                      <Trash2 className="w-3.5 h-3.5" />
-                      <span>Kosongkan Tanggal Masuk</span>
+                      <div className="bg-white w-4 h-4 rounded-full shadow-md" />
                     </button>
                   </div>
+                  
+                  {/* Date Wheel Picker 3 Kolom (Tgl - Bln - Thn) */}
+                  {isEntryDateKnown ? (
+                    <DateWheelPicker
+                      value={tempEntryDate || '2016-07-15'}
+                      onChange={(newVal) => setTempEntryDate(newVal)}
+                      minYear={1940}
+                      maxYear={2050}
+                    />
+                  ) : (
+                    <div className="p-4 bg-slate-50 rounded-2xl border border-dashed border-slate-200 text-center text-xs text-slate-500">
+                      Tanggal masuk belum diketahui. NIS Anda akan dikosongkan.
+                    </div>
+                  )}
 
                   {/* Tombol Bawah: Batal | Simpan */}
                   <div className="flex gap-2 pt-2 border-t border-slate-100">
@@ -3640,15 +3603,20 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
 
                     <button
                       type="button"
-                      disabled={!tempEntryDate && !editEntryDate}
                       onClick={() => {
-                        if (!tempEntryDate) return;
-                        setEditEntryDate(tempEntryDate);
-                        const yr = tempEntryDate.split('-')[0] || editEntryYear;
+                        const finalDate = isEntryDateKnown ? (tempEntryDate || '2016-07-15') : '';
+                        const yr = finalDate ? finalDate.split('-')[0] : '';
+                        const cascade = calculateCascadeShiftOnEntryDateChange(alumni.id, finalDate, allAlumni);
+
+                        setEditEntryDate(finalDate);
                         setEditEntryYear(yr);
-                        onUpdateProfile({ entryDate: tempEntryDate, entryYear: yr });
+                        onUpdateProfile({ 
+                          entryDate: finalDate, 
+                          entryYear: yr,
+                          nis: cascade.targetNis 
+                        });
                         setActiveEditModal(null);
-                        triggerToast('Tanggal masuk berhasil diperbarui');
+                        triggerToast(finalDate ? 'Tanggal masuk berhasil diperbarui' : 'Tanggal masuk dikosongkan');
                       }}
                       className="flex-1 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs cursor-pointer shadow-xs active:scale-95 transition-all"
                     >
@@ -3675,33 +3643,40 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
                       <X className="w-4 h-4" />
                     </button>
                   </div>
-                  
-                  {/* Date Wheel Picker 3 Kolom (Tgl - Bln - Thn) */}
-                  <DateWheelPicker
-                    value={tempGradDate || '2022-05-20'}
-                    onChange={(newVal) => setTempGradDate(newVal)}
-                    minYear={1940}
-                    maxYear={2050}
-                  />
 
-                  {/* Tombol Mengosongkan Tanggal Keluar */}
-                  <div className="pt-1">
+                  {/* Toggle Sudah diketahui */}
+                  <div className="flex items-center justify-between bg-slate-50 px-3.5 py-2.5 rounded-2xl border border-slate-200">
+                    <span className="text-xs font-semibold text-slate-700">Sudah diketahui</span>
                     <button
                       type="button"
                       onClick={() => {
-                        setEditGradDate('');
-                        setEditGradYear('');
-                        setTempGradDate('');
-                        onUpdateProfile({ gradDate: '', gradYear: '' });
-                        setActiveEditModal(null);
-                        triggerToast('Tanggal keluar berhasil dikosongkan');
+                        const nextVal = !isGradDateKnown;
+                        setIsGradDateKnown(nextVal);
+                        if (nextVal && !tempGradDate) {
+                          setTempGradDate('2022-05-20');
+                        }
                       }}
-                      className="w-full py-2.5 px-3 rounded-2xl bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-600 font-semibold text-xs transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+                      className={`w-11 h-6 flex items-center rounded-full p-1 transition-colors cursor-pointer ${
+                        isGradDateKnown ? 'bg-sky-600 justify-end' : 'bg-slate-300 justify-start'
+                      }`}
                     >
-                      <Trash2 className="w-3.5 h-3.5" />
-                      <span>Kosongkan Tanggal Keluar</span>
+                      <div className="bg-white w-4 h-4 rounded-full shadow-md" />
                     </button>
                   </div>
+                  
+                  {/* Date Wheel Picker 3 Kolom (Tgl - Bln - Thn) */}
+                  {isGradDateKnown ? (
+                    <DateWheelPicker
+                      value={tempGradDate || '2022-05-20'}
+                      onChange={(newVal) => setTempGradDate(newVal)}
+                      minYear={1940}
+                      maxYear={2050}
+                    />
+                  ) : (
+                    <div className="p-4 bg-slate-50 rounded-2xl border border-dashed border-slate-200 text-center text-xs text-slate-500">
+                      Tanggal keluar belum diketahui / masih aktif di pondok.
+                    </div>
+                  )}
 
                   {/* Tombol Bawah: Batal | Simpan */}
                   <div className="flex gap-2 pt-2 border-t border-slate-100">
@@ -3715,15 +3690,14 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
 
                     <button
                       type="button"
-                      disabled={!tempGradDate && !editGradDate}
                       onClick={() => {
-                        if (!tempGradDate) return;
-                        setEditGradDate(tempGradDate);
-                        const yr = tempGradDate.split('-')[0] || editGradYear;
+                        const finalDate = isGradDateKnown ? (tempGradDate || '2022-05-20') : '';
+                        const yr = finalDate ? finalDate.split('-')[0] : '';
+                        setEditGradDate(finalDate);
                         setEditGradYear(yr);
-                        onUpdateProfile({ gradDate: tempGradDate, gradYear: yr });
+                        onUpdateProfile({ gradDate: finalDate, gradYear: yr });
                         setActiveEditModal(null);
-                        triggerToast('Tanggal keluar berhasil diperbarui');
+                        triggerToast(finalDate ? 'Tanggal keluar berhasil diperbarui' : 'Tanggal keluar dikosongkan');
                       }}
                       className="flex-1 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs cursor-pointer shadow-xs active:scale-95 transition-all"
                     >
@@ -3734,7 +3708,7 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
               </div>
             )}
 
-            {/* ================= MODAL INFO: NIS, NISM, NISN (TERKUNCI) ================= */}
+            {/* ================= MODAL INFO: NIS (TERKUNCI) ================= */}
             {activeEditModal === 'pendidikan_info' && (
               <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in" onClick={() => setActiveEditModal(null)}>
                 <div className="bg-white rounded-3xl p-5 w-full max-w-sm space-y-4 shadow-2xl border border-slate-100" onClick={(e) => e.stopPropagation()}>
@@ -3746,20 +3720,12 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
                     <div className="space-y-2 bg-slate-50 p-3.5 rounded-2xl border border-slate-100">
                       <div className="flex justify-between items-center">
                         <span className="text-slate-500 font-medium">NIS Pesantren:</span>
-                        <span className="font-mono font-bold text-slate-800">{alumni.nis}</span>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-slate-500 font-medium">NISM Madrasah:</span>
-                        <span className="font-mono font-bold text-slate-800">{editNism || alumni.nism || '-'}</span>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-slate-500 font-medium">NISN Nasional:</span>
-                        <span className="font-mono font-bold text-slate-800">{editNisn || alumni.nisn || '-'}</span>
+                        <span className="font-mono font-bold text-slate-800">{alumni.nis || '-'}</span>
                       </div>
                     </div>
                     <div className="p-2.5 bg-amber-50 border border-amber-200/80 rounded-2xl text-[11px] text-amber-800 flex items-start gap-2">
                       <Lock className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-                      <span>Nomor registrasi santri diterbitkan resmi oleh Sekretariat Pondok Pesantren At-taroqqy dan Kemenag RI sehingga tidak dapat diubah sembarangan oleh akun mandiri.</span>
+                      <span>Nomor registrasi santri diterbitkan resmi oleh Sekretariat Pondok Pesantren At-taroqqy berdasarkan tahun masuk dan urutan pendaftaran santri.</span>
                     </div>
                   </div>
                   <button type="button" onClick={() => setActiveEditModal(null)} className="w-full py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs cursor-pointer">Tutup</button>
@@ -3787,15 +3753,29 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
                       />
                     </div>
                     <div>
-                      <label className="block font-semibold text-slate-700 mb-1">NIK Ayah (16 digit)</label>
+                      <label className="block font-semibold text-slate-700 mb-1">NIK Ayah</label>
                       <input
                         type="text"
-                        maxLength={16}
+                        inputMode="numeric"
+                        pattern="[0-9]*"
+                        maxLength={18}
                         value={editNikAyah}
-                        onChange={(e) => setEditNikAyah(e.target.value.replace(/[^0-9]/g, ''))}
+                        onChange={(e) => setEditNikAyah(e.target.value.replace(/\D/g, '').slice(0, 18))}
                         className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-mono text-xs focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500"
-                        placeholder="NIK KTP Ayah"
+                        placeholder="16 atau 18 digit NIK Ayah..."
                       />
+                      {(() => {
+                        const clean = editNikAyah.replace(/\D/g, '');
+                        const isValid = clean.length === 0 || clean.length === 16 || clean.length === 18;
+                        if (clean.length > 0 && !isValid) {
+                          return (
+                            <p className="text-[11px] text-rose-500 font-medium mt-1">
+                              Kurang {clean.length < 16 ? 16 - clean.length : 18 - clean.length} digit
+                            </p>
+                          );
+                        }
+                        return null;
+                      })()}
                     </div>
                     <div>
                       <label className="block font-semibold text-slate-700 mb-1">Pekerjaan Ayah</label>
@@ -3820,7 +3800,28 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
                   </div>
                   <div className="flex gap-2 pt-2">
                     <button type="button" onClick={() => setActiveEditModal(null)} className="flex-1 py-2 rounded-xl border border-slate-200 text-slate-600 font-semibold text-xs cursor-pointer">Batal</button>
-                    <button type="button" onClick={() => { onUpdateProfile({ namaAyah: editNamaAyah, nikAyah: editNikAyah, pekerjaanAyah: editPekerjaanAyah, pendidikanAyah: editPendidikanAyah }); setActiveEditModal(null); triggerToast('Data ayah berhasil disimpan'); }} className="flex-1 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs cursor-pointer">Simpan</button>
+                    {(() => {
+                      const clean = editNikAyah.replace(/\D/g, '');
+                      const isValid = clean.length === 0 || clean.length === 16 || clean.length === 18;
+                      return (
+                        <button 
+                          type="button" 
+                          disabled={!isValid}
+                          onClick={() => { 
+                            onUpdateProfile({ namaAyah: editNamaAyah, nikAyah: clean, pekerjaanAyah: editPekerjaanAyah, pendidikanAyah: editPendidikanAyah }); 
+                            setActiveEditModal(null); 
+                            triggerToast('Data ayah berhasil disimpan'); 
+                          }} 
+                          className={`flex-1 py-2 rounded-xl font-bold text-xs cursor-pointer transition-all ${
+                            isValid 
+                              ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-xs' 
+                              : 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                          }`}
+                        >
+                          Simpan
+                        </button>
+                      );
+                    })()}
                   </div>
                 </div>
               </div>
@@ -3846,15 +3847,29 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
                       />
                     </div>
                     <div>
-                      <label className="block font-semibold text-slate-700 mb-1">NIK Ibu (16 digit)</label>
+                      <label className="block font-semibold text-slate-700 mb-1">NIK Ibu</label>
                       <input
                         type="text"
-                        maxLength={16}
+                        inputMode="numeric"
+                        pattern="[0-9]*"
+                        maxLength={18}
                         value={editNikIbu}
-                        onChange={(e) => setEditNikIbu(e.target.value.replace(/[^0-9]/g, ''))}
+                        onChange={(e) => setEditNikIbu(e.target.value.replace(/\D/g, '').slice(0, 18))}
                         className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-mono text-xs focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500"
-                        placeholder="NIK KTP Ibu"
+                        placeholder="16 atau 18 digit NIK Ibu..."
                       />
+                      {(() => {
+                        const clean = editNikIbu.replace(/\D/g, '');
+                        const isValid = clean.length === 0 || clean.length === 16 || clean.length === 18;
+                        if (clean.length > 0 && !isValid) {
+                          return (
+                            <p className="text-[11px] text-rose-500 font-medium mt-1">
+                              Kurang {clean.length < 16 ? 16 - clean.length : 18 - clean.length} digit
+                            </p>
+                          );
+                        }
+                        return null;
+                      })()}
                     </div>
                     <div>
                       <label className="block font-semibold text-slate-700 mb-1">Pekerjaan Ibu</label>
@@ -3879,7 +3894,28 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
                   </div>
                   <div className="flex gap-2 pt-2">
                     <button type="button" onClick={() => setActiveEditModal(null)} className="flex-1 py-2 rounded-xl border border-slate-200 text-slate-600 font-semibold text-xs cursor-pointer">Batal</button>
-                    <button type="button" onClick={() => { onUpdateProfile({ namaIbu: editNamaIbu, nikIbu: editNikIbu, pekerjaanIbu: editPekerjaanIbu, pendidikanIbu: editPendidikanIbu }); setActiveEditModal(null); triggerToast('Data ibu berhasil disimpan'); }} className="flex-1 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs cursor-pointer">Simpan</button>
+                    {(() => {
+                      const clean = editNikIbu.replace(/\D/g, '');
+                      const isValid = clean.length === 0 || clean.length === 16 || clean.length === 18;
+                      return (
+                        <button 
+                          type="button" 
+                          disabled={!isValid}
+                          onClick={() => { 
+                            onUpdateProfile({ namaIbu: editNamaIbu, nikIbu: clean, pekerjaanIbu: editPekerjaanIbu, pendidikanIbu: editPendidikanIbu }); 
+                            setActiveEditModal(null); 
+                            triggerToast('Data ibu berhasil disimpan'); 
+                          }} 
+                          className={`flex-1 py-2 rounded-xl font-bold text-xs cursor-pointer transition-all ${
+                            isValid 
+                              ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-xs' 
+                              : 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                          }`}
+                        >
+                          Simpan
+                        </button>
+                      );
+                    })()}
                   </div>
                 </div>
               </div>

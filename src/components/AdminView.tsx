@@ -73,7 +73,8 @@ import {
   getDeletedAnnouncementIds,
   fetchCommentsFromDatabase, 
   saveCommentToDatabase, 
-  toggleCommentLikeInDatabase 
+  toggleCommentLikeInDatabase,
+  SantriIdentityLookup
 } from '../services/apiService';
 import { formatAuthorUsername, resolveAuthorAlumniRecord, resolvePostAuthorAvatar } from '../utils/authorUtils';
 import { shareMediaWithCaption } from '../utils/shareUtils';
@@ -107,6 +108,7 @@ const calculateAge = (birthDateStr?: string): number | null => {
 interface AdminViewProps {
   admin: AdminUser;
   alumniList: AlumniRecord[];
+  allSantriList?: SantriIdentityLookup[];
   events: EventAgenda[];
   announcements?: AnnouncementItem[];
   onLogout: () => void;
@@ -135,6 +137,7 @@ type AdminTab = 'agenda' | 'alumni' | 'pengumuman' | 'admin_accounts' | 'profile
 export const AdminView: React.FC<AdminViewProps> = ({
   admin,
   alumniList,
+  allSantriList,
   events,
   announcements,
   onLogout,
@@ -2283,6 +2286,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
           isOpen={isAddModalOpen}
           onClose={() => setIsAddModalOpen(false)}
           existingAlumni={alumniList}
+          allSantriList={allSantriList}
           onSave={(data) => {
             onAddAlumni(data);
             triggerToast('Data alumni berhasil ditambahkan');
@@ -2296,6 +2300,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
           isOpen={Boolean(detailAlumni)}
           alumni={detailAlumni}
           existingAlumni={alumniList}
+          allSantriList={allSantriList}
           onClose={() => setDetailAlumni(null)}
           onResetPassword={(id) => {
             onResetPassword(id);

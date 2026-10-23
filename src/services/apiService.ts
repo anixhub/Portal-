@@ -160,7 +160,7 @@ export function normalizeSingleAlumni(item: any): AlumniRecord {
     nism: String(item.nism || ''),
     nisn: String(item.nisn || ''),
     name: item.name || item.nama || item.nama_lengkap || 'Tanpa Nama',
-    username: item.username || (item.nama ? item.nama.toLowerCase().replace(/\s+/g, '_') : (item.name ? item.name.toLowerCase().replace(/\s+/g, '_') : 'santri_' + item.id)),
+    username: item.username ? String(item.username).trim() : '',
     gender,
     tempatLahir,
     tanggalLahir,
@@ -207,12 +207,54 @@ export function normalizeSingleAlumni(item: any): AlumniRecord {
   };
 }
 
+export interface SantriIdentityLookup {
+  id: string;
+  name: string;
+  nis?: string;
+  nik?: string;
+  noKk?: string;
+  status?: string;
+}
+
+let globalAllSantriRecords: SantriIdentityLookup[] = [];
+
+export function getGlobalAllSantriRecords(): SantriIdentityLookup[] {
+  return globalAllSantriRecords;
+}
+
+export function setGlobalAllSantriRecords(records: SantriIdentityLookup[]) {
+  globalAllSantriRecords = records;
+}
+
+export async function ensureAllSantriLoaded(): Promise<SantriIdentityLookup[]> {
+  if (globalAllSantriRecords.length > 0) return globalAllSantriRecords;
+  try {
+    const snapshotModule = await import('../data/santri_snapshot.json');
+    const snapshotData = (snapshotModule.default || snapshotModule) as any;
+    const rawList = Array.isArray(snapshotData) ? snapshotData : (Array.isArray(snapshotData?.data) ? snapshotData.data : []);
+    if (rawList.length > 0) {
+      globalAllSantriRecords = rawList.map((item: any) => ({
+        id: String(item.id || ''),
+        name: String(item.nama || item.name || ''),
+        nis: String(item.nis || '').trim(),
+        nik: String(item.nik || '').replace(/\D/g, '').trim(),
+        noKk: String(item.noKk || item.no_kk || item.nokk || '').replace(/\D/g, '').trim(),
+        status: String(item.status_keanggotaan || item.status || (String(item.status_keanggotaan || '').toLowerCase().includes('alumni') ? 'Alumni' : 'Santri Aktif')).trim(),
+      }));
+    }
+  } catch (err) {
+    console.warn('Gagal memuat snapshot santri:', err);
+  }
+  return globalAllSantriRecords;
+}
+
 /**
  * Mengambil seluruh data santri/alumni dari database Hostinger (tabel santri)
  */
 export async function fetchAlumniFromHostinger(forceFresh: boolean = false): Promise<{
   success: boolean;
   data: AlumniRecord[];
+  allSantri?: SantriIdentityLookup[];
   isLive: boolean;
   message?: string;
 }> {
@@ -251,6 +293,16 @@ export async function fetchAlumniFromHostinger(forceFresh: boolean = false): Pro
       const rawList = Array.isArray(result) ? result : (Array.isArray(result?.data) ? result.data : []);
 
       if (rawList.length > 0) {
+        // Simpan semua santri (aktif & alumni) untuk lookup validasi identitas unik
+        globalAllSantriRecords = rawList.map((item: any) => ({
+          id: String(item.id || ''),
+          name: String(item.nama || item.name || ''),
+          nis: String(item.nis || '').trim(),
+          nik: String(item.nik || '').replace(/\D/g, '').trim(),
+          noKk: String(item.noKk || item.no_kk || item.nokk || '').replace(/\D/g, '').trim(),
+          status: String(item.status_keanggotaan || item.status || (String(item.status_keanggotaan || '').toLowerCase().includes('alumni') ? 'Alumni' : 'Santri Aktif')).trim(),
+        }));
+
         // Filter santri yang berstatus 'Alumni' (jika ada)
         const alumniOnly = rawList.filter((item: any) => {
           const status = String(item.status_keanggotaan || '').toLowerCase();
@@ -265,6 +317,7 @@ export async function fetchAlumniFromHostinger(forceFresh: boolean = false): Pro
           return {
             success: true,
             data: normalizedData,
+            allSantri: globalAllSantriRecords,
             isLive: true,
           };
         }
@@ -281,6 +334,15 @@ export async function fetchAlumniFromHostinger(forceFresh: boolean = false): Pro
     const snapshotData = (snapshotModule.default || snapshotModule) as any;
     const rawList = Array.isArray(snapshotData) ? snapshotData : (Array.isArray(snapshotData?.data) ? snapshotData.data : []);
     if (rawList.length > 0) {
+      globalAllSantriRecords = rawList.map((item: any) => ({
+        id: String(item.id || ''),
+        name: String(item.nama || item.name || ''),
+        nis: String(item.nis || '').trim(),
+        nik: String(item.nik || '').replace(/\D/g, '').trim(),
+        noKk: String(item.noKk || item.no_kk || item.nokk || '').replace(/\D/g, '').trim(),
+        status: String(item.status_keanggotaan || item.status || (String(item.status_keanggotaan || '').toLowerCase().includes('alumni') ? 'Alumni' : 'Santri Aktif')).trim(),
+      }));
+
       const alumniOnly = rawList.filter((item: any) => {
         const status = String(item.status_keanggotaan || '').toLowerCase();
         return status.includes('alumni') || !status;
@@ -292,6 +354,7 @@ export async function fetchAlumniFromHostinger(forceFresh: boolean = false): Pro
         return {
           success: true,
           data: normalizedData,
+          allSantri: globalAllSantriRecords,
           isLive: false,
           message: 'Menggunakan snapshot data database terbaru',
         };

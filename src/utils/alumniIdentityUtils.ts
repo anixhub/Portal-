@@ -18,7 +18,7 @@ import { AlumniRecord } from '../types';
  * - hapus simbol/karakter ilegal selain huruf, angka, dan underscore
  */
 export function formatBaseUsername(name: string): string {
-  if (!name || !name.trim()) return 'santri';
+  if (!name || !name.trim()) return '';
   const cleaned = name
     .toLowerCase()
     .trim()
@@ -26,7 +26,7 @@ export function formatBaseUsername(name: string): string {
     .replace(/[^a-z0-9_]/g, '')
     .replace(/_+/g, '_')
     .replace(/^_+|_+$/g, '');
-  return cleaned || 'santri';
+  return cleaned;
 }
 
 /**
@@ -37,7 +37,7 @@ export function generateUniqueUsername(
   existingList: { id?: string; username?: string }[],
   currentId?: string
 ): string {
-  const base = formatBaseUsername(name);
+  const base = formatBaseUsername(name) || 'santri';
   const taken = new Set<string>();
 
   for (const item of existingList) {
@@ -150,7 +150,7 @@ export function ensureConsistentAlumniIdentities(list: AlumniRecord[]): AlumniRe
     let username = (alumni.username || '').toLowerCase().replace(/^@/, '').trim();
 
     if (!username || usedUsernames.has(username)) {
-      const base = formatBaseUsername(alumni.name);
+      const base = formatBaseUsername(alumni.name) || 'santri';
       let count = usernameMap.get(base) || 0;
       count++;
       usernameMap.set(base, count);
@@ -163,7 +163,7 @@ export function ensureConsistentAlumniIdentities(list: AlumniRecord[]): AlumniRe
       }
       username = candidate;
     } else {
-      const base = formatBaseUsername(alumni.name);
+      const base = formatBaseUsername(alumni.name) || 'santri';
       const currentCount = usernameMap.get(base) || 0;
       usernameMap.set(base, currentCount + 1);
     }
@@ -230,3 +230,178 @@ export function ensureConsistentAlumniIdentities(list: AlumniRecord[]): AlumniRe
     };
   });
 }
+
+export interface NisCascadeResult {
+  targetNis: string;
+  affectedAlumni: Array<{ id: string; nis: string; name: string }>;
+}
+
+/**
+ * Menghitung NIS baru saat tanggal masuk diubah atau dihapus,
+ * serta menghitung pergeseran berantai (cascade shift) santri lain di tahun tersebut.
+ *
+ * Contoh:
+ * - Awalnya santri A masuk 2011 urutan ke-5 (2011005).
+ * - Tanggal masuk diubah sehingga urutannya menjadi ke-3 (2011003).
+ * - Maka santri yang sebelumnya urutan ke-3 digeser jadi 4, urutan ke-4 jadi 5.
+ * - Santri A menjadi 2011003.
+ * - Jika tanggal masuk dihapus -> NIS menjadi '', santri lain di tahun tersebut urutannya dirapatkan.
+ */
+export function calculateCascadeShiftOnEntryDateChange(
+  targetId: string,
+  newEntryDate: string | undefined | null,
+  allAlumni: AlumniRecord[]
+): NisCascadeResult {
+  const cleanNewDate = (newEntryDate || '').trim();
+  const currentAlumni = allAlumni.find((a) => a.id === targetId);
+  const oldEntryDate = (currentAlumni?.entryDate || '').trim();
+  const oldYear = oldEntryDate.match(/^(\d{4})/)?.[1];
+  const newYear = cleanNewDate.match(/^(\d{4})/)?.[1];
+
+  const affectedMap = new Map<string, { id: string; nis: string; name: string }>();
+
+  // KASUS 1: Tanggal masuk dihapus / kosong
+  if (!cleanNewDate || !newYear) {
+    if (oldYear) {
+      // Rapatkan urutan tahun lama
+      const oldYearAlumni = allAlumni
+        .filter((a) => a.id !== targetId && (a.entryDate || '').startsWith(oldYear))
+        .sort((a, b) => {
+          const dA = a.entryDate || `${oldYear}-01-01`;
+          const dB = b.entryDate || `${oldYear}-01-01`;
+          const cmp = dA.localeCompare(dB);
+          if (cmp !== 0) return cmp;
+          return (a.nis || '').localeCompare(b.nis || '');
+        });
+
+      oldYearAlumni.forEach((alm, idx) => {
+        const nextNis = `${oldYear}${String(idx + 1).padStart(3, '0')}`;
+        if (alm.nis !== nextNis) {
+          affectedMap.set(alm.id, { id: alm.id, nis: nextNis, name: alm.name });
+        }
+      });
+    }
+
+    return {
+      targetNis: '',
+      affectedAlumni: Array.from(affectedMap.values()),
+    };
+  }
+
+  // KASUS 2: Tanggal masuk diubah / diatur
+  // A. Jika berganti tahun, rapatkan tahun lama
+  if (oldYear && oldYear !== newYear) {
+    const oldYearAlumni = allAlumni
+      .filter((a) => a.id !== targetId && (a.entryDate || '').startsWith(oldYear))
+      .sort((a, b) => {
+        const dA = a.entryDate || `${oldYear}-01-01`;
+        const dB = b.entryDate || `${oldYear}-01-01`;
+        const cmp = dA.localeCompare(dB);
+        if (cmp !== 0) return cmp;
+        return (a.nis || '').localeCompare(b.nis || '');
+      });
+
+    oldYearAlumni.forEach((alm, idx) => {
+      const nextNis = `${oldYear}${String(idx + 1).padStart(3, '0')}`;
+      if (alm.nis !== nextNis) {
+        affectedMap.set(alm.id, { id: alm.id, nis: nextNis, name: alm.name });
+      }
+    });
+  }
+
+  // B. Susun ulang seluruh santri di tahun baru
+  const newYearAlumni = allAlumni
+    .filter((a) => (a.entryDate || '').startsWith(newYear))
+    .map((a) => (a.id === targetId ? { ...a, entryDate: cleanNewDate } : a));
+
+  // Jika target sebelumnya belum masuk daftar tahun baru, tambahkan
+  if (!newYearAlumni.some((a) => a.id === targetId) && currentAlumni) {
+    newYearAlumni.push({ ...currentAlumni, entryDate: cleanNewDate });
+  }
+
+  newYearAlumni.sort((a, b) => {
+    const dA = (a.id === targetId ? cleanNewDate : a.entryDate) || `${newYear}-01-01`;
+    const dB = (b.id === targetId ? cleanNewDate : b.entryDate) || `${newYear}-01-01`;
+    const cmp = dA.localeCompare(dB);
+    if (cmp !== 0) return cmp;
+    // Jika tanggal sama persis, pertahankan nomor urut lama atau ID
+    const numA = parseInt((a.nis || '').slice(4), 10) || 9999;
+    const numB = parseInt((b.nis || '').slice(4), 10) || 9999;
+    if (numA !== numB) return numA - numB;
+    return a.id.localeCompare(b.id);
+  });
+
+  let calculatedTargetNis = `${newYear}001`;
+
+  newYearAlumni.forEach((alm, idx) => {
+    const nextNis = `${newYear}${String(idx + 1).padStart(3, '0')}`;
+    if (alm.id === targetId) {
+      calculatedTargetNis = nextNis;
+    } else if (alm.nis !== nextNis) {
+      affectedMap.set(alm.id, { id: alm.id, nis: nextNis, name: alm.name });
+    }
+  });
+
+  return {
+    targetNis: calculatedTargetNis,
+    affectedAlumni: Array.from(affectedMap.values()),
+  };
+}
+
+/**
+ * Menghitung pergeseran berantai ketika admin secara manual mengisi NIS tertentu (7 digit: YYYYNNN)
+ * Jika NIS sudah dipakai santri lain, santri yang bentrok dan seluruh urutan setelahnya digeser naik (+1).
+ */
+export function cascadeShiftOnManualNisChange(
+  targetId: string,
+  desiredNis: string,
+  allAlumni: AlumniRecord[]
+): NisCascadeResult {
+  const cleanNis = desiredNis.trim();
+  if (cleanNis.length !== 7 || !/^\d{7}$/.test(cleanNis)) {
+    return { targetNis: cleanNis, affectedAlumni: [] };
+  }
+
+  const year = cleanNis.slice(0, 4);
+  const targetSeq = parseInt(cleanNis.slice(4), 10);
+  if (isNaN(targetSeq) || targetSeq <= 0) {
+    return { targetNis: cleanNis, affectedAlumni: [] };
+  }
+
+  // Cari apakah ada yang bentrok di tahun ini
+  const collidingAlumni = allAlumni.find(
+    (a) => a.id !== targetId && a.nis && a.nis.trim() === cleanNis
+  );
+
+  if (!collidingAlumni) {
+    return { targetNis: cleanNis, affectedAlumni: [] };
+  }
+
+  // Ada benturan: kumpulkan semua alumni di tahun yang sama dengan urutan >= targetSeq
+  const sameYearAlumni = allAlumni
+    .filter((a) => a.id !== targetId && a.nis && a.nis.startsWith(year) && /^\d{7}$/.test(a.nis))
+    .map((a) => {
+      const seq = parseInt(a.nis.slice(4), 10);
+      return { alumni: a, seq };
+    })
+    .filter((item) => item.seq >= targetSeq)
+    .sort((a, b) => b.seq - a.seq); // Geser dari yang paling besar dulu
+
+  const affectedAlumni: Array<{ id: string; nis: string; name: string }> = [];
+
+  sameYearAlumni.forEach((item) => {
+    const nextSeq = item.seq + 1;
+    const nextNis = `${year}${String(nextSeq).padStart(3, '0')}`;
+    affectedAlumni.push({
+      id: item.alumni.id,
+      nis: nextNis,
+      name: item.alumni.name,
+    });
+  });
+
+  return {
+    targetNis: cleanNis,
+    affectedAlumni,
+  };
+}
+

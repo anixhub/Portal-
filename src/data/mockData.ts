@@ -11,7 +11,7 @@ export const INITIAL_ALUMNI: AlumniRecord[] = [
     nism: '131233170001',
     nisn: '0012345678',
     name: 'Mulia Ningsih, S.Pd.',
-    username: 'mulia_ningsih',
+    username: '',
     gender: 'P',
     tempatLahir: 'Rembang',
     tanggalLahir: '1998-05-14',

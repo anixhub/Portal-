@@ -5,6 +5,8 @@ import {
   ArrowRight, 
   Check, 
   CheckCircle2, 
+  XCircle,
+  Loader2,
   AlertCircle,
   User,
   GraduationCap,
@@ -18,11 +20,14 @@ import { LocationCoordinates } from '../common/FullscreenLocationMapModal';
 import { generateNisFromEntryDate, generateUniqueUsername } from '../../utils/alumniIdentityUtils';
 import { DateWheelPicker } from '../common/DateWheelPicker';
 
+import { getGlobalAllSantriRecords, SantriIdentityLookup } from '../../services/apiService';
+
 interface AddAlumniModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSave: (newAlumni: AlumniRecord) => void;
   existingAlumni?: AlumniRecord[];
+  allSantriList?: SantriIdentityLookup[];
 }
 
 export const AddAlumniModal: React.FC<AddAlumniModalProps> = ({
@@ -30,15 +35,50 @@ export const AddAlumniModal: React.FC<AddAlumniModalProps> = ({
   onClose,
   onSave,
   existingAlumni = [],
+  allSantriList,
 }) => {
   const [currentStep, setCurrentStep] = useState<1 | 2 | 3>(1);
 
   // Form State - Step 1: Identitas
   const [nik, setNik] = useState('');
+  const [isCheckingNik, setIsCheckingNik] = useState(false);
+  const [nikCheckStatus, setNikCheckStatus] = useState<'idle' | 'checking' | 'available' | 'taken'>('idle');
+  const [collidingSantri, setCollidingSantri] = useState<SantriIdentityLookup | AlumniRecord | null>(null);
   const [name, setName] = useState('');
   const [gender, setGender] = useState<'L' | 'P'>('L');
   const [anakKe, setAnakKe] = useState<number>(1);
   const [dariBersaudara, setDariBersaudara] = useState<number>(1);
+
+  // Debounce check NIK 16 digit terhadap seluruh data santri (aktif & alumni)
+  React.useEffect(() => {
+    const cleanNik = nik.replace(/\D/g, '').slice(0, 16);
+    if (!cleanNik || cleanNik.length < 16) {
+      setIsCheckingNik(false);
+      setNikCheckStatus('idle');
+      setCollidingSantri(null);
+      return;
+    }
+
+    setIsCheckingNik(true);
+    setNikCheckStatus('checking');
+
+    const timer = setTimeout(() => {
+      setIsCheckingNik(false);
+      const allPool = (allSantriList && allSantriList.length > 0)
+        ? allSantriList
+        : (getGlobalAllSantriRecords().length > 0 ? getGlobalAllSantriRecords() : existingAlumni);
+      const found = allPool.find(a => a.nik && a.nik.replace(/\D/g, '').trim() === cleanNik);
+      if (found) {
+        setCollidingSantri(found as any);
+        setNikCheckStatus('taken');
+      } else {
+        setCollidingSantri(null);
+        setNikCheckStatus('available');
+      }
+    }, 320);
+
+    return () => clearTimeout(timer);
+  }, [nik, allSantriList, existingAlumni]);
 
   // Form State - Step 2: Riwayat Tanggal Pondok
   const [entryDate, setEntryDate] = useState('');
@@ -48,11 +88,11 @@ export const AddAlumniModal: React.FC<AddAlumniModalProps> = ({
 
   const formatIndonesianDate = (iso: string) => formatToDDMMYYYY(iso);
 
-  // Form State - Step 3: Kontak & Domisili
+  // Form State - Step 3: Domisili & Kontak (Default Kosong Sesuai Permintaan)
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
-  const [city, setCity] = useState('Malang');
-  const [province, setProvince] = useState('Jawa Timur');
+  const [city, setCity] = useState('');
+  const [province, setProvince] = useState('');
   const [kecamatan, setKecamatan] = useState('');
   const [desa, setDesa] = useState('');
   const [alamatLengkap, setAlamatLengkap] = useState('');
@@ -76,8 +116,22 @@ export const AddAlumniModal: React.FC<AddAlumniModalProps> = ({
     setError(null);
 
     if (currentStep === 1) {
-      if (!nik || nik.length !== 16) {
-        setError('NIK harus tepat 16 digit angka (tidak boleh kurang atau lebih).');
+      const cleanNik = nik.replace(/\D/g, '');
+      if (cleanNik.length !== 16) {
+        setError('NIK harus tepat 16 digit angka.');
+        return;
+      }
+      if (isCheckingNik) {
+        setError('Sedang memvalidasi NIK, silakan tunggu sebentar...');
+        return;
+      }
+      const allPool = (allSantriList && allSantriList.length > 0)
+        ? allSantriList
+        : (getGlobalAllSantriRecords().length > 0 ? getGlobalAllSantriRecords() : existingAlumni);
+      const duplicate = allPool.find(a => a.nik && a.nik.replace(/\D/g, '').trim() === cleanNik);
+      if (duplicate || nikCheckStatus === 'taken') {
+        const dupName = duplicate ? duplicate.name : (collidingSantri?.name || 'Santri/Alumni');
+        setError(`NIK sudah terdaftar pada: ${dupName}`);
         return;
       }
       if (!name.trim()) {
@@ -160,15 +214,15 @@ export const AddAlumniModal: React.FC<AddAlumniModalProps> = ({
       gradYear: calculatedGradYear,
       jenjang: 'Madrasah Aliyah Keagamaan (MAK)',
       asramaDulu: 'Komplek Utama',
-      email: email.trim() || `${generatedUsername}@alumni.attaroqqy.id`,
-      phone: phone.trim() || '08123456789',
+      email: email.trim() || '',
+      phone: phone.trim() || '',
       city: city.trim(),
       province: province.trim(),
       kecamatan: kecamatan.trim() || undefined,
       desa: desa.trim() || undefined,
       alamatLengkap: alamatLengkap.trim() || undefined,
       coordinates: coordinates || undefined,
-      occupation: occupation.trim() || 'Alumni At-taroqqy',
+      occupation: occupation.trim() || '',
       institution: institution.trim(),
       password: '1234',
       isPasswordChanged: false,
@@ -213,7 +267,7 @@ export const AddAlumniModal: React.FC<AddAlumniModalProps> = ({
             Tambah Data Alumni
           </h2>
           <p className="text-[11px] text-slate-500 font-medium">
-            Langkah {currentStep} dari 3: {steps[currentStep - 1].title}
+            {steps[currentStep - 1].title}
           </p>
         </div>
 
@@ -284,19 +338,46 @@ export const AddAlumniModal: React.FC<AddAlumniModalProps> = ({
                     <label className="block text-xs font-bold text-slate-700 mb-1.5">
                       NIK KTP <span className="text-rose-500">*</span>
                     </label>
-                    <input
-                      type="text"
-                      inputMode="numeric"
-                      maxLength={16}
-                      required
-                      placeholder="Masukkan 16 digit NIK"
-                      value={nik}
-                      onChange={(e) => setNik(e.target.value.replace(/\D/g, '').slice(0, 16))}
-                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-mono text-xs text-slate-900 focus:ring-2 focus:ring-sky-600 focus:bg-white focus:outline-none"
-                    />
-                    <p className="text-[11px] text-slate-400 mt-1">
-                      {nik.length}/16 digit {nik.length === 16 ? '✓ Tepat 16 digit' : ''}
-                    </p>
+                    <div className="relative">
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        pattern="[0-9]*"
+                        maxLength={16}
+                        required
+                        placeholder="16 digit"
+                        value={nik}
+                        onChange={(e) => setNik(e.target.value.replace(/\D/g, '').slice(0, 16))}
+                        className="w-full px-3.5 py-2.5 pr-10 bg-slate-50 border border-slate-200 rounded-xl font-mono text-xs text-slate-900 focus:ring-2 focus:ring-sky-600 focus:bg-white focus:outline-none"
+                      />
+                      <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center pointer-events-none">
+                        {isCheckingNik && (
+                          <Loader2 className="w-4 h-4 text-sky-600 animate-spin" />
+                        )}
+                        {!isCheckingNik && nik.length === 16 && nikCheckStatus === 'available' && (
+                          <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                        )}
+                        {!isCheckingNik && nik.length === 16 && nikCheckStatus === 'taken' && (
+                          <XCircle className="w-4 h-4 text-rose-500" />
+                        )}
+                      </div>
+                    </div>
+
+                    {nik.length > 0 && nik.length < 16 && (
+                      <p className="text-[11px] text-rose-500 font-medium mt-1">
+                        Kurang {16 - nik.length} digit
+                      </p>
+                    )}
+                    {!isCheckingNik && nik.length === 16 && nikCheckStatus === 'available' && (
+                      <p className="text-[11px] text-emerald-600 font-medium mt-1">
+                        NIK valid & belum terdaftar
+                      </p>
+                    )}
+                    {!isCheckingNik && nik.length === 16 && nikCheckStatus === 'taken' && collidingSantri && (
+                      <p className="text-[11px] text-rose-500 font-medium mt-1">
+                        NIK sudah terdaftar pada: {collidingSantri.name} ({(collidingSantri as any).status || 'Santri/Alumni'})
+                      </p>
+                    )}
                   </div>
 
                   <div>
@@ -322,8 +403,8 @@ export const AddAlumniModal: React.FC<AddAlumniModalProps> = ({
                       onChange={(e) => setGender(e.target.value as 'L' | 'P')}
                       className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:ring-2 focus:ring-sky-600 focus:bg-white focus:outline-none"
                     >
-                      <option value="L">Laki-laki (Ikhwan)</option>
-                      <option value="P">Perempuan (Akhwat)</option>
+                      <option value="L">Laki-laki</option>
+                      <option value="P">Perempuan</option>
                     </select>
                   </div>
 
@@ -438,7 +519,7 @@ export const AddAlumniModal: React.FC<AddAlumniModalProps> = ({
                       </label>
                       <input
                         type="tel"
-                        placeholder="Contoh: 081234567890"
+                        placeholder="08123456789"
                         value={phone}
                         onChange={(e) => setPhone(e.target.value)}
                         className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:ring-2 focus:ring-sky-600 focus:bg-white focus:outline-none"
@@ -451,7 +532,7 @@ export const AddAlumniModal: React.FC<AddAlumniModalProps> = ({
                       </label>
                       <input
                         type="email"
-                        placeholder="email@alumni.id"
+                        placeholder="alumni@gmail.com"
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
                         className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:ring-2 focus:ring-sky-600 focus:bg-white focus:outline-none"
@@ -466,7 +547,7 @@ export const AddAlumniModal: React.FC<AddAlumniModalProps> = ({
                       </label>
                       <input
                         type="text"
-                        placeholder="Contoh: Pengajar / Wirausaha"
+                        placeholder="Profesi saat ini..."
                         value={occupation}
                         onChange={(e) => setOccupation(e.target.value)}
                         className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:ring-2 focus:ring-sky-600 focus:bg-white focus:outline-none"
@@ -577,7 +658,8 @@ export const AddAlumniModal: React.FC<AddAlumniModalProps> = ({
                 value={tempPickerDate || new Date().toISOString().split('T')[0]}
                 onChange={(val) => setTempPickerDate(val)}
                 minYear={1980}
-                maxYear={2035}
+                maxYear={new Date().getFullYear()}
+                maxDate={new Date().toISOString().split('T')[0]}
               />
             </div>
 

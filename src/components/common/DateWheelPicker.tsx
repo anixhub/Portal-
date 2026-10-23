@@ -5,6 +5,7 @@ interface DateWheelPickerProps {
   onChange: (value: string) => void;
   minYear?: number;
   maxYear?: number;
+  maxDate?: string; // Format: 'YYYY-MM-DD' (e.g. today to prevent future dates)
 }
 
 const BULAN_SINGKAT = [
@@ -21,7 +22,23 @@ export const DateWheelPicker: React.FC<DateWheelPickerProps> = ({
   onChange,
   minYear = 1940,
   maxYear = 2050,
+  maxDate,
 }) => {
+  // Parse maxDate limit if provided
+  const maxLimit = useMemo(() => {
+    if (!maxDate) return null;
+    const parts = maxDate.split('-');
+    if (parts.length === 3) {
+      const y = parseInt(parts[0], 10);
+      const m = parseInt(parts[1], 10) - 1;
+      const d = parseInt(parts[2], 10);
+      if (!isNaN(y) && !isNaN(m) && !isNaN(d)) {
+        return { year: y, month: m, day: d };
+      }
+    }
+    return null;
+  }, [maxDate]);
+
   // Parse date value safely
   let initialDate = new Date();
   if (value) {
@@ -36,18 +53,28 @@ export const DateWheelPicker: React.FC<DateWheelPickerProps> = ({
     }
   }
 
-  const selectedYear = isNaN(initialDate.getFullYear()) ? 2026 : initialDate.getFullYear();
-  const selectedMonth = isNaN(initialDate.getMonth()) ? 0 : initialDate.getMonth();
-  const selectedDay = isNaN(initialDate.getDate()) ? 1 : initialDate.getDate();
+  const effectiveMaxYear = maxLimit ? Math.min(maxYear, maxLimit.year) : maxYear;
+  const rawYear = isNaN(initialDate.getFullYear()) ? effectiveMaxYear : initialDate.getFullYear();
+  const selectedYear = Math.min(rawYear, effectiveMaxYear);
+
+  const maxMonthForYear = (maxLimit && selectedYear === maxLimit.year) ? maxLimit.month : 11;
+  const rawMonth = isNaN(initialDate.getMonth()) ? 0 : initialDate.getMonth();
+  const selectedMonth = Math.min(rawMonth, maxMonthForYear);
 
   // Days in month according to leap year and calendar rules
   const daysInMonth = new Date(selectedYear, selectedMonth + 1, 0).getDate();
-  const validDay = Math.min(selectedDay, daysInMonth);
+  const maxDayForMonth = (maxLimit && selectedYear === maxLimit.year && selectedMonth === maxLimit.month) 
+    ? Math.min(daysInMonth, maxLimit.day) 
+    : daysInMonth;
 
-  const days = useMemo(() => Array.from({ length: daysInMonth }, (_, i) => i + 1), [daysInMonth]);
+  const rawDay = isNaN(initialDate.getDate()) ? 1 : initialDate.getDate();
+  const validDay = Math.min(rawDay, maxDayForMonth);
+
+  const days = useMemo(() => Array.from({ length: maxDayForMonth }, (_, i) => i + 1), [maxDayForMonth]);
+  const months = useMemo(() => BULAN_SINGKAT.slice(0, maxMonthForYear + 1), [maxMonthForYear]);
   const years = useMemo(
-    () => Array.from({ length: Math.max(1, maxYear - minYear + 1) }, (_, i) => minYear + i),
-    [minYear, maxYear]
+    () => Array.from({ length: Math.max(1, effectiveMaxYear - minYear + 1) }, (_, i) => minYear + i),
+    [minYear, effectiveMaxYear]
   );
 
   // Active highlighted items during scroll
@@ -69,25 +96,42 @@ export const DateWheelPicker: React.FC<DateWheelPickerProps> = ({
 
   const updateDate = useCallback(
     (newYear: number, newMonth: number, newDay: number) => {
-      const maxDays = new Date(newYear, newMonth + 1, 0).getDate();
-      const clampedDay = Math.max(1, Math.min(newDay, maxDays));
-      const mm = String(newMonth + 1).padStart(2, '0');
+      let y = newYear;
+      let m = newMonth;
+      let d = newDay;
+      if (maxLimit) {
+        if (y > maxLimit.year) {
+          y = maxLimit.year;
+          m = Math.min(m, maxLimit.month);
+          d = Math.min(d, maxLimit.day);
+        } else if (y === maxLimit.year) {
+          if (m > maxLimit.month) {
+            m = maxLimit.month;
+            d = Math.min(d, maxLimit.day);
+          } else if (m === maxLimit.month && d > maxLimit.day) {
+            d = maxLimit.day;
+          }
+        }
+      }
+      const maxDays = new Date(y, m + 1, 0).getDate();
+      const clampedDay = Math.max(1, Math.min(d, maxDays));
+      const mm = String(m + 1).padStart(2, '0');
       const dd = String(clampedDay).padStart(2, '0');
-      onChange(`${newYear}-${mm}-${dd}`);
+      onChange(`${y}-${mm}-${dd}`);
     },
-    [onChange]
+    [onChange, maxLimit]
   );
 
   // Auto-clamp when daysInMonth changes (e.g., February leap year 28/29 or 30-day month)
   useEffect(() => {
-    if (activeDay > daysInMonth) {
-      setActiveDay(daysInMonth);
+    if (activeDay > maxDayForMonth) {
+      setActiveDay(maxDayForMonth);
       if (dayRef.current) {
-        dayRef.current.scrollTop = (daysInMonth - 1) * ITEM_HEIGHT;
+        dayRef.current.scrollTop = (maxDayForMonth - 1) * ITEM_HEIGHT;
       }
-      updateDate(selectedYear, selectedMonth, daysInMonth);
+      updateDate(selectedYear, selectedMonth, maxDayForMonth);
     }
-  }, [daysInMonth, activeDay, selectedYear, selectedMonth, updateDate]);
+  }, [maxDayForMonth, activeDay, selectedYear, selectedMonth, updateDate]);
 
   // Sync scroll position whenever value changes externally
   useEffect(() => {
@@ -132,10 +176,10 @@ export const DateWheelPicker: React.FC<DateWheelPickerProps> = ({
 
     // Update real-time visually highlighted item while scrolling
     if (type === 'day') {
-      const d = Math.max(1, Math.min(daysInMonth, snapIdx + 1));
+      const d = Math.max(1, Math.min(days.length, snapIdx + 1));
       setActiveDay(d);
     } else if (type === 'month') {
-      const m = Math.max(0, Math.min(11, snapIdx));
+      const m = Math.max(0, Math.min(months.length - 1, snapIdx));
       setActiveMonth(m);
     } else if (type === 'year') {
       const yIdx = Math.max(0, Math.min(years.length - 1, snapIdx));
@@ -156,7 +200,7 @@ export const DateWheelPicker: React.FC<DateWheelPickerProps> = ({
       const targetIdx = Math.round(currentScrollTop / ITEM_HEIGHT);
 
       if (type === 'day') {
-        const clampedDay = Math.max(1, Math.min(daysInMonth, targetIdx + 1));
+        const clampedDay = Math.max(1, Math.min(days.length, targetIdx + 1));
         const finalScroll = (clampedDay - 1) * ITEM_HEIGHT;
         if (Math.abs(container.scrollTop - finalScroll) > 1) {
           container.scrollTo({ top: finalScroll, behavior: 'smooth' });
@@ -164,7 +208,7 @@ export const DateWheelPicker: React.FC<DateWheelPickerProps> = ({
         setActiveDay(clampedDay);
         updateDate(selectedYear, selectedMonth, clampedDay);
       } else if (type === 'month') {
-        const clampedMonth = Math.max(0, Math.min(11, targetIdx));
+        const clampedMonth = Math.max(0, Math.min(months.length - 1, targetIdx));
         const finalScroll = clampedMonth * ITEM_HEIGHT;
         if (Math.abs(container.scrollTop - finalScroll) > 1) {
           container.scrollTo({ top: finalScroll, behavior: 'smooth' });
@@ -294,7 +338,7 @@ export const DateWheelPicker: React.FC<DateWheelPickerProps> = ({
           >
             {/* Top Spacer */}
             <div style={{ height: `${PADDING_SPACER}px`, scrollSnapAlign: 'none' }} className="shrink-0 pointer-events-none" aria-hidden="true" />
-            {BULAN_SINGKAT.map((m, idx) => {
+            {months.map((m, idx) => {
               const isSelected = idx === activeMonth;
               return (
                 <div

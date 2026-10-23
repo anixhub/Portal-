@@ -18,7 +18,11 @@ import {
   FileCheck,
   Trash2,
   AtSign,
-  Check
+  Check,
+  CheckCircle2,
+  XCircle,
+  AlertCircle,
+  Loader2
 } from 'lucide-react';
 import { AlumniRecord } from '../../types';
 import { WilayahAddressFilter } from '../common/WilayahAddressFilter';
@@ -26,14 +30,30 @@ import { FullscreenPhotoViewerModal } from '../common/FullscreenPhotoViewerModal
 import { LocationCoordinates } from '../common/FullscreenLocationMapModal';
 import { useBackHandler } from '../../utils/navigationHistory';
 import { getAlumniPhotoUrl } from '../../utils/photoUtils';
-import { generateNisFromEntryDate, isUsernameTaken, formatBaseUsername } from '../../utils/alumniIdentityUtils';
+import { 
+  generateNisFromEntryDate, 
+  isUsernameTaken, 
+  formatBaseUsername,
+  calculateCascadeShiftOnEntryDateChange,
+  cascadeShiftOnManualNisChange
+} from '../../utils/alumniIdentityUtils';
 import { DateWheelPicker } from '../common/DateWheelPicker';
-import { formatToDDMMYYYY } from '../../utils/dateUtils';
+import { 
+  formatToDDMMYYYY, 
+  getMaxDaysInMonth, 
+  formatDayInput, 
+  formatMonthInput,
+  padDayInput,
+  padMonthInput,
+  padYearInput
+} from '../../utils/dateUtils';
+import { getGlobalAllSantriRecords, SantriIdentityLookup } from '../../services/apiService';
 
 interface AlumniDetailAdminModalProps {
   isOpen: boolean;
   alumni: AlumniRecord | null;
   existingAlumni?: AlumniRecord[];
+  allSantriList?: SantriIdentityLookup[];
   onClose: () => void;
   onResetPassword: (id: string) => void;
   onSave?: (id: string, updated: Partial<AlumniRecord>, fullRecord?: AlumniRecord) => void;
@@ -44,6 +64,7 @@ export const AlumniDetailAdminModal: React.FC<AlumniDetailAdminModalProps> = ({
   isOpen,
   alumni,
   existingAlumni = [],
+  allSantriList,
   onClose,
   onResetPassword,
   onSave,
@@ -95,12 +116,12 @@ export const AlumniDetailAdminModal: React.FC<AlumniDetailAdminModalProps> = ({
 
   // Riwayat Pendidikan Pondok
   const [editNis, setEditNis] = useState(alumni.nis || '');
-  const [editNism, setEditNism] = useState(alumni.nism || '');
-  const [editNisn, setEditNisn] = useState(alumni.nisn || '');
   const [editEntryDate, setEditEntryDate] = useState(alumni.entryDate || '');
   const [editGradDate, setEditGradDate] = useState(alumni.gradDate || '');
   const [tempEntryDate, setTempEntryDate] = useState(alumni.entryDate || '');
   const [tempGradDate, setTempGradDate] = useState(alumni.gradDate || '');
+  const [isEntryDateKnown, setIsEntryDateKnown] = useState<boolean>(Boolean(alumni.entryDate && alumni.entryDate.trim() !== ''));
+  const [isGradDateKnown, setIsGradDateKnown] = useState<boolean>(Boolean(alumni.gradDate && alumni.gradDate.trim() !== ''));
 
   // Parents
   const [editNamaAyah, setEditNamaAyah] = useState(alumni.namaAyah || '');
@@ -122,6 +143,10 @@ export const AlumniDetailAdminModal: React.FC<AlumniDetailAdminModalProps> = ({
   const [draftName, setDraftName] = useState('');
   const [draftTempatLahir, setDraftTempatLahir] = useState('');
   const [draftTanggalLahir, setDraftTanggalLahir] = useState('');
+  const [draftBirthDay, setDraftBirthDay] = useState('');
+  const [draftBirthMonth, setDraftBirthMonth] = useState('');
+  const [draftBirthYear, setDraftBirthYear] = useState('');
+
   const [draftGender, setDraftGender] = useState<'L' | 'P'>('L');
   const [draftUrutanAnak, setDraftUrutanAnak] = useState<number | string>(1);
   const [draftJumlahSaudara, setDraftJumlahSaudara] = useState<number | string>(0);
@@ -137,9 +162,15 @@ export const AlumniDetailAdminModal: React.FC<AlumniDetailAdminModalProps> = ({
   const [draftDesa, setDraftDesa] = useState('');
   const [draftAlamatLengkap, setDraftAlamatLengkap] = useState('');
   const [draftCoordinates, setDraftCoordinates] = useState<LocationCoordinates | null>(null);
+
+  // NIS Edit State
   const [draftNis, setDraftNis] = useState('');
-  const [draftNism, setDraftNism] = useState('');
-  const [draftNisn, setDraftNisn] = useState('');
+  const [nisChecking, setNisChecking] = useState(false);
+  const [nisCheckStatus, setNisCheckStatus] = useState<'idle' | 'checking' | 'available' | 'taken' | 'invalid'>('idle');
+  const [collidingAlumni, setCollidingAlumni] = useState<AlumniRecord | null>(null);
+  const [isManualShiftApplied, setIsManualShiftApplied] = useState(false);
+  const [affectedManualAlumni, setAffectedManualAlumni] = useState<Array<{ id: string; nis: string; name: string }>>([]);
+
   const [draftNamaAyah, setDraftNamaAyah] = useState('');
   const [draftNikAyah, setDraftNikAyah] = useState('');
   const [draftPekerjaanAyah, setDraftPekerjaanAyah] = useState('');
@@ -149,15 +180,272 @@ export const AlumniDetailAdminModal: React.FC<AlumniDetailAdminModalProps> = ({
   const [draftPekerjaanIbu, setDraftPekerjaanIbu] = useState('');
   const [draftPendidikanIbu, setDraftPendidikanIbu] = useState('');
 
+  // Check state for Username
+  const [isCheckingUsername, setIsCheckingUsername] = useState(false);
+  const [usernameCheckStatus, setUsernameCheckStatus] = useState<'idle' | 'checking' | 'available' | 'taken'>('idle');
+
+  // Check state for NIK & No KK
+  const [isCheckingNik, setIsCheckingNik] = useState(false);
+  const [nikCheckStatus, setNikCheckStatus] = useState<'idle' | 'checking' | 'available' | 'taken'>('idle');
+  const [duplicateNik, setDuplicateNik] = useState<SantriIdentityLookup | AlumniRecord | null>(null);
+
+  const [isCheckingNoKk, setIsCheckingNoKk] = useState(false);
+  const [noKkCheckStatus, setNoKkCheckStatus] = useState<'idle' | 'checking' | 'available' | 'taken'>('idle');
+  const [duplicateNoKk, setDuplicateNoKk] = useState<SantriIdentityLookup | AlumniRecord | null>(null);
+
+  // Check state for NIK Ayah & NIK Ibu
+  const [isCheckingNikAyah, setIsCheckingNikAyah] = useState(false);
+  const [nikAyahCheckStatus, setNikAyahCheckStatus] = useState<'idle' | 'checking' | 'available' | 'taken'>('idle');
+  const [duplicateNikAyah, setDuplicateNikAyah] = useState<SantriIdentityLookup | AlumniRecord | null>(null);
+
+  const [isCheckingNikIbu, setIsCheckingNikIbu] = useState(false);
+  const [nikIbuCheckStatus, setNikIbuCheckStatus] = useState<'idle' | 'checking' | 'available' | 'taken'>('idle');
+  const [duplicateNikIbu, setDuplicateNikIbu] = useState<SantriIdentityLookup | AlumniRecord | null>(null);
+
+  // Username realtime check with debounce
+  useEffect(() => {
+    if (activeEditModal !== 'username') return;
+    const clean = newAdminUsernameInput.trim();
+    if (!clean) {
+      setIsCheckingUsername(false);
+      setUsernameCheckStatus('idle');
+      setAdminUsernameError(null);
+      return;
+    }
+
+    setIsCheckingUsername(true);
+    setUsernameCheckStatus('checking');
+
+    const timer = setTimeout(() => {
+      setIsCheckingUsername(false);
+      if (isUsernameTaken(clean, existingAlumni, alumni.id)) {
+        setUsernameCheckStatus('taken');
+        setAdminUsernameError('Username sudah digunakan santri/alumni lain');
+      } else {
+        setUsernameCheckStatus('available');
+        setAdminUsernameError(null);
+      }
+    }, 320);
+
+    return () => clearTimeout(timer);
+  }, [newAdminUsernameInput, activeEditModal, existingAlumni, alumni.id]);
+
+  // NIK duplicate check with debounce
+  useEffect(() => {
+    if (activeEditModal !== 'nik_kk') return;
+    const clean = draftNik.replace(/\D/g, '').slice(0, 16);
+    if (!clean || clean.length < 16) {
+      setIsCheckingNik(false);
+      setNikCheckStatus('idle');
+      setDuplicateNik(null);
+      return;
+    }
+
+    setIsCheckingNik(true);
+    setNikCheckStatus('checking');
+
+    const timer = setTimeout(() => {
+      setIsCheckingNik(false);
+      const allPool = (allSantriList && allSantriList.length > 0)
+        ? allSantriList
+        : (getGlobalAllSantriRecords().length > 0 ? getGlobalAllSantriRecords() : existingAlumni);
+      const found = allPool.find(
+        (a) => a.id !== alumni.id && a.nik && a.nik.replace(/\D/g, '').trim() === clean
+      );
+      if (found) {
+        setDuplicateNik(found as any);
+        setNikCheckStatus('taken');
+      } else {
+        setDuplicateNik(null);
+        setNikCheckStatus('available');
+      }
+    }, 320);
+
+    return () => clearTimeout(timer);
+  }, [draftNik, activeEditModal, allSantriList, existingAlumni, alumni.id]);
+
+  // No KK duplicate check with debounce
+  useEffect(() => {
+    if (activeEditModal !== 'nik_kk') return;
+    const clean = draftNoKk.replace(/\D/g, '').slice(0, 16);
+    if (!clean || clean.length < 16) {
+      setIsCheckingNoKk(false);
+      setNoKkCheckStatus('idle');
+      setDuplicateNoKk(null);
+      return;
+    }
+
+    setIsCheckingNoKk(true);
+    setNoKkCheckStatus('checking');
+
+    const timer = setTimeout(() => {
+      setIsCheckingNoKk(false);
+      const allPool = (allSantriList && allSantriList.length > 0)
+        ? allSantriList
+        : (getGlobalAllSantriRecords().length > 0 ? getGlobalAllSantriRecords() : existingAlumni);
+      const found = allPool.find(
+        (a) => a.id !== alumni.id && a.noKk && a.noKk.replace(/\D/g, '').trim() === clean
+      );
+      if (found) {
+        setDuplicateNoKk(found as any);
+        setNoKkCheckStatus('taken');
+      } else {
+        setDuplicateNoKk(null);
+        setNoKkCheckStatus('available');
+      }
+    }, 320);
+
+    return () => clearTimeout(timer);
+  }, [draftNoKk, activeEditModal, allSantriList, existingAlumni, alumni.id]);
+
+  // NIK Ayah duplicate check with debounce
+  useEffect(() => {
+    if (activeEditModal !== 'ayah') return;
+    const clean = draftNikAyah.replace(/\D/g, '').slice(0, 16);
+    if (!clean || clean.length < 16) {
+      setIsCheckingNikAyah(false);
+      setNikAyahCheckStatus('idle');
+      setDuplicateNikAyah(null);
+      return;
+    }
+
+    setIsCheckingNikAyah(true);
+    setNikAyahCheckStatus('checking');
+
+    const timer = setTimeout(() => {
+      setIsCheckingNikAyah(false);
+      const allPool = (allSantriList && allSantriList.length > 0)
+        ? allSantriList
+        : (getGlobalAllSantriRecords().length > 0 ? getGlobalAllSantriRecords() : existingAlumni);
+      const found = allPool.find(
+        (a) => a.id !== alumni.id && (
+          (a.nik && a.nik.replace(/\D/g, '').trim() === clean) ||
+          ((a as any).nikAyah && (a as any).nikAyah.replace(/\D/g, '').trim() === clean)
+        )
+      );
+      if (found) {
+        setDuplicateNikAyah(found as any);
+        setNikAyahCheckStatus('taken');
+      } else {
+        setDuplicateNikAyah(null);
+        setNikAyahCheckStatus('available');
+      }
+    }, 320);
+
+    return () => clearTimeout(timer);
+  }, [draftNikAyah, activeEditModal, allSantriList, existingAlumni, alumni.id]);
+
+  // NIK Ibu duplicate check with debounce
+  useEffect(() => {
+    if (activeEditModal !== 'ibu') return;
+    const clean = draftNikIbu.replace(/\D/g, '').slice(0, 16);
+    if (!clean || clean.length < 16) {
+      setIsCheckingNikIbu(false);
+      setNikIbuCheckStatus('idle');
+      setDuplicateNikIbu(null);
+      return;
+    }
+
+    setIsCheckingNikIbu(true);
+    setNikIbuCheckStatus('checking');
+
+    const timer = setTimeout(() => {
+      setIsCheckingNikIbu(false);
+      const allPool = (allSantriList && allSantriList.length > 0)
+        ? allSantriList
+        : (getGlobalAllSantriRecords().length > 0 ? getGlobalAllSantriRecords() : existingAlumni);
+      const found = allPool.find(
+        (a) => a.id !== alumni.id && (
+          (a.nik && a.nik.replace(/\D/g, '').trim() === clean) ||
+          ((a as any).nikIbu && (a as any).nikIbu.replace(/\D/g, '').trim() === clean)
+        )
+      );
+      if (found) {
+        setDuplicateNikIbu(found as any);
+        setNikIbuCheckStatus('taken');
+      } else {
+        setDuplicateNikIbu(null);
+        setNikIbuCheckStatus('available');
+      }
+    }, 320);
+
+    return () => clearTimeout(timer);
+  }, [draftNikIbu, activeEditModal, allSantriList, existingAlumni, alumni.id]);
+
+  // NIS duplicate check with debounce (memeriksa ketidaksamaan dengan alumni dan santri aktif)
+  useEffect(() => {
+    if (activeEditModal !== 'nis') return;
+    const clean = draftNis.replace(/\D/g, '').trim();
+
+    if (!clean) {
+      setNisCheckStatus('idle');
+      setCollidingAlumni(null);
+      setNisChecking(false);
+      return;
+    }
+
+    if (clean.length < 7) {
+      setNisCheckStatus('invalid');
+      setCollidingAlumni(null);
+      setNisChecking(false);
+      return;
+    }
+
+    // Tepat 7 digit: jalankan pengecekan terhadap seluruh santri (alumni dan santri aktif)
+    setNisChecking(true);
+    setNisCheckStatus('checking');
+
+    const timer = setTimeout(() => {
+      setNisChecking(false);
+      const allPool = (allSantriList && allSantriList.length > 0)
+        ? allSantriList
+        : (getGlobalAllSantriRecords().length > 0 ? getGlobalAllSantriRecords() : existingAlumni);
+
+      const found = allPool.find(
+        (a) => a.id !== alumni.id && a.nis && a.nis.trim() === clean
+      );
+
+      if (found) {
+        setCollidingAlumni(found as any);
+        setNisCheckStatus('taken');
+      } else {
+        setCollidingAlumni(null);
+        setNisCheckStatus('available');
+      }
+    }, 320);
+
+    return () => clearTimeout(timer);
+  }, [draftNis, activeEditModal, alumni.id, existingAlumni, allSantriList]);
+
   const openEditModal = (modalKey: string) => {
     if (modalKey === 'nama') setDraftName(editName);
     if (modalKey === 'username') {
       setNewAdminUsernameInput(editUsername || alumni.username || '');
       setAdminUsernameError(null);
+      setIsCheckingUsername(false);
+      setUsernameCheckStatus('idle');
     }
     if (modalKey === 'ttl') {
       setDraftTempatLahir(editTempatLahir);
-      setDraftTanggalLahir(editTanggalLahir);
+      if (editTanggalLahir && editTanggalLahir.includes('-')) {
+        const parts = editTanggalLahir.split('-');
+        if (parts.length === 3) {
+          const y = parts[0].padStart(4, '0');
+          const m = String(parseInt(parts[1], 10) || '').padStart(2, '0');
+          const d = String(parseInt(parts[2], 10) || '').padStart(2, '0');
+          setDraftBirthYear(y);
+          setDraftBirthMonth(m);
+          setDraftBirthDay(d);
+        } else {
+          setDraftBirthDay('');
+          setDraftBirthMonth('');
+          setDraftBirthYear('');
+        }
+      } else {
+        setDraftBirthDay('');
+        setDraftBirthMonth('');
+        setDraftBirthYear('');
+      }
     }
     if (modalKey === 'gender_saudara') {
       setDraftGender(editGender);
@@ -167,6 +455,12 @@ export const AlumniDetailAdminModal: React.FC<AlumniDetailAdminModalProps> = ({
     if (modalKey === 'nik_kk') {
       setDraftNik(editNik);
       setDraftNoKk(editNoKk);
+      setIsCheckingNik(false);
+      setIsCheckingNoKk(false);
+      setNikCheckStatus('idle');
+      setNoKkCheckStatus('idle');
+      setDuplicateNik(null);
+      setDuplicateNoKk(null);
     }
     if (modalKey === 'alamat') {
       setDraftProvince(editProvince);
@@ -184,22 +478,40 @@ export const AlumniDetailAdminModal: React.FC<AlumniDetailAdminModalProps> = ({
       setDraftOccupation(editOccupation);
       setDraftInstitution(editInstitution);
     }
-    if (modalKey === 'nis') setDraftNis(editNis);
-    if (modalKey === 'nism') setDraftNism(editNism);
-    if (modalKey === 'nisn') setDraftNisn(editNisn);
-    if (modalKey === 'tanggal_masuk') setTempEntryDate(editEntryDate || '');
-    if (modalKey === 'tanggal_keluar') setTempGradDate(editGradDate || '');
+    if (modalKey === 'nis') {
+      setDraftNis(editNis || '');
+      setNisCheckStatus('idle');
+      setCollidingAlumni(null);
+      setIsManualShiftApplied(false);
+      setAffectedManualAlumni([]);
+    }
+    if (modalKey === 'tanggal_masuk') {
+      const hasDate = Boolean(editEntryDate && editEntryDate.trim() !== '');
+      setIsEntryDateKnown(hasDate);
+      setTempEntryDate(hasDate ? editEntryDate : '2021-07-15');
+    }
+    if (modalKey === 'tanggal_keluar') {
+      const hasDate = Boolean(editGradDate && editGradDate.trim() !== '');
+      setIsGradDateKnown(hasDate);
+      setTempGradDate(hasDate ? editGradDate : '2024-05-20');
+    }
     if (modalKey === 'ayah') {
       setDraftNamaAyah(editNamaAyah);
       setDraftNikAyah(editNikAyah);
       setDraftPekerjaanAyah(editPekerjaanAyah);
       setDraftPendidikanAyah(editPendidikanAyah);
+      setIsCheckingNikAyah(false);
+      setNikAyahCheckStatus('idle');
+      setDuplicateNikAyah(null);
     }
     if (modalKey === 'ibu') {
       setDraftNamaIbu(editNamaIbu);
       setDraftNikIbu(editNikIbu);
       setDraftPekerjaanIbu(editPekerjaanIbu);
       setDraftPendidikanIbu(editPendidikanIbu);
+      setIsCheckingNikIbu(false);
+      setNikIbuCheckStatus('idle');
+      setDuplicateNikIbu(null);
     }
     setActiveEditModal(modalKey);
   };
@@ -235,12 +547,12 @@ export const AlumniDetailAdminModal: React.FC<AlumniDetailAdminModalProps> = ({
     setEditAlamatLengkap(alumni.alamatLengkap || '');
     setEditCoordinates(alumni.coordinates || null);
     setEditNis(alumni.nis || '');
-    setEditNism(alumni.nism || '');
-    setEditNisn(alumni.nisn || '');
     setEditEntryDate(alumni.entryDate || '');
     setEditGradDate(alumni.gradDate || '');
     setTempEntryDate(alumni.entryDate || '');
     setTempGradDate(alumni.gradDate || '');
+    setIsEntryDateKnown(Boolean(alumni.entryDate && alumni.entryDate.trim() !== ''));
+    setIsGradDateKnown(Boolean(alumni.gradDate && alumni.gradDate.trim() !== ''));
     setEditNamaAyah(alumni.namaAyah || '');
     setEditNikAyah(alumni.nikAyah || '');
     setEditPekerjaanAyah(alumni.pekerjaanAyah || '');
@@ -542,7 +854,7 @@ export const AlumniDetailAdminModal: React.FC<AlumniDetailAdminModalProps> = ({
                     <div className="min-w-0">
                       <p className="text-[11px] text-slate-400 font-medium leading-tight">Pekerjaan & Instansi</p>
                       <p className="text-sm font-semibold text-slate-800 truncate mt-0.5">
-                        {editOccupation || 'Alumni Pesantren'}
+                        {editOccupation || '-'}
                         {editInstitution ? ` · ${editInstitution}` : ''}
                       </p>
                     </div>
@@ -569,7 +881,7 @@ export const AlumniDetailAdminModal: React.FC<AlumniDetailAdminModalProps> = ({
                       <GraduationCap className="w-5 h-5 text-slate-700" />
                     </div>
                     <div className="min-w-0">
-                      <p className="text-[11px] text-slate-400 font-medium leading-tight">NIS (Nomor Induk Santri)</p>
+                      <p className="text-[11px] text-slate-400 font-medium leading-tight">Nomor Induk Santri (NIS)</p>
                       <p className="text-sm font-semibold font-mono text-slate-800 truncate mt-0.5">
                         {editNis || '-'}
                       </p>
@@ -578,43 +890,7 @@ export const AlumniDetailAdminModal: React.FC<AlumniDetailAdminModalProps> = ({
                   <ChevronRight className="w-4 h-4 text-slate-400 shrink-0 group-hover:translate-x-0.5 transition-transform" />
                 </div>
 
-                {/* 2. NISM (Nomor Induk Santri Madrasah) */}
-                <div
-                  onClick={() => openEditModal('nism')}
-                  className="flex items-center justify-between py-3.5 cursor-pointer hover:bg-slate-50/70 -mx-3 px-3 rounded-2xl transition-colors group"
-                >
-                  <div className="flex items-center gap-4 min-w-0 pr-2">
-                    <div className="w-6 flex items-center justify-center shrink-0">
-                      <FileText className="w-5 h-5 text-slate-700" />
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-[11px] text-slate-400 font-medium leading-tight">NISM (Nomor Induk Santri Madrasah)</p>
-                      <p className="text-sm font-semibold font-mono text-slate-800 truncate mt-0.5">
-                        {editNism || '-'}
-                      </p>
-                    </div>
-                  </div>
-                  <ChevronRight className="w-4 h-4 text-slate-400 shrink-0 group-hover:translate-x-0.5 transition-transform" />
-                </div>
 
-                {/* 3. NISN (Nomor Induk Siswa Nasional) */}
-                <div
-                  onClick={() => openEditModal('nisn')}
-                  className="flex items-center justify-between py-3.5 cursor-pointer hover:bg-slate-50/70 -mx-3 px-3 rounded-2xl transition-colors group"
-                >
-                  <div className="flex items-center gap-4 min-w-0 pr-2">
-                    <div className="w-6 flex items-center justify-center shrink-0">
-                      <FileCheck className="w-5 h-5 text-slate-700" />
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-[11px] text-slate-400 font-medium leading-tight">NISN (Nomor Induk Siswa Nasional)</p>
-                      <p className="text-sm font-semibold font-mono text-slate-800 truncate mt-0.5">
-                        {editNisn || '-'}
-                      </p>
-                    </div>
-                  </div>
-                  <ChevronRight className="w-4 h-4 text-slate-400 shrink-0 group-hover:translate-x-0.5 transition-transform" />
-                </div>
 
                 {/* 4. Tanggal Masuk */}
                 <div
@@ -861,22 +1137,28 @@ export const AlumniDetailAdminModal: React.FC<AlumniDetailAdminModalProps> = ({
                     type="text"
                     value={newAdminUsernameInput}
                     onChange={(e) => {
-                      const clean = formatBaseUsername(e.target.value);
+                      const clean = e.target.value.toLowerCase().replace(/[\s\t\n]+/g, '_').replace(/[^a-z0-9_]/g, '');
                       setNewAdminUsernameInput(clean);
-                      if (clean && isUsernameTaken(clean, existingAlumni, alumni.id)) {
-                        setAdminUsernameError('Username sudah digunakan alumni lain');
-                      } else {
-                        setAdminUsernameError(null);
-                      }
                     }}
-                    className="w-full pl-7 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-medium focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500 text-xs"
+                    className="w-full pl-7 pr-9 py-2 bg-slate-50 border border-slate-200 rounded-xl font-medium focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500 text-xs"
                     placeholder="username_baru"
                   />
+                  <div className="absolute right-2.5 top-1/2 -translate-y-1/2 flex items-center pointer-events-none">
+                    {isCheckingUsername && (
+                      <Loader2 className="w-4 h-4 text-sky-600 animate-spin" />
+                    )}
+                    {!isCheckingUsername && newAdminUsernameInput.trim() && usernameCheckStatus === 'available' && (
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                    )}
+                    {!isCheckingUsername && newAdminUsernameInput.trim() && usernameCheckStatus === 'taken' && (
+                      <XCircle className="w-4 h-4 text-rose-500" />
+                    )}
+                  </div>
                 </div>
-                {adminUsernameError && (
+                {!isCheckingUsername && usernameCheckStatus === 'taken' && adminUsernameError && (
                   <p className="text-[11px] text-rose-600 mt-1 font-medium">{adminUsernameError}</p>
                 )}
-                {!adminUsernameError && newAdminUsernameInput && (
+                {!isCheckingUsername && usernameCheckStatus === 'available' && newAdminUsernameInput.trim() && (
                   <p className="text-[11px] text-emerald-600 mt-1 font-medium">Username tersedia</p>
                 )}
               </div>
@@ -885,12 +1167,12 @@ export const AlumniDetailAdminModal: React.FC<AlumniDetailAdminModalProps> = ({
               <button type="button" onClick={() => setActiveEditModal(null)} className="flex-1 py-2 rounded-xl border border-slate-200 text-slate-600 font-semibold text-xs cursor-pointer">Batal</button>
               <button
                 type="button"
-                disabled={!newAdminUsernameInput.trim() || Boolean(adminUsernameError)}
+                disabled={!newAdminUsernameInput.trim() || isCheckingUsername || usernameCheckStatus === 'taken'}
                 onClick={() => {
                   const clean = formatBaseUsername(newAdminUsernameInput);
                   if (!clean) return;
                   if (isUsernameTaken(clean, existingAlumni, alumni.id)) {
-                    setAdminUsernameError('Username sudah digunakan alumni lain');
+                    setAdminUsernameError('Username sudah digunakan santri/alumni lain');
                     return;
                   }
                   setEditUsername(clean);
@@ -927,20 +1209,113 @@ export const AlumniDetailAdminModal: React.FC<AlumniDetailAdminModalProps> = ({
               </div>
               <div>
                 <label className="block font-semibold text-slate-700 mb-1">Tanggal Lahir</label>
-                <input
-                  type="date"
-                  value={draftTanggalLahir}
-                  onChange={(e) => setDraftTanggalLahir(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white text-xs"
-                />
+                <div className="grid grid-cols-3 gap-2">
+                  <div>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      pattern="[0-9]*"
+                      maxLength={2}
+                      placeholder="DD"
+                      value={draftBirthDay}
+                      onChange={(e) => {
+                        const val = formatDayInput(e.target.value, draftBirthMonth, draftBirthYear);
+                        setDraftBirthDay(val);
+                      }}
+                      onBlur={() => {
+                        if (draftBirthDay) {
+                          setDraftBirthDay(padDayInput(draftBirthDay, draftBirthMonth, draftBirthYear));
+                        }
+                      }}
+                      className="w-full text-center px-2 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-xs focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500"
+                    />
+                  </div>
+                  <div>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      pattern="[0-9]*"
+                      maxLength={2}
+                      placeholder="MM"
+                      value={draftBirthMonth}
+                      onChange={(e) => {
+                        const val = formatMonthInput(e.target.value);
+                        setDraftBirthMonth(val);
+                        if (draftBirthDay && val) {
+                          const currentD = parseInt(draftBirthDay, 10);
+                          const maxD = getMaxDaysInMonth(val, draftBirthYear);
+                          if (currentD > maxD) {
+                            setDraftBirthDay(String(maxD).padStart(2, '0'));
+                          }
+                        }
+                      }}
+                      onBlur={() => {
+                        if (draftBirthMonth) {
+                          const padded = padMonthInput(draftBirthMonth);
+                          setDraftBirthMonth(padded);
+                          if (draftBirthDay) {
+                            const currentD = parseInt(draftBirthDay, 10);
+                            const maxD = getMaxDaysInMonth(padded, draftBirthYear);
+                            if (currentD > maxD) {
+                              setDraftBirthDay(String(maxD).padStart(2, '0'));
+                            }
+                          }
+                        }
+                      }}
+                      className="w-full text-center px-2 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-xs focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500"
+                    />
+                  </div>
+                  <div>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      pattern="[0-9]*"
+                      maxLength={4}
+                      placeholder="YYYY"
+                      value={draftBirthYear}
+                      onChange={(e) => {
+                        const val = e.target.value.replace(/\D/g, '').slice(0, 4);
+                        setDraftBirthYear(val);
+                        if (draftBirthDay && draftBirthMonth && val.length === 4) {
+                          const currentD = parseInt(draftBirthDay, 10);
+                          const maxD = getMaxDaysInMonth(draftBirthMonth, val);
+                          if (currentD > maxD) {
+                            setDraftBirthDay(String(maxD).padStart(2, '0'));
+                          }
+                        }
+                      }}
+                      onBlur={() => {
+                        if (draftBirthYear) {
+                          const padded = padYearInput(draftBirthYear);
+                          setDraftBirthYear(padded);
+                          if (draftBirthDay && draftBirthMonth) {
+                            const currentD = parseInt(draftBirthDay, 10);
+                            const maxD = getMaxDaysInMonth(draftBirthMonth, padded);
+                            if (currentD > maxD) {
+                              setDraftBirthDay(String(maxD).padStart(2, '0'));
+                            }
+                          }
+                        }
+                      }}
+                      className="w-full text-center px-2 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-xs focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500"
+                    />
+                  </div>
+                </div>
               </div>
             </div>
             <div className="flex gap-2 pt-2">
               <button type="button" onClick={() => setActiveEditModal(null)} className="flex-1 py-2 rounded-xl border border-slate-200 text-slate-600 font-semibold text-xs cursor-pointer">Batal</button>
               <button type="button" onClick={() => { 
+                let formattedDate = '';
+                if (draftBirthYear && draftBirthMonth && draftBirthDay) {
+                  const y = padYearInput(draftBirthYear);
+                  const m = padMonthInput(draftBirthMonth);
+                  const d = padDayInput(draftBirthDay, m, y);
+                  formattedDate = `${y}-${m}-${d}`;
+                }
                 setEditTempatLahir(draftTempatLahir);
-                setEditTanggalLahir(draftTanggalLahir);
-                handleUpdate({ tempatLahir: draftTempatLahir, tanggalLahir: draftTanggalLahir }); 
+                setEditTanggalLahir(formattedDate);
+                handleUpdate({ tempatLahir: draftTempatLahir, tanggalLahir: formattedDate }); 
                 setActiveEditModal(null); 
               }} className="flex-1 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs cursor-pointer">Simpan</button>
             </div>
@@ -1068,47 +1443,128 @@ export const AlumniDetailAdminModal: React.FC<AlumniDetailAdminModalProps> = ({
       )}
 
       {/* 4. EDIT NIK & NO KK */}
-      {activeEditModal === 'nik_kk' && (
-        <div className="fixed inset-0 z-[100010] bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in" onClick={() => setActiveEditModal(null)}>
-          <div className="bg-white rounded-3xl p-5 w-full max-w-sm space-y-4 shadow-2xl border border-slate-100" onClick={(e) => e.stopPropagation()}>
-            <div className="flex justify-between items-center border-b border-slate-100 pb-2.5">
-              <h3 className="font-bold text-sm text-slate-900">Ubah NIK & No. KK</h3>
-              <button type="button" onClick={() => setActiveEditModal(null)} className="text-slate-400 hover:text-slate-600 cursor-pointer"><X className="w-4 h-4" /></button>
-            </div>
-            <div className="space-y-3 text-xs">
-              <div>
-                <label className="block font-semibold text-slate-700 mb-1">Nomor Induk Kependudukan (NIK)</label>
-                <input
-                  type="text"
-                  value={draftNik}
-                  onChange={(e) => setDraftNik(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white text-xs font-mono"
-                  placeholder="16 digit NIK..."
-                />
+      {activeEditModal === 'nik_kk' && (() => {
+        const cleanNik = draftNik.replace(/\D/g, '').slice(0, 16);
+        const cleanNoKk = draftNoKk.replace(/\D/g, '').slice(0, 16);
+        const isNikValid = cleanNik.length === 0 || (cleanNik.length === 16 && !duplicateNik && !isCheckingNik);
+        const isKkValid = cleanNoKk.length === 0 || (cleanNoKk.length === 16 && !duplicateNoKk && !isCheckingNoKk);
+        const isValid = isNikValid && isKkValid && !isCheckingNik && !isCheckingNoKk;
+
+        return (
+          <div className="fixed inset-0 z-[100010] bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in" onClick={() => setActiveEditModal(null)}>
+            <div className="bg-white rounded-3xl p-5 w-full max-w-sm space-y-4 shadow-2xl border border-slate-100" onClick={(e) => e.stopPropagation()}>
+              <div className="flex justify-between items-center border-b border-slate-100 pb-2.5">
+                <h3 className="font-bold text-sm text-slate-900">Ubah NIK & No. KK</h3>
+                <button type="button" onClick={() => setActiveEditModal(null)} className="text-slate-400 hover:text-slate-600 cursor-pointer"><X className="w-4 h-4" /></button>
               </div>
-              <div>
-                <label className="block font-semibold text-slate-700 mb-1">Nomor Kartu Keluarga (KK)</label>
-                <input
-                  type="text"
-                  value={draftNoKk}
-                  onChange={(e) => setDraftNoKk(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white text-xs font-mono"
-                  placeholder="16 digit Nomor KK..."
-                />
+              <div className="space-y-3 text-xs">
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Nomor Induk Kependudukan (NIK)</label>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      pattern="[0-9]*"
+                      maxLength={16}
+                      value={draftNik}
+                      onChange={(e) => setDraftNik(e.target.value.replace(/\D/g, '').slice(0, 16))}
+                      className="w-full px-3 py-2 pr-9 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white text-xs font-mono"
+                      placeholder="16 digit"
+                    />
+                    <div className="absolute right-2.5 top-1/2 -translate-y-1/2 flex items-center pointer-events-none">
+                      {isCheckingNik && (
+                        <Loader2 className="w-4 h-4 text-sky-600 animate-spin" />
+                      )}
+                      {!isCheckingNik && cleanNik.length === 16 && !duplicateNik && (
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                      )}
+                      {!isCheckingNik && cleanNik.length === 16 && duplicateNik && (
+                        <XCircle className="w-4 h-4 text-rose-500" />
+                      )}
+                    </div>
+                  </div>
+                  {cleanNik.length > 0 && cleanNik.length < 16 && (
+                    <p className="text-[11px] text-rose-500 font-medium mt-1">
+                      Kurang {16 - cleanNik.length} digit
+                    </p>
+                  )}
+                  {!isCheckingNik && cleanNik.length === 16 && duplicateNik && (
+                    <p className="text-[11px] text-rose-500 font-medium mt-1">
+                      NIK sudah digunakan oleh {duplicateNik.name} ({(duplicateNik as any).status || 'Santri/Alumni'})
+                    </p>
+                  )}
+                  {!isCheckingNik && cleanNik.length === 16 && !duplicateNik && (
+                    <p className="text-[11px] text-emerald-600 font-medium mt-1">
+                      NIK valid & belum terdaftar
+                    </p>
+                  )}
+                </div>
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Nomor Kartu Keluarga (KK)</label>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      pattern="[0-9]*"
+                      maxLength={16}
+                      value={draftNoKk}
+                      onChange={(e) => setDraftNoKk(e.target.value.replace(/\D/g, '').slice(0, 16))}
+                      className="w-full px-3 py-2 pr-9 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white text-xs font-mono"
+                      placeholder="16 digit"
+                    />
+                    <div className="absolute right-2.5 top-1/2 -translate-y-1/2 flex items-center pointer-events-none">
+                      {isCheckingNoKk && (
+                        <Loader2 className="w-4 h-4 text-sky-600 animate-spin" />
+                      )}
+                      {!isCheckingNoKk && cleanNoKk.length === 16 && !duplicateNoKk && (
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                      )}
+                      {!isCheckingNoKk && cleanNoKk.length === 16 && duplicateNoKk && (
+                        <XCircle className="w-4 h-4 text-rose-500" />
+                      )}
+                    </div>
+                  </div>
+                  {cleanNoKk.length > 0 && cleanNoKk.length < 16 && (
+                    <p className="text-[11px] text-rose-500 font-medium mt-1">
+                      Kurang {16 - cleanNoKk.length} digit
+                    </p>
+                  )}
+                  {!isCheckingNoKk && cleanNoKk.length === 16 && duplicateNoKk && (
+                    <p className="text-[11px] text-rose-500 font-medium mt-1">
+                      Nomor KK sudah digunakan oleh {duplicateNoKk.name} ({(duplicateNoKk as any).status || 'Santri/Alumni'})
+                    </p>
+                  )}
+                  {!isCheckingNoKk && cleanNoKk.length === 16 && !duplicateNoKk && (
+                    <p className="text-[11px] text-emerald-600 font-medium mt-1">
+                      Nomor KK valid & belum terdaftar
+                    </p>
+                  )}
+                </div>
               </div>
-            </div>
-            <div className="flex gap-2 pt-2">
-              <button type="button" onClick={() => setActiveEditModal(null)} className="flex-1 py-2 rounded-xl border border-slate-200 text-slate-600 font-semibold text-xs cursor-pointer">Batal</button>
-              <button type="button" onClick={() => { 
-                setEditNik(draftNik);
-                setEditNoKk(draftNoKk);
-                handleUpdate({ nik: draftNik, noKk: draftNoKk }); 
-                setActiveEditModal(null); 
-              }} className="flex-1 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs cursor-pointer">Simpan</button>
+              <div className="flex gap-2 pt-2">
+                <button type="button" onClick={() => setActiveEditModal(null)} className="flex-1 py-2 rounded-xl border border-slate-200 text-slate-600 font-semibold text-xs cursor-pointer">Batal</button>
+                <button 
+                  type="button" 
+                  disabled={!isValid}
+                  onClick={() => { 
+                    setEditNik(cleanNik);
+                    setEditNoKk(cleanNoKk);
+                    handleUpdate({ nik: cleanNik, noKk: cleanNoKk }); 
+                    setActiveEditModal(null); 
+                  }} 
+                  className={`flex-1 py-2 rounded-xl font-bold text-xs cursor-pointer transition-all ${
+                    isValid 
+                      ? 'bg-sky-600 hover:bg-sky-700 text-white shadow-xs' 
+                      : 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                  }`}
+                >
+                  Simpan
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* 5. EDIT ALAMAT */}
       {activeEditModal === 'alamat' && (
@@ -1175,6 +1631,7 @@ export const AlumniDetailAdminModal: React.FC<AlumniDetailAdminModalProps> = ({
                 <label className="block font-semibold text-slate-700 mb-1">Nomor WhatsApp</label>
                 <input
                   type="text"
+                  inputMode="numeric"
                   value={draftPhone}
                   onChange={(e) => setDraftPhone(e.target.value)}
                   className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white text-xs"
@@ -1188,7 +1645,7 @@ export const AlumniDetailAdminModal: React.FC<AlumniDetailAdminModalProps> = ({
                   value={draftEmail}
                   onChange={(e) => setDraftEmail(e.target.value)}
                   className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white text-xs"
-                  placeholder="alumni@attaroqqy.ac.id"
+                  placeholder="alumni@gmail.com"
                 />
               </div>
             </div>
@@ -1249,94 +1706,123 @@ export const AlumniDetailAdminModal: React.FC<AlumniDetailAdminModalProps> = ({
       )}
 
       {/* 8. EDIT NIS */}
-      {activeEditModal === 'nis' && (
-        <div className="fixed inset-0 z-[100010] bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in" onClick={() => setActiveEditModal(null)}>
-          <div className="bg-white rounded-3xl p-5 w-full max-w-sm space-y-4 shadow-2xl border border-slate-100" onClick={(e) => e.stopPropagation()}>
-            <div className="flex justify-between items-center border-b border-slate-100 pb-2.5">
-              <h3 className="font-bold text-sm text-slate-900">Ubah NIS (Nomor Induk Santri)</h3>
-              <button type="button" onClick={() => setActiveEditModal(null)} className="text-slate-400 hover:text-slate-600 cursor-pointer"><X className="w-4 h-4" /></button>
-            </div>
-            <div>
-              <label className="block font-semibold text-slate-700 mb-1 text-xs">Nomor Induk Santri</label>
-              <input
-                type="text"
-                value={draftNis}
-                onChange={(e) => setDraftNis(e.target.value)}
-                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-mono focus:bg-white text-xs"
-                placeholder="NIS Santri..."
-              />
-            </div>
-            <div className="flex gap-2 pt-2">
-              <button type="button" onClick={() => setActiveEditModal(null)} className="flex-1 py-2 rounded-xl border border-slate-200 text-slate-600 font-semibold text-xs cursor-pointer">Batal</button>
-              <button type="button" onClick={() => { 
-                setEditNis(draftNis);
-                handleUpdate({ nis: draftNis }); 
-                setActiveEditModal(null); 
-              }} className="flex-1 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs cursor-pointer">Simpan</button>
-            </div>
-          </div>
-        </div>
-      )}
+      {activeEditModal === 'nis' && (() => {
+        const cleanNis = draftNis.replace(/\D/g, '');
+        const isAvailable = cleanNis.length === 7 && nisCheckStatus === 'available';
+        const isColliding = cleanNis.length === 7 && nisCheckStatus === 'taken' && collidingAlumni !== null;
+        const isValid = !nisChecking && (cleanNis.length === 0 || isAvailable || isManualShiftApplied);
 
-      {/* 9. EDIT NISM */}
-      {activeEditModal === 'nism' && (
-        <div className="fixed inset-0 z-[100010] bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in" onClick={() => setActiveEditModal(null)}>
-          <div className="bg-white rounded-3xl p-5 w-full max-w-sm space-y-4 shadow-2xl border border-slate-100" onClick={(e) => e.stopPropagation()}>
-            <div className="flex justify-between items-center border-b border-slate-100 pb-2.5">
-              <h3 className="font-bold text-sm text-slate-900">Ubah NISM</h3>
-              <button type="button" onClick={() => setActiveEditModal(null)} className="text-slate-400 hover:text-slate-600 cursor-pointer"><X className="w-4 h-4" /></button>
-            </div>
-            <div>
-              <label className="block font-semibold text-slate-700 mb-1 text-xs">Nomor Induk Santri Madrasah (NISM)</label>
-              <input
-                type="text"
-                value={draftNism}
-                onChange={(e) => setDraftNism(e.target.value)}
-                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-mono focus:bg-white text-xs"
-                placeholder="131233170001"
-              />
-            </div>
-            <div className="flex gap-2 pt-2">
-              <button type="button" onClick={() => setActiveEditModal(null)} className="flex-1 py-2 rounded-xl border border-slate-200 text-slate-600 font-semibold text-xs cursor-pointer">Batal</button>
-              <button type="button" onClick={() => { 
-                setEditNism(draftNism);
-                handleUpdate({ nism: draftNism }); 
-                setActiveEditModal(null); 
-              }} className="flex-1 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs cursor-pointer">Simpan</button>
-            </div>
-          </div>
-        </div>
-      )}
+        return (
+          <div className="fixed inset-0 z-[100010] bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in" onClick={() => setActiveEditModal(null)}>
+            <div className="bg-white rounded-3xl p-5 w-full max-w-sm space-y-4 shadow-2xl border border-slate-100" onClick={(e) => e.stopPropagation()}>
+              <div className="flex justify-between items-center border-b border-slate-100 pb-2.5">
+                <h3 className="font-bold text-sm text-slate-900">Ubah Nomor Induk Santri (NIS)</h3>
+                <button type="button" onClick={() => setActiveEditModal(null)} className="text-slate-400 hover:text-slate-600 cursor-pointer"><X className="w-4 h-4" /></button>
+              </div>
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1 text-xs">Nomor Induk Santri (NIS)</label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    maxLength={7}
+                    value={draftNis}
+                    onChange={(e) => {
+                      const val = e.target.value.replace(/\D/g, '').slice(0, 7);
+                      setDraftNis(val);
+                      setIsManualShiftApplied(false);
+                      setAffectedManualAlumni([]);
+                    }}
+                    className="w-full px-3 py-2 pr-9 bg-slate-50 border border-slate-200 rounded-xl font-mono focus:bg-white text-xs"
+                    placeholder="7 digit"
+                  />
+                  <div className="absolute right-2.5 top-1/2 -translate-y-1/2 flex items-center pointer-events-none">
+                    {nisChecking && (
+                      <Loader2 className="w-4 h-4 text-sky-600 animate-spin" />
+                    )}
+                    {!nisChecking && cleanNis.length === 7 && (isAvailable || isManualShiftApplied) && (
+                      <Check className="w-4 h-4 text-emerald-600 stroke-[2.5]" />
+                    )}
+                    {!nisChecking && cleanNis.length === 7 && isColliding && !isManualShiftApplied && (
+                      <AlertCircle className="w-4 h-4 text-amber-500 stroke-[2.5]" />
+                    )}
+                  </div>
+                </div>
 
-      {/* 10. EDIT NISN */}
-      {activeEditModal === 'nisn' && (
-        <div className="fixed inset-0 z-[100010] bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in" onClick={() => setActiveEditModal(null)}>
-          <div className="bg-white rounded-3xl p-5 w-full max-w-sm space-y-4 shadow-2xl border border-slate-100" onClick={(e) => e.stopPropagation()}>
-            <div className="flex justify-between items-center border-b border-slate-100 pb-2.5">
-              <h3 className="font-bold text-sm text-slate-900">Ubah NISN</h3>
-              <button type="button" onClick={() => setActiveEditModal(null)} className="text-slate-400 hover:text-slate-600 cursor-pointer"><X className="w-4 h-4" /></button>
-            </div>
-            <div>
-              <label className="block font-semibold text-slate-700 mb-1 text-xs">Nomor Induk Siswa Nasional (NISN)</label>
-              <input
-                type="text"
-                value={draftNisn}
-                onChange={(e) => setDraftNisn(e.target.value)}
-                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-mono focus:bg-white text-xs"
-                placeholder="0012345678"
-              />
-            </div>
-            <div className="flex gap-2 pt-2">
-              <button type="button" onClick={() => setActiveEditModal(null)} className="flex-1 py-2 rounded-xl border border-slate-200 text-slate-600 font-semibold text-xs cursor-pointer">Batal</button>
-              <button type="button" onClick={() => { 
-                setEditNisn(draftNisn);
-                handleUpdate({ nisn: draftNisn }); 
-                setActiveEditModal(null); 
-              }} className="flex-1 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs cursor-pointer">Simpan</button>
+                {/* Keterangan validasi */}
+                {cleanNis.length > 0 && cleanNis.length < 7 && (
+                  <p className="text-[11px] text-rose-500 font-medium mt-1">
+                    Kurang {7 - cleanNis.length} digit
+                  </p>
+                )}
+
+                {!nisChecking && isAvailable && (
+                  <p className="text-[11px] text-emerald-600 font-medium mt-1">
+                    NIS tersedia
+                  </p>
+                )}
+
+                {!nisChecking && isColliding && !isManualShiftApplied && (
+                  <div className="mt-2.5 p-3 bg-amber-50 rounded-2xl border border-amber-200/80 space-y-2">
+                    <p className="text-[11px] text-amber-900 leading-snug">
+                      NIS <span className="font-mono font-bold">{cleanNis}</span> saat ini digunakan oleh <span className="font-bold">{collidingAlumni?.name}</span> ({collidingAlumni?.status || 'Santri/Alumni'}).
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const shiftResult = cascadeShiftOnManualNisChange(alumni.id, cleanNis, existingAlumni);
+                        setAffectedManualAlumni(shiftResult.affectedAlumni);
+                        setIsManualShiftApplied(true);
+                      }}
+                      className="w-full py-2 px-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl font-bold text-[11px] transition-colors cursor-pointer shadow-2xs"
+                    >
+                      Gunakan ini untuk data ini dan sesuaikan NIS yang lain
+                    </button>
+                  </div>
+                )}
+
+                {isManualShiftApplied && (
+                  <div className="mt-2.5 p-2.5 bg-emerald-50 rounded-xl border border-emerald-200 text-[11px] text-emerald-800 leading-snug">
+                    ✓ Penyesuaian siap disimpan. Sebanyak <b>{affectedManualAlumni.length}</b> santri lain akan otomatis digeser.
+                  </div>
+                )}
+              </div>
+
+              <div className="flex gap-2 pt-2">
+                <button type="button" onClick={() => setActiveEditModal(null)} className="flex-1 py-2 rounded-xl border border-slate-200 text-slate-600 font-semibold text-xs cursor-pointer">Batal</button>
+                <button 
+                  type="button" 
+                  disabled={!isValid}
+                  onClick={() => { 
+                    if (isManualShiftApplied && affectedManualAlumni.length > 0 && onSave) {
+                      for (const aff of affectedManualAlumni) {
+                        const targetAlm = existingAlumni.find(a => a.id === aff.id);
+                        if (targetAlm) {
+                          const updatedFull = { ...targetAlm, nis: aff.nis, status: 'alumni' as const };
+                          (updatedFull as any).status_keanggotaan = 'Alumni';
+                          onSave(aff.id, { nis: aff.nis }, updatedFull);
+                        }
+                      }
+                    }
+
+                    setEditNis(cleanNis);
+                    handleUpdate({ nis: cleanNis }); 
+                    setActiveEditModal(null); 
+                  }} 
+                  className={`flex-1 py-2 rounded-xl font-bold text-xs cursor-pointer transition-all ${
+                    isValid 
+                      ? 'bg-sky-600 hover:bg-sky-700 text-white shadow-xs' 
+                      : 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                  }`}
+                >
+                  Simpan
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* 11. EDIT TANGGAL MASUK */}
       {activeEditModal === 'tanggal_masuk' && (
@@ -1346,24 +1832,66 @@ export const AlumniDetailAdminModal: React.FC<AlumniDetailAdminModalProps> = ({
               <h3 className="font-bold text-sm text-slate-900 text-center">Ubah Tanggal Masuk Pondok</h3>
               <button type="button" onClick={() => setActiveEditModal(null)} className="text-slate-400 hover:text-slate-600 cursor-pointer"><X className="w-4 h-4" /></button>
             </div>
-            <div className="bg-slate-50 rounded-2xl border border-slate-200/90 p-2.5">
-              <DateWheelPicker
-                value={tempEntryDate || '2021-07-15'}
-                onChange={(val) => setTempEntryDate(val)}
-                minYear={1980}
-                maxYear={2035}
-              />
+
+            {/* Toggle Sudah diketahui */}
+            <div className="flex items-center justify-between bg-slate-50 px-3.5 py-2.5 rounded-2xl border border-slate-200">
+              <span className="text-xs font-semibold text-slate-700">Sudah diketahui</span>
+              <button
+                type="button"
+                onClick={() => {
+                  const nextVal = !isEntryDateKnown;
+                  setIsEntryDateKnown(nextVal);
+                  if (nextVal && !tempEntryDate) {
+                    setTempEntryDate('2021-07-15');
+                  }
+                }}
+                className={`w-11 h-6 flex items-center rounded-full p-1 transition-colors cursor-pointer ${
+                  isEntryDateKnown ? 'bg-sky-600 justify-end' : 'bg-slate-300 justify-start'
+                }`}
+              >
+                <div className="bg-white w-4 h-4 rounded-full shadow-md" />
+              </button>
             </div>
+
+            {isEntryDateKnown ? (
+              <div className="bg-slate-50 rounded-2xl border border-slate-200/90 p-2.5">
+                <DateWheelPicker
+                  value={tempEntryDate || '2021-07-15'}
+                  onChange={(val) => setTempEntryDate(val)}
+                  minYear={1980}
+                  maxYear={2035}
+                />
+              </div>
+            ) : (
+              <div className="p-4 bg-slate-50 rounded-2xl border border-dashed border-slate-200 text-center text-xs text-slate-500">
+                Tanggal masuk belum diketahui. NIS akan otomatis dikosongkan.
+              </div>
+            )}
+
             <div className="flex gap-2 pt-2">
               <button type="button" onClick={() => setActiveEditModal(null)} className="flex-1 py-2.5 rounded-xl border border-slate-200 text-slate-600 font-semibold text-xs cursor-pointer hover:bg-slate-50">Batal</button>
               <button type="button" onClick={() => {
-                const year = tempEntryDate ? tempEntryDate.substring(0, 4) : '';
-                const calculatedNis = tempEntryDate.trim()
-                  ? generateNisFromEntryDate(tempEntryDate.trim(), existingAlumni, alumni.id)
-                  : '';
-                setEditEntryDate(tempEntryDate);
-                setEditNis(calculatedNis);
-                handleUpdate({ entryDate: tempEntryDate, entryYear: year, nis: calculatedNis });
+                const newDate = isEntryDateKnown ? (tempEntryDate || '2021-07-15') : '';
+                const newYear = newDate ? newDate.substring(0, 4) : '';
+                
+                // Hitung cascade pergeseran NIS
+                const cascade = calculateCascadeShiftOnEntryDateChange(alumni.id, newDate, existingAlumni);
+                
+                // Simpan data alumni lain yang tergeser
+                if (onSave && cascade.affectedAlumni.length > 0) {
+                  for (const aff of cascade.affectedAlumni) {
+                    const targetAlm = existingAlumni.find(a => a.id === aff.id);
+                    if (targetAlm) {
+                      const updatedFull = { ...targetAlm, nis: aff.nis, status: 'alumni' as const };
+                      (updatedFull as any).status_keanggotaan = 'Alumni';
+                      onSave(aff.id, { nis: aff.nis }, updatedFull);
+                    }
+                  }
+                }
+
+                setEditEntryDate(newDate);
+                setEditNis(cascade.targetNis);
+                handleUpdate({ entryDate: newDate, entryYear: newYear, nis: cascade.targetNis });
                 setActiveEditModal(null);
               }} className="flex-1 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs cursor-pointer shadow-xs">Simpan Tanggal</button>
             </div>
@@ -1379,20 +1907,49 @@ export const AlumniDetailAdminModal: React.FC<AlumniDetailAdminModalProps> = ({
               <h3 className="font-bold text-sm text-slate-900 text-center">Ubah Tanggal Keluar (Boyong)</h3>
               <button type="button" onClick={() => setActiveEditModal(null)} className="text-slate-400 hover:text-slate-600 cursor-pointer"><X className="w-4 h-4" /></button>
             </div>
-            <div className="bg-slate-50 rounded-2xl border border-slate-200/90 p-2.5">
-              <DateWheelPicker
-                value={tempGradDate || '2024-05-20'}
-                onChange={(val) => setTempGradDate(val)}
-                minYear={1980}
-                maxYear={2035}
-              />
+
+            {/* Toggle Sudah diketahui */}
+            <div className="flex items-center justify-between bg-slate-50 px-3.5 py-2.5 rounded-2xl border border-slate-200">
+              <span className="text-xs font-semibold text-slate-700">Sudah diketahui</span>
+              <button
+                type="button"
+                onClick={() => {
+                  const nextVal = !isGradDateKnown;
+                  setIsGradDateKnown(nextVal);
+                  if (nextVal && !tempGradDate) {
+                    setTempGradDate('2024-05-20');
+                  }
+                }}
+                className={`w-11 h-6 flex items-center rounded-full p-1 transition-colors cursor-pointer ${
+                  isGradDateKnown ? 'bg-sky-600 justify-end' : 'bg-slate-300 justify-start'
+                }`}
+              >
+                <div className="bg-white w-4 h-4 rounded-full shadow-md" />
+              </button>
             </div>
+
+            {isGradDateKnown ? (
+              <div className="bg-slate-50 rounded-2xl border border-slate-200/90 p-2.5">
+                <DateWheelPicker
+                  value={tempGradDate || '2024-05-20'}
+                  onChange={(val) => setTempGradDate(val)}
+                  minYear={1980}
+                  maxYear={2035}
+                />
+              </div>
+            ) : (
+              <div className="p-4 bg-slate-50 rounded-2xl border border-dashed border-slate-200 text-center text-xs text-slate-500">
+                Tanggal keluar belum diketahui / masih aktif di pondok.
+              </div>
+            )}
+
             <div className="flex gap-2 pt-2">
               <button type="button" onClick={() => setActiveEditModal(null)} className="flex-1 py-2.5 rounded-xl border border-slate-200 text-slate-600 font-semibold text-xs cursor-pointer hover:bg-slate-50">Batal</button>
               <button type="button" onClick={() => {
-                const year = tempGradDate ? tempGradDate.substring(0, 4) : '';
-                setEditGradDate(tempGradDate);
-                handleUpdate({ gradDate: tempGradDate, gradYear: year });
+                const newDate = isGradDateKnown ? (tempGradDate || '2024-05-20') : '';
+                const newYear = newDate ? newDate.substring(0, 4) : '';
+                setEditGradDate(newDate);
+                handleUpdate({ gradDate: newDate, gradYear: newYear });
                 setActiveEditModal(null);
               }} className="flex-1 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs cursor-pointer shadow-xs">Simpan Tanggal</button>
             </div>
@@ -1401,146 +1958,192 @@ export const AlumniDetailAdminModal: React.FC<AlumniDetailAdminModalProps> = ({
       )}
 
       {/* 13. EDIT DATA ORANG TUA (AYAH) */}
-      {activeEditModal === 'ayah' && (
-        <div className="fixed inset-0 z-[100010] bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in" onClick={() => setActiveEditModal(null)}>
-          <div className="bg-white rounded-3xl p-5 w-full max-w-sm space-y-4 shadow-2xl border border-slate-100" onClick={(e) => e.stopPropagation()}>
-            <div className="flex justify-between items-center border-b border-slate-100 pb-2.5">
-              <h3 className="font-bold text-sm text-slate-900">Ubah Data Ayah Kandung</h3>
-              <button type="button" onClick={() => setActiveEditModal(null)} className="text-slate-400 hover:text-slate-600 cursor-pointer"><X className="w-4 h-4" /></button>
-            </div>
-            <div className="space-y-3 text-xs">
-              <div>
-                <label className="block font-semibold text-slate-700 mb-1">Nama Lengkap Ayah</label>
-                <input
-                  type="text"
-                  value={draftNamaAyah}
-                  onChange={(e) => setDraftNamaAyah(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white text-xs"
-                  placeholder="Nama lengkap ayah..."
-                />
+      {activeEditModal === 'ayah' && (() => {
+        const cleanNikAyah = draftNikAyah.replace(/\D/g, '');
+        const isNikAyahValid = cleanNikAyah.length === 0 || cleanNikAyah.length === 16 || cleanNikAyah.length === 18;
+
+        return (
+          <div className="fixed inset-0 z-[100010] bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in" onClick={() => setActiveEditModal(null)}>
+            <div className="bg-white rounded-3xl p-5 w-full max-w-sm space-y-4 shadow-2xl border border-slate-100" onClick={(e) => e.stopPropagation()}>
+              <div className="flex justify-between items-center border-b border-slate-100 pb-2.5">
+                <h3 className="font-bold text-sm text-slate-900">Ubah Data Ayah Kandung</h3>
+                <button type="button" onClick={() => setActiveEditModal(null)} className="text-slate-400 hover:text-slate-600 cursor-pointer"><X className="w-4 h-4" /></button>
               </div>
-              <div>
-                <label className="block font-semibold text-slate-700 mb-1">NIK Ayah (16 digit)</label>
-                <input
-                  type="text"
-                  maxLength={16}
-                  value={draftNikAyah}
-                  onChange={(e) => setDraftNikAyah(e.target.value.replace(/[^0-9]/g, ''))}
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-mono focus:bg-white text-xs"
-                  placeholder="NIK KTP Ayah..."
-                />
+              <div className="space-y-3 text-xs">
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Nama Lengkap Ayah</label>
+                  <input
+                    type="text"
+                    value={draftNamaAyah}
+                    onChange={(e) => setDraftNamaAyah(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white text-xs"
+                    placeholder="Nama lengkap ayah..."
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">NIK Ayah</label>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    maxLength={18}
+                    value={draftNikAyah}
+                    onChange={(e) => setDraftNikAyah(e.target.value.replace(/\D/g, '').slice(0, 18))}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-mono focus:bg-white text-xs"
+                    placeholder="16 atau 18 digit NIK Ayah..."
+                  />
+                  {draftNikAyah.length > 0 && !isNikAyahValid && (
+                    <p className="text-[11px] text-rose-500 font-medium mt-1">
+                      Kurang {draftNikAyah.length < 16 ? 16 - draftNikAyah.length : 18 - draftNikAyah.length} digit
+                    </p>
+                  )}
+                </div>
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Pekerjaan Ayah</label>
+                  <input
+                    type="text"
+                    value={draftPekerjaanAyah}
+                    onChange={(e) => setDraftPekerjaanAyah(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white text-xs"
+                    placeholder="Petani / Guru / Wiraswasta..."
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Pendidikan Terakhir Ayah</label>
+                  <input
+                    type="text"
+                    value={draftPendidikanAyah}
+                    onChange={(e) => setDraftPendidikanAyah(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white text-xs"
+                    placeholder="SMA / S1 / Pesantren..."
+                  />
+                </div>
               </div>
-              <div>
-                <label className="block font-semibold text-slate-700 mb-1">Pekerjaan Ayah</label>
-                <input
-                  type="text"
-                  value={draftPekerjaanAyah}
-                  onChange={(e) => setDraftPekerjaanAyah(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white text-xs"
-                  placeholder="Petani / Guru / Wiraswasta..."
-                />
+              <div className="flex gap-2 pt-2">
+                <button type="button" onClick={() => setActiveEditModal(null)} className="flex-1 py-2 rounded-xl border border-slate-200 text-slate-600 font-semibold text-xs cursor-pointer">Batal</button>
+                <button 
+                  type="button" 
+                  disabled={!isNikAyahValid}
+                  onClick={() => { 
+                    setEditNamaAyah(draftNamaAyah);
+                    setEditNikAyah(cleanNikAyah);
+                    setEditPekerjaanAyah(draftPekerjaanAyah);
+                    setEditPendidikanAyah(draftPendidikanAyah);
+                    handleUpdate({ 
+                      namaAyah: draftNamaAyah, 
+                      nikAyah: cleanNikAyah, 
+                      pekerjaanAyah: draftPekerjaanAyah, 
+                      pendidikanAyah: draftPendidikanAyah 
+                    }); 
+                    setActiveEditModal(null); 
+                  }} 
+                  className={`flex-1 py-2 rounded-xl font-bold text-xs cursor-pointer transition-all ${
+                    isNikAyahValid 
+                      ? 'bg-sky-600 hover:bg-sky-700 text-white shadow-xs' 
+                      : 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                  }`}
+                >
+                  Simpan
+                </button>
               </div>
-              <div>
-                <label className="block font-semibold text-slate-700 mb-1">Pendidikan Terakhir Ayah</label>
-                <input
-                  type="text"
-                  value={draftPendidikanAyah}
-                  onChange={(e) => setDraftPendidikanAyah(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white text-xs"
-                  placeholder="SMA / S1 / Pesantren..."
-                />
-              </div>
-            </div>
-            <div className="flex gap-2 pt-2">
-              <button type="button" onClick={() => setActiveEditModal(null)} className="flex-1 py-2 rounded-xl border border-slate-200 text-slate-600 font-semibold text-xs cursor-pointer">Batal</button>
-              <button type="button" onClick={() => { 
-                setEditNamaAyah(draftNamaAyah);
-                setEditNikAyah(draftNikAyah);
-                setEditPekerjaanAyah(draftPekerjaanAyah);
-                setEditPendidikanAyah(draftPendidikanAyah);
-                handleUpdate({ 
-                  namaAyah: draftNamaAyah, 
-                  nikAyah: draftNikAyah, 
-                  pekerjaanAyah: draftPekerjaanAyah, 
-                  pendidikanAyah: draftPendidikanAyah 
-                }); 
-                setActiveEditModal(null); 
-              }} className="flex-1 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs cursor-pointer">Simpan</button>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* 14. EDIT DATA ORANG TUA (IBU) */}
-      {activeEditModal === 'ibu' && (
-        <div className="fixed inset-0 z-[100010] bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in" onClick={() => setActiveEditModal(null)}>
-          <div className="bg-white rounded-3xl p-5 w-full max-w-sm space-y-4 shadow-2xl border border-slate-100" onClick={(e) => e.stopPropagation()}>
-            <div className="flex justify-between items-center border-b border-slate-100 pb-2.5">
-              <h3 className="font-bold text-sm text-slate-900">Ubah Data Ibu Kandung</h3>
-              <button type="button" onClick={() => setActiveEditModal(null)} className="text-slate-400 hover:text-slate-600 cursor-pointer"><X className="w-4 h-4" /></button>
-            </div>
-            <div className="space-y-3 text-xs">
-              <div>
-                <label className="block font-semibold text-slate-700 mb-1">Nama Lengkap Ibu</label>
-                <input
-                  type="text"
-                  value={draftNamaIbu}
-                  onChange={(e) => setDraftNamaIbu(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white text-xs"
-                  placeholder="Nama lengkap ibu..."
-                />
+      {activeEditModal === 'ibu' && (() => {
+        const cleanNikIbu = draftNikIbu.replace(/\D/g, '');
+        const isNikIbuValid = cleanNikIbu.length === 0 || cleanNikIbu.length === 16 || cleanNikIbu.length === 18;
+
+        return (
+          <div className="fixed inset-0 z-[100010] bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in" onClick={() => setActiveEditModal(null)}>
+            <div className="bg-white rounded-3xl p-5 w-full max-w-sm space-y-4 shadow-2xl border border-slate-100" onClick={(e) => e.stopPropagation()}>
+              <div className="flex justify-between items-center border-b border-slate-100 pb-2.5">
+                <h3 className="font-bold text-sm text-slate-900">Ubah Data Ibu Kandung</h3>
+                <button type="button" onClick={() => setActiveEditModal(null)} className="text-slate-400 hover:text-slate-600 cursor-pointer"><X className="w-4 h-4" /></button>
               </div>
-              <div>
-                <label className="block font-semibold text-slate-700 mb-1">NIK Ibu (16 digit)</label>
-                <input
-                  type="text"
-                  maxLength={16}
-                  value={draftNikIbu}
-                  onChange={(e) => setDraftNikIbu(e.target.value.replace(/[^0-9]/g, ''))}
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-mono focus:bg-white text-xs"
-                  placeholder="NIK KTP Ibu..."
-                />
+              <div className="space-y-3 text-xs">
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Nama Lengkap Ibu</label>
+                  <input
+                    type="text"
+                    value={draftNamaIbu}
+                    onChange={(e) => setDraftNamaIbu(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white text-xs"
+                    placeholder="Nama lengkap ibu..."
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">NIK Ibu</label>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    maxLength={18}
+                    value={draftNikIbu}
+                    onChange={(e) => setDraftNikIbu(e.target.value.replace(/\D/g, '').slice(0, 18))}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-mono focus:bg-white text-xs"
+                    placeholder="16 atau 18 digit NIK Ibu..."
+                  />
+                  {draftNikIbu.length > 0 && !isNikIbuValid && (
+                    <p className="text-[11px] text-rose-500 font-medium mt-1">
+                      Kurang {draftNikIbu.length < 16 ? 16 - draftNikIbu.length : 18 - draftNikIbu.length} digit
+                    </p>
+                  )}
+                </div>
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Pekerjaan Ibu</label>
+                  <input
+                    type="text"
+                    value={draftPekerjaanIbu}
+                    onChange={(e) => setDraftPekerjaanIbu(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white text-xs"
+                    placeholder="Ibu Rumah Tangga / Guru / Wiraswasta..."
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Pendidikan Terakhir Ibu</label>
+                  <input
+                    type="text"
+                    value={draftPendidikanIbu}
+                    onChange={(e) => setDraftPendidikanIbu(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white text-xs"
+                    placeholder="SMA / S1 / Pesantren..."
+                  />
+                </div>
               </div>
-              <div>
-                <label className="block font-semibold text-slate-700 mb-1">Pekerjaan Ibu</label>
-                <input
-                  type="text"
-                  value={draftPekerjaanIbu}
-                  onChange={(e) => setDraftPekerjaanIbu(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white text-xs"
-                  placeholder="Ibu Rumah Tangga / Guru / Wiraswasta..."
-                />
+              <div className="flex gap-2 pt-2">
+                <button type="button" onClick={() => setActiveEditModal(null)} className="flex-1 py-2 rounded-xl border border-slate-200 text-slate-600 font-semibold text-xs cursor-pointer">Batal</button>
+                <button 
+                  type="button" 
+                  disabled={!isNikIbuValid}
+                  onClick={() => { 
+                    setEditNamaIbu(draftNamaIbu);
+                    setEditNikIbu(cleanNikIbu);
+                    setEditPekerjaanIbu(draftPekerjaanIbu);
+                    setEditPendidikanIbu(draftPendidikanIbu);
+                    handleUpdate({ 
+                      namaIbu: draftNamaIbu, 
+                      nikIbu: cleanNikIbu, 
+                      pekerjaanIbu: draftPekerjaanIbu, 
+                      pendidikanIbu: draftPendidikanIbu 
+                    }); 
+                    setActiveEditModal(null); 
+                  }} 
+                  className={`flex-1 py-2 rounded-xl font-bold text-xs cursor-pointer transition-all ${
+                    isNikIbuValid 
+                      ? 'bg-sky-600 hover:bg-sky-700 text-white shadow-xs' 
+                      : 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                  }`}
+                >
+                  Simpan
+                </button>
               </div>
-              <div>
-                <label className="block font-semibold text-slate-700 mb-1">Pendidikan Terakhir Ibu</label>
-                <input
-                  type="text"
-                  value={draftPendidikanIbu}
-                  onChange={(e) => setDraftPendidikanIbu(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white text-xs"
-                  placeholder="SMA / S1 / Pesantren..."
-                />
-              </div>
-            </div>
-            <div className="flex gap-2 pt-2">
-              <button type="button" onClick={() => setActiveEditModal(null)} className="flex-1 py-2 rounded-xl border border-slate-200 text-slate-600 font-semibold text-xs cursor-pointer">Batal</button>
-              <button type="button" onClick={() => { 
-                setEditNamaIbu(draftNamaIbu);
-                setEditNikIbu(draftNikIbu);
-                setEditPekerjaanIbu(draftPekerjaanIbu);
-                setEditPendidikanIbu(draftPendidikanIbu);
-                handleUpdate({ 
-                  namaIbu: draftNamaIbu, 
-                  nikIbu: draftNikIbu, 
-                  pekerjaanIbu: draftPekerjaanIbu, 
-                  pendidikanIbu: draftPendidikanIbu 
-                }); 
-                setActiveEditModal(null); 
-              }} className="flex-1 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs cursor-pointer">Simpan</button>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
     </div>
   );
 };

@@ -90,12 +90,19 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
         }
       }
 
-      // Role Alumni: Autentikasi HANYA menggunakan NIK atau Username
+      // Role Alumni: Autentikasi menggunakan NIK atau Username
       const cleanInput = inputVal.toLowerCase().replace(/^@/, '').trim();
+      const cleanDigits = inputVal.replace(/\D/g, '');
       const matchedAlumni = alumniList.find((alm) => {
         const almUser = (alm.username || '').toLowerCase().replace(/^@/, '').trim();
-        const isUserMatch = Boolean(almUser && almUser === cleanInput);
-        const isNikMatch = Boolean(alm.nik && alm.nik.trim() === inputVal.trim());
+        const isUserMatch = Boolean(almUser && (almUser === cleanInput || (alm.username && alm.username.toLowerCase().trim() === inputVal.toLowerCase().trim())));
+        
+        const rawNik = (alm.nik || '').trim();
+        const digitsNik = rawNik.replace(/\D/g, '');
+        const isNikMatch = Boolean(
+          (rawNik && rawNik === inputVal.trim()) ||
+          (digitsNik && cleanDigits && digitsNik === cleanDigits && digitsNik.length >= 8)
+        );
 
         return isNikMatch || isUserMatch;
       });
@@ -202,7 +209,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
           {/* KOTAK 1: IDENTITAS ALUMNI / ADMIN */}
           <div>
             <label className="block text-xs font-bold text-slate-700 mb-1">
-              Username
+              {selectedRole === 'alumni' ? 'NIK atau Username' : 'Username Admin'}
             </label>
             <div className="relative">
               <div className="absolute left-3.5 top-1/2 -translate-y-1/2 text-sky-600">
@@ -213,7 +220,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
                 required
                 placeholder={
                   selectedRole === 'alumni'
-                    ? 'Masukkan Username alumni'
+                    ? 'Masukkan NIK atau Username alumni'
                     : 'Contoh: @admin_pusat'
                 }
                 value={username}

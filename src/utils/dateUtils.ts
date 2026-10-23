@@ -134,3 +134,110 @@ export function parseDateToISO(str?: string | null): string {
 export function getTodayDDMMYYYY(): string {
   return formatToDDMMYYYY(new Date());
 }
+
+/**
+ * Menghitung jumlah hari maksimal pada bulan dan tahun tertentu
+ */
+export function getMaxDaysInMonth(month?: string | number, year?: string | number): number {
+  const m = parseInt(String(month || ''), 10);
+  if (!m || isNaN(m)) return 31;
+  if ([4, 6, 9, 11].includes(m)) return 30;
+  if (m === 2) {
+    const y = parseInt(String(year || ''), 10);
+    if (y && !isNaN(y)) {
+      const isLeap = (y % 4 === 0 && y % 100 !== 0) || y % 400 === 0;
+      return isLeap ? 29 : 28;
+    }
+    return 29;
+  }
+  return 31;
+}
+
+/**
+ * Format input tanggal (Hari):
+ * - Saat ketik '0', jangan langsung jadi 1 (agar bisa ketik 01-09)
+ * - Saat ketik angka 4 ke atas (4-9), otomatis jadi '04'-'09'
+ * - Angka 1, 2, 3 dibiarkan satu digit agar user bisa mengetik digit kedua (misal: 15, 28, 31)
+ * - Jika 2 digit, dibatasi maks hari pada bulan tersebut
+ */
+export function formatDayInput(raw: string, currentMonth?: string | number, currentYear?: string | number): string {
+  const digits = raw.replace(/\D/g, '').slice(0, 2);
+  if (!digits) return '';
+  if (digits === '0') return '0';
+
+  if (digits.length === 1) {
+    const n = parseInt(digits, 10);
+    if (n >= 4) {
+      return `0${n}`;
+    }
+    return digits;
+  }
+
+  // 2 digit
+  if (digits === '00') return '01';
+  const num = parseInt(digits, 10);
+  const maxDays = getMaxDaysInMonth(currentMonth, currentYear);
+  const clamped = Math.max(1, Math.min(num, maxDays));
+  return clamped < 10 ? `0${clamped}` : String(clamped);
+}
+
+/**
+ * Format input bulan:
+ * - Saat ketik '0', jangan langsung jadi 1 (agar bisa ketik 01-09)
+ * - Saat ketik angka di atas 1 (2-9), otomatis jadi '02'-'09'
+ * - Angka 1 dibiarkan satu digit agar user bisa mengetik digit kedua (10, 11, 12)
+ * - Jika 2 digit, dibatasi antara 01 sampai 12
+ */
+export function formatMonthInput(raw: string): string {
+  const digits = raw.replace(/\D/g, '').slice(0, 2);
+  if (!digits) return '';
+  if (digits === '0') return '0';
+
+  if (digits.length === 1) {
+    const n = parseInt(digits, 10);
+    if (n >= 2) {
+      return `0${n}`;
+    }
+    return digits;
+  }
+
+// 2 digit
+  if (digits === '00') return '01';
+  const num = parseInt(digits, 10);
+  const clamped = Math.max(1, Math.min(num, 12));
+  return clamped < 10 ? `0${clamped}` : String(clamped);
+}
+
+/**
+ * Normalisasi format tgl, bulan, tahun menjadi digit yang tepat:
+ * - Hari harus 2 digit (misal: 01-31). Saat input kurang dari 2 digit, tambahkan 0 di depannya.
+ * - Bulan harus 2 digit (misal: 01-12). Saat input kurang dari 2 digit, tambahkan 0 di depannya.
+ * - Tahun harus 4 digit (misal: 2005). Saat input kurang dari 4 digit, tambahkan 0 di depannya.
+ */
+export function padDayInput(raw: string, currentMonth?: string | number, currentYear?: string | number): string {
+  const digits = raw.replace(/\D/g, '').slice(0, 2);
+  if (!digits) return '';
+  const num = parseInt(digits, 10);
+  if (isNaN(num) || num <= 0) return '01';
+  const maxDays = getMaxDaysInMonth(currentMonth, currentYear);
+  const clamped = Math.min(num, maxDays);
+  return String(clamped).padStart(2, '0');
+}
+
+export function padMonthInput(raw: string): string {
+  const digits = raw.replace(/\D/g, '').slice(0, 2);
+  if (!digits) return '';
+  const num = parseInt(digits, 10);
+  if (isNaN(num) || num <= 0) return '01';
+  const clamped = Math.min(12, num);
+  return String(clamped).padStart(2, '0');
+}
+
+export function padYearInput(raw: string): string {
+  const digits = raw.replace(/\D/g, '').slice(0, 4);
+  if (!digits) return '';
+  const num = parseInt(digits, 10);
+  if (isNaN(num)) return '';
+  return String(num).padStart(4, '0');
+}
+
