@@ -96,31 +96,34 @@ async function getSantriData(forceFresh: boolean = false): Promise<any> {
                 (cleanItemUser ? snapUserMap.get(cleanItemUser) : undefined);
                 
               if (snap) {
-                // Pertahankan username yang sudah diatur di aktivasi/profil
-                if (snap.username && (!item.username || item.username === '')) {
-                  item.username = snap.username;
+                // Akun yang telah diaktivasi memiliki username dan kata sandi kustom
+                const isSnapActivated = Boolean(
+                  (snap.username && String(snap.username).trim() !== '') ||
+                  snap.is_password_changed ||
+                  snap.isPasswordChanged ||
+                  snap.hasLoggedIn ||
+                  snap.has_logged_in ||
+                  (snap.password && snap.password !== '1234')
+                );
+
+                if (snap.username && String(snap.username).trim() !== '') {
+                  item.username = String(snap.username).toLowerCase().replace(/^@/, '').trim();
                 }
-                // Pertahankan kata sandi kustom
-                if (snap.password && snap.password !== '1234') {
+                if (snap.password) {
                   item.password = snap.password;
+                }
+                if (isSnapActivated) {
                   item.is_password_changed = 1;
                   item.isPasswordChanged = true;
-                }
-                if (snap.is_password_changed || snap.isPasswordChanged) {
-                  item.is_password_changed = 1;
-                  item.isPasswordChanged = true;
-                }
-                if (snap.hasLoggedIn || snap.has_logged_in) {
                   item.has_logged_in = 1;
                   item.hasLoggedIn = true;
-                }
-                // Pertahankan data profil yang diedit jika akun telah diaktivasi
-                if (snap.is_password_changed || snap.hasLoggedIn || (snap.password && snap.password !== '1234')) {
+
                   if (snap.nama && snap.nama !== item.nama) item.nama = snap.nama;
                   if (snap.name && snap.name !== item.name) item.name = snap.name;
                   if (snap.tempat_lahir || snap.tempatLahir) item.tempat_lahir = snap.tempat_lahir || snap.tempatLahir;
                   if (snap.tanggal_lahir || snap.tanggalLahir) item.tanggal_lahir = snap.tanggal_lahir || snap.tanggalLahir;
                   if (snap.no_hp || snap.phone) item.no_hp = snap.no_hp || snap.phone;
+                  if (snap.email) item.email = snap.email;
                   if (snap.alamat || snap.alamatLengkap) item.alamat = snap.alamat || snap.alamatLengkap;
                   if (snap.desa) item.desa = snap.desa;
                   if (snap.kecamatan) item.kecamatan = snap.kecamatan;
@@ -130,6 +133,25 @@ async function getSantriData(forceFresh: boolean = false): Promise<any> {
                   if (snap.instansi || snap.institution) item.instansi = snap.instansi || snap.institution;
                   if (snap.bio) item.bio = snap.bio;
                   if (snap.file_pas_foto || snap.photoUrl) item.file_pas_foto = snap.file_pas_foto || snap.photoUrl;
+                  if (snap.foto_sampul || snap.coverPhotoUrl) item.foto_sampul = snap.foto_sampul || snap.coverPhotoUrl;
+                  if (snap.nama_ayah || snap.namaAyah) item.nama_ayah = snap.nama_ayah || snap.namaAyah;
+                  if (snap.nik_ayah || snap.nikAyah) item.nik_ayah = snap.nik_ayah || snap.nikAyah;
+                  if (snap.pekerjaan_ayah || snap.pekerjaanAyah) item.pekerjaan_ayah = snap.pekerjaan_ayah || snap.pekerjaanAyah;
+                  if (snap.pendidikan_ayah || snap.pendidikanAyah) item.pendidikan_ayah = snap.pendidikan_ayah || snap.pendidikanAyah;
+                  if (snap.nama_ibu || snap.namaIbu) item.nama_ibu = snap.nama_ibu || snap.namaIbu;
+                  if (snap.nik_ibu || snap.nikIbu) item.nik_ibu = snap.nik_ibu || snap.nikIbu;
+                  if (snap.pekerjaan_ibu || snap.pekerjaanIbu) item.pekerjaan_ibu = snap.pekerjaan_ibu || snap.pekerjaanIbu;
+                  if (snap.pendidikan_ibu || snap.pendidikanIbu) item.pendidikan_ibu = snap.pendidikan_ibu || snap.pendidikanIbu;
+                  if (snap.anak_ke !== undefined || snap.urutanAnak !== undefined) item.anak_ke = snap.anak_ke ?? snap.urutanAnak;
+                  if (snap.dari_bersaudara !== undefined || snap.jumlahSaudara !== undefined) item.dari_bersaudara = snap.dari_bersaudara ?? snap.jumlahSaudara;
+                  if (snap.tanggal_masuk || snap.entryDate) item.tanggal_masuk = snap.tanggal_masuk || snap.entryDate;
+                  if (snap.tahun_masuk || snap.entryYear) item.tahun_masuk = snap.tahun_masuk || snap.entryYear;
+                  if (snap.tanggal_keluar || snap.gradDate) item.tanggal_keluar = snap.tanggal_keluar || snap.gradDate;
+                  if (snap.tahun_lulus || snap.gradYear) item.tahun_lulus = snap.tahun_lulus || snap.gradYear;
+                  if (snap.kamar || snap.asramaDulu) item.kamar = snap.kamar || snap.asramaDulu;
+                  if (snap.no_kk || snap.noKk) item.no_kk = snap.no_kk || snap.noKk;
+                  if (snap.latitude !== undefined) item.latitude = snap.latitude;
+                  if (snap.longitude !== undefined) item.longitude = snap.longitude;
                 }
               }
             });

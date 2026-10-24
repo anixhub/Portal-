@@ -42,9 +42,11 @@ import { wsClient, WsMessage } from './services/websocketService';
 
 export function isAlumniNeedingActivation(alm?: AlumniRecord | null): boolean {
   if (!alm) return false;
+  // Akun dinyatakan butuh aktivasi HANYA jika alumni belum memiliki username
+  // (yaitu login pertama kali yang hanya bisa pakai NIK karena belum punya username).
+  // Setelah akun aktif (sudah punya username), alumni TIDAK BOLEH lagi diarahkan ke aktivasi.
   const hasNoUsername = !alm.username || alm.username.trim() === '';
-  const hasDefaultPassword = !alm.isPasswordChanged || alm.password === '1234';
-  return hasNoUsername || hasDefaultPassword;
+  return hasNoUsername;
 }
 
 export default function App() {
@@ -250,6 +252,9 @@ export default function App() {
                 // Field yang telah diisi di sesi aktif lokal (prevData) tidak boleh di-revert ke nilai lama freshMe
                 name: prevData.name || freshMe.name,
                 username: prevData.username || freshMe.username,
+                password: prevData.password || freshMe.password || '1234',
+                isPasswordChanged: Boolean(prevData.isPasswordChanged || freshMe.isPasswordChanged || (prevData.password && prevData.password !== '1234') || prevData.username),
+                hasLoggedIn: Boolean(prevData.hasLoggedIn || freshMe.hasLoggedIn || prevData.username),
                 bio: prevData.bio !== undefined && prevData.bio !== '' ? prevData.bio : (freshMe.bio || ''),
                 occupation: prevData.occupation !== undefined && prevData.occupation !== '' ? prevData.occupation : (freshMe.occupation || ''),
                 institution: prevData.institution !== undefined && prevData.institution !== '' ? prevData.institution : (freshMe.institution || ''),
@@ -279,8 +284,12 @@ export default function App() {
                 gender: prevData.gender || freshMe.gender,
                 urutanAnak: prevData.urutanAnak ?? freshMe.urutanAnak,
                 jumlahSaudara: prevData.jumlahSaudara ?? freshMe.jumlahSaudara,
+                anak_ke: prevData.anak_ke ?? freshMe.anak_ke,
+                dari_bersaudara: prevData.dari_bersaudara ?? freshMe.dari_bersaudara,
+                asramaDulu: prevData.asramaDulu || freshMe.asramaDulu,
                 nik: prevData.nik || freshMe.nik,
                 noKk: prevData.noKk || freshMe.noKk,
+                coordinates: prevData.coordinates || freshMe.coordinates,
               };
               return { ...prev, alumniData: mergedAlumni };
             }
@@ -363,6 +372,7 @@ export default function App() {
 
               return {
                 ...freshItem,
+                ...localItem,
                 name: localItem.name || freshItem.name,
                 username: effectiveUsername,
                 password: effectivePassword,
@@ -372,9 +382,31 @@ export default function App() {
                 email: localItem.email || freshItem.email,
                 city: localItem.city || freshItem.city,
                 province: localItem.province || freshItem.province,
+                kecamatan: localItem.kecamatan || freshItem.kecamatan,
+                desa: localItem.desa || freshItem.desa,
                 alamatLengkap: localItem.alamatLengkap || freshItem.alamatLengkap,
                 tempatLahir: localItem.tempatLahir || freshItem.tempatLahir,
                 tanggalLahir: localItem.tanggalLahir || freshItem.tanggalLahir,
+                namaAyah: localItem.namaAyah || freshItem.namaAyah,
+                nikAyah: localItem.nikAyah || freshItem.nikAyah,
+                pekerjaanAyah: localItem.pekerjaanAyah || freshItem.pekerjaanAyah,
+                pendidikanAyah: localItem.pendidikanAyah || freshItem.pendidikanAyah,
+                namaIbu: localItem.namaIbu || freshItem.namaIbu,
+                nikIbu: localItem.nikIbu || freshItem.nikIbu,
+                pekerjaanIbu: localItem.pekerjaanIbu || freshItem.pekerjaanIbu,
+                pendidikanIbu: localItem.pendidikanIbu || freshItem.pendidikanIbu,
+                urutanAnak: localItem.urutanAnak ?? freshItem.urutanAnak,
+                jumlahSaudara: localItem.jumlahSaudara ?? freshItem.jumlahSaudara,
+                anak_ke: localItem.anak_ke ?? freshItem.anak_ke,
+                dari_bersaudara: localItem.dari_bersaudara ?? freshItem.dari_bersaudara,
+                entryDate: localItem.entryDate || freshItem.entryDate,
+                entryYear: localItem.entryYear || freshItem.entryYear,
+                gradDate: localItem.gradDate || freshItem.gradDate,
+                gradYear: localItem.gradYear || freshItem.gradYear,
+                asramaDulu: localItem.asramaDulu || freshItem.asramaDulu,
+                gender: localItem.gender || freshItem.gender,
+                noKk: localItem.noKk || freshItem.noKk,
+                coordinates: localItem.coordinates || freshItem.coordinates,
                 bio: localItem.bio || freshItem.bio,
                 occupation: localItem.occupation || freshItem.occupation,
                 institution: localItem.institution || freshItem.institution,

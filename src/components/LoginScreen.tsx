@@ -90,44 +90,109 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
         }
       }
 
-      // Role Alumni: Autentikasi menggunakan NIK, NIS, atau Username
+      // Role Alumni: Autentikasi menggunakan NIK atau Username
       // Gabungkan alumniList dengan cache localStorage terbaru (dan cache aktivasi definitif)
-      let activeAlumniPool = [...alumniList];
-      try {
-        const poolMap = new Map(activeAlumniPool.map((a) => [String(a.id).trim(), a]));
+      let activeAlumniPool: AlumniRecord[] = [];
 
-        // 1. Baca cache alumni list umum
+      const mergeIntoPool = (incomingList: any[], isHighPriority: boolean = false) => {
+        if (!Array.isArray(incomingList)) return;
+        incomingList.forEach((incoming) => {
+          if (!incoming) return;
+          const incId = String(incoming.id || '').trim();
+          const incNik = incoming.nik ? String(incoming.nik).replace(/\D/g, '').trim() : '';
+          const incNis = incoming.nis ? String(incoming.nis).trim() : '';
+          const incUser = incoming.username ? String(incoming.username).toLowerCase().replace(/^@/, '').trim() : '';
+
+          const idx = activeAlumniPool.findIndex((item) => {
+            if (incId && String(item.id || '').trim() === incId) return true;
+            if (incNik && incNik.length >= 8 && item.nik && String(item.nik).replace(/\D/g, '').trim() === incNik) return true;
+            if (incNis && item.nis && String(item.nis).trim() === incNis) return true;
+            if (incUser && item.username && String(item.username).toLowerCase().replace(/^@/, '').trim() === incUser) return true;
+            return false;
+          });
+
+          if (idx >= 0) {
+            const existing = activeAlumniPool[idx];
+            const hasIncomingUser = Boolean(incoming.username && String(incoming.username).trim() !== '');
+            const hasExistingUser = Boolean(existing.username && String(existing.username).trim() !== '');
+
+            const hasIncomingCustomPwd = Boolean(incoming.password && incoming.password !== '1234') || Boolean(incoming.isPasswordChanged);
+            const hasExistingCustomPwd = Boolean(existing.password && existing.password !== '1234') || Boolean(existing.isPasswordChanged);
+
+            const merged: AlumniRecord = {
+              ...(isHighPriority ? existing : incoming),
+              ...(isHighPriority ? incoming : existing),
+              username: (hasIncomingUser && (isHighPriority || !hasExistingUser))
+                ? String(incoming.username).toLowerCase().replace(/^@/, '').trim()
+                : (existing.username || incoming.username || ''),
+              password: (hasIncomingCustomPwd && (isHighPriority || !hasExistingCustomPwd))
+                ? incoming.password
+                : (hasExistingCustomPwd ? existing.password : (incoming.password || existing.password || '1234')),
+              isPasswordChanged: Boolean(
+                existing.isPasswordChanged ||
+                incoming.isPasswordChanged ||
+                (existing.password && existing.password !== '1234') ||
+                (incoming.password && incoming.password !== '1234') ||
+                hasIncomingUser ||
+                hasExistingUser
+              ),
+              hasLoggedIn: Boolean(
+                existing.hasLoggedIn ||
+                incoming.hasLoggedIn ||
+                hasIncomingUser ||
+                hasExistingUser
+              ),
+            };
+
+            const keysToPreserve: (keyof AlumniRecord)[] = [
+              'name', 'phone', 'email', 'city', 'province', 'kecamatan', 'desa',
+              'alamatLengkap', 'tempatLahir', 'tanggalLahir', 'namaAyah', 'nikAyah',
+              'pekerjaanAyah', 'pendidikanAyah', 'namaIbu', 'nikIbu', 'pekerjaanIbu',
+              'pendidikanIbu', 'entryDate', 'entryYear', 'gradDate', 'gradYear',
+              'asramaDulu', 'gender', 'noKk', 'nik', 'nis', 'occupation', 'institution',
+              'bio', 'photoUrl', 'coverPhotoUrl', 'coordinates'
+            ];
+
+            keysToPreserve.forEach((k) => {
+              if (isHighPriority) {
+                if (incoming[k] !== undefined && incoming[k] !== '' && incoming[k] !== null) {
+                  (merged as any)[k] = incoming[k];
+                }
+              } else {
+                if (!merged[k] && incoming[k] !== undefined && incoming[k] !== '' && incoming[k] !== null) {
+                  (merged as any)[k] = incoming[k];
+                }
+              }
+            });
+
+            activeAlumniPool[idx] = merged;
+          } else {
+            activeAlumniPool.push({ ...incoming });
+          }
+        });
+      };
+
+      try {
+        mergeIntoPool(alumniList, false);
+
         const rawSaved = localStorage.getItem('attaroqqy_alumni_list_v1');
         if (rawSaved) {
           const parsed = JSON.parse(rawSaved);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            parsed.forEach((p: any) => {
-              const key = String(p.id).trim();
-              const existing = poolMap.get(key);
-              poolMap.set(key, existing ? { ...existing, ...p } : p);
-            });
-          }
+          if (Array.isArray(parsed)) mergeIntoPool(parsed, false);
         }
 
-        // 2. Baca cache aktivasi kustom terbaru (prioritas tertinggi)
         const rawAct = localStorage.getItem('attaroqqy_activated_alumni_cache');
         if (rawAct) {
           const parsedAct = JSON.parse(rawAct);
-          if (Array.isArray(parsedAct) && parsedAct.length > 0) {
-            parsedAct.forEach((act: any) => {
-              const key = String(act.id).trim();
-              const existing = poolMap.get(key);
-              poolMap.set(key, existing ? { ...existing, ...act } : act);
-            });
-          }
+          if (Array.isArray(parsedAct)) mergeIntoPool(parsedAct, true);
         }
-
-        activeAlumniPool = Array.from(poolMap.values());
       } catch (e) {}
 
       const cleanInput = inputVal.toLowerCase().replace(/^@/, '').trim();
       const cleanDigits = inputVal.replace(/\D/g, '');
-      const matchedAlumni = activeAlumniPool.find((alm) => {
+
+      // Cari kandidat alumni: cocokkan dengan username, NIK (16 digit atau angka murni), atau NIS
+      const matchedCandidates = activeAlumniPool.filter((alm) => {
         const almUser = (alm.username || '').toLowerCase().replace(/^@/, '').trim();
         const isUserMatch = Boolean(
           almUser && (
@@ -149,15 +214,23 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
         return isNikMatch || isUserMatch || isNisMatch;
       });
 
-      if (!matchedAlumni) {
+      if (matchedCandidates.length === 0) {
         setErrorMessage('NIK atau Username tidak ditemukan.');
         return;
       }
 
+      // Prioritaskan kandidat yang sudah aktif (sudah memiliki username dan kata sandi baru)
+      const matchedAlumni = matchedCandidates.find((a) => a.username && a.username.trim() !== '') || matchedCandidates[0];
+
       const inputPasswordTrimmed = password.trim();
       const almPasswordTrimmed = (matchedAlumni.password || '1234').trim();
 
-      if (matchedAlumni.password !== password && almPasswordTrimmed !== inputPasswordTrimmed) {
+      const isPasswordMatch =
+        matchedAlumni.password === password ||
+        almPasswordTrimmed === inputPasswordTrimmed ||
+        (!matchedAlumni.username && inputPasswordTrimmed === '1234');
+
+      if (!isPasswordMatch) {
         setErrorMessage('Kata sandi yang Anda masukkan salah.');
         return;
       }
