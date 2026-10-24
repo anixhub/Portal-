@@ -1342,11 +1342,18 @@ export const AdminView: React.FC<AdminViewProps> = ({
                         className="flex items-center gap-3 min-w-0 cursor-pointer group select-none"
                         title="Lihat profil"
                       >
-                        <div className="w-10 h-10 rounded-full bg-slate-100 border border-slate-200 overflow-hidden shrink-0 flex items-center justify-center group-hover:ring-2 group-hover:ring-sky-400 transition-all">
+                        <div className="w-10 h-10 rounded-full bg-slate-100 border border-slate-200 overflow-hidden shrink-0 flex items-center justify-center group-hover:ring-2 group-hover:ring-sky-400 transition-all relative">
+                          <div
+                            data-img-fallback
+                            className="w-full h-full bg-gradient-to-tr from-sky-600 to-indigo-600 text-white font-bold text-xs flex items-center justify-center select-none"
+                          >
+                            {getInitials(ev.authorName || ev.authorHandle || adminUser.name)}
+                          </div>
                           <img
-                            src={resolvePostAuthorAvatar(ev.authorName, ev.authorHandle, ev.authorAvatar, adminUser, adminAccountsList || adminList, alumniList)}
+                            src={getAlumniPhotoUrl(resolvePostAuthorAvatar(ev.authorName, ev.authorHandle, ev.authorAvatar, adminUser, adminAccountsList || adminList, alumniList))}
+                            onError={handleImageFallbackError}
                             alt={ev.authorHandle || ev.authorName || adminUser.name}
-                            className="w-full h-full object-cover"
+                            className="absolute inset-0 w-full h-full object-cover z-10"
                           />
                         </div>
                         <div className="min-w-0">

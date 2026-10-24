@@ -29,7 +29,7 @@ import { WilayahAddressFilter } from '../common/WilayahAddressFilter';
 import { FullscreenPhotoViewerModal } from '../common/FullscreenPhotoViewerModal';
 import { LocationCoordinates } from '../common/FullscreenLocationMapModal';
 import { useBackHandler } from '../../utils/navigationHistory';
-import { getAlumniPhotoUrl } from '../../utils/photoUtils';
+import { getAlumniPhotoUrl, handleImageFallbackError } from '../../utils/photoUtils';
 import { 
   generateNisFromEntryDate, 
   isUsernameTaken, 
@@ -808,7 +808,7 @@ export const AlumniDetailAdminModal: React.FC<AlumniDetailAdminModalProps> = ({
                     <img
                       src={getAlumniPhotoUrl(editPhotoUrl)}
                       alt={editName || alumni.name}
-                      onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                      onError={handleImageFallbackError}
                       className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform"
                     />
                   )}

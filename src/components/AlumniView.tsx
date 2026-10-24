@@ -2378,11 +2378,18 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
                         title="Lihat profil"
                       >
                         {/* Avatar Admin / Logo Pondok */}
-                        <div className="relative shrink-0">
+                        <div className="w-10 h-10 rounded-full bg-slate-100 border border-slate-200 overflow-hidden shrink-0 flex items-center justify-center group-hover:ring-2 group-hover:ring-sky-400 transition-all relative">
+                          <div
+                            data-img-fallback
+                            className="w-full h-full bg-gradient-to-tr from-sky-600 to-indigo-600 text-white font-bold text-xs flex items-center justify-center select-none"
+                          >
+                            {getInitials(ev.authorName || ev.authorHandle)}
+                          </div>
                           <img
-                            src={ev.authorAvatar || logoPonpesImg}
+                            src={getAlumniPhotoUrl(ev.authorAvatar || logoPonpesImg)}
+                            onError={handleImageFallbackError}
                             alt={ev.authorHandle || ev.authorName || 'Admin Humas'}
-                            className="w-10 h-10 rounded-full object-cover border border-slate-200 ring-2 ring-slate-100 shadow-2xs group-hover:ring-sky-400 transition-all"
+                            className="absolute inset-0 w-full h-full object-cover z-10"
                           />
                         </div>
                         <div className="min-w-0">
@@ -4936,11 +4943,18 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
                       className="flex items-center gap-3 min-w-0 cursor-pointer group select-none"
                       title="Lihat profil"
                     >
-                      <div className="w-10 h-10 rounded-full bg-slate-100 border border-slate-200 overflow-hidden shrink-0 flex items-center justify-center group-hover:ring-2 group-hover:ring-sky-400 transition-all">
+                      <div className="w-10 h-10 rounded-full bg-slate-100 border border-slate-200 overflow-hidden shrink-0 flex items-center justify-center group-hover:ring-2 group-hover:ring-sky-400 transition-all relative">
+                        <div
+                          data-img-fallback
+                          className="w-full h-full bg-gradient-to-tr from-sky-600 to-indigo-600 text-white font-bold text-xs flex items-center justify-center select-none"
+                        >
+                          {getInitials(ann.authorName || ann.authorHandle)}
+                        </div>
                         <img
-                          src={ann.authorAvatar || logoPonpesImg}
+                          src={getAlumniPhotoUrl(ann.authorAvatar || logoPonpesImg)}
+                          onError={handleImageFallbackError}
                           alt={ann.authorHandle || ann.authorName}
-                          className="w-full h-full object-cover"
+                          className="absolute inset-0 w-full h-full object-cover z-10"
                         />
                       </div>
                       <div className="min-w-0">
@@ -4974,43 +4988,11 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
 
                   {/* 2. Media Poster / Multi-foto Carousel */}
                   {ann.images && ann.images.length > 0 && (
-                    <div className="relative w-full aspect-[4/3] sm:aspect-[16/9] bg-slate-950 overflow-hidden select-none group">
-                      {ann.images.length === 1 ? (
-                        <div
-                          onClick={() => setPreviewPhotoUrl(ann.images![0])}
-                          className="w-full h-full cursor-pointer"
-                        >
-                          <img
-                            src={ann.images[0]}
-                            alt={ann.title}
-                            className="w-full h-full object-cover group-hover:scale-[1.01] transition-transform duration-200"
-                          />
-                        </div>
-                      ) : (
-                        <div className="w-full h-full flex overflow-x-auto snap-x snap-mandatory scroll-smooth no-scrollbar">
-                          {ann.images.map((imgSrc, idx) => (
-                            <div
-                              key={idx}
-                              onClick={() => setPreviewPhotoUrl(imgSrc)}
-                              className="min-w-full w-full h-full flex-shrink-0 snap-center relative bg-slate-950 flex items-center justify-center cursor-pointer"
-                            >
-                              <img
-                                src={imgSrc}
-                                alt={`Foto ${idx + 1}`}
-                                className="w-full h-full object-cover"
-                              />
-                            </div>
-                          ))}
-                        </div>
-                      )}
-
-                      {/* Badge Counter Foto jika lebih dari 1 */}
-                      {ann.images.length > 1 && (
-                        <div className="absolute top-3 left-3 px-2 py-0.5 rounded-full bg-black/60 backdrop-blur-md text-[11px] font-mono font-bold text-white tracking-wide shadow-md pointer-events-none">
-                          {ann.images.length} Foto (Geser)
-                        </div>
-                      )}
-                    </div>
+                    <PostMediaCarousel
+                      images={ann.images}
+                      title={ann.title}
+                      onPreview={(url) => setPreviewPhotoUrl(url)}
+                    />
                   )}
 
                   {/* 3. Caption & Detail Pengumuman */}
@@ -5233,11 +5215,20 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
                   </div>
 
                   <div className="flex items-center gap-2.5 my-auto">
-                    <div className="w-12 h-14 bg-white/10 border border-white/40 rounded-lg overflow-hidden flex items-center justify-center shrink-0">
-                      {alumni.photoUrl ? (
-                        <img src={alumni.photoUrl} alt={alumni.name} className="w-full h-full object-cover" />
-                      ) : (
-                        <span className="text-xl">👨‍🎓</span>
+                    <div className="w-12 h-14 bg-white/10 border border-white/40 rounded-lg overflow-hidden flex items-center justify-center shrink-0 relative">
+                      <div
+                        data-img-fallback
+                        className="w-full h-full flex items-center justify-center text-xl select-none"
+                      >
+                        {alumni.gender === 'P' ? '🧕' : '👨‍🎓'}
+                      </div>
+                      {alumni.photoUrl && (
+                        <img
+                          src={getAlumniPhotoUrl(alumni.photoUrl)}
+                          onError={handleImageFallbackError}
+                          alt={alumni.name}
+                          className="absolute inset-0 w-full h-full object-cover"
+                        />
                       )}
                     </div>
                     <div className="flex-1 min-w-0 pr-1">

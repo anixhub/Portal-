@@ -20,6 +20,7 @@ import { EventCommentsModal } from '../common/EventCommentsModal';
 import { INITIAL_ANNOUNCEMENT_COMMENTS } from '../../data/mockData';
 import { formatAuthorUsername, resolveAuthorAlumniRecord, resolvePostAuthorAvatar } from '../../utils/authorUtils';
 import { formatToDDMMYYYY } from '../../utils/dateUtils';
+import { getAlumniPhotoUrl, handleImageFallbackError, getInitials } from '../../utils/photoUtils';
 import { 
   fetchCommentsFromDatabase, 
   saveCommentToDatabase, 
@@ -95,11 +96,18 @@ Diterbitkan oleh: ${ann.authorName || 'Pondok Pesantren At-taroqqy'}`;
           className="flex items-center gap-3 min-w-0 cursor-pointer group select-none"
           title="Lihat profil"
         >
-          <div className="w-10 h-10 rounded-full bg-slate-100 border border-slate-200 overflow-hidden shrink-0 flex items-center justify-center group-hover:ring-2 group-hover:ring-sky-400 transition-all">
+          <div className="w-10 h-10 rounded-full bg-slate-100 border border-slate-200 overflow-hidden shrink-0 flex items-center justify-center group-hover:ring-2 group-hover:ring-sky-400 transition-all relative">
+            <div
+              data-img-fallback
+              className="w-full h-full bg-gradient-to-tr from-sky-600 to-indigo-600 text-white font-bold text-xs flex items-center justify-center select-none"
+            >
+              {getInitials(ann.authorName || ann.authorHandle)}
+            </div>
             <img
-              src={effectiveAvatar}
+              src={getAlumniPhotoUrl(effectiveAvatar)}
+              onError={handleImageFallbackError}
               alt={ann.authorHandle || ann.authorName}
-              className="w-full h-full object-cover"
+              className="absolute inset-0 w-full h-full object-cover z-10"
             />
           </div>
           <div className="min-w-0">

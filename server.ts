@@ -592,41 +592,37 @@ async function startServer() {
         }
       }
 
-      // 2. Coba fetch dari subdomain alumni.attaroqqy.com (tempat file fisik upload terbaru)
-      const alumniSubdomainUrls = [
+      // 2. Daftar prioritas URL remote di Hostinger (domain utama & subdomain alumni)
+      const filename = path.basename(cleanSubPath);
+      const remoteUrlsToTry = [
+        `https://attaroqqy.com/api/uploads/pas_foto/${filename}`,
+        `https://alumni.attaroqqy.com/uploads/pas_foto/${filename}`,
         `https://alumni.attaroqqy.com/uploads/${cleanSubPath}`,
-        `https://alumni.attaroqqy.com/uploads/pas_foto/${path.basename(cleanSubPath)}`,
-      ];
-
-      for (const remoteUrl of alumniSubdomainUrls) {
-        try {
-          const remoteRes = await fetch(remoteUrl, { signal: AbortSignal.timeout(6000) });
-          if (remoteRes.ok) {
-            const contentType = remoteRes.headers.get('content-type');
-            if (contentType) res.setHeader('Content-Type', contentType);
-            res.setHeader('Cache-Control', 'public, max-age=86400');
-            const buffer = await remoteRes.arrayBuffer();
-            return res.send(Buffer.from(buffer));
-          }
-        } catch {}
-      }
-
-      // 3. Fallback ke domain utama attaroqqy.com
-      const mainDomainUrls = [
         `https://attaroqqy.com/api/uploads/${cleanSubPath}`,
         `https://attaroqqy.com/uploads/${cleanSubPath}`,
-        `https://attaroqqy.com/api/uploads/pas_foto/${path.basename(cleanSubPath)}`,
+        `https://attaroqqy.com/uploads/pas_foto/${filename}`,
       ];
 
-      for (const remoteUrl of mainDomainUrls) {
+      for (const remoteUrl of remoteUrlsToTry) {
         try {
           const remoteRes = await fetch(remoteUrl, { signal: AbortSignal.timeout(6000) });
           if (remoteRes.ok) {
             const contentType = remoteRes.headers.get('content-type');
-            if (contentType) res.setHeader('Content-Type', contentType);
-            res.setHeader('Cache-Control', 'public, max-age=86400');
-            const buffer = await remoteRes.arrayBuffer();
-            return res.send(Buffer.from(buffer));
+            if (contentType && !contentType.includes('text/html')) {
+              res.setHeader('Content-Type', contentType);
+              res.setHeader('Cache-Control', 'public, max-age=86400');
+              const buffer = await remoteRes.arrayBuffer();
+              const nodeBuf = Buffer.from(buffer);
+              // Simpan ke disk lokal agar request berikutnya instan dan offline-ready
+              try {
+                const targetDiskPath = path.resolve(__dirname, 'public/uploads/pas_foto', filename);
+                if (!fs.existsSync(path.dirname(targetDiskPath))) {
+                  fs.mkdirSync(path.dirname(targetDiskPath), { recursive: true });
+                }
+                fs.writeFileSync(targetDiskPath, nodeBuf);
+              } catch {}
+              return res.send(nodeBuf);
+            }
           }
         } catch {}
       }
@@ -1377,8 +1373,19 @@ async function startServer() {
 
   // Events API: POST (save/create/update)
   app.post('/api/events', async (req, res) => {
-    const event = req.body;
+    const event = { ...req.body };
     if (event && event.id) {
+      if (event.posterUrl && typeof event.posterUrl === 'string' && event.posterUrl.startsWith('data:image/')) {
+        event.posterUrl = saveBase64Image(event.posterUrl, `event_poster_${event.id}`);
+      }
+      if (Array.isArray(event.images)) {
+        event.images = event.images.map((img: any, i: number) => {
+          if (typeof img === 'string' && img.startsWith('data:image/')) {
+            return saveBase64Image(img, `event_img_${event.id}_${i}`);
+          }
+          return img;
+        });
+      }
       deletedEventIds = deletedEventIds.filter((dId) => dId !== event.id);
       saveJsonStore(deletedEventsStorePath, deletedEventIds);
       const idx = cachedEvents.findIndex((e: any) => e.id === event.id);
@@ -1909,8 +1916,16 @@ async function startServer() {
 
   // Announcements API: POST (save/create/update)
   app.post('/api/announcements', async (req, res) => {
-    const ann = req.body;
+    const ann = { ...req.body };
     if (ann && ann.id) {
+      if (Array.isArray(ann.images)) {
+        ann.images = ann.images.map((img: any, i: number) => {
+          if (typeof img === 'string' && img.startsWith('data:image/')) {
+            return saveBase64Image(img, `ann_img_${ann.id}_${i}`);
+          }
+          return img;
+        });
+      }
       deletedAnnouncementIds = deletedAnnouncementIds.filter((dId) => dId !== ann.id);
       saveJsonStore(deletedAnnouncementsStorePath, deletedAnnouncementIds);
       const idx = cachedAnnouncements.findIndex((a: any) => a.id === ann.id);

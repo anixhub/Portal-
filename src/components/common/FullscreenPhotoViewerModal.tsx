@@ -2,7 +2,7 @@ import React, { useState, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Trash2 } from 'lucide-react';
 import { useBackHandler } from '../../utils/navigationHistory';
-import { getAlumniPhotoUrl } from '../../utils/photoUtils';
+import { getAlumniPhotoUrl, handleImageFallbackError } from '../../utils/photoUtils';
 
 interface FullscreenPhotoViewerModalProps {
   photoUrl?: string;
@@ -157,7 +157,7 @@ export const FullscreenPhotoViewerModal: React.FC<FullscreenPhotoViewerModalProp
           <img
             src={getAlumniPhotoUrl(photoUrl)}
             alt={name}
-            onError={(e) => { e.currentTarget.style.display = 'none'; }}
+            onError={handleImageFallbackError}
             className="w-full h-full object-contain pointer-events-none"
             draggable={false}
           />

@@ -246,7 +246,7 @@ export const AlumniProfileCardModal: React.FC<AlumniProfileCardModalProps> = ({
               <img 
                 src={getAlumniPhotoUrl(displayAlumni.photoUrl)} 
                 alt={displayAlumni.name} 
-                onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                onError={handleImageFallbackError}
                 className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" 
               />
             )}
