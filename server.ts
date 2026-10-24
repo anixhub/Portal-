@@ -493,24 +493,74 @@ async function startServer() {
     }
   });
 
-  // Media / Photo Uploads Proxy to attaroqqy.com
-  app.use('/api/uploads', async (req, res) => {
+  // Media / Photo Uploads Handler (/uploads & /api/uploads)
+  // Memastikan gambar profil & cover selalu tampil di development maupun production
+  const handleMediaUploadsRequest = async (req: express.Request, res: express.Response) => {
     try {
-      const remoteUrl = `https://attaroqqy.com/api/uploads${req.url}`;
-      const remoteRes = await fetch(remoteUrl);
-      if (!remoteRes.ok) {
-        return res.status(remoteRes.status).end();
+      const cleanSubPath = req.url.split('?')[0].replace(/^\//, '');
+      
+      // 1. Cek apakah file ada di disk lokal /public/uploads/
+      const localFilePath = path.resolve(__dirname, 'public/uploads', cleanSubPath);
+      if (fs.existsSync(localFilePath) && fs.statSync(localFilePath).isFile()) {
+        return res.sendFile(localFilePath);
       }
-      const contentType = remoteRes.headers.get('content-type');
-      if (contentType) res.setHeader('Content-Type', contentType);
-      res.setHeader('Cache-Control', 'public, max-age=86400');
-      const buffer = await remoteRes.arrayBuffer();
-      res.send(Buffer.from(buffer));
+
+      // Cek variasi pas_foto jika nama file langsung
+      if (!cleanSubPath.startsWith('pas_foto/')) {
+        const altLocalPath = path.resolve(__dirname, 'public/uploads/pas_foto', path.basename(cleanSubPath));
+        if (fs.existsSync(altLocalPath) && fs.statSync(altLocalPath).isFile()) {
+          return res.sendFile(altLocalPath);
+        }
+      }
+
+      // 2. Coba fetch dari subdomain alumni.attaroqqy.com (tempat file fisik upload terbaru)
+      const alumniSubdomainUrls = [
+        `https://alumni.attaroqqy.com/uploads/${cleanSubPath}`,
+        `https://alumni.attaroqqy.com/uploads/pas_foto/${path.basename(cleanSubPath)}`,
+      ];
+
+      for (const remoteUrl of alumniSubdomainUrls) {
+        try {
+          const remoteRes = await fetch(remoteUrl, { signal: AbortSignal.timeout(6000) });
+          if (remoteRes.ok) {
+            const contentType = remoteRes.headers.get('content-type');
+            if (contentType) res.setHeader('Content-Type', contentType);
+            res.setHeader('Cache-Control', 'public, max-age=86400');
+            const buffer = await remoteRes.arrayBuffer();
+            return res.send(Buffer.from(buffer));
+          }
+        } catch {}
+      }
+
+      // 3. Fallback ke domain utama attaroqqy.com
+      const mainDomainUrls = [
+        `https://attaroqqy.com/api/uploads/${cleanSubPath}`,
+        `https://attaroqqy.com/uploads/${cleanSubPath}`,
+        `https://attaroqqy.com/api/uploads/pas_foto/${path.basename(cleanSubPath)}`,
+      ];
+
+      for (const remoteUrl of mainDomainUrls) {
+        try {
+          const remoteRes = await fetch(remoteUrl, { signal: AbortSignal.timeout(6000) });
+          if (remoteRes.ok) {
+            const contentType = remoteRes.headers.get('content-type');
+            if (contentType) res.setHeader('Content-Type', contentType);
+            res.setHeader('Cache-Control', 'public, max-age=86400');
+            const buffer = await remoteRes.arrayBuffer();
+            return res.send(Buffer.from(buffer));
+          }
+        } catch {}
+      }
+
+      res.status(404).end();
     } catch (err: any) {
-      console.warn('[Server] Error proxying upload media:', err?.message);
+      console.warn('[Server] Error serving uploads media:', err?.message);
       res.status(404).end();
     }
-  });
+  };
+
+  app.use('/uploads', handleMediaUploadsRequest);
+  app.use('/api/uploads', handleMediaUploadsRequest);
 
   // Photo & Document Upload API Proxy to attaroqqy.com
   app.post('/api/upload', async (req, res) => {

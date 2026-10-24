@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { AdminUser, AdminRegionLevel } from '../../types';
 import { canAdminManage, formatAdminAuthorityLabel } from '../../utils/adminAuthorityUtils';
+import { getAlumniPhotoUrl, handleImageFallbackError } from '../../utils/photoUtils';
 import { AdminAccountEditModal } from './AdminAccountEditModal';
 
 interface AdminAccountsTabProps {
@@ -140,9 +141,10 @@ export const AdminAccountsTab: React.FC<AdminAccountsTabProps> = ({
                   <div className="relative shrink-0">
                     <img
                       src={
-                        adm.avatar ||
+                        getAlumniPhotoUrl(adm.avatar) ||
                         'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=256'
                       }
+                      onError={handleImageFallbackError}
                       alt={adm.name}
                       className="w-11 h-11 rounded-2xl object-cover border border-slate-200"
                     />

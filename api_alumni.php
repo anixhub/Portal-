@@ -299,12 +299,18 @@ function normalizePhotoUrlForOutput($path) {
     if (empty($path)) return '';
     $path = trim($path);
     if (strpos($path, 'http://') === 0 || strpos($path, 'https://') === 0 || strpos($path, 'data:') === 0) {
+        if (strpos($path, 'https://attaroqqy.com/uploads/') === 0) {
+            return str_replace('https://attaroqqy.com/uploads/', 'https://alumni.attaroqqy.com/uploads/', $path);
+        }
+        if (strpos($path, 'http://attaroqqy.com/uploads/') === 0) {
+            return str_replace('http://attaroqqy.com/uploads/', 'https://alumni.attaroqqy.com/uploads/', $path);
+        }
         return $path;
     }
     if (strpos($path, '/') === 0) {
-        return 'https://attaroqqy.com' . $path;
+        return 'https://alumni.attaroqqy.com' . $path;
     }
-    return 'https://attaroqqy.com/api/uploads/pas_foto/' . $path;
+    return 'https://alumni.attaroqqy.com/uploads/pas_foto/' . $path;
 }
 
 function processIncomingPhoto($photoData, $prefix = 'filePasFoto') {

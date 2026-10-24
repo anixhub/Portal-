@@ -93,7 +93,7 @@ import { QuranView } from './QuranView';
 import { MaulidView } from './MaulidView';
 import { DzikirView } from './DzikirView';
 import { MajmuahView, MAJMUAH_SECTIONS } from './MajmuahView';
-import { getAlumniPhotoUrl } from '../utils/photoUtils';
+import { getAlumniPhotoUrl, handleImageFallbackError } from '../utils/photoUtils';
 import { 
   fetchCommentsFromDatabase, 
   saveCommentToDatabase, 
@@ -1253,6 +1253,7 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
     setEditInstitution(alumni.institution);
     setEditBio(alumni.bio || '');
     setEditPhotoUrl(alumni.photoUrl);
+    setEditCoverPhotoUrl(alumni.coverPhotoUrl);
     setEditShareContact(alumni.shareContact);
     setEditShareEmail(alumni.shareEmail !== false);
     setEditShareFullAddress(alumni.shareFullAddress !== false);
@@ -2819,9 +2820,10 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
               className="relative w-full h-52 sm:h-60 overflow-hidden cursor-pointer group select-none shrink-0 bg-[#0369a1]"
               title="Klik foto sampul untuk opsi foto"
             >
-              {editCoverPhotoUrl ? (
+              {editCoverPhotoUrl || alumni.coverPhotoUrl ? (
                 <img
-                  src={editCoverPhotoUrl}
+                  src={getAlumniPhotoUrl(editCoverPhotoUrl || alumni.coverPhotoUrl)}
+                  onError={handleImageFallbackError}
                   alt="Foto Sampul"
                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                 />
@@ -2850,7 +2852,7 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
                 className="absolute bottom-14 right-4 bg-black/60 hover:bg-black/80 active:scale-95 backdrop-blur-md border border-white/25 text-white text-xs font-semibold px-3.5 py-1.5 rounded-full flex items-center gap-1.5 shadow-lg transition-all cursor-pointer z-30 pointer-events-auto select-none"
               >
                 <Camera className="w-3.5 h-3.5 text-white" />
-                <span>{editCoverPhotoUrl ? 'Foto Sampul' : 'Upload Sampul'}</span>
+                <span>{(editCoverPhotoUrl || alumni.coverPhotoUrl) ? 'Foto Sampul' : 'Upload Sampul'}</span>
               </button>
             </div>
 
@@ -2875,9 +2877,10 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
                     className="w-22 h-22 sm:w-24 sm:h-24 rounded-full ring-4 ring-white shadow-lg overflow-hidden bg-slate-200 flex items-center justify-center cursor-pointer group transition-transform active:scale-95"
                     title="Lihat foto profil penuh"
                   >
-                    {editPhotoUrl ? (
+                    {editPhotoUrl || alumni.photoUrl ? (
                       <img
-                        src={editPhotoUrl}
+                        src={getAlumniPhotoUrl(editPhotoUrl || alumni.photoUrl)}
+                        onError={handleImageFallbackError}
                         alt={editName || alumni.name}
                         className="w-full h-full object-cover"
                       />
@@ -5911,11 +5914,11 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
       {/* ================= MODAL FULLSCREEN BERSIH: FOTO PROFIL (PINCH TO ZOOM & PAN) ================= */}
       {showFullscreenPhoto && (
         <FullscreenPhotoViewerModal
-          photoUrl={editPhotoUrl}
+          photoUrl={getAlumniPhotoUrl(editPhotoUrl || alumni.photoUrl)}
           name={editName || alumni.name}
           onClose={() => setShowFullscreenPhoto(false)}
           onDelete={
-            editPhotoUrl
+            (editPhotoUrl || alumni.photoUrl)
               ? () => {
                   handleDeletePhoto();
                   setShowFullscreenPhoto(false);
@@ -6334,7 +6337,7 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
             <div className="w-12 h-1.5 bg-slate-300 rounded-full mx-auto mb-5" />
 
             <div className="space-y-1">
-              {!editCoverPhotoUrl ? (
+              {!(editCoverPhotoUrl || alumni.coverPhotoUrl) ? (
                 /* Menu saat belum ada foto sampul: HANYA Upload Foto Sampul */
                 <button
                   type="button"
@@ -6417,7 +6420,7 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
       {showFullscreenCover && (
         <CleanMediaPreviewModal
           isOpen={showFullscreenCover}
-          imageUrl={editCoverPhotoUrl || alumni.coverPhotoUrl || posterReuniImg}
+          imageUrl={getAlumniPhotoUrl(editCoverPhotoUrl || alumni.coverPhotoUrl) || posterReuniImg}
           onClose={() => setShowFullscreenCover(false)}
         />
       )}

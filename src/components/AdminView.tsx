@@ -79,7 +79,7 @@ import {
 import { formatAuthorUsername, resolveAuthorAlumniRecord, resolvePostAuthorAvatar } from '../utils/authorUtils';
 import { shareMediaWithCaption } from '../utils/shareUtils';
 import { useBackHandler } from '../utils/navigationHistory';
-import { getAlumniPhotoUrl } from '../utils/photoUtils';
+import { getAlumniPhotoUrl, handleImageFallbackError } from '../utils/photoUtils';
 import { QuranView } from './QuranView';
 import { MaulidView } from './MaulidView';
 import { DzikirView } from './DzikirView';
@@ -1819,7 +1819,8 @@ export const AdminView: React.FC<AdminViewProps> = ({
             >
               {adminUser.coverPhotoUrl ? (
                 <img
-                  src={adminUser.coverPhotoUrl}
+                  src={getAlumniPhotoUrl(adminUser.coverPhotoUrl)}
+                  onError={handleImageFallbackError}
                   alt="Foto Sampul Admin"
                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                 />
@@ -1874,7 +1875,8 @@ export const AdminView: React.FC<AdminViewProps> = ({
                   >
                     {adminUser.avatar ? (
                       <img
-                        src={adminUser.avatar}
+                        src={getAlumniPhotoUrl(adminUser.avatar)}
+                        onError={handleImageFallbackError}
                         alt={adminUser.name}
                         className="w-full h-full object-cover"
                       />
@@ -3329,7 +3331,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
       {showFullscreenCover && (
         <CleanMediaPreviewModal
           isOpen={showFullscreenCover}
-          imageUrl={adminUser.coverPhotoUrl || posterReuniImg}
+          imageUrl={getAlumniPhotoUrl(adminUser.coverPhotoUrl) || posterReuniImg}
           onClose={() => setShowFullscreenCover(false)}
         />
       )}
@@ -3337,7 +3339,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
       {/* FULLSCREEN FOTO PROFIL ADMIN (DENGAN ZOOM, PAN & DELETE) */}
       {showFullscreenAvatar && (
         <FullscreenPhotoViewerModal
-          photoUrl={adminUser.avatar}
+          photoUrl={getAlumniPhotoUrl(adminUser.avatar)}
           name={adminUser.name}
           onClose={() => setShowFullscreenAvatar(false)}
           onDelete={adminUser.avatar ? handleRemoveAvatar : undefined}

@@ -14,7 +14,7 @@ import L from 'leaflet';
 import { AlumniRecord } from '../../types';
 import { CleanMediaPreviewModal } from './CleanMediaPreviewModal';
 import { useBackHandler } from '../../utils/navigationHistory';
-import { getAlumniPhotoUrl } from '../../utils/photoUtils';
+import { getAlumniPhotoUrl, handleImageFallbackError } from '../../utils/photoUtils';
 
 interface AlumniProfileCardModalProps {
   isOpen: boolean;
@@ -181,7 +181,7 @@ export const AlumniProfileCardModal: React.FC<AlumniProfileCardModalProps> = ({
         <div 
           onClick={() => {
             if (displayAlumni.coverPhotoUrl) {
-              setFullscreenMedia({ url: displayAlumni.coverPhotoUrl });
+              setFullscreenMedia({ url: getAlumniPhotoUrl(displayAlumni.coverPhotoUrl) });
             }
           }}
           className={`h-32 sm:h-36 relative overflow-hidden bg-gradient-to-b from-sky-200 via-sky-100 to-sky-50 shrink-0 ${
@@ -191,7 +191,8 @@ export const AlumniProfileCardModal: React.FC<AlumniProfileCardModalProps> = ({
         >
           {displayAlumni.coverPhotoUrl ? (
             <img 
-              src={displayAlumni.coverPhotoUrl} 
+              src={getAlumniPhotoUrl(displayAlumni.coverPhotoUrl)} 
+              onError={handleImageFallbackError}
               alt="Foto Sampul" 
               className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
             />

@@ -1,10 +1,11 @@
 {
   "id": "adm-001",
-  "name": "Davidson",
+  "name": "Adminios",
   "username": "@admin_pusat",
-  "avatar": "/uploads/pas_foto/admin_avatar_1792779533345.jpg",
+  "avatar": "https://alumni.attaroqqy.com/uploads/pas_foto/adminAvatar_1792794860836_4f1c2.jpg",
+  "coverPhotoUrl": "https://alumni.attaroqqy.com/uploads/pas_foto/adminCover_1792794877682_5cb59.jpg",
   "role": "super_admin",
   "regionLevel": "pusat",
   "jabatan": "Kepala Bidang Kesantrian & Alumni Ponpes At-taroqqy",
-  "updatedAt": "2026-10-18T06:29:53.635Z"
+  "updatedAt": "2026-10-24T00:00:00.000Z"
 }
