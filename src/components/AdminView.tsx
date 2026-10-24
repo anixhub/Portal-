@@ -217,17 +217,27 @@ export const AdminView: React.FC<AdminViewProps> = ({
 
   useEffect(() => {
     setAdminUser(admin);
-    setEditAdminName(admin.name);
-    setEditAdminUsername(admin.username || '@admin_pusat');
-    setEditAdminJabatan(admin.jabatan || 'Kepala Bidang Kesantrian & Alumni Ponpes At-taroqqy');
-    setEditAdminBio(admin.bio || 'Pengasuh & Dewan Pembina Ikatan Alumni Pondok Pesantren At-taroqqy.');
-    setEditAdminProvince(admin.province || 'Jawa Timur');
-    setEditAdminCity(admin.city || 'Kab. Malang');
-    setEditAdminKecamatan(admin.kecamatan || 'Dampit');
-    setEditAdminDesa(admin.desa || 'Majangtengah');
-    setEditAdminAlamatLengkap(admin.alamatLengkap || 'Jl. Pesantren No. 01 RT 02 / RW 01');
-    setEditAdminCoordinates(admin.coordinates || { lat: -8.2123, lng: 112.7534 });
-  }, [admin]);
+    if (!isEditNameModalOpen) {
+      setEditAdminName(admin.name);
+    }
+    if (!isEditUsernameModalOpen) {
+      setEditAdminUsername(admin.username || '@admin_pusat');
+    }
+    if (!isEditJabatanModalOpen) {
+      setEditAdminJabatan(admin.jabatan || 'Kepala Bidang Kesantrian & Alumni Ponpes At-taroqqy');
+    }
+    if (!isEditBioModalOpen) {
+      setEditAdminBio(admin.bio || 'Pengasuh & Dewan Pembina Ikatan Alumni Pondok Pesantren At-taroqqy.');
+    }
+    if (!isEditAddressModalOpen) {
+      setEditAdminProvince(admin.province || 'Jawa Timur');
+      setEditAdminCity(admin.city || 'Kab. Malang');
+      setEditAdminKecamatan(admin.kecamatan || 'Dampit');
+      setEditAdminDesa(admin.desa || 'Majangtengah');
+      setEditAdminAlamatLengkap(admin.alamatLengkap || 'Jl. Pesantren No. 01 RT 02 / RW 01');
+      setEditAdminCoordinates(admin.coordinates || { lat: -8.2123, lng: 112.7534 });
+    }
+  }, [admin, isEditNameModalOpen, isEditUsernameModalOpen, isEditJabatanModalOpen, isEditBioModalOpen, isEditAddressModalOpen]);
 
   useEffect(() => {
     const deleted = getDeletedEventIds();

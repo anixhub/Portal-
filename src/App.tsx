@@ -465,103 +465,166 @@ export default function App() {
       console.log('[App Realtime WS] Menerima sinyal:', msg.type, msg.entity, msg.action);
 
       if (msg.type === 'DATA_CHANGED' || msg.type === 'REMOTE_DATA_CHANGED') {
-        // Optimistic Delta Update untuk respon kilat 0-detik
-        if (msg.entity === 'alumni' && (msg.action === 'update' || msg.action === 'sync') && msg.data && msg.id) {
-          const rawData = msg.data;
-          const deltaData: Record<string, any> = {
-            ...rawData,
-            name: rawData.name || rawData.nama || undefined,
-            nama: rawData.name || rawData.nama || undefined,
-            alamatLengkap: rawData.alamatLengkap || rawData.alamat || undefined,
-            phone: rawData.phone || rawData.no_hp || undefined,
-            tempatLahir: rawData.tempatLahir || rawData.tempat_lahir || undefined,
-            tanggalLahir: rawData.tanggalLahir || rawData.tanggal_lahir || undefined,
-            city: rawData.city || rawData.kabupaten || undefined,
-            province: rawData.province || rawData.provinsi || undefined,
-            desa: rawData.desa || undefined,
-            kecamatan: rawData.kecamatan || undefined,
-            namaAyah: rawData.namaAyah || rawData.nama_ayah || undefined,
-            namaIbu: rawData.namaIbu || rawData.nama_ibu || undefined,
-          };
-          Object.keys(deltaData).forEach((k) => deltaData[k] === undefined && delete deltaData[k]);
-
-          setAlumniList((prevList) => {
-            const idx = prevList.findIndex((a) => String(a.id) === String(msg.id));
-            if (idx >= 0) {
-              const updated = [...prevList];
-              updated[idx] = { ...updated[idx], ...deltaData };
-              return updated;
-            }
-            return prevList;
-          });
-
-          setCurrentSession((prev) => {
-            if (prev?.role === 'alumni' && prev.alumniData && String(prev.alumniData.id) === String(msg.id)) {
-              return { ...prev, alumniData: { ...prev.alumniData, ...deltaData } };
-            }
-            return prev;
-          });
-        } else if (msg.entity === 'alumni' && msg.action === 'delete' && msg.id) {
-          setAlumniList((prevList) => prevList.filter((a) => String(a.id) !== String(msg.id)));
-        }
-
         // Tampilkan indikator toast sinkronisasi
         const notice = msg.type === 'REMOTE_DATA_CHANGED'
-          ? 'Perubahan dari database Hostinger / aplikasi lama tersinkronkan!'
+          ? 'Perubahan dari database tersinkronkan!'
           : 'Data diperbarui secara realtime via WebSocket';
         setSyncToastMessage(notice);
         setTimeout(() => setSyncToastMessage((curr) => (curr === notice ? null : curr)), 3000);
 
-        // Muat ulang data terbaru secara background (silent)
-        loadData(true);
+        // 1. DELTA UPDATE ALUMNI (0-detik latency)
+        if (msg.entity === 'alumni') {
+          if ((msg.action === 'update' || msg.action === 'sync') && msg.data && msg.id) {
+            const rawData = msg.data;
+            const deltaData: Record<string, any> = {
+              ...rawData,
+              name: rawData.name || rawData.nama || undefined,
+              nama: rawData.name || rawData.nama || undefined,
+              alamatLengkap: rawData.alamatLengkap || rawData.alamat || undefined,
+              phone: rawData.phone || rawData.no_hp || undefined,
+              tempatLahir: rawData.tempatLahir || rawData.tempat_lahir || undefined,
+              tanggalLahir: rawData.tanggalLahir || rawData.tanggal_lahir || undefined,
+              city: rawData.city || rawData.kabupaten || undefined,
+              province: rawData.province || rawData.provinsi || undefined,
+              desa: rawData.desa || undefined,
+              kecamatan: rawData.kecamatan || undefined,
+              namaAyah: rawData.namaAyah || rawData.nama_ayah || undefined,
+              namaIbu: rawData.namaIbu || rawData.nama_ibu || undefined,
+            };
+            Object.keys(deltaData).forEach((k) => deltaData[k] === undefined && delete deltaData[k]);
+
+            setAlumniList((prevList) => {
+              const idx = prevList.findIndex((a) => String(a.id) === String(msg.id));
+              if (idx >= 0) {
+                const updated = [...prevList];
+                updated[idx] = { ...updated[idx], ...deltaData };
+                return updated;
+              }
+              return prevList;
+            });
+
+            setCurrentSession((prev) => {
+              if (prev?.role === 'alumni' && prev.alumniData && String(prev.alumniData.id) === String(msg.id)) {
+                return { ...prev, alumniData: { ...prev.alumniData, ...deltaData } };
+              }
+              return prev;
+            });
+          } else if (msg.action === 'delete' && msg.id) {
+            setAlumniList((prevList) => prevList.filter((a) => String(a.id) !== String(msg.id)));
+          }
+          return;
+        }
+
+        // 2. DELTA UPDATE PROFIL & AKUN ADMIN (0-detik latency tanpa timpa form aktif)
+        if (msg.entity === 'admin') {
+          if ((msg.action === 'update' || msg.action === 'save_user') && msg.data) {
+            const adminData = msg.data;
+            const isPusat =
+              adminData.username === '@admin_pusat' ||
+              adminData.role === 'super_admin' ||
+              adminData.regionLevel === 'pusat';
+
+            setAdminAccount((prev) => {
+              if (isPusat || prev.id === adminData.id || prev.username === adminData.username) {
+                return { ...prev, ...adminData };
+              }
+              return prev;
+            });
+
+            setCurrentSession((prev) => {
+              if (prev?.role === 'admin' && prev.adminData) {
+                const isTarget =
+                  prev.adminData.id === adminData.id ||
+                  prev.adminData.username === adminData.username ||
+                  (isPusat && (prev.adminData.username === '@admin_pusat' || prev.adminData.role === 'super_admin'));
+                if (isTarget) {
+                  return {
+                    ...prev,
+                    adminData: { ...prev.adminData, ...adminData },
+                  };
+                }
+              }
+              return prev;
+            });
+
+            setAdminList((prev) => {
+              const idx = prev.findIndex((a) => a.id === adminData.id || a.username === adminData.username);
+              if (idx >= 0) {
+                const updated = [...prev];
+                updated[idx] = { ...updated[idx], ...adminData };
+                return updated;
+              }
+              return [...prev, adminData];
+            });
+          } else if (msg.action === 'delete_user' && msg.id) {
+            setAdminList((prev) => prev.filter((a) => a.id !== msg.id));
+          }
+          return;
+        }
+
+        // 3. DELTA UPDATE AGENDA / EVENTS (0-detik latency)
+        if (msg.entity === 'events') {
+          if ((msg.action === 'save' || msg.action === 'create' || msg.action === 'update') && msg.data && msg.data.id) {
+            const evData = msg.data;
+            setEvents((prev) => {
+              const idx = prev.findIndex((e) => e.id === evData.id);
+              if (idx >= 0) {
+                const updated = [...prev];
+                updated[idx] = { ...updated[idx], ...evData };
+                return updated;
+              }
+              return [evData, ...prev];
+            });
+          } else if (msg.action === 'delete' && msg.id) {
+            setEvents((prev) => prev.filter((e) => e.id !== msg.id));
+          }
+          return;
+        }
+
+        // 4. DELTA UPDATE PENGUMUMAN / ANNOUNCEMENTS (0-detik latency)
+        if (msg.entity === 'announcements') {
+          if ((msg.action === 'save' || msg.action === 'create' || msg.action === 'update') && msg.data && msg.data.id) {
+            const annData = msg.data;
+            setAnnouncements((prev) => {
+              const idx = prev.findIndex((a) => a.id === annData.id);
+              if (idx >= 0) {
+                const updated = [...prev];
+                updated[idx] = { ...updated[idx], ...annData };
+                return updated;
+              }
+              return [annData, ...prev];
+            });
+          } else if (msg.action === 'delete' && msg.id) {
+            setAnnouncements((prev) => prev.filter((a) => a.id !== msg.id));
+          }
+          return;
+        }
+
+        // 5. GLOBAL FALLBACK: Jika pesan adalah resync umum (entity: 'all')
+        if (msg.entity === 'all' && !isSyncingRef.current) {
+          loadData(true);
+        }
       }
     });
 
-    // 1. Sinkronisasi otomatis setiap 8 detik (Fallback polling background)
-    const pollInterval = setInterval(() => {
-      if (navigator.onLine && !isSyncingRef.current) {
-        loadData(true);
-      }
-    }, 8000);
-
-    // 2. Auto-refresh saat jendela browser mendapatkan fokus kembali atau kembali online
-    const handleWindowFocus = () => {
-      if (!isSyncingRef.current) {
-        loadData(true);
-      }
-    };
-
-    window.addEventListener('focus', handleWindowFocus);
-    window.addEventListener('online', handleWindowFocus);
-
-    // 3. Sinkronisasi instan via BroadcastChannel (antar-tab & antar-window)
+    // Sinkronisasi instan via BroadcastChannel (antar-tab & antar-window)
     const handleBroadcastMessage = (event: MessageEvent) => {
-      console.log('[Realtime Sync] Sinyal update diterima:', event.data);
-      loadData(true);
+      console.log('[Realtime Sync] Sinyal update diterima via BroadcastChannel:', event.data);
+      if (event.data?.type === 'all' && !isSyncingRef.current) {
+        loadData(true);
+      }
     };
 
     if (syncChannel) {
       syncChannel.addEventListener('message', handleBroadcastMessage);
     }
 
-    // 4. Fallback sinkronisasi via Storage Event jika BroadcastChannel tidak aktif
-    const handleStorageChange = (e: StorageEvent) => {
-      if (e.key === 'attaroqqy_sync_pulse') {
-        loadData(true);
-      }
-    };
-    window.addEventListener('storage', handleStorageChange);
-
     return () => {
       unsubscribeWsStatus();
       unsubscribeWsMessage();
-      clearInterval(pollInterval);
-      window.removeEventListener('focus', handleWindowFocus);
-      window.removeEventListener('online', handleWindowFocus);
       if (syncChannel) {
         syncChannel.removeEventListener('message', handleBroadcastMessage);
       }
-      window.removeEventListener('storage', handleStorageChange);
     };
   }, []);
 

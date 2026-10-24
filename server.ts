@@ -413,8 +413,8 @@ async function startServer() {
     }
   }
 
-  // Polling fallback deteksi perubahan database Hostinger setiap 3.5 detik
-  const remoteSyncPoller = setInterval(checkRemoteDatabaseSync, 3500);
+  // Polling HTTP dinonaktifkan: Sinkronisasi data kini 100% menggunakan push event WebSocket secara realtime
+  // const remoteSyncPoller = setInterval(checkRemoteDatabaseSync, 3500);
 
   // Port resolution: Dev server must run on port 3000
   let port = 3000;

@@ -8,8 +8,8 @@
 
 export interface WsMessage {
   type: 'CONNECTED' | 'DATA_CHANGED' | 'REMOTE_DATA_CHANGED' | 'PONG' | 'SYNC_PULSE';
-  entity?: 'alumni' | 'events' | 'announcements' | 'comments' | 'attendance' | 'all';
-  action?: 'create' | 'update' | 'delete' | 'refresh' | 'rsvp' | 'scan' | 'sync';
+  entity?: 'alumni' | 'events' | 'announcements' | 'comments' | 'attendance' | 'admin' | 'all';
+  action?: 'create' | 'update' | 'delete' | 'refresh' | 'rsvp' | 'scan' | 'sync' | 'save' | 'save_user' | 'delete_user';
   id?: string;
   data?: any;
   timestamp?: number;
@@ -242,7 +242,7 @@ class WebSocketClientService {
    * agar aplikasi lama seketika mengalir dan ikut berubah tanpa menunggu atau reload.
    */
   public sendMutation(
-    entity: 'alumni' | 'events' | 'announcements' | 'comments' | 'attendance',
+    entity: 'alumni' | 'events' | 'announcements' | 'comments' | 'attendance' | 'admin' | 'all',
     action: string,
     data?: any,
     id?: string
