@@ -189,20 +189,19 @@ export const AlumniProfileCardModal: React.FC<AlumniProfileCardModalProps> = ({
           }`}
           title={displayAlumni.coverPhotoUrl ? 'Klik untuk melihat foto sampul layar penuh' : undefined}
         >
-          {displayAlumni.coverPhotoUrl ? (
+          <div data-img-fallback className="absolute inset-0 opacity-80 mix-blend-overlay pointer-events-none">
+            <svg viewBox="0 0 400 200" className="w-full h-full object-cover">
+              <path d="M0,80 Q90,30 180,60 T360,40 Q400,60 400,100 L400,200 L0,200 Z" fill="#ffffff" opacity="0.6" />
+              <path d="M0,120 Q120,70 240,110 T400,90 L400,200 L0,200 Z" fill="#ffffff" opacity="0.8" />
+            </svg>
+          </div>
+          {displayAlumni.coverPhotoUrl && (
             <img 
               src={getAlumniPhotoUrl(displayAlumni.coverPhotoUrl)} 
               onError={handleImageFallbackError}
               alt="Foto Sampul" 
-              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
+              className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 z-10" 
             />
-          ) : (
-            <div className="absolute inset-0 opacity-80 mix-blend-overlay pointer-events-none">
-              <svg viewBox="0 0 400 200" className="w-full h-full object-cover">
-                <path d="M0,80 Q90,30 180,60 T360,40 Q400,60 400,100 L400,200 L0,200 Z" fill="#ffffff" opacity="0.6" />
-                <path d="M0,120 Q120,70 240,110 T400,90 L400,200 L0,200 Z" fill="#ffffff" opacity="0.8" />
-              </svg>
-            </div>
           )}
 
           {/* Close button X on top right */}

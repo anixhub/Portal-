@@ -79,7 +79,7 @@ import {
 import { formatAuthorUsername, resolveAuthorAlumniRecord, resolvePostAuthorAvatar } from '../utils/authorUtils';
 import { shareMediaWithCaption } from '../utils/shareUtils';
 import { useBackHandler } from '../utils/navigationHistory';
-import { getAlumniPhotoUrl, handleImageFallbackError } from '../utils/photoUtils';
+import { getAlumniPhotoUrl, handleImageFallbackError, getInitials } from '../utils/photoUtils';
 import { QuranView } from './QuranView';
 import { MaulidView } from './MaulidView';
 import { DzikirView } from './DzikirView';
@@ -1812,31 +1812,33 @@ export const AdminView: React.FC<AdminViewProps> = ({
         {activeTab === 'profile' && (
           <div className="bg-[#f0f2fb] min-h-full flex flex-col animate-in fade-in duration-150">
             {/* FOTO SAMPUL / COVER PHOTO - UKURAN PENUH SAMA DENGAN AKUN BIASA */}
+            {/* FOTO SAMPUL ADMIN */}
             <div 
               onClick={() => setIsCoverBottomSheetOpen(true)}
               className="relative w-full h-52 sm:h-60 overflow-hidden cursor-pointer group select-none shrink-0 bg-[#0369a1]"
               title="Klik foto sampul untuk opsi foto"
             >
-              {adminUser.coverPhotoUrl ? (
+              <div 
+                data-img-fallback
+                className="absolute inset-0 w-full h-full overflow-hidden transition-all duration-300"
+                style={{
+                  background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 60%, #075985 100%)',
+                }}
+              >
+                <div className="absolute inset-0 droplet-pattern opacity-15 pointer-events-none" />
+                <div className="absolute -top-10 -right-10 w-44 h-44 bg-sky-300/25 rounded-full blur-2xl pointer-events-none" />
+                <div className="absolute -bottom-8 -left-8 w-36 h-36 bg-amber-300/20 rounded-full blur-xl pointer-events-none" />
+              </div>
+
+              {adminUser.coverPhotoUrl && (
                 <img
                   src={getAlumniPhotoUrl(adminUser.coverPhotoUrl)}
                   onError={handleImageFallbackError}
                   alt="Foto Sampul Admin"
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                  className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 z-10"
                 />
-              ) : (
-                <div 
-                  className="w-full h-full relative overflow-hidden transition-all duration-300"
-                  style={{
-                    background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 60%, #075985 100%)',
-                  }}
-                >
-                  <div className="absolute inset-0 droplet-pattern opacity-15 pointer-events-none" />
-                  <div className="absolute -top-10 -right-10 w-44 h-44 bg-sky-300/25 rounded-full blur-2xl pointer-events-none" />
-                  <div className="absolute -bottom-8 -left-8 w-36 h-36 bg-amber-300/20 rounded-full blur-xl pointer-events-none" />
-                </div>
               )}
-              <div className="absolute inset-0 bg-gradient-to-b from-black/25 via-transparent to-black/35 pointer-events-none" />
+              <div className="absolute inset-0 bg-gradient-to-b from-black/25 via-transparent to-black/35 pointer-events-none z-20" />
 
               {/* Badge Ikon Kamera Foto Sampul (di sebelah kanan) */}
               <button
@@ -1870,20 +1872,22 @@ export const AdminView: React.FC<AdminViewProps> = ({
                   <button
                     type="button"
                     onClick={() => setShowFullscreenAvatar(true)}
-                    className="w-22 h-22 sm:w-24 sm:h-24 rounded-full ring-4 ring-white shadow-lg overflow-hidden bg-slate-200 flex items-center justify-center cursor-pointer group transition-transform active:scale-95"
+                    className="w-22 h-22 sm:w-24 sm:h-24 rounded-full ring-4 ring-white shadow-lg overflow-hidden bg-slate-200 flex items-center justify-center cursor-pointer group transition-transform active:scale-95 relative"
                     title="Lihat foto profil penuh"
                   >
-                    {adminUser.avatar ? (
+                    <div 
+                      data-img-fallback
+                      className="w-full h-full bg-gradient-to-tr from-sky-600 to-indigo-700 text-white font-bold text-3xl flex items-center justify-center select-none"
+                    >
+                      {getInitials(adminUser.name)}
+                    </div>
+                    {adminUser.avatar && (
                       <img
                         src={getAlumniPhotoUrl(adminUser.avatar)}
                         onError={handleImageFallbackError}
                         alt={adminUser.name}
-                        className="w-full h-full object-cover"
+                        className="absolute inset-0 w-full h-full object-cover z-10"
                       />
-                    ) : (
-                      <div className="w-full h-full bg-gradient-to-tr from-sky-600 to-indigo-700 text-white font-bold text-3xl flex items-center justify-center">
-                        {adminUser.name.charAt(0)}
-                      </div>
                     )}
                   </button>
 

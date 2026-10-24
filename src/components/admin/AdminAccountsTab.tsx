@@ -17,8 +17,8 @@ import {
   X,
 } from 'lucide-react';
 import { AdminUser, AdminRegionLevel } from '../../types';
-import { canAdminManage, formatAdminAuthorityLabel } from '../../utils/adminAuthorityUtils';
-import { getAlumniPhotoUrl, handleImageFallbackError } from '../../utils/photoUtils';
+import { canAdminManage } from '../../utils/adminAuthorityUtils';
+import { getAlumniPhotoUrl, handleImageFallbackError, getInitials } from '../../utils/photoUtils';
 import { AdminAccountEditModal } from './AdminAccountEditModal';
 
 interface AdminAccountsTabProps {
@@ -138,18 +138,20 @@ export const AdminAccountsTab: React.FC<AdminAccountsTabProps> = ({
               {/* Header Kartu: Avatar, Nama, Username */}
               <div className="flex items-center justify-between gap-3">
                 <div className="flex items-center gap-3 min-w-0">
-                  <div className="relative shrink-0">
-                    <img
-                      src={
-                        getAlumniPhotoUrl(adm.avatar) ||
-                        'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=256'
-                      }
-                      onError={handleImageFallbackError}
-                      alt={adm.name}
-                      className="w-11 h-11 rounded-2xl object-cover border border-slate-200"
-                    />
+                  <div className="relative shrink-0 w-11 h-11 rounded-2xl overflow-hidden border border-slate-200 bg-sky-100">
+                    <div className="w-full h-full flex items-center justify-center font-bold text-sm text-sky-700 bg-sky-50 select-none">
+                      {getInitials(adm.name)}
+                    </div>
+                    {adm.avatar && (
+                      <img
+                        src={getAlumniPhotoUrl(adm.avatar)}
+                        onError={handleImageFallbackError}
+                        alt={adm.name}
+                        className="absolute inset-0 w-full h-full rounded-2xl object-cover z-10"
+                      />
+                    )}
                     {admLevel === 'pusat' && (
-                      <span className="absolute -bottom-1 -right-1 w-4 h-4 bg-amber-500 text-white rounded-full flex items-center justify-center text-[9px] shadow-xs font-bold" title="Admin Pusat">
+                      <span className="absolute -bottom-0.5 -right-0.5 w-4 h-4 bg-amber-500 text-white rounded-full flex items-center justify-center text-[9px] shadow-xs font-bold z-20" title="Admin Pusat">
                         ★
                       </span>
                     )}

@@ -493,6 +493,85 @@ async function startServer() {
     }
   });
 
+  const saveBase64Image = (base64Data: any, prefixOrName = 'photo'): string => {
+    if (!base64Data || typeof base64Data !== 'string') return base64Data;
+    if (!base64Data.startsWith('data:image/')) return base64Data;
+
+    try {
+      const match = base64Data.match(/^data:image\/([a-zA-Z0-9]+);base64,(.+)$/);
+      if (!match) return base64Data;
+
+      let ext = match[1].toLowerCase();
+      if (ext === 'jpeg') ext = 'jpg';
+      const buffer = Buffer.from(match[2], 'base64');
+
+      const uploadDir = path.resolve(__dirname, 'public/uploads/pas_foto');
+      if (!fs.existsSync(uploadDir)) {
+        fs.mkdirSync(uploadDir, { recursive: true });
+      }
+
+      let filename = '';
+      if (prefixOrName.includes('.')) {
+        filename = prefixOrName.replace(/[^a-zA-Z0-9_.-]/g, '_');
+      } else {
+        filename = `${prefixOrName}_${Date.now()}_${Math.random().toString(36).substring(2, 7)}.${ext}`;
+      }
+
+      const filePath = path.join(uploadDir, filename);
+      fs.writeFileSync(filePath, buffer);
+
+      return `/uploads/pas_foto/${filename}`;
+    } catch (err) {
+      console.error('[Server] Failed to save base64 image to disk:', err);
+      return base64Data;
+    }
+  };
+
+  const deleteLocalPhysicalFile = (fileUrlOrPath?: string) => {
+    if (!fileUrlOrPath || typeof fileUrlOrPath !== 'string') return;
+    let trimmed = fileUrlOrPath.trim();
+    if (trimmed.startsWith('data:')) return;
+    if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+      try {
+        const u = new URL(trimmed);
+        if (!u.pathname.includes('/uploads/')) return;
+        trimmed = u.pathname;
+      } catch {
+        return;
+      }
+    }
+
+    const filename = path.basename(trimmed);
+    if (!filename || filename === '.' || filename === '..') return;
+
+    const uploadDir = path.resolve(__dirname, 'public/uploads/pas_foto');
+    const targetPath = path.join(uploadDir, filename);
+    try {
+      if (fs.existsSync(targetPath)) {
+        fs.unlinkSync(targetPath);
+        console.log('[Server] Deleted physical media file:', filename);
+      }
+    } catch (err: any) {
+      console.warn('[Server] Error unlinking physical media file:', filename, err?.message);
+    }
+  };
+
+  const deleteMultipleLocalPhysicalFiles = (images?: any) => {
+    if (!images) return;
+    if (Array.isArray(images)) {
+      images.forEach(deleteLocalPhysicalFile);
+    } else if (typeof images === 'string') {
+      try {
+        const parsed = JSON.parse(images);
+        if (Array.isArray(parsed)) {
+          parsed.forEach(deleteLocalPhysicalFile);
+          return;
+        }
+      } catch {}
+      deleteLocalPhysicalFile(images);
+    }
+  };
+
   // Media / Photo Uploads Handler (/uploads & /api/uploads)
   // Memastikan gambar profil & cover selalu tampil di development maupun production
   const handleMediaUploadsRequest = async (req: express.Request, res: express.Response) => {
@@ -562,23 +641,36 @@ async function startServer() {
   app.use('/uploads', handleMediaUploadsRequest);
   app.use('/api/uploads', handleMediaUploadsRequest);
 
-  // Photo & Document Upload API Proxy to attaroqqy.com
+  // Photo & Document Upload API
+  // Menyimpan file base64 ke disk server lokal secara instan dan memproksikannya ke Hostinger
   app.post('/api/upload', async (req, res) => {
     try {
-      console.log('[Server] Proxying /api/upload to attaroqqy.com, fileName:', req.body?.fileName);
-      const remoteRes = await fetch('https://attaroqqy.com/api/upload', {
+      const { fileName, fileBase64 } = req.body || {};
+      console.log('[Server] Processing /api/upload, fileName:', fileName);
+
+      let localPath = '';
+      if (fileBase64 && typeof fileBase64 === 'string' && fileBase64.startsWith('data:image/')) {
+        const cleanName = (fileName || `upload_${Date.now()}.jpg`).replace(/[^a-zA-Z0-9_.-]/g, '_');
+        localPath = saveBase64Image(fileBase64, cleanName);
+      }
+
+      // Forward ke Hostinger di background
+      fetch('https://attaroqqy.com/api/upload', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Accept: 'application/json',
         },
         body: JSON.stringify(req.body),
-      });
+      }).catch(() => {});
 
-      const responseData = await remoteRes.json().catch(() => ({ success: remoteRes.ok }));
-      res.status(remoteRes.status).json(responseData);
+      if (localPath) {
+        return res.json({ success: true, path: localPath, publicUrl: localPath });
+      }
+
+      return res.json({ success: true, path: fileName || '', publicUrl: fileName || '' });
     } catch (err: any) {
-      console.warn('[Server] Error proxying /api/upload:', err?.message);
+      console.warn('[Server] Error handling /api/upload:', err?.message);
       res.status(500).json({ success: false, message: err?.message });
     }
   });
@@ -832,6 +924,23 @@ async function startServer() {
         normalizedPayload.hasLoggedIn = Boolean(payload.hasLoggedIn);
       }
 
+      // Simpan base64 foto profil santri/alumni ke file fisik lokal jika dikirim langsung
+      const incomingPhoto = payload.avatarUrl || payload.photoUrl || payload.file_pas_foto;
+      if (incomingPhoto && typeof incomingPhoto === 'string' && incomingPhoto.startsWith('data:image/')) {
+        const savedPhotoPath = saveBase64Image(incomingPhoto, `pas_foto_${id}`);
+        normalizedPayload.avatarUrl = savedPhotoPath;
+        normalizedPayload.photoUrl = savedPhotoPath;
+        normalizedPayload.file_pas_foto = savedPhotoPath;
+      }
+
+      // Simpan base64 foto sampul santri/alumni ke file fisik lokal jika dikirim langsung
+      const incomingCover = payload.coverPhotoUrl || payload.foto_sampul;
+      if (incomingCover && typeof incomingCover === 'string' && incomingCover.startsWith('data:image/')) {
+        const savedCoverPath = saveBase64Image(incomingCover, `sampul_${id}`);
+        normalizedPayload.coverPhotoUrl = savedCoverPath;
+        normalizedPayload.foto_sampul = savedCoverPath;
+      }
+
       // Hapus file fisik foto lama jika diganti atau dihapus
       if (localSnapshot && Array.isArray(localSnapshot.data)) {
         const existingSantri = localSnapshot.data.find(
@@ -839,16 +948,16 @@ async function startServer() {
         );
         if (existingSantri) {
           if (payload.avatarUrl !== undefined || payload.photoUrl !== undefined || payload.file_pas_foto !== undefined) {
-            const newP = payload.avatarUrl || payload.photoUrl || payload.file_pas_foto;
+            const newP = normalizedPayload.avatarUrl || normalizedPayload.photoUrl || normalizedPayload.file_pas_foto;
             const oldP = existingSantri.file_pas_foto || existingSantri.photoUrl || existingSantri.avatarUrl;
-            if (oldP && oldP !== newP) {
+            if (oldP && oldP !== newP && !oldP.startsWith('data:')) {
               deleteLocalPhysicalFile(oldP);
             }
           }
           if (payload.coverPhotoUrl !== undefined || payload.foto_sampul !== undefined) {
-            const newC = payload.coverPhotoUrl || payload.foto_sampul;
+            const newC = normalizedPayload.coverPhotoUrl || normalizedPayload.foto_sampul;
             const oldC = existingSantri.coverPhotoUrl || existingSantri.foto_sampul;
-            if (oldC && oldC !== newC) {
+            if (oldC && oldC !== newC && !oldC.startsWith('data:')) {
               deleteLocalPhysicalFile(oldC);
             }
           }
@@ -966,6 +1075,21 @@ async function startServer() {
       const newRecord = { ...req.body };
       if (!newRecord.id) {
         newRecord.id = `alm-${Date.now()}`;
+      }
+
+      if (newRecord.photoUrl && typeof newRecord.photoUrl === 'string' && newRecord.photoUrl.startsWith('data:image/')) {
+        newRecord.photoUrl = saveBase64Image(newRecord.photoUrl, `pas_foto_${newRecord.id}`);
+        newRecord.avatarUrl = newRecord.photoUrl;
+        newRecord.file_pas_foto = newRecord.photoUrl;
+      }
+      if (newRecord.file_pas_foto && typeof newRecord.file_pas_foto === 'string' && newRecord.file_pas_foto.startsWith('data:image/')) {
+        newRecord.file_pas_foto = saveBase64Image(newRecord.file_pas_foto, `pas_foto_${newRecord.id}`);
+        newRecord.photoUrl = newRecord.file_pas_foto;
+        newRecord.avatarUrl = newRecord.file_pas_foto;
+      }
+      if (newRecord.coverPhotoUrl && typeof newRecord.coverPhotoUrl === 'string' && newRecord.coverPhotoUrl.startsWith('data:image/')) {
+        newRecord.coverPhotoUrl = saveBase64Image(newRecord.coverPhotoUrl, `sampul_${newRecord.id}`);
+        newRecord.foto_sampul = newRecord.coverPhotoUrl;
       }
 
       if (localSnapshot && Array.isArray(localSnapshot.data)) {
@@ -1128,79 +1252,6 @@ async function startServer() {
       fs.writeFileSync(filePath, JSON.stringify(data, null, 2), 'utf-8');
     } catch (e) {
       console.warn('[Server] Error writing store:', filePath, e);
-    }
-  };
-
-  const saveBase64Image = (base64Data: any, prefix = 'photo'): string => {
-    if (!base64Data || typeof base64Data !== 'string') return base64Data;
-    if (!base64Data.startsWith('data:image/')) return base64Data;
-
-    try {
-      const match = base64Data.match(/^data:image\/([a-zA-Z0-9]+);base64,(.+)$/);
-      if (!match) return base64Data;
-
-      let ext = match[1].toLowerCase();
-      if (ext === 'jpeg') ext = 'jpg';
-      const buffer = Buffer.from(match[2], 'base64');
-
-      const uploadDir = path.resolve(__dirname, 'public/uploads/pas_foto');
-      if (!fs.existsSync(uploadDir)) {
-        fs.mkdirSync(uploadDir, { recursive: true });
-      }
-
-      const filename = `${prefix}_${Date.now()}_${Math.random().toString(36).substring(2, 7)}.${ext}`;
-      const filePath = path.join(uploadDir, filename);
-      fs.writeFileSync(filePath, buffer);
-
-      return `/uploads/pas_foto/${filename}`;
-    } catch (err) {
-      console.error('[Server] Failed to save base64 image to disk:', err);
-      return base64Data;
-    }
-  };
-
-  const deleteLocalPhysicalFile = (fileUrlOrPath?: string) => {
-    if (!fileUrlOrPath || typeof fileUrlOrPath !== 'string') return;
-    let trimmed = fileUrlOrPath.trim();
-    if (trimmed.startsWith('data:')) return;
-    if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
-      try {
-        const u = new URL(trimmed);
-        if (!u.pathname.includes('/uploads/')) return;
-        trimmed = u.pathname;
-      } catch {
-        return;
-      }
-    }
-
-    const filename = path.basename(trimmed);
-    if (!filename || filename === '.' || filename === '..') return;
-
-    const uploadDir = path.resolve(__dirname, 'public/uploads/pas_foto');
-    const targetPath = path.join(uploadDir, filename);
-    try {
-      if (fs.existsSync(targetPath)) {
-        fs.unlinkSync(targetPath);
-        console.log('[Server] Deleted physical media file:', filename);
-      }
-    } catch (err: any) {
-      console.warn('[Server] Error unlinking physical media file:', filename, err?.message);
-    }
-  };
-
-  const deleteMultipleLocalPhysicalFiles = (images?: any) => {
-    if (!images) return;
-    if (Array.isArray(images)) {
-      images.forEach(deleteLocalPhysicalFile);
-    } else if (typeof images === 'string') {
-      try {
-        const parsed = JSON.parse(images);
-        if (Array.isArray(parsed)) {
-          parsed.forEach(deleteLocalPhysicalFile);
-          return;
-        }
-      } catch {}
-      deleteLocalPhysicalFile(images);
     }
   };
 
