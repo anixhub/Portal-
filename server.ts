@@ -2370,6 +2370,105 @@ async function startServer() {
     return res.status(500).json([]);
   });
 
+  // Wilayah API: Reverse Geocode helper (Multi-zoom dengan penanganan hierarki Indonesia: Provinsi, Kab/Kota, Kecamatan, Desa)
+  app.get('/api/wilayah/reverse-geocode', async (req, res) => {
+    const lat = parseFloat(req.query.lat as string);
+    const lng = parseFloat(req.query.lng as string);
+    if (isNaN(lat) || isNaN(lng)) {
+      return res.status(400).json({ error: 'Koordinat lat/lng tidak valid' });
+    }
+
+    const cacheKey = `rev_${lat.toFixed(4)}_${lng.toFixed(4)}`;
+    if (wilayahMemoryCache.has(cacheKey)) {
+      return res.json(wilayahMemoryCache.get(cacheKey));
+    }
+
+    try {
+      const headers = {
+        'User-Agent': 'AttaroqqyPortalAlumni/1.0 (admin@attaroqqy.com)',
+        'Accept-Language': 'id',
+      };
+
+      // Zoom 18: tingkat jalan, nomor rumah, desa / kelurahan
+      const res18 = await fetch(
+        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`,
+        { headers, signal: AbortSignal.timeout(6000) }
+      );
+      const d18 = res18.ok ? await res18.json() : null;
+      const a18 = d18?.address || {};
+
+      let prov = a18.state || a18.province || a18.region || '';
+      let reg = a18.county || (a18.city && !a18.county ? a18.city : '') || a18.state_district || a18.city || '';
+      let kec = a18.subdistrict || a18.district || a18.city_district || a18.town || a18.municipality || '';
+      let desa = a18.village || a18.suburb || a18.hamlet || a18.quarter || a18.neighbourhood || a18.locality || '';
+      let road = a18.road || a18.street || a18.pedestrian || a18.path || '';
+
+      // Jika kecamatan atau kabupaten belum lengkap, coba zoom 14 untuk kecamatan
+      if (!kec || !reg) {
+        try {
+          const res14 = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=14&addressdetails=1`,
+            { headers, signal: AbortSignal.timeout(4000) }
+          );
+          if (res14.ok) {
+            const d14 = await res14.json();
+            const a14 = d14?.address || {};
+            if (!prov) prov = a14.state || a14.province || '';
+            if (!reg) reg = a14.county || a14.city || a14.state_district || '';
+            if (!kec) kec = a14.town || a14.district || a14.city_district || a14.subdistrict || a14.municipality || '';
+            if (!desa) desa = a14.village || a14.suburb || a14.hamlet || '';
+          }
+        } catch (e) {}
+      }
+
+      // Jika kecamatan masih kosong, coba zoom 12
+      if (!kec) {
+        try {
+          const res12 = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=12&addressdetails=1`,
+            { headers, signal: AbortSignal.timeout(3000) }
+          );
+          if (res12.ok) {
+            const d12 = await res12.json();
+            const a12 = d12?.address || {};
+            if (!kec) kec = a12.town || a12.district || a12.city_district || a12.subdistrict || a12.municipality || '';
+          }
+        } catch (e) {}
+      }
+
+      // Deteksi tambahan khusus dataset lokal jika kabupaten Rembang dan desa diketahui tetapi kecamatan kosong
+      if (desa && !kec && rembangWilayahData?.villages) {
+        const cleanDesa = desa.trim().toLowerCase();
+        for (const [distId, vList] of Object.entries<any>(rembangWilayahData.villages)) {
+          if (Array.isArray(vList) && vList.some((v: any) => v.name?.toLowerCase() === cleanDesa)) {
+            const distObj = rembangWilayahData.districts?.find((d: any) => d.id === distId);
+            if (distObj) {
+              kec = distObj.name;
+              if (!reg) reg = 'KABUPATEN REMBANG';
+              if (!prov) prov = 'JAWA TENGAH';
+              break;
+            }
+          }
+        }
+      }
+
+      const result = {
+        state: prov,
+        city: reg,
+        subdistrict: kec,
+        village: desa,
+        road,
+        displayName: d18?.display_name || '',
+      };
+
+      wilayahMemoryCache.set(cacheKey, result);
+      return res.json(result);
+    } catch (err: any) {
+      console.warn('[Server] Error in reverse geocode:', err?.message);
+      return res.status(500).json({ error: 'Gagal reverse geocode lokasi' });
+    }
+  });
+
   // Serve static assets from public directory
   app.use(express.static(path.resolve(__dirname, 'public')));
 

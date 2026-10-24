@@ -568,3 +568,127 @@ export const fetchVillages = async (districtId: string): Promise<WilayahItem[]> 
     return fallback;
   }
 };
+
+export interface ReverseGeocodeResult {
+  state: string;
+  city: string;
+  subdistrict: string;
+  village: string;
+  road: string;
+  displayName: string;
+}
+
+export const reverseGeocodeLocation = async (lat: number, lng: number): Promise<ReverseGeocodeResult> => {
+  // 1. Coba lewat proxy internal server (/api/wilayah/reverse-geocode)
+  try {
+    const res = await fetch(`/api/wilayah/reverse-geocode?lat=${lat}&lng=${lng}`, {
+      signal: AbortSignal.timeout(6000),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data && (data.state || data.city || data.subdistrict || data.village)) {
+        return {
+          state: data.state || '',
+          city: data.city || '',
+          subdistrict: data.subdistrict || '',
+          village: data.village || '',
+          road: data.road || '',
+          displayName: data.displayName || '',
+        };
+      }
+    }
+  } catch (err) {
+    // Fallback ke direct client-side fetch jika server proxy offline
+  }
+
+  // 2. Direct client-side fetch multi-zoom ke Nominatim OpenStreetMap
+  const headers = { 'Accept-Language': 'id' };
+  let prov = '';
+  let reg = '';
+  let kec = '';
+  let desa = '';
+  let road = '';
+  let displayName = '';
+
+  try {
+    // Zoom 18: tingkat jalan, nomor rumah, desa / kelurahan
+    const res18 = await fetch(
+      `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`,
+      { headers, signal: AbortSignal.timeout(6000) }
+    );
+    if (res18.ok) {
+      const d18 = await res18.json();
+      displayName = d18?.display_name || '';
+      const a18 = d18?.address || {};
+      prov = a18.state || a18.province || a18.region || '';
+      reg = a18.county || (a18.city && !a18.county ? a18.city : '') || a18.state_district || a18.city || '';
+      kec = a18.subdistrict || a18.district || a18.city_district || a18.town || a18.municipality || '';
+      desa = a18.village || a18.suburb || a18.hamlet || a18.quarter || a18.neighbourhood || a18.locality || '';
+      road = a18.road || a18.street || a18.pedestrian || a18.path || '';
+    }
+  } catch (e) {
+    console.warn('Direct Nominatim z18 error:', e);
+  }
+
+  // Jika kecamatan atau kabupaten belum lengkap, coba zoom 14 untuk kecamatan
+  if (!kec || !reg) {
+    try {
+      const res14 = await fetch(
+        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=14&addressdetails=1`,
+        { headers, signal: AbortSignal.timeout(4000) }
+      );
+      if (res14.ok) {
+        const d14 = await res14.json();
+        const a14 = d14?.address || {};
+        if (!prov) prov = a14.state || a14.province || '';
+        if (!reg) reg = a14.county || a14.city || a14.state_district || '';
+        if (!kec) kec = a14.town || a14.district || a14.city_district || a14.subdistrict || a14.municipality || '';
+        if (!desa) desa = a14.village || a14.suburb || a14.hamlet || '';
+      }
+    } catch (e) {}
+  }
+
+  // Jika kecamatan masih kosong, coba zoom 12
+  if (!kec) {
+    try {
+      const res12 = await fetch(
+        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=12&addressdetails=1`,
+        { headers, signal: AbortSignal.timeout(3000) }
+      );
+      if (res12.ok) {
+        const d12 = await res12.json();
+        const a12 = d12?.address || {};
+        if (!kec) kec = a12.town || a12.district || a12.city_district || a12.subdistrict || a12.municipality || '';
+      }
+    } catch (e) {}
+  }
+
+  // Deteksi tambahan khusus jika kabupaten Rembang dan desa diketahui tetapi kecamatan belum terisi
+  if (desa && !kec) {
+    const cleanDesa = cleanWilayahName(desa);
+    for (const [distId, vList] of Object.entries(FALLBACK_VILLAGES)) {
+      if (vList.some(v => cleanWilayahName(v.name) === cleanDesa)) {
+        // Cari nama kecamatan dari FALLBACK_DISTRICTS
+        for (const dList of Object.values(FALLBACK_DISTRICTS)) {
+          const matchedD = dList.find(d => d.id === distId);
+          if (matchedD) {
+            kec = matchedD.name;
+            if (!reg) reg = 'KABUPATEN REMBANG';
+            if (!prov) prov = 'JAWA TENGAH';
+            break;
+          }
+        }
+        if (kec) break;
+      }
+    }
+  }
+
+  return {
+    state: prov,
+    city: reg,
+    subdistrict: kec,
+    village: desa,
+    road,
+    displayName,
+  };
+};

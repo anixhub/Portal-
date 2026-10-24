@@ -84,5 +84,35 @@
       "villageName": null
     },
     "notAttendingCount": 0
+  },
+  {
+    "id": "ev-1792805318332",
+    "title": "Ngaji",
+    "date": "20-12-2026",
+    "time": "08.00 - 15.00 WIB",
+    "location": "attaroqqy",
+    "category": "reuni",
+    "description": "Ngaosssss",
+    "attendeesCount": 0,
+    "absentCount": 0,
+    "posterUrl": "/uploads/pas_foto/event_poster_1792805327955_627d8.jpg",
+    "images": [
+      "/uploads/pas_foto/event_img_1792805327958_33902.jpg",
+      "/uploads/pas_foto/event_img_1792805327960_e3360.jpg",
+      "/uploads/pas_foto/event_img_1792805327963_afb28.jpg"
+    ],
+    "authorName": "Adminios",
+    "authorHandle": "@admin_pusat",
+    "authorAvatar": "/uploads/pas_foto/adminAvatar_1792794860836_4f1c2.jpg",
+    "postedAt": "Baru saja",
+    "targetAudience": {
+      "gender": "semua",
+      "regionScope": "khusus",
+      "provinceName": "Jawa Timur",
+      "regencyName": null,
+      "districtName": null,
+      "villageName": null
+    },
+    "notAttendingCount": 0
   }
 ]

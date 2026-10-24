@@ -25,7 +25,8 @@ import {
   FALLBACK_PROVINCES,
   FALLBACK_REGENCIES,
   FALLBACK_DISTRICTS,
-  FALLBACK_VILLAGES
+  FALLBACK_VILLAGES,
+  reverseGeocodeLocation
 } from '../../services/wilayahService';
 import { 
   FullscreenLocationMapModal, 
@@ -610,10 +611,224 @@ export const WilayahAddressFilter: React.FC<WilayahAddressFilterProps> = ({
     return n.includes(q) || q.includes(n);
   });
 
+  // Helper untuk membersihkan semua kolom terlebih dahulu kemudian mengisi dari provinsi sampai desa & tag lokasi
+  const applyLocationAndHierarchy = async (
+    coords: LocationCoordinates,
+    incomingHint?: DetectedAddressHint | null,
+    onStatusChange?: (status: string) => void
+  ) => {
+    // 1. Sesuai permintaan pengguna: semua kolom otomatis dikosongkan/dihapus dulu sebelum mengisi data baru
+    setSelectedProvId('');
+    setSelectedRegId('');
+    setSelectedDistId('');
+    setRegenciesList([]);
+    setDistrictsList([]);
+    setVillagesList([]);
+    setActiveDropdown(null);
+    setIsTypingField(null);
+
+    onChange({
+      province: '',
+      city: '',
+      kecamatan: '',
+      desa: '',
+      alamatLengkap: '',
+      coordinates: undefined,
+    });
+
+    onStatusChange?.('Mendeteksi nama wilayah & hierarki...');
+
+    // 2. Dapatkan data wilayah lengkap dari reverse geocoding multi-zoom
+    let hint = incomingHint;
+    if (!hint || (!hint.subdistrict && !hint.village) || !hint.city) {
+      try {
+        const fresh = await reverseGeocodeLocation(coords.lat, coords.lng);
+        hint = {
+          state: fresh.state || hint?.state || '',
+          city: fresh.city || hint?.city || '',
+          subdistrict: fresh.subdistrict || hint?.subdistrict || '',
+          village: fresh.village || hint?.village || '',
+          road: fresh.road || hint?.road || '',
+          displayName: fresh.displayName || hint?.displayName || '',
+        };
+      } catch (e) {
+        console.warn('Reverse geocode error:', e);
+      }
+    }
+
+    onStatusChange?.('Menyesuaikan data provinsi & kabupaten...');
+
+    // 3. Resolusi Provinsi
+    let provs = provincesList;
+    if (provs.length === 0) {
+      provs = await fetchProvinces().catch(() => FALLBACK_PROVINCES);
+      setProvincesList(provs);
+    }
+
+    let matchedProv: WilayahItem | undefined;
+    const cleanHintState = cleanWilayahName(normalizeProvinceName(hint?.state || ''));
+
+    if (cleanHintState) {
+      matchedProv = provs.find((p) => {
+        const cleanP = cleanWilayahName(p.name);
+        return cleanP === cleanHintState || cleanHintState.includes(cleanP) || cleanP.includes(cleanHintState);
+      });
+    }
+
+    // Jika provinsi belum cocok, cari berdasarkan kota di FALLBACK_REGENCIES
+    if (!matchedProv && hint?.city) {
+      const cleanCity = cleanWilayahName(hint.city);
+      for (const [pId, regList] of Object.entries(FALLBACK_REGENCIES)) {
+        if (regList.some((r) => {
+          const c = cleanWilayahName(r.name);
+          return c === cleanCity || cleanCity.includes(c) || c.includes(cleanCity);
+        })) {
+          matchedProv = provs.find((p) => p.id === pId);
+          break;
+        }
+      }
+    }
+
+    // Fallback default provinsi Jawa Timur (35) jika masih belum terdeteksi
+    if (!matchedProv) {
+      matchedProv = provs.find((p) => p.name.includes('JAWA TIMUR') || p.id === '35') || provs[0];
+    }
+
+    let targetProvName = matchedProv ? formatWilayahName(matchedProv.name) : (hint?.state || 'Jawa Timur');
+    let targetCityName = '';
+    let targetKecName = '';
+    let targetDesaName = '';
+
+    let matchedReg: WilayahItem | undefined;
+    let matchedDist: WilayahItem | undefined;
+    let matchedVill: WilayahItem | undefined;
+
+    let regList: WilayahItem[] = [];
+    let distList: WilayahItem[] = [];
+    let villList: WilayahItem[] = [];
+
+    // 4. Resolusi Kabupaten / Kota
+    if (matchedProv) {
+      setSelectedProvId(matchedProv.id);
+      regList = await fetchRegencies(matchedProv.id).catch(() => []);
+      if (regList.length === 0 && FALLBACK_REGENCIES[matchedProv.id]) {
+        regList = FALLBACK_REGENCIES[matchedProv.id];
+      }
+      setRegenciesList(regList);
+
+      if (hint?.city) {
+        const cleanHintCity = cleanWilayahName(hint.city);
+        matchedReg = regList.find((r) => {
+          const cleanR = cleanWilayahName(r.name);
+          return cleanR === cleanHintCity || cleanHintCity.includes(cleanR) || cleanR.includes(cleanHintCity);
+        });
+      }
+
+      // Jika belum cocok, cari substring dari display name
+      if (!matchedReg && hint?.displayName) {
+        const cleanDisp = cleanWilayahName(hint.displayName);
+        matchedReg = regList.find((r) => cleanDisp.includes(cleanWilayahName(r.name)));
+      }
+
+      if (matchedReg) {
+        setSelectedRegId(matchedReg.id);
+        targetCityName = formatWilayahName(matchedReg.name);
+        distList = await fetchDistricts(matchedReg.id).catch(() => []);
+        if (distList.length === 0 && FALLBACK_DISTRICTS[matchedReg.id]) {
+          distList = FALLBACK_DISTRICTS[matchedReg.id];
+        }
+        setDistrictsList(distList);
+      } else if (hint?.city) {
+        targetCityName = formatWilayahName(hint.city);
+      }
+    }
+
+    onStatusChange?.('Menyesuaikan kecamatan & desa...');
+
+    // 5. Resolusi Kecamatan
+    if (distList.length > 0) {
+      // 5a. Cocokkan dengan hint subdistrict/kecamatan
+      if (hint?.subdistrict) {
+        const cleanHintDist = cleanWilayahName(hint.subdistrict);
+        matchedDist = distList.find((d) => {
+          const cleanD = cleanWilayahName(d.name);
+          return cleanD === cleanHintDist || cleanHintDist.includes(cleanD) || cleanD.includes(cleanHintDist);
+        });
+      }
+
+      // 5b. Jika kecamatan belum cocok dari nama kecamatan, cari kecamatan mana yang memiliki desa ini!
+      if (!matchedDist && hint?.village) {
+        const cleanHintVill = cleanWilayahName(hint.village);
+        // Cek FALLBACK_VILLAGES
+        for (const d of distList) {
+          const vList = FALLBACK_VILLAGES[d.id] || [];
+          if (vList.some((v) => cleanWilayahName(v.name) === cleanHintVill || cleanWilayahName(v.name).includes(cleanHintVill))) {
+            matchedDist = d;
+            break;
+          }
+        }
+      }
+
+      // 5c. Cek substring dari display name jika masih belum cocok
+      if (!matchedDist && hint?.displayName) {
+        const cleanDisp = cleanWilayahName(hint.displayName);
+        matchedDist = distList.find((d) => cleanDisp.includes(cleanWilayahName(d.name)));
+      }
+
+      if (matchedDist) {
+        setSelectedDistId(matchedDist.id);
+        targetKecName = formatWilayahName(matchedDist.name);
+        villList = await fetchVillages(matchedDist.id).catch(() => []);
+        if (villList.length === 0 && FALLBACK_VILLAGES[matchedDist.id]) {
+          villList = FALLBACK_VILLAGES[matchedDist.id];
+        }
+        setVillagesList(villList);
+      } else if (hint?.subdistrict) {
+        targetKecName = formatWilayahName(hint.subdistrict);
+      }
+    } else if (hint?.subdistrict) {
+      targetKecName = formatWilayahName(hint.subdistrict);
+    }
+
+    // 6. Resolusi Desa / Kelurahan
+    if (villList.length > 0 && hint?.village) {
+      const cleanHintVill = cleanWilayahName(hint.village);
+      matchedVill = villList.find((v) => {
+        const cleanV = cleanWilayahName(v.name);
+        return cleanV === cleanHintVill || cleanHintVill.includes(cleanV) || cleanV.includes(cleanHintVill);
+      });
+    }
+
+    if (matchedVill) {
+      targetDesaName = formatWilayahName(matchedVill.name);
+    } else if (hint?.village) {
+      targetDesaName = formatWilayahName(hint.village);
+    } else if (villList.length === 1) {
+      targetDesaName = formatWilayahName(villList[0].name);
+    }
+
+    // 7. Detail Jalan & Tag Lokasi
+    const targetRoad = hint?.road || (hint?.displayName ? hint.displayName.split(',')[0] : '');
+    const finalAlamat = targetRoad ? formatWilayahName(targetRoad) : '';
+
+    setCachedCenter(coords);
+
+    // 8. Isi semua kolom dari provinsi, kab/kota, kecamatan, desa, alamat lengkap, dan tag lokasi
+    onChange({
+      province: targetProvName,
+      city: targetCityName,
+      kecamatan: targetKecName,
+      desa: targetDesaName,
+      alamatLengkap: finalAlamat,
+      coordinates: coords,
+    });
+  };
+
   // Handle location selected from fullscreen interactive map
-  const handleLocationPicked = (coords: LocationCoordinates | null, hint?: DetectedAddressHint) => {
+  const handleLocationPicked = async (coords: LocationCoordinates | null, hint?: DetectedAddressHint) => {
     setCachedCenter(coords);
     if (!coords) {
+      // Hapus titik lokasi
       onChange({
         province,
         city,
@@ -625,21 +840,8 @@ export const WilayahAddressFilter: React.FC<WilayahAddressFilterProps> = ({
       return;
     }
 
-    // If the detected hint provides details and current fields are empty, fill or update them smoothly
-    const updatedProv = province || hint?.state || '';
-    const updatedCity = city || hint?.city || '';
-    const updatedKec = kecamatan || hint?.subdistrict || '';
-    const updatedDesa = desa || hint?.village || '';
-    const updatedAlamat = alamatLengkap || hint?.road || hint?.displayName || '';
-
-    onChange({
-      province: updatedProv,
-      city: updatedCity,
-      kecamatan: updatedKec,
-      desa: updatedDesa,
-      alamatLengkap: updatedAlamat,
-      coordinates: coords,
-    });
+    // Sesuai permintaan pengguna: hapus semua kolom dahulu lalu isi dari provinsi sampai desa & tag lokasi
+    await applyLocationAndHierarchy(coords, hint);
   };
 
   const [isDetectingLocation, setIsDetectingLocation] = useState(false);
@@ -658,151 +860,11 @@ export const WilayahAddressFilter: React.FC<WilayahAddressFilterProps> = ({
         try {
           const lat = pos.coords.latitude;
           const lng = pos.coords.longitude;
-          setDetectStatus('Mendeteksi nama wilayah...');
+          const coords = { lat, lng };
 
-          let hint: any = null;
-          try {
-            const res = await fetch(
-              `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`,
-              {
-                headers: { 'Accept-Language': 'id' },
-                signal: AbortSignal.timeout(8000),
-              }
-            );
-            if (res.ok) {
-              const data = await res.json();
-              if (data && data.address) {
-                const a = data.address;
-                hint = {
-                  state: a.state || a.province || a.region || '',
-                  city: a.city || a.county || a.municipality || a.town || '',
-                  subdistrict: a.city_district || a.subdistrict || a.district || '',
-                  village: a.village || a.suburb || a.quarter || a.neighbourhood || '',
-                  road: a.road || a.street || '',
-                  displayName: data.display_name || '',
-                };
-              }
-            }
-          } catch (e) {
-            console.warn('Nominatim reverse error:', e);
-          }
+          await applyLocationAndHierarchy(coords, null, (st) => setDetectStatus(st));
 
-          if (!hint) {
-            try {
-              const bdcRes = await fetch(
-                `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lng}&localityLanguage=id`,
-                { signal: AbortSignal.timeout(6000) }
-              );
-              if (bdcRes.ok) {
-                const bdc = await bdcRes.json();
-                hint = {
-                  state: bdc.principalSubdivision || '',
-                  city: bdc.city || bdc.locality || '',
-                  subdistrict: bdc.localityInfo?.administrative?.[3]?.name || '',
-                  village: bdc.localityInfo?.administrative?.[4]?.name || '',
-                  road: '',
-                  displayName: '',
-                };
-              }
-            } catch (e) {}
-          }
-
-          setDetectStatus('Menyesuaikan data dropdown...');
-
-          let provs = provincesList;
-          if (provs.length === 0) {
-            provs = await fetchProvinces().catch(() => FALLBACK_PROVINCES);
-            setProvincesList(provs);
-          }
-
-          let matchedProv = provs.find((p) => {
-            const cleanP = cleanWilayahName(p.name);
-            const cleanHintState = cleanWilayahName(hint?.state || '');
-            return cleanP === cleanHintState || cleanHintState.includes(cleanP) || cleanP.includes(cleanHintState);
-          });
-          if (!matchedProv) {
-            matchedProv = provs.find((p) => p.name.includes('JAWA TIMUR') || p.id === '35');
-          }
-
-          let matchedReg: WilayahItem | undefined;
-          let matchedDist: WilayahItem | undefined;
-          let matchedVill: WilayahItem | undefined;
-
-          let targetCityName = '';
-          let targetKecName = '';
-          let targetDesaName = '';
-
-          if (matchedProv) {
-            setSelectedProvId(matchedProv.id);
-            const regList = await fetchRegencies(matchedProv.id).catch(() => []);
-            setRegenciesList(regList);
-
-            if (hint?.city) {
-              const cleanHintCity = cleanWilayahName(hint.city);
-              matchedReg = regList.find((r) => {
-                const cleanR = cleanWilayahName(r.name);
-                return cleanR === cleanHintCity || cleanHintCity.includes(cleanR) || cleanR.includes(cleanHintCity);
-              });
-            }
-
-            if (matchedReg) {
-              setSelectedRegId(matchedReg.id);
-              targetCityName = formatWilayahName(matchedReg.name);
-              const distList = await fetchDistricts(matchedReg.id).catch(() => []);
-              setDistrictsList(distList);
-
-              if (hint?.subdistrict) {
-                const cleanHintDist = cleanWilayahName(hint.subdistrict);
-                matchedDist = distList.find((d) => {
-                  const cleanD = cleanWilayahName(d.name);
-                  return cleanD === cleanHintDist || cleanHintDist.includes(cleanD) || cleanD.includes(cleanHintDist);
-                });
-              }
-
-              if (matchedDist) {
-                setSelectedDistId(matchedDist.id);
-                targetKecName = formatWilayahName(matchedDist.name);
-                const villList = await fetchVillages(matchedDist.id).catch(() => []);
-                setVillagesList(villList);
-
-                if (hint?.village) {
-                  const cleanHintVill = cleanWilayahName(hint.village);
-                  matchedVill = villList.find((v) => {
-                    const cleanV = cleanWilayahName(v.name);
-                    return cleanV === cleanHintVill || cleanHintVill.includes(cleanV) || cleanV.includes(cleanHintVill);
-                  });
-                }
-
-                if (matchedVill) {
-                  targetDesaName = formatWilayahName(matchedVill.name);
-                } else if (hint?.village) {
-                  targetDesaName = hint.village;
-                }
-              } else if (hint?.subdistrict) {
-                targetKecName = hint.subdistrict;
-                if (hint?.village) targetDesaName = hint.village;
-              }
-            } else if (hint?.city) {
-              targetCityName = hint.city;
-              if (hint?.subdistrict) targetKecName = hint.subdistrict;
-              if (hint?.village) targetDesaName = hint.village;
-            }
-          }
-
-          const targetProvName = matchedProv ? formatWilayahName(matchedProv.name) : (hint?.state || 'Jawa Timur');
-          const targetRoad = hint?.road || (hint?.displayName ? hint.displayName.split(',')[0] : '');
-          const finalAlamat = targetRoad ? `${targetRoad}${alamatLengkap ? ` (${alamatLengkap})` : ''}` : alamatLengkap;
-
-          onChange({
-            province: targetProvName,
-            city: targetCityName || city,
-            kecamatan: targetKecName || kecamatan,
-            desa: targetDesaName || desa,
-            alamatLengkap: finalAlamat,
-            coordinates: { lat, lng },
-          });
-
-          setDetectStatus('Wilayah berhasil dipilih!');
+          setDetectStatus('Alamat lengkap berhasil diisi sampai desa!');
           setTimeout(() => {
             setDetectStatus(null);
             setIsDetectingLocation(false);

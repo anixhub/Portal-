@@ -12,6 +12,7 @@ import {
   Trash2
 } from 'lucide-react';
 import L from 'leaflet';
+import { reverseGeocodeLocation } from '../../services/wilayahService';
 
 export interface LocationCoordinates {
   lat: number;
@@ -296,28 +297,10 @@ export const FullscreenLocationMapModal: React.FC<FullscreenLocationMapModalProp
     let isMounted = true;
     const fetchReverse = async () => {
       try {
-        const res = await fetch(
-          `https://nominatim.openstreetmap.org/reverse?format=json&lat=${selectedCoords.lat}&lon=${selectedCoords.lng}&zoom=18&addressdetails=1`,
-          {
-            headers: {
-              'Accept-Language': 'id',
-            },
-          }
-        );
-        if (!res.ok) throw new Error('HTTP ' + res.status);
-        const data = await res.json();
+        const result = await reverseGeocodeLocation(selectedCoords.lat, selectedCoords.lng);
         if (!isMounted) return;
-
-        if (data && data.display_name) {
-          const addr = data.address || {};
-          setDetectedHint({
-            displayName: data.display_name,
-            road: addr.road || addr.street,
-            village: addr.village || addr.suburb || addr.quarter,
-            subdistrict: addr.city_district || addr.subdistrict || addr.county,
-            city: addr.city || addr.town || addr.municipality,
-            state: addr.state,
-          });
+        if (result && (result.state || result.city || result.subdistrict || result.village || result.displayName)) {
+          setDetectedHint(result);
         }
       } catch {
         // Quiet
