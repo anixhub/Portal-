@@ -426,11 +426,9 @@ export async function fetchAlumniFromHostinger(forceFresh: boolean = false): Pro
   const freshParam = forceFresh ? `&fresh=true&_t=${ts}` : `&_t=${ts}`;
   const endpointsToTry = [
     `/api/db/santri?_t=${ts}`,
-    `https://attaroqqy.com/api/db/santri?fresh=true&_t=${ts}`,
-    `https://attaroqqy.com/api_alumni.php?action=get_all_santri${freshParam}`,
-    `https://alumni.attaroqqy.com/api_alumni.php?action=get_all_santri${freshParam}`,
     `https://attaroqqy.com/api_alumni.php?action=get_alumni${freshParam}`,
     `https://alumni.attaroqqy.com/api_alumni.php?action=get_alumni${freshParam}`,
+    `https://attaroqqy.com/api/db/santri?fresh=true&_t=${ts}`,
   ];
 
   for (const url of endpointsToTry) {
@@ -751,8 +749,13 @@ export async function updateAlumniInHostinger(
       if (rawPhoto && rawPhoto.startsWith('data:image/')) {
         const uploadedPath = await uploadFileToHostinger(rawPhoto, `pas_foto_${id}_${Date.now()}.jpg`);
         expressPayload.file_pas_foto = uploadedPath;
+        expressPayload.photoUrl = uploadedPath;
+        expressPayload.avatarUrl = uploadedPath;
       } else {
-        expressPayload.file_pas_foto = formatPhotoUrlForHostinger(rawPhoto);
+        const formatted = formatPhotoUrlForHostinger(rawPhoto);
+        expressPayload.file_pas_foto = formatted;
+        expressPayload.photoUrl = formatted;
+        expressPayload.avatarUrl = formatted;
       }
     }
     if (updates.coverPhotoUrl !== undefined) {
@@ -760,8 +763,11 @@ export async function updateAlumniInHostinger(
       if (rawCover && rawCover.startsWith('data:image/')) {
         const uploadedCover = await uploadFileToHostinger(rawCover, `sampul_${id}_${Date.now()}.jpg`);
         expressPayload.foto_sampul = uploadedCover;
+        expressPayload.coverPhotoUrl = uploadedCover;
       } else {
-        expressPayload.foto_sampul = formatPhotoUrlForHostinger(rawCover);
+        const formatted = formatPhotoUrlForHostinger(rawCover);
+        expressPayload.foto_sampul = formatted;
+        expressPayload.coverPhotoUrl = formatted;
       }
     }
     if (updates.password !== undefined) expressPayload.password = updates.password;
@@ -922,6 +928,17 @@ export async function updateAlumniInHostinger(
       phpPayload.username_lookup = cleanUser;
       expressPayload.username = cleanUser;
       expressPayload.username_lookup = cleanUser;
+    }
+
+    if (expressPayload.file_pas_foto) {
+      phpPayload.file_pas_foto = expressPayload.file_pas_foto;
+      phpPayload.foto = expressPayload.file_pas_foto;
+      phpPayload.photoUrl = expressPayload.file_pas_foto;
+      phpPayload.avatarUrl = expressPayload.file_pas_foto;
+    }
+    if (expressPayload.foto_sampul) {
+      phpPayload.foto_sampul = expressPayload.foto_sampul;
+      phpPayload.coverPhotoUrl = expressPayload.foto_sampul;
     }
 
     // Eksekusi pembaruan ke database Hostinger (domain utama attaroqqy.com, subdomain alumni.attaroqqy.com, dan Express DB backend via proxy)

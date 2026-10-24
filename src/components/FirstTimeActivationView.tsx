@@ -29,6 +29,7 @@ import {
   checkUsernameLive,
   checkNikLive,
   checkNoKkLive,
+  uploadFileToHostinger,
 } from '../services/apiService';
 import {
   cascadeShiftOnManualNisChange,
@@ -465,8 +466,20 @@ export const FirstTimeActivationView: React.FC<FirstTimeActivationViewProps> = (
         setGlobalAllSantriRecords(updatedPool);
       }
 
-      const cleanHandle = formatBaseUsername(rawCleanUsername);
-      const finalUsername = cleanHandle;
+      // Username yang valid persis seperti yang diinput dan lolos validasi (lowercase, tanpa @)
+      const cleanUser = rawCleanUsername.toLowerCase();
+      const finalUsername = cleanUser;
+
+      // Upload foto profil jika berupa data base64 sebelum dispatch agar payload ringkas
+      let finalPhotoUrl = photoPreview || alumni.photoUrl;
+      if (photoPreview && photoPreview.startsWith('data:image/')) {
+        try {
+          const uploaded = await uploadFileToHostinger(photoPreview, `pas_foto_${alumni.id}_${Date.now()}.jpg`);
+          if (uploaded && !uploaded.startsWith('data:')) {
+            finalPhotoUrl = uploaded;
+          }
+        } catch (e) {}
+      }
 
       const calcEntryYear = entryDate ? entryDate.substring(0, 4) : alumni.entryYear || '';
       const calcGradYear = gradDate ? gradDate.substring(0, 4) : alumni.gradYear || '';
@@ -498,7 +511,7 @@ export const FirstTimeActivationView: React.FC<FirstTimeActivationViewProps> = (
         password: password,
         isPasswordChanged: true,
         hasLoggedIn: true,
-        photoUrl: photoPreview || alumni.photoUrl,
+        photoUrl: finalPhotoUrl,
         status: 'alumni',
       };
       (updatedRecord as any).nama = formData.name;
@@ -508,7 +521,7 @@ export const FirstTimeActivationView: React.FC<FirstTimeActivationViewProps> = (
         username: finalUsername,
         newPassword: password,
         updatedAlumni: updatedRecord,
-        photoUrl: photoPreview || undefined,
+        photoUrl: finalPhotoUrl || undefined,
       });
     } catch (err) {
       console.error('Error saat menyimpan aktivasi akun:', err);

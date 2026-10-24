@@ -854,8 +854,20 @@ export default function App() {
     const cleanUser = data.username.toLowerCase().replace(/^@/, '').trim();
     const cleanPwd = data.newPassword.trim();
 
+    const finalUpdates: Partial<AlumniRecord> = {
+      ...data.updatedAlumni,
+      username: cleanUser,
+      password: cleanPwd,
+      isPasswordChanged: true,
+      hasLoggedIn: true,
+    };
+    if (data.photoUrl !== undefined) {
+      finalUpdates.photoUrl = data.photoUrl;
+    }
+
     const finalAlumni: AlumniRecord = {
       ...data.updatedAlumni,
+      ...finalUpdates,
       username: cleanUser,
       password: cleanPwd,
       isPasswordChanged: true,
@@ -863,13 +875,18 @@ export default function App() {
       photoUrl: data.photoUrl !== undefined ? data.photoUrl : data.updatedAlumni.photoUrl,
     };
 
-    // Update active session immediately so screen transitions to AlumniView
-    setCurrentSession({ role: 'alumni', alumniData: finalAlumni });
+    // 1. Await database and server persistence FIRST so other browsers and devices can login immediately
     try {
-      localStorage.setItem('attaroqqy_active_session_v1', JSON.stringify({ role: 'alumni', alumniData: finalAlumni }));
-    } catch (e) {}
+      await updateAlumniInHostinger(
+        finalAlumni.id,
+        finalUpdates,
+        finalAlumni
+      );
+    } catch (err) {
+      console.warn('Gagal menyimpan aktivasi ke Hostinger:', err);
+    }
 
-    // Simpan ke cache aktivasi khusus agar tahan terhadap refresh & sync apapun
+    // 2. Simpan ke cache aktivasi khusus agar tahan terhadap refresh & sync apapun
     try {
       let actCache: AlumniRecord[] = [];
       const rawAct = localStorage.getItem('attaroqqy_activated_alumni_cache');
@@ -886,7 +903,7 @@ export default function App() {
       localStorage.setItem('attaroqqy_activated_alumni_cache', JSON.stringify(actCache));
     } catch (e) {}
 
-    // Update local alumniList with robust matching
+    // 3. Update local alumniList with robust matching
     const isTargetAlm = (item: AlumniRecord) => {
       if (String(item.id).trim() === String(finalAlumni.id).trim()) return true;
       if (item.nik && finalAlumni.nik && item.nik.replace(/\D/g, '') === finalAlumni.nik.replace(/\D/g, '')) return true;
@@ -910,26 +927,15 @@ export default function App() {
       return finalList;
     });
 
+    // 4. Update active session after database save is complete so UI transitions seamlessly
+    setCurrentSession({ role: 'alumni', alumniData: finalAlumni });
     try {
-      await updateAlumniInHostinger(
-        finalAlumni.id,
-        {
-          ...data.updatedAlumni,
-          username: cleanUser,
-          password: cleanPwd,
-          isPasswordChanged: true,
-          hasLoggedIn: true,
-          photoUrl: data.photoUrl,
-        },
-        finalAlumni
-      );
-    } catch (err) {
-      console.warn('Gagal menyimpan aktivasi ke Hostinger:', err);
-    } finally {
-      setTimeout(() => {
-        isSyncingRef.current = false;
-      }, 5000);
-    }
+      localStorage.setItem('attaroqqy_active_session_v1', JSON.stringify({ role: 'alumni', alumniData: finalAlumni }));
+    } catch (e) {}
+
+    setTimeout(() => {
+      isSyncingRef.current = false;
+    }, 5000);
   };
 
   // Admin actions

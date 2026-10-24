@@ -48,9 +48,8 @@ async function getSantriData(forceFresh: boolean = false): Promise<any> {
   }
 
   const urlsToTry = [
+    `https://attaroqqy.com/api_alumni.php?action=get_alumni&_t=${now}`,
     `https://attaroqqy.com/api/db/santri?_t=${now}`,
-    `https://attaroqqy.com/api_alumni.php?action=get_all_santri&_t=${now}`,
-    `https://alumni.attaroqqy.com/api_alumni.php?action=get_all_santri&_t=${now}`,
     `https://alumni.attaroqqy.com/api_alumni.php?action=get_alumni&_t=${now}`,
   ];
 
@@ -85,6 +84,8 @@ async function getSantriData(forceFresh: boolean = false): Promise<any> {
             const snapNisMap = new Map(localSnapshot.data.filter((s: any) => s.nis).map((s: any) => [String(s.nis).trim(), s]));
             const snapUserMap = new Map(localSnapshot.data.filter((s: any) => s.username).map((s: any) => [String(s.username).toLowerCase().replace(/^@/, '').trim(), s]));
             
+            const matchedSnapIds = new Set<string>();
+
             rawList.forEach((item: any) => {
               const cleanItemNik = item.nik ? String(item.nik).replace(/\D/g, '').trim() : '';
               const cleanItemNis = item.nis ? String(item.nis).trim() : '';
@@ -96,6 +97,8 @@ async function getSantriData(forceFresh: boolean = false): Promise<any> {
                 (cleanItemUser ? snapUserMap.get(cleanItemUser) : undefined);
                 
               if (snap) {
+                matchedSnapIds.add(String(snap.id).trim());
+
                 // Akun yang telah diaktivasi memiliki username dan kata sandi kustom
                 const isSnapActivated = Boolean(
                   (snap.username && String(snap.username).trim() !== '') ||
@@ -153,6 +156,13 @@ async function getSantriData(forceFresh: boolean = false): Promise<any> {
                   if (snap.latitude !== undefined) item.latitude = snap.latitude;
                   if (snap.longitude !== undefined) item.longitude = snap.longitude;
                 }
+              }
+            });
+
+            // Selipkan record snapshot lokal yang belum terindeks di remote agar akun baru selalu ada
+            localSnapshot.data.forEach((s: any) => {
+              if (s && s.id && !matchedSnapIds.has(String(s.id).trim())) {
+                rawList.unshift(s);
               }
             });
           }
@@ -1003,7 +1013,7 @@ async function startServer() {
           localSnapshot.data.unshift(normalizedPayload);
         }
         try {
-          fs.writeFileSync(snapshotPath, JSON.stringify(localSnapshot, null, 2), 'utf-8');
+          fs.writeFileSync(snapshotPath, JSON.stringify(localSnapshot), 'utf-8');
         } catch (e) {
           console.warn('[Server] Error persisting santri_snapshot.json:', e);
         }
