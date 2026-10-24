@@ -2231,29 +2231,36 @@ async function startServer() {
     if (cachedQuranBookmarks[userId]) {
       return res.json({ success: true, data: cachedQuranBookmarks[userId] });
     }
-    try {
-      const remoteRes = await fetch(`https://alumni.attaroqqy.com/api_alumni.php?action=get_quran_bookmark&user_id=${encodeURIComponent(userId)}`, {
-        headers: { Accept: 'application/json' },
-        signal: AbortSignal.timeout(8000),
-      });
-      if (remoteRes.ok) {
-        const json = await remoteRes.json();
-        if (json && json.data) {
-          cachedQuranBookmarks[userId] = json.data;
-          saveJsonStore(quranBookmarksStorePath, cachedQuranBookmarks);
-          return res.json(json);
+    const remotes = [
+      `https://attaroqqy.com/api_alumni.php?action=get_quran_bookmark&user_id=${encodeURIComponent(userId)}`,
+      `https://alumni.attaroqqy.com/api_alumni.php?action=get_quran_bookmark&user_id=${encodeURIComponent(userId)}`,
+    ];
+    for (const url of remotes) {
+      try {
+        const remoteRes = await fetch(url, {
+          headers: { Accept: 'application/json' },
+          signal: AbortSignal.timeout(6000),
+        });
+        if (remoteRes.ok) {
+          const json = await remoteRes.json();
+          if (json && json.data) {
+            cachedQuranBookmarks[userId] = json.data;
+            saveJsonStore(quranBookmarksStorePath, cachedQuranBookmarks);
+            return res.json(json);
+          }
         }
-      }
-    } catch (e) {}
+      } catch (e) {}
+    }
 
     res.json({ success: true, data: null });
   });
 
   // Quran Bookmark API: POST (save)
   app.post('/api/quran/bookmark', async (req, res) => {
-    const { userId, lr, bm, page, curPage } = req.body;
-    if (userId) {
-      cachedQuranBookmarks[userId] = {
+    const effectiveId = req.body.userId || req.body.user_id;
+    const { lr, bm, page, curPage } = req.body;
+    if (effectiveId) {
+      cachedQuranBookmarks[effectiveId] = {
         lr: lr || null,
         bm: bm || {},
         page: page || curPage || 1,
@@ -2262,16 +2269,32 @@ async function startServer() {
       saveJsonStore(quranBookmarksStorePath, cachedQuranBookmarks);
     }
 
+    const payload = {
+      userId: effectiveId,
+      user_id: effectiveId,
+      lr: lr || null,
+      bm: bm || {},
+      page: page || curPage || 1,
+    };
+
     try {
-      await fetch('https://alumni.attaroqqy.com/api_alumni.php?action=save_quran_bookmark', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(req.body),
-        signal: AbortSignal.timeout(8000),
-      }).catch(() => {});
+      await Promise.allSettled([
+        fetch('https://attaroqqy.com/api_alumni.php?action=save_quran_bookmark', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+          signal: AbortSignal.timeout(8000),
+        }),
+        fetch('https://alumni.attaroqqy.com/api_alumni.php?action=save_quran_bookmark', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+          signal: AbortSignal.timeout(8000),
+        }),
+      ]);
     } catch (e) {}
 
-    res.json({ success: true, message: 'Batas Al-Qur\'an berhasil disimpan' });
+    res.json({ success: true, message: 'Batas Al-Qur\'an berhasil disimpan di database' });
   });
 
   // Wilayah API In-Memory Cache

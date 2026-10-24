@@ -241,3 +241,109 @@ export function padYearInput(raw: string): string {
   return String(num).padStart(4, '0');
 }
 
+/**
+ * Menghitung waktu relatif ramah pengguna secara dinamis:
+ * - < 1 menit (< 60 detik): "Baru saja"
+ * - >= 1 menit s/d 59 menit: "X menit yang lalu"
+ * - >= 1 jam s/d 23 jam: "X jam yang lalu"
+ * - >= 24 jam s/d 6 hari: "X hari yang lalu"
+ * - >= 7 hari: format tanggal standar DD-MM-YYYY
+ */
+export function formatRelativeTime(
+  timeInput?: string | number | Date | null,
+  fallbackDateStr?: string | null,
+  referenceId?: string | null
+): string {
+  if (!timeInput && !fallbackDateStr && !referenceId) return 'Baru saja';
+
+  let timestamp: number | null = null;
+
+  // 1. Coba jika timeInput adalah Date atau number
+  if (timeInput instanceof Date && !isNaN(timeInput.getTime())) {
+    timestamp = timeInput.getTime();
+  } else if (typeof timeInput === 'number' && !isNaN(timeInput) && timeInput > 0) {
+    timestamp = timeInput < 1e11 ? timeInput * 1000 : timeInput;
+  } else if (typeof timeInput === 'string' && timeInput.trim()) {
+    const trimmed = timeInput.trim();
+
+    // Jika string adalah timestamp digit murni (cth: "1792800878075")
+    if (/^\d{10,13}$/.test(trimmed)) {
+      const num = parseInt(trimmed, 10);
+      timestamp = num < 1e11 ? num * 1000 : num;
+    }
+    // Jika format ISO atau string tanggal valid
+    else if (!trimmed.toLowerCase().includes('lalu') && !trimmed.toLowerCase().includes('baru saja')) {
+      const parsed = Date.parse(trimmed.replace(' ', 'T'));
+      if (!isNaN(parsed)) {
+        timestamp = parsed;
+      } else {
+        const ddmmyyyyMatch = trimmed.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})(?:\s+(\d{1,2}):(\d{2}))?/);
+        if (ddmmyyyyMatch) {
+          const d = parseInt(ddmmyyyyMatch[1], 10);
+          const m = parseInt(ddmmyyyyMatch[2], 10) - 1;
+          const y = parseInt(ddmmyyyyMatch[3], 10);
+          const hr = ddmmyyyyMatch[4] ? parseInt(ddmmyyyyMatch[4], 10) : 0;
+          const mn = ddmmyyyyMatch[5] ? parseInt(ddmmyyyyMatch[5], 10) : 0;
+          const dt = new Date(y, m, d, hr, mn);
+          if (!isNaN(dt.getTime())) {
+            timestamp = dt.getTime();
+          }
+        }
+      }
+    }
+  }
+
+  // 2. Jika timestamp belum ketemu, coba ekstrak dari referenceId atau timeInput jika berbentuk "ev-179280310..." atau "ann-179280..."
+  if (!timestamp) {
+    const idToSearch = (typeof timeInput === 'string' ? timeInput : '') + ' ' + (referenceId || '');
+    const matchId = idToSearch.match(/(?:ev|ann|cmt|session|user)-(\d{10,13})/i);
+    if (matchId && matchId[1]) {
+      const num = parseInt(matchId[1], 10);
+      timestamp = num < 1e11 ? num * 1000 : num;
+    }
+  }
+
+  // 3. Jika masih belum ketemu dan ada fallbackDateStr (misal: "24-10-2026")
+  if (!timestamp && fallbackDateStr) {
+    const iso = parseDateToISO(fallbackDateStr);
+    if (iso) {
+      const parsed = Date.parse(iso);
+      if (!isNaN(parsed)) {
+        timestamp = parsed;
+      }
+    }
+  }
+
+  // Jika tetap tidak bisa diparse, tapi string sudah memuat teks relatif, kembalikan as-is
+  if (!timestamp) {
+    if (typeof timeInput === 'string' && timeInput.trim()) {
+      return timeInput.trim();
+    }
+    return 'Baru saja';
+  }
+
+  const now = Date.now();
+  const diffMs = now - timestamp;
+
+  // Jika selisih waktu negatif atau kurang dari 60 detik (1 menit), tampilkan 'Baru saja'
+  if (diffMs < 60 * 1000) {
+    return 'Baru saja';
+  }
+
+  const diffMinutes = Math.floor(diffMs / (60 * 1000));
+  if (diffMinutes < 60) {
+    return `${diffMinutes} menit yang lalu`;
+  }
+
+  const diffHours = Math.floor(diffMs / (60 * 60 * 1000));
+  if (diffHours < 24) {
+    return `${diffHours} jam yang lalu`;
+  }
+
+  const diffDays = Math.floor(diffMs / (24 * 60 * 60 * 1000));
+  if (diffDays < 7) {
+    return `${diffDays} hari yang lalu`;
+  }
+
+  return formatToDDMMYYYY(new Date(timestamp));
+}

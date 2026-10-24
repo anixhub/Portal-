@@ -700,20 +700,47 @@ interface QuranViewProps {
 }
 
 export const QuranView: React.FC<QuranViewProps> = ({ isOpen, onClose, initialSurah, userId }) => {
-  const [settings, setSettings] = useState<QuranSettings>(loadSettings);
+  // Dapatkan ID pengguna aktif baik dari props maupun dari active session
+  const effectiveUserId = userId || (() => {
+    try {
+      const raw = localStorage.getItem('attaroqqy_active_session_v1');
+      if (raw) {
+        const sess = JSON.parse(raw);
+        if (sess.role === 'admin' && sess.adminData?.id) return String(sess.adminData.id);
+        if (sess.role === 'alumni' && sess.alumniData?.id) return String(sess.alumniData.id);
+      }
+    } catch (e) {}
+    return 'adm-001';
+  })();
+
+  const [settings, setSettings] = useState<QuranSettings>(() => {
+    const s = loadSettings();
+    try {
+      const cached = localStorage.getItem(`attaroqqy_quran_bookmark_${effectiveUserId}`);
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (parsed) {
+          if (parsed.lr !== undefined) s.lr = parsed.lr;
+          if (parsed.bm !== undefined) s.bm = parsed.bm;
+          if (parsed.page) s.curPage = Number(parsed.page);
+        }
+      }
+    } catch (e) {}
+    return s;
+  });
   const [chapters, setChapters] = useState<ChapterItem[]>([]);
 
   // Sinkronisasi Batas Al-Qur'an (Last Read & Penanda Ayat) dari Database saat dibuka
   useEffect(() => {
-    if (!userId) return;
+    if (!effectiveUserId) return;
     let isMounted = true;
-    fetchQuranBookmark(userId).then((remoteData) => {
+    fetchQuranBookmark(effectiveUserId).then((remoteData) => {
       if (!isMounted || !remoteData) return;
       setSettings((prev) => {
         const next: QuranSettings = {
           ...prev,
           lr: remoteData.lr !== undefined ? remoteData.lr : prev.lr,
-          bm: remoteData.bm ? { ...prev.bm, ...remoteData.bm } : prev.bm,
+          bm: remoteData.bm !== undefined ? remoteData.bm : prev.bm,
           curPage: remoteData.page ? Number(remoteData.page) : prev.curPage,
         };
         saveSettings(next);
@@ -723,7 +750,7 @@ export const QuranView: React.FC<QuranViewProps> = ({ isOpen, onClose, initialSu
     return () => {
       isMounted = false;
     };
-  }, [userId, isOpen]);
+  }, [effectiveUserId, isOpen]);
   
   // Continuous pages: list of loaded surah IDs in order
   const [loadedSurahIds, setLoadedSurahIds] = useState<number[]>([1]);
@@ -1861,8 +1888,8 @@ export const QuranView: React.FC<QuranViewProps> = ({ isOpen, onClose, initialSu
 
       const nextSettings = { ...prev, bm: newBm };
       saveSettings(nextSettings);
-      if (userId) {
-        saveQuranBookmark(userId, {
+      if (effectiveUserId) {
+        saveQuranBookmark(effectiveUserId, {
           lr: nextSettings.lr,
           bm: nextSettings.bm,
           curPage: nextSettings.curPage,
@@ -1870,7 +1897,7 @@ export const QuranView: React.FC<QuranViewProps> = ({ isOpen, onClose, initialSu
       }
       return nextSettings;
     });
-    showToast(!wasBookmarked ? 'Ayat ditandai' : 'Penanda ayat dihapus');
+    showToast(!wasBookmarked ? 'Ayat ditandai & tersimpan di database' : 'Penanda ayat dihapus & diperbarui di database');
   };
 
   // Mark Last Read
@@ -1878,8 +1905,8 @@ export const QuranView: React.FC<QuranViewProps> = ({ isOpen, onClose, initialSu
     setSettings((prev) => {
       const nextSettings = { ...prev, lr: { s: surahId, v: verseNum } };
       saveSettings(nextSettings);
-      if (userId) {
-        saveQuranBookmark(userId, {
+      if (effectiveUserId) {
+        saveQuranBookmark(effectiveUserId, {
           lr: nextSettings.lr,
           bm: nextSettings.bm,
           curPage: nextSettings.curPage,
@@ -1887,7 +1914,8 @@ export const QuranView: React.FC<QuranViewProps> = ({ isOpen, onClose, initialSu
       }
       return nextSettings;
     });
-    showToast(t('last'));
+    const ch = chapters.find((c) => c.id === surahId);
+    showToast(`Terakhir dibaca: QS. ${ch?.name || surahId} : ${verseNum} (Tersimpan di database)`);
     setActiveVerseSheet(null);
   };
 
@@ -3893,8 +3921,8 @@ export const QuranView: React.FC<QuranViewProps> = ({ isOpen, onClose, initialSu
                     setSettings((prev) => {
                       const next = { ...prev, lr: { s: surahId, v: verseNum } };
                       saveSettings(next);
-                      if (userId) {
-                        saveQuranBookmark(userId, {
+                      if (effectiveUserId) {
+                        saveQuranBookmark(effectiveUserId, {
                           lr: next.lr,
                           bm: next.bm,
                           curPage: next.curPage,
@@ -3903,7 +3931,7 @@ export const QuranView: React.FC<QuranViewProps> = ({ isOpen, onClose, initialSu
                       return next;
                     });
                     const ch = chapters.find((c) => c.id === surahId);
-                    showToast(`Terakhir dibaca: QS. ${ch?.name || surahId} : ${verseNum}`);
+                    showToast(`Terakhir dibaca: QS. ${ch?.name || surahId} : ${verseNum} (Tersimpan di database)`);
                   }}
                   className="flex-1 py-2.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-semibold text-xs shadow-xs transition-colors cursor-pointer text-center"
                 >

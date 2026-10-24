@@ -2,6 +2,7 @@ import React, { useState, useRef } from 'react';
 import { Heart, Send } from 'lucide-react';
 import { AnnouncementItem, EventComment } from '../../types';
 import { formatAuthorUsername } from '../../utils/authorUtils';
+import { formatRelativeTime } from '../../utils/dateUtils';
 
 interface AnnouncementCommentsModalProps {
   announcement: AnnouncementItem;
@@ -157,7 +158,7 @@ export const AnnouncementCommentsModal: React.FC<AnnouncementCommentsModalProps>
                         >
                           {formatAuthorUsername(c.authorHandle || c.authorName)}
                         </span>
-                        <span className="text-[11px] text-slate-400">{c.timeAgo}</span>
+                        <span className="text-[11px] text-slate-400">{formatRelativeTime(c.timeAgo, null, c.id)}</span>
                       </div>
 
                       <p className="text-slate-700 text-xs mt-1 leading-snug break-words">
@@ -240,7 +241,7 @@ export const AnnouncementCommentsModal: React.FC<AnnouncementCommentsModalProps>
                               >
                                 {formatAuthorUsername(rep.authorHandle || rep.authorName)}
                               </span>
-                              <span className="text-[10px] text-slate-400">{rep.timeAgo}</span>
+                              <span className="text-[10px] text-slate-400">{formatRelativeTime(rep.timeAgo, null, rep.id)}</span>
                             </div>
 
                             <p className="text-slate-700 text-xs mt-0.5 leading-snug break-words">

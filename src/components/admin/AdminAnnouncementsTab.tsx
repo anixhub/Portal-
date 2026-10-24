@@ -19,7 +19,7 @@ import { formatAudienceSummary } from '../common/AudienceTargetModal';
 import { EventCommentsModal } from '../common/EventCommentsModal';
 import { INITIAL_ANNOUNCEMENT_COMMENTS } from '../../data/mockData';
 import { formatAuthorUsername, resolveAuthorAlumniRecord, resolvePostAuthorAvatar } from '../../utils/authorUtils';
-import { formatToDDMMYYYY } from '../../utils/dateUtils';
+import { formatToDDMMYYYY, formatRelativeTime } from '../../utils/dateUtils';
 import { getAlumniPhotoUrl, handleImageFallbackError, getInitials } from '../../utils/photoUtils';
 import { 
   fetchCommentsFromDatabase, 
@@ -116,7 +116,7 @@ Diterbitkan oleh: ${ann.authorName || 'Pondok Pesantren At-taroqqy'}`;
             </h4>
             <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
               <span className="text-[11px] text-slate-400">
-                {formatToDDMMYYYY(ann.date)}
+                {formatRelativeTime((ann as any).createdAt || (ann as any).postedAt, ann.date, ann.id)}
               </span>
               <span className="text-[10px] font-bold text-sky-700 bg-sky-50 border border-sky-200 px-2 py-0.5 rounded-full flex items-center gap-1">
                 <Globe className="w-2.5 h-2.5 text-sky-600" />
@@ -288,7 +288,7 @@ export const AdminAnnouncementsTab: React.FC<AdminAnnouncementsTabProps> = ({
         authorAvatar: adminUser.avatar,
         avatarRing: true,
         content: text.trim(),
-        timeAgo: 'Baru saja',
+        timeAgo: new Date().toISOString(),
         likesCount: 0,
         isLiked: false,
       };
@@ -316,7 +316,7 @@ export const AdminAnnouncementsTab: React.FC<AdminAnnouncementsTabProps> = ({
         authorAvatar: adminUser.avatar,
         content: text.trim(),
         likesCount: 0,
-        timeAgo: 'Baru saja',
+        timeAgo: newReply.timeAgo,
       } as any, 'announcement');
     } else {
       const newComment: EventComment = {
@@ -327,7 +327,7 @@ export const AdminAnnouncementsTab: React.FC<AdminAnnouncementsTabProps> = ({
         authorAvatar: adminUser.avatar,
         avatarRing: true,
         content: text.trim(),
-        timeAgo: 'Baru saja',
+        timeAgo: new Date().toISOString(),
         likesCount: 0,
         isLiked: false,
         repliesCount: 0,

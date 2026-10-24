@@ -2015,6 +2015,7 @@ export async function fetchQuranBookmark(userId: string): Promise<{
   const endpoints = [
     `/api/quran/bookmark/${encodeURIComponent(userId)}?_t=${ts}`,
     `${HOSTINGER_API_URL}?action=get_quran_bookmark&user_id=${encodeURIComponent(userId)}&_t=${ts}`,
+    `https://attaroqqy.com/api_alumni.php?action=get_quran_bookmark&user_id=${encodeURIComponent(userId)}&_t=${ts}`,
     `https://alumni.attaroqqy.com/api_alumni.php?action=get_quran_bookmark&user_id=${encodeURIComponent(userId)}&_t=${ts}`,
   ];
 
@@ -2064,11 +2065,13 @@ export async function saveQuranBookmark(
   const endpoints = [
     '/api/quran/bookmark',
     `${HOSTINGER_API_URL}?action=save_quran_bookmark`,
+    'https://attaroqqy.com/api_alumni.php?action=save_quran_bookmark',
     'https://alumni.attaroqqy.com/api_alumni.php?action=save_quran_bookmark',
   ];
 
   const payload = {
     userId,
+    user_id: userId,
     lr: data.lr,
     bm: data.bm || {},
     page: data.curPage || data.page || 1,

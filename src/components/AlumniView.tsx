@@ -114,7 +114,9 @@ import {
   formatMonthInput,
   padDayInput,
   padMonthInput,
-  padYearInput 
+  padYearInput,
+  formatRelativeTime,
+  parseDateToISO
 } from '../utils/dateUtils';
 import { RealQrCode } from './common/RealQrCode';
 import { generateNisFromEntryDate, calculateCascadeShiftOnEntryDateChange } from '../utils/alumniIdentityUtils';
@@ -137,28 +139,41 @@ const matchesAudienceTarget = (target?: AudienceTarget, alumniUser?: AlumniRecor
 
   // 2. Region check
   if (target.regionScope === 'khusus') {
-    if (target.villageName) {
-      const userDesa = (alumniUser.desa || '').toLowerCase();
-      const targetDesa = target.villageName.toLowerCase();
-      if (!userDesa.includes(targetDesa) && !targetDesa.includes(userDesa)) {
+    const clean = (s?: string) =>
+      (s || '').toLowerCase().replace(/^(provinsi|kabupaten|kab\.|kota|kecamatan|kec\.|desa|kelurahan)\s+/i, '').trim();
+
+    // Check province if specified
+    if (target.provinceName && target.provinceName.trim()) {
+      const userProv = clean(alumniUser.province);
+      const targetProv = clean(target.provinceName);
+      if (userProv && targetProv && !userProv.includes(targetProv) && !targetProv.includes(userProv)) {
         return false;
       }
-    } else if (target.districtName) {
-      const userKec = (alumniUser.kecamatan || '').toLowerCase();
-      const targetKec = target.districtName.toLowerCase();
-      if (!userKec.includes(targetKec) && !targetKec.includes(userKec)) {
+    }
+
+    // Check regency / city if specified
+    if (target.regencyName && target.regencyName.trim()) {
+      const userCity = clean(alumniUser.city);
+      const targetReg = clean(target.regencyName);
+      if (userCity && targetReg && !userCity.includes(targetReg) && !targetReg.includes(userCity)) {
         return false;
       }
-    } else if (target.regencyName) {
-      const userCity = (alumniUser.city || '').toLowerCase();
-      const targetReg = target.regencyName.toLowerCase();
-      if (!userCity.includes(targetReg) && !targetReg.includes(userCity)) {
+    }
+
+    // Check district / kecamatan if specified
+    if (target.districtName && target.districtName.trim()) {
+      const userKec = clean(alumniUser.kecamatan);
+      const targetKec = clean(target.districtName);
+      if (userKec && targetKec && !userKec.includes(targetKec) && !targetKec.includes(userKec)) {
         return false;
       }
-    } else if (target.provinceName) {
-      const userProv = (alumniUser.province || '').toLowerCase();
-      const targetProv = target.provinceName.toLowerCase();
-      if (!userProv.includes(targetProv) && !targetProv.includes(userProv)) {
+    }
+
+    // Check village / desa if specified
+    if (target.villageName && target.villageName.trim()) {
+      const userDesa = clean(alumniUser.desa);
+      const targetDesa = clean(target.villageName);
+      if (userDesa && targetDesa && !userDesa.includes(targetDesa) && !targetDesa.includes(userDesa)) {
         return false;
       }
     }
@@ -510,13 +525,57 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
     return true;
   });
 
-  // Countdown timer untuk Event Terdekat (12 Oktober 2026, 08:00 WIB)
-  const [countdown, setCountdown] = useState({ days: 11, hours: 12, minutes: 45, seconds: 20 });
+  // Filter acara yang HANYA relevan dan bisa didatangi oleh akun alumni yang sedang login
+  const relevantEvents = events.filter((ev) => matchesAudienceTarget(ev.targetAudience, alumni));
+
+  // Helper untuk timestamp pelaksanaan acara
+  const getEventTimestamp = (ev: EventAgenda): number => {
+    try {
+      const iso = parseDateToISO(ev.date);
+      if (!iso) return 0;
+      let timeStr = '08:00';
+      if (ev.time) {
+        const timeMatch = ev.time.match(/(\d{1,2})[:.](\d{2})/);
+        if (timeMatch) {
+          timeStr = `${timeMatch[1].padStart(2, '0')}:${timeMatch[2]}`;
+        }
+      }
+      const dt = new Date(`${iso}T${timeStr}:00`);
+      return isNaN(dt.getTime()) ? 0 : dt.getTime();
+    } catch (e) {
+      return 0;
+    }
+  };
+
+  // Pilih acara terdekat yang relevan dengan akun alumni ini:
+  // Acara mendatang yang paling dekat tanggalnya. Jika tidak ada, ambil acara relevan pertama.
+  const nearestEvent = (() => {
+    if (relevantEvents.length === 0) return null;
+    const now = Date.now();
+    const upcoming = relevantEvents
+      .filter((ev) => {
+        const ts = getEventTimestamp(ev);
+        return ts >= now - 24 * 60 * 60 * 1000;
+      })
+      .sort((a, b) => getEventTimestamp(a) - getEventTimestamp(b));
+
+    if (upcoming.length > 0) return upcoming[0];
+    return relevantEvents[0];
+  })();
+
+  // Countdown timer dinamis untuk nearestEvent yang relevan
+  const [countdown, setCountdown] = useState({ days: 0, hours: 0, minutes: 0, seconds: 0 });
 
   useEffect(() => {
-    const targetDate = new Date('2026-10-12T08:00:00+07:00').getTime();
+    if (!nearestEvent) {
+      setCountdown({ days: 0, hours: 0, minutes: 0, seconds: 0 });
+      return;
+    }
+    const targetDate = getEventTimestamp(nearestEvent);
+    if (!targetDate) return;
+
     const calculateCountdown = () => {
-      const now = new Date().getTime();
+      const now = Date.now();
       const difference = targetDate - now;
       if (difference <= 0) {
         setCountdown({ days: 0, hours: 0, minutes: 0, seconds: 0 });
@@ -531,7 +590,7 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
     calculateCountdown();
     const interval = setInterval(calculateCountdown, 1000);
     return () => clearInterval(interval);
-  }, []);
+  }, [nearestEvent?.id, nearestEvent?.date, nearestEvent?.time]);
 
   // Filter Jangkauan untuk Agenda & Pengumuman
   const [alumniEventScopeFilter, setAlumniEventScopeFilter] = useState<'Semua' | 'Umum' | 'Provinsi' | 'Kabupaten' | 'Kecamatan' | 'Desa'>('Semua');
@@ -1134,7 +1193,7 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
         authorHandle: userHandle,
         authorAvatar: alumni.photoUrl,
         content: text.trim(),
-        timeAgo: 'Baru saja',
+        timeAgo: new Date().toISOString(),
         likesCount: 0,
         isLiked: false,
       };
@@ -1161,7 +1220,7 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
         authorAvatar: alumni.photoUrl,
         content: text.trim(),
         likesCount: 0,
-        timeAgo: 'Baru saja',
+        timeAgo: newReply.timeAgo,
       } as any, 'announcement');
     } else {
       const newComment: EventComment = {
@@ -1171,7 +1230,7 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
         authorHandle: userHandle,
         authorAvatar: alumni.photoUrl,
         content: text.trim(),
-        timeAgo: 'Baru saja',
+        timeAgo: new Date().toISOString(),
         likesCount: 0,
         isLiked: false,
         repliesCount: 0,
@@ -1607,7 +1666,7 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
       avatarRing: true,
       status: rsvpModalData.type,
       content: finalNote,
-      timeAgo: 'Baru saja',
+      timeAgo: new Date().toISOString(),
       likesCount: 0,
       repliesCount: 0,
       replies: [],
@@ -1649,7 +1708,7 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
         authorAvatar: alumni.photoUrl,
         avatarRing: true,
         content: text,
-        timeAgo: 'Baru saja',
+        timeAgo: new Date().toISOString(),
         likesCount: 0,
       };
 
@@ -1675,7 +1734,7 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
         authorAvatar: alumni.photoUrl,
         content: text,
         likesCount: 0,
-        timeAgo: 'Baru saja',
+        timeAgo: newReply.timeAgo,
       } as any, 'event');
       triggerToast('Balasan berhasil dikirim!');
     } else {
@@ -1688,7 +1747,7 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
         authorAvatar: alumni.photoUrl,
         avatarRing: true,
         content: text,
-        timeAgo: 'Baru saja',
+        timeAgo: new Date().toISOString(),
         likesCount: 0,
         repliesCount: 0,
         replies: [],
@@ -2219,17 +2278,17 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
               </div>
 
               {/* Kotak Event Beranda */}
-              {events.length > 0 && events[0] ? (
+              {nearestEvent ? (
                 <>
                   <div
                     onClick={() => setActiveTab('events')}
                     className="relative z-10 rounded-[28px] overflow-hidden shadow-md aspect-[16/10] sm:aspect-[16/9] cursor-pointer group select-none border border-slate-200/60 bg-gradient-to-br from-emerald-950 via-slate-900 to-sky-950 flex flex-col justify-end"
                   >
-                    {(Boolean(events[0]?.posterUrl?.trim()) || (events[0]?.images && events[0]?.images.length > 0)) && (
+                    {(Boolean(nearestEvent.posterUrl?.trim()) || (nearestEvent.images && nearestEvent.images.length > 0)) && (
                       <>
                         <img
-                          src={(events[0]?.images && events[0]?.images[0]) || events[0]?.posterUrl}
-                          alt={events[0]?.title || 'Agenda Terdekat'}
+                          src={(nearestEvent.images && nearestEvent.images[0]) || nearestEvent.posterUrl}
+                          alt={nearestEvent.title || 'Agenda Terdekat'}
                           className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                         />
                         {/* Dark Vignette Overlay */}
@@ -2240,18 +2299,22 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
                     {/* Bottom Overlay: Judul Acara & Tag Lokasi dan Waktu tepat di bawah judul */}
                     <div className="relative z-10 p-4 pt-10 bg-gradient-to-t from-black/95 via-black/80 to-transparent">
                       <h3 className="font-bold text-base sm:text-lg text-white leading-snug drop-shadow-sm mb-2">
-                        {events[0]?.title}
+                        {nearestEvent.title}
                       </h3>
 
                       {/* Tag Lokasi dan Waktu tepat di bawah judul */}
                       <div className="flex flex-wrap items-center gap-2">
                         <div className="backdrop-blur-md bg-black/50 border border-white/20 text-white text-[11px] font-semibold px-3 py-1.5 rounded-full flex items-center gap-1.5 shadow-xs">
                           <Calendar className="w-3.5 h-3.5 text-sky-400" />
-                          <span>{events[0]?.date ? formatToDDMMYYYY(events[0].date) : 'Belum ditentukan'}</span>
+                          <span>{nearestEvent.date ? formatToDDMMYYYY(nearestEvent.date) : 'Belum ditentukan'}</span>
                         </div>
                         <div className="backdrop-blur-md bg-black/50 border border-white/20 text-white text-[11px] font-semibold px-3 py-1.5 rounded-full flex items-center gap-1.5 shadow-xs">
                           <MapPin className="w-3.5 h-3.5 text-rose-400" />
-                          <span>{events[0]?.location || 'Aula Ponpes At-taroqqy'}</span>
+                          <span>{nearestEvent.location || 'Aula Ponpes At-taroqqy'}</span>
+                        </div>
+                        <div className="backdrop-blur-md bg-black/50 border border-white/20 text-white text-[11px] font-semibold px-3 py-1.5 rounded-full flex items-center gap-1.5 shadow-xs">
+                          <Globe className="w-3.5 h-3.5 text-emerald-400" />
+                          <span>{formatAudienceSummary(nearestEvent.targetAudience)}</span>
                         </div>
                       </div>
                     </div>
@@ -2296,8 +2359,14 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
                   </div>
                 </>
               ) : (
-                <div className="bg-white rounded-3xl border border-slate-200/90 p-5 text-center text-xs text-slate-500 shadow-2xs">
-                  Belum ada agenda terdekat saat ini.
+                <div className="bg-white rounded-3xl border border-slate-200/90 p-6 text-center shadow-2xs">
+                  <div className="w-10 h-10 rounded-full bg-slate-100 text-slate-400 mx-auto flex items-center justify-center mb-2">
+                    <Calendar className="w-5 h-5" />
+                  </div>
+                  <p className="text-xs font-bold text-slate-700">Belum ada agenda terdekat saat ini</p>
+                  <p className="text-[11px] text-slate-500 mt-1 max-w-xs mx-auto">
+                    Hanya agenda umum dan agenda khusus wilayah {alumni.city || alumni.province || 'Anda'} yang dapat dihadiri akun Anda.
+                  </p>
                 </div>
               )}
             </div>
@@ -2400,7 +2469,7 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
                           {/* Waktu Posting & Jangkauan */}
                           <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
                             <span className="text-[11px] text-slate-400">
-                              {ev.postedAt || '2 jam yang lalu'}
+                              {formatRelativeTime(ev.postedAt, ev.date, ev.id)}
                             </span>
                             <span className="text-[10px] font-bold text-sky-700 bg-sky-50 border border-sky-200 px-2 py-0.5 rounded-full flex items-center gap-1">
                               <Globe className="w-2.5 h-2.5 text-sky-600" />
@@ -4963,7 +5032,7 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
                         </h4>
                         <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
                           <span className="text-[11px] text-slate-400">
-                            {formatToDDMMYYYY(ann.date)}
+                            {formatRelativeTime((ann as any).createdAt || (ann as any).postedAt, ann.date, ann.id)}
                           </span>
                           <span className="text-[10px] font-bold text-sky-700 bg-sky-50 border border-sky-200 px-2 py-0.5 rounded-full flex items-center gap-1">
                             <Globe className="w-2.5 h-2.5 text-sky-600" />

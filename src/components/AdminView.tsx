@@ -87,7 +87,7 @@ import { MajmuahView } from './MajmuahView';
 import logoPonpesImg from '../assets/images/logo_ponpes_attaroqqy_1790648746461.jpg';
 import posterReuniImg from '../assets/images/poster_reuni_akbar_1790648045947.jpg';
 
-import { formatToDDMMYYYY, parseDateToISO } from '../utils/dateUtils';
+import { formatToDDMMYYYY, parseDateToISO, formatRelativeTime } from '../utils/dateUtils';
 
 const formatToIndonesianDate = (isoStr: string) => formatToDDMMYYYY(isoStr);
 const parseIndonesianDateToIso = (str: string) => parseDateToISO(str);
@@ -609,7 +609,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
         authorHandle: adminUser.username || admin.username || '@admin_pusat',
         authorAvatar: adminUser.avatar || admin.avatar,
         content: text.trim(),
-        timeAgo: 'Baru saja',
+        timeAgo: new Date().toISOString(),
         likesCount: 0,
       };
 
@@ -634,7 +634,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
         authorHandle: newReply.authorHandle,
         authorAvatar: newReply.authorAvatar,
         content: newReply.content,
-        timeAgo: 'Baru saja',
+        timeAgo: newReply.timeAgo,
         likesCount: 0,
         replies: [],
       }, 'event');
@@ -648,7 +648,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
         authorAvatar: adminUser.avatar || admin.avatar,
         avatarRing: true,
         content: text.trim(),
-        timeAgo: 'Baru saja',
+        timeAgo: new Date().toISOString(),
         likesCount: 0,
         repliesCount: 0,
         replies: [],
@@ -777,7 +777,12 @@ export const AdminView: React.FC<AdminViewProps> = ({
   const [endMinute, setEndMinute] = useState('00');
   const [eventLocation, setEventLocation] = useState('');
   const [eventDesc, setEventDesc] = useState('');
-  const [eventAudienceTarget, setEventAudienceTarget] = useState<AudienceTarget>({ gender: 'semua', regionScope: 'semua' });
+  const [eventAudienceTarget, setEventAudienceTarget] = useState<AudienceTarget>(() => {
+    if (adminUser.regionLevel && adminUser.regionLevel !== 'pusat' && adminUser.role !== 'super_admin' && adminUser.username !== '@admin_pusat') {
+      return getAdminDefaultAudience(adminUser);
+    }
+    return { gender: 'semua', regionScope: 'semua' };
+  });
   const [isEventAudienceModalOpen, setIsEventAudienceModalOpen] = useState(false);
   const [eventPosterUrl, setEventPosterUrl] = useState<string>('');
   const [eventImages, setEventImages] = useState<string[]>([]);
@@ -1046,7 +1051,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
       setEventDesc(agendaDraft.desc);
       setEventPosterUrl(agendaDraft.posterUrl || '');
       setEventImages(agendaDraft.images || (agendaDraft.posterUrl ? [agendaDraft.posterUrl] : []));
-      setEventAudienceTarget(agendaDraft.targetAudience || { gender: 'semua', regionScope: 'semua' });
+      setEventAudienceTarget(agendaDraft.targetAudience || getAdminDefaultAudience(adminUser));
     } else {
       setEventTitle('');
       setEventDate('');
@@ -1204,12 +1209,10 @@ export const AdminView: React.FC<AdminViewProps> = ({
         authorName: adminUser.name,
         authorHandle: authorHandleFormatted,
         authorAvatar: adminUser.avatar || logoPonpesImg,
-        postedAt: 'Baru saja',
+        postedAt: new Date().toISOString(),
         posterUrl: finalPoster,
         images: finalImages,
-        targetAudience: (adminUser.regionLevel && adminUser.regionLevel !== 'pusat')
-          ? getAdminDefaultAudience(adminUser)
-          : eventAudienceTarget,
+        targetAudience: eventAudienceTarget,
       };
       onAddEvent(created);
       saveEventToHostinger(created);
@@ -1372,7 +1375,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
                           </h4>
                           <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
                             <span className="text-[11px] text-slate-400">
-                              {ev.postedAt || '2 jam yang lalu'}
+                              {formatRelativeTime(ev.postedAt, ev.date, ev.id)}
                             </span>
                             <span className="text-[10px] font-bold text-sky-700 bg-sky-50 border border-sky-200 px-2 py-0.5 rounded-full flex items-center gap-1">
                               <Globe className="w-2.5 h-2.5 text-sky-600" />
@@ -3742,6 +3745,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
         onUpdate={handleUpdateAnnouncement}
         initialData={editingAnnouncement}
         triggerToast={triggerToast}
+        adminUser={adminUser}
         author={{
           name: adminUser.name || 'Ust. H. Abdurrahman, M.Pd.',
           username: adminUser.username || '@admin_pusat',
@@ -3756,6 +3760,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
           isOpen={isEventAudienceModalOpen}
           onClose={() => setIsEventAudienceModalOpen(false)}
           initialTarget={eventAudienceTarget}
+          admin={adminUser}
           onSave={(target) => {
             setEventAudienceTarget(target);
             triggerToast('Jangkauan agenda diperbarui');

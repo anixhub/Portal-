@@ -2,6 +2,7 @@ import React, { useState, useRef } from 'react';
 import { Heart, Send } from 'lucide-react';
 import { EventAgenda, EventComment } from '../../types';
 import { formatAuthorUsername } from '../../utils/authorUtils';
+import { formatRelativeTime } from '../../utils/dateUtils';
 
 interface EventCommentsModalProps {
   event?: EventAgenda | { id: string; title?: string; attendeesCount?: number; absentCount?: number };
@@ -205,7 +206,7 @@ export const EventCommentsModal: React.FC<EventCommentsModalProps> = ({
                         >
                           {formatAuthorUsername(c.authorHandle || c.authorName)}
                         </span>
-                        <span className="text-[11px] text-slate-400">{c.timeAgo}</span>
+                        <span className="text-[11px] text-slate-400">{formatRelativeTime(c.timeAgo, null, c.id)}</span>
                         {!hideAttendanceLabel && !hideAttendanceSummary && c.status && c.status !== 'netral' && (
                           <span
                             className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${
@@ -302,7 +303,7 @@ export const EventCommentsModal: React.FC<EventCommentsModalProps> = ({
                               >
                                 {formatAuthorUsername(rep.authorHandle || rep.authorName)}
                               </span>
-                              <span className="text-[10px] text-slate-400">{rep.timeAgo}</span>
+                              <span className="text-[10px] text-slate-400">{formatRelativeTime(rep.timeAgo, null, rep.id)}</span>
                             </div>
 
                             <p className="text-slate-700 text-xs mt-0.5 leading-snug break-words">

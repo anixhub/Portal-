@@ -15,6 +15,8 @@ import { AnnouncementItem, AudienceTarget } from '../../types';
 import logoPonpesImg from '../../assets/images/logo_ponpes_attaroqqy_1790648746461.jpg';
 import { AudienceTargetModal, formatAudienceSummary } from './AudienceTargetModal';
 import { formatToDDMMYYYY } from '../../utils/dateUtils';
+import { AdminUser } from '../../types';
+import { getAdminDefaultAudience } from '../../utils/adminAuthorityUtils';
 
 interface CreateAnnouncementModalProps {
   isOpen: boolean;
@@ -23,6 +25,7 @@ interface CreateAnnouncementModalProps {
   onUpdate?: (id: string, updated: Partial<AnnouncementItem>) => void;
   initialData?: AnnouncementItem | null;
   triggerToast: (msg: string) => void;
+  adminUser?: AdminUser;
   author: {
     name: string;
     username?: string;
@@ -39,11 +42,21 @@ export const CreateAnnouncementModal: React.FC<CreateAnnouncementModalProps> = (
   onUpdate,
   initialData,
   triggerToast,
+  adminUser,
   author,
 }) => {
+  const isPusat = !adminUser || 
+    adminUser.regionLevel === 'pusat' || 
+    adminUser.role === 'super_admin' || 
+    adminUser.username === '@admin_pusat';
+
+  const defaultScope: AudienceTarget = adminUser && !isPusat 
+    ? getAdminDefaultAudience(adminUser) 
+    : { gender: 'semua', regionScope: 'semua' };
+
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
-  const [targetAudience, setTargetAudience] = useState<AudienceTarget>({ gender: 'semua', regionScope: 'semua' });
+  const [targetAudience, setTargetAudience] = useState<AudienceTarget>(defaultScope);
   const [isAudienceModalOpen, setIsAudienceModalOpen] = useState(false);
   const [images, setImages] = useState<string[]>([]);
   const [currentSlide, setCurrentSlide] = useState(0);
@@ -56,17 +69,17 @@ export const CreateAnnouncementModal: React.FC<CreateAnnouncementModalProps> = (
     if (initialData) {
       setTitle(initialData.title || '');
       setContent(initialData.content || '');
-      setTargetAudience(initialData.targetAudience || { gender: 'semua', regionScope: 'semua' });
+      setTargetAudience(initialData.targetAudience || defaultScope);
       setImages(initialData.images || []);
       setCurrentSlide(0);
     } else {
       setTitle('');
       setContent('');
-      setTargetAudience({ gender: 'semua', regionScope: 'semua' });
+      setTargetAudience(defaultScope);
       setImages([]);
       setCurrentSlide(0);
     }
-  }, [initialData, isOpen]);
+  }, [initialData, isOpen, adminUser]);
 
   // Sync current slide on scroll
   const handleSliderScroll = () => {
@@ -356,6 +369,7 @@ export const CreateAnnouncementModal: React.FC<CreateAnnouncementModalProps> = (
           isOpen={isAudienceModalOpen}
           onClose={() => setIsAudienceModalOpen(false)}
           initialTarget={targetAudience}
+          admin={adminUser}
           onSave={(target) => {
             setTargetAudience(target);
             triggerToast('Jangkauan pengumuman diperbarui');

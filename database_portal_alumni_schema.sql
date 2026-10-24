@@ -319,4 +319,17 @@ CREATE TABLE IF NOT EXISTS `notifications` (
   INDEX `idx_notif_read` (`is_read`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- ------------------------------------------------------------------------------
+-- 12. TABEL: user_quran_bookmarks (Batas Al-Qur'an & Penanda Ayat Pengguna)
+-- ------------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS `user_quran_bookmarks` (
+  `user_id` VARCHAR(64) NOT NULL PRIMARY KEY,
+  `last_read_surah` INT(11) DEFAULT NULL,
+  `last_read_verse` INT(11) DEFAULT NULL,
+  `bookmarks_json` LONGTEXT DEFAULT NULL,
+  `page` INT(11) DEFAULT 1,
+  `updated_at` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 SET FOREIGN_KEY_CHECKS = 1;
+
